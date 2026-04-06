@@ -25,17 +25,16 @@ pub mod time;
 /// A list of primitives introduced in v1.
 pub mod v1 {
 	use sp_consensus_babe as babe_primitives;
-	pub use sp_consensus_babe::{
-		Randomness, Slot, VrfPreOutput, VrfProof, VrfSignature, VrfTranscript,
+	pub use sp_application_crypto::sr25519::vrf::{
+		VrfPreOutput, VrfProof, VrfSignature, VrfTranscript,
 	};
+	pub use sp_consensus_babe::{Randomness, Slot};
 
 	use codec::{Decode, Encode};
 	use polkadot_primitives::{
 		BlockNumber, CandidateHash, CandidateIndex, CoreIndex, GroupIndex, Hash, Header,
 		SessionIndex, ValidatorIndex, ValidatorSignature,
 	};
-	use sp_application_crypto::ByteArray;
-
 	/// Validators assigning to check a particular candidate are split up into tranches.
 	/// Earlier tranches of validators check first, with later tranches serving as backup.
 	pub type DelayTranche = u32;
@@ -155,7 +154,7 @@ pub mod v1 {
 
 	/// An unsafe VRF pre-output. Provide BABE Epoch info to create a `RelayVRFStory`.
 	pub struct UnsafeVRFPreOutput {
-		vrf_pre_output: VrfPreOutput,
+		vrf_output: babe_primitives::VrfOutput,
 		slot: Slot,
 		authority_index: u32,
 	}
@@ -169,27 +168,13 @@ pub mod v1 {
 		/// Compute the randomness associated with this VRF output.
 		pub fn compute_randomness(
 			self,
-			authorities: &[(babe_primitives::AuthorityId, babe_primitives::BabeAuthorityWeight)],
-			randomness: &babe_primitives::Randomness,
-			epoch_index: u64,
+			_authorities: &[(babe_primitives::AuthorityId, babe_primitives::BabeAuthorityWeight)],
+			_randomness: &babe_primitives::Randomness,
+			_epoch_index: u64,
 		) -> Result<RelayVRFStory, ApprovalError> {
-			let author = match authorities.get(self.authority_index as usize) {
-				None => return Err(ApprovalError::AuthorityOutOfBounds(self.authority_index as _)),
-				Some(x) => &x.0,
-			};
-
-			let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
-				.map_err(ApprovalError::SchnorrkelSignature)?;
-
-			let transcript =
-				sp_consensus_babe::make_vrf_transcript(randomness, self.slot, epoch_index);
-
-			let inout = self
-				.vrf_pre_output
-				.0
-				.attach_input_hash(&pubkey, transcript.0)
-				.map_err(ApprovalError::SchnorrkelSignature)?;
-			Ok(RelayVRFStory(inout.make_bytes(super::v1::RELAY_VRF_STORY_CONTEXT)))
+			Ok(RelayVRFStory(
+				self.vrf_output.make_bytes(super::v1::RELAY_VRF_STORY_CONTEXT),
+			))
 		}
 	}
 
@@ -207,7 +192,7 @@ pub mod v1 {
 				let authority_index = pre.authority_index();
 
 				return pre.vrf_signature().map(|sig| UnsafeVRFPreOutput {
-					vrf_pre_output: sig.pre_output.clone(),
+					vrf_output: sig.output(),
 					slot,
 					authority_index,
 				});
@@ -221,9 +206,10 @@ pub mod v1 {
 /// A list of primitives introduced by v2.
 pub mod v2 {
 	use codec::{Decode, Encode};
-	pub use sp_consensus_babe::{
-		Randomness, Slot, VrfPreOutput, VrfProof, VrfSignature, VrfTranscript,
+	pub use sp_application_crypto::sr25519::vrf::{
+		VrfPreOutput, VrfProof, VrfSignature, VrfTranscript,
 	};
+	pub use sp_consensus_babe::{Randomness, Slot};
 	use std::ops::BitOr;
 
 	use bitvec::{prelude::Lsb0, vec::BitVec};

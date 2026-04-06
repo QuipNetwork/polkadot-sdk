@@ -19,7 +19,7 @@
 //! BABE authority selection and slot claiming.
 
 use super::{Epoch, AUTHORING_SCORE_LENGTH, AUTHORING_SCORE_VRF_CONTEXT};
-use codec::Encode;
+use codec::{Decode, Encode};
 use sc_consensus_epochs::Epoch as EpochT;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_babe::{
@@ -30,7 +30,7 @@ use sp_core::{
 	crypto::{ByteArray, Wraps},
 	U256,
 };
-use sp_keystore::KeystorePtr;
+use sp_keystore::{BabeVrfSignData, KeystorePtr};
 
 /// Calculates the primary selection threshold for a given authority, taking
 /// into account `c` (`1 - c` represents the probability of a slot being empty).
@@ -147,10 +147,28 @@ fn claim_secondary_slot(
 	for (authority_id, authority_index) in keys {
 		if authority_id == expected_author {
 			let pre_digest = if author_secondary_vrf {
-				let data = make_vrf_sign_data(&epoch.randomness, slot, epoch_index);
-				let result =
-					keystore.sr25519_vrf_sign(AuthorityId::ID, authority_id.as_ref(), &data);
-				if let Ok(Some(vrf_signature)) = result {
+				let babe_vrf_data = BabeVrfSignData {
+					randomness: epoch.randomness,
+					slot: *slot,
+					epoch: epoch_index,
+				};
+				let result = keystore.vrf_sign_with(
+					AuthorityId::ID,
+					<AuthorityId as AppCrypto>::CRYPTO_ID,
+					authority_id.as_ref(),
+					&babe_vrf_data,
+				);
+				if let Ok(Some(vrf_signature)) = result.and_then(|signature| {
+					signature
+						.map(|signature| {
+							Decode::decode(&mut &signature[..]).map_err(|_| {
+								sp_keystore::Error::ValidationError(
+									"Invalid VRF signature format".into(),
+								)
+							})
+						})
+						.transpose()
+				}) {
 					Some(PreDigest::SecondaryVRF(SecondaryVRFPreDigest {
 						slot,
 						authority_index: *authority_index as u32,
@@ -238,18 +256,31 @@ fn claim_primary_slot(
 	}
 
 	let data = make_vrf_sign_data(&epoch.randomness, slot, epoch_index);
+	let babe_vrf_data = BabeVrfSignData {
+		randomness: epoch.randomness,
+		slot: *slot,
+		epoch: epoch_index,
+	};
 
 	for (authority_id, authority_index) in keys {
-		let result = keystore.sr25519_vrf_sign(AuthorityId::ID, authority_id.as_ref(), &data);
+		let result = keystore.vrf_sign_with(
+			AuthorityId::ID,
+			<AuthorityId as AppCrypto>::CRYPTO_ID,
+			authority_id.as_ref(),
+			&babe_vrf_data,
+		);
 		if let Ok(Some(vrf_signature)) = result {
+			let Ok(vrf_signature) = Decode::decode(&mut &vrf_signature[..]) else {
+				continue;
+			};
 			let threshold = calculate_primary_threshold(c, &epoch.authorities, *authority_index);
 
 			let can_claim = authority_id
 				.as_inner_ref()
 				.make_bytes::<AUTHORING_SCORE_LENGTH>(
 					AUTHORING_SCORE_VRF_CONTEXT,
-					&data.as_ref(),
-					&vrf_signature.pre_output,
+					&data,
+					&vrf_signature,
 				)
 				.map(|bytes| u128::from_le_bytes(bytes) < threshold)
 				.unwrap_or_default();

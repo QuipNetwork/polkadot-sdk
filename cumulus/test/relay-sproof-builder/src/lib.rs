@@ -24,10 +24,10 @@ use cumulus_primitives_core::{
 use polkadot_primitives::{Header, UpgradeGoAhead};
 use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, PrimaryPreDigest},
-	AuthorityId, AuthorityPair, BabeAuthorityWeight,
+	AuthorityId, AuthorityPair, BabeAuthorityWeight, VrfSignature,
 };
 use sp_core::{
-	sr25519::vrf::{VrfPreOutput, VrfProof, VrfSignature},
+	sr25519::vrf::{VrfPreOutput, VrfProof, VrfSignature as Sr25519VrfSignature},
 	Pair, H256,
 };
 use sp_runtime::{
@@ -282,7 +282,7 @@ fn add_babe_pre_digest(header: &mut Header, authority_index: u32, block_number: 
 		let vrf_pre_out_bytes = [0u8; 32];
 		let pre_output: VrfPreOutput =
 			VrfPreOutput::decode(&mut vrf_pre_out_bytes.as_slice()).unwrap();
-		VrfSignature { pre_output, proof }
+		VrfSignature::from_sr25519_with_zero_pq(Sr25519VrfSignature { pre_output, proof })
 	}
 
 	let pre_digest = PrimaryPreDigest {

@@ -818,16 +818,29 @@ where
 	) -> Result<BlockImportParams<B>, ConsensusError> {
 		let signature = self
 			.keystore
-			.sr25519_sign(<AuthorityId as AppCrypto>::ID, public.as_ref(), header_hash.as_ref())
+			.sign_with(
+				<AuthorityId as AppCrypto>::ID,
+				<AuthorityId as AppCrypto>::CRYPTO_ID,
+				public.as_ref(),
+				header_hash.as_ref(),
+			)
 			.map_err(|e| ConsensusError::CannotSign(format!("{}. Key: {:?}", e, public)))?
 			.ok_or_else(|| {
 				ConsensusError::CannotSign(format!(
 					"Could not find key in keystore. Key: {:?}",
 					public
 				))
+			})
+			.and_then(|signature| {
+				AuthoritySignature::decode(&mut &signature[..]).map_err(|_| {
+					ConsensusError::CannotSign(format!(
+						"Invalid signature returned by keystore. Key: {:?}",
+						public
+					))
+				})
 			})?;
 
-		let digest_item = <DigestItem as CompatibleDigestItem>::babe_seal(signature.into());
+		let digest_item = <DigestItem as CompatibleDigestItem>::babe_seal(signature);
 
 		let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
 		import_block.post_digests.push(digest_item);

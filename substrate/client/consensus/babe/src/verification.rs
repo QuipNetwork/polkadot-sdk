@@ -176,11 +176,11 @@ fn check_primary_header<B: BlockT + Sized>(
 		.as_inner_ref()
 		.make_bytes::<AUTHORING_SCORE_LENGTH>(
 			AUTHORING_SCORE_VRF_CONTEXT,
-			&data.as_ref(),
-			&pre_digest.vrf_signature.pre_output,
+			&data,
+			&pre_digest.vrf_signature,
 		)
 		.map(u128::from_le_bytes)
-		.map_err(|_| babe_err(Error::VrfVerificationFailed))?;
+		.ok_or_else(|| babe_err(Error::VrfVerificationFailed))?;
 
 	if score >= threshold {
 		return Err(babe_err(Error::VrfThresholdExceeded(threshold)));

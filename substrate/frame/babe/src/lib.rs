@@ -369,22 +369,18 @@ pub mod pallet {
 								CurrentSlot::<T>::get(),
 								EpochIndex::<T>::get(),
 							);
+							let sign_data = transcript.clone().into();
 
 							// NOTE: this is verified by the client when importing the block, before
 							// execution. We don't run the verification again here to avoid slowing
 							// down the runtime.
 							debug_assert!({
 								use sp_core::crypto::VrfPublic;
-								public.vrf_verify(&transcript.clone().into_sign_data(), &signature)
+								public.vrf_verify(&sign_data, &signature)
 							});
 
 							public
-								.make_bytes(
-									RANDOMNESS_VRF_CONTEXT,
-									&transcript,
-									&signature.pre_output,
-								)
-								.ok()
+								.make_bytes(RANDOMNESS_VRF_CONTEXT, &sign_data, &signature)
 						});
 
 					if let Some(randomness) = pre_digest.is_primary().then(|| randomness).flatten()

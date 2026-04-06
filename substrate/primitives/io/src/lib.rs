@@ -97,7 +97,7 @@ use sp_keystore::KeystoreExt;
 #[cfg(feature = "bandersnatch-experimental")]
 use sp_core::bandersnatch;
 use sp_core::{
-	crypto::KeyTypeId,
+	crypto::{CryptoTypeId, KeyTypeId},
 	ecdsa, ed25519,
 	offchain::{
 		HttpError, HttpRequestId, HttpRequestStatus, OpaqueNetworkState, StorageKind, Timestamp,
@@ -876,6 +876,57 @@ impl Default for UseDalekExt {
 /// Interfaces for working with crypto related types from within the runtime.
 #[runtime_interface]
 pub trait Crypto {
+	/// Returns all public keys for the given key id and crypto type from the
+	/// keystore.
+	fn crypto_public_keys(
+		&mut self,
+		id: PassPointerAndReadCopy<KeyTypeId, 4>,
+		crypto_id: PassPointerAndReadCopy<[u8; 4], 4>,
+	) -> AllocateAndReturnByCodec<Vec<Vec<u8>>> {
+		let crypto_id = CryptoTypeId(crypto_id);
+		self.extension::<KeystoreExt>()
+			.expect("No `keystore` associated for the current context!")
+			.public_keys_with(id, crypto_id)
+			.expect("`crypto_public_keys` failed")
+	}
+
+	/// Generate a key for the given key type and crypto type using an optional
+	/// UTF-8 seed and store it in the keystore.
+	///
+	/// Returns the raw public key bytes.
+	fn crypto_generate(
+		&mut self,
+		id: PassPointerAndReadCopy<KeyTypeId, 4>,
+		crypto_id: PassPointerAndReadCopy<[u8; 4], 4>,
+		seed: PassFatPointerAndDecode<Option<Vec<u8>>>,
+	) -> AllocateAndReturnByCodec<Vec<u8>> {
+		let crypto_id = CryptoTypeId(crypto_id);
+		let seed = seed.as_ref().map(|s| core::str::from_utf8(s).expect("Seed is valid utf8!"));
+		self.extension::<KeystoreExt>()
+			.expect("No `keystore` associated for the current context!")
+			.generate_new_with(id, crypto_id, seed)
+			.expect("`crypto_generate` failed")
+	}
+
+	/// Sign the given message with the key that corresponds to the given public
+	/// key, key type, and crypto type in the keystore.
+	///
+	/// Returns the SCALE-encoded signature.
+	fn crypto_sign_with(
+		&mut self,
+		id: PassPointerAndReadCopy<KeyTypeId, 4>,
+		crypto_id: PassPointerAndReadCopy<[u8; 4], 4>,
+		pub_key: PassFatPointerAndRead<&[u8]>,
+		msg: PassFatPointerAndRead<&[u8]>,
+	) -> AllocateAndReturnByCodec<Option<Vec<u8>>> {
+		let crypto_id = CryptoTypeId(crypto_id);
+		self.extension::<KeystoreExt>()
+			.expect("No `keystore` associated for the current context!")
+			.sign_with(id, crypto_id, pub_key, msg)
+			.ok()
+			.flatten()
+	}
+
 	/// Returns all `ed25519` public keys for the given key id from the keystore.
 	fn ed25519_public_keys(
 		&mut self,

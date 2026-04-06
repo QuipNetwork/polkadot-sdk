@@ -18,13 +18,20 @@
 //
 //! Local keystore implementation
 
+use codec::Encode;
 use parking_lot::RwLock;
+use quip_crypto_primitives::substrate::sr25519_mldsa44::{
+	babe as hybrid_babe, Pair as HybridPair, Public as HybridPublic, CRYPTO_ID as H344_CRYPTO_ID,
+};
 use sp_application_crypto::{AppCrypto, AppPair, IsWrappedBy};
 use sp_core::{
-	crypto::{ByteArray, ExposeSecret, KeyTypeId, Pair as CorePair, SecretString, VrfSecret},
+	crypto::{ByteArray, CryptoTypeId, ExposeSecret, KeyTypeId, Pair as CorePair, SecretString, VrfSecret},
 	ecdsa, ed25519, sr25519,
 };
-use sp_keystore::{Error as TraitError, Keystore, KeystorePtr};
+use sp_keystore::{
+	public_keys_with_default, sign_with_default, BabeVrfSignData, Error as TraitError,
+	Keystore, KeystorePtr,
+};
 use std::{
 	collections::HashMap,
 	fs::{self, File},
@@ -184,6 +191,81 @@ impl Keystore for LocalKeystore {
 		public_keys
 			.iter()
 			.all(|(p, t)| self.0.read().key_phrase_by_type(p, *t).ok().flatten().is_some())
+	}
+
+	fn public_keys_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+	) -> std::result::Result<Vec<Vec<u8>>, TraitError> {
+		match crypto_id {
+			H344_CRYPTO_ID => Ok(self
+				.public_keys::<HybridPair>(id)
+				.into_iter()
+				.map(|public| public.to_raw_vec())
+				.collect()),
+			_ => public_keys_with_default(self, id, crypto_id),
+		}
+	}
+
+	fn generate_new_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		seed: Option<&str>,
+	) -> std::result::Result<Vec<u8>, TraitError> {
+		match crypto_id {
+			H344_CRYPTO_ID => self.generate_new::<HybridPair>(id, seed).map(|public| public.to_raw_vec()),
+			_ => sp_keystore::generate_new_with_default(self, id, crypto_id, seed),
+		}
+	}
+
+	fn sign_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		public: &[u8],
+		msg: &[u8],
+	) -> std::result::Result<Option<Vec<u8>>, TraitError> {
+		match crypto_id {
+			H344_CRYPTO_ID => {
+				let public = HybridPublic::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				self.sign::<HybridPair>(id, &public, msg)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			_ => sign_with_default(self, id, crypto_id, public, msg),
+		}
+	}
+
+	fn vrf_sign_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		public: &[u8],
+		data: &BabeVrfSignData,
+	) -> std::result::Result<Option<Vec<u8>>, TraitError> {
+		let babe_vrf_data =
+			hybrid_babe::make_vrf_sign_data(&data.randomness, data.slot, data.epoch);
+
+		match crypto_id {
+			sr25519::CRYPTO_ID => {
+				let public = sr25519::Public::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				let data =
+					hybrid_babe::make_sr25519_vrf_sign_data(&data.randomness, data.slot, data.epoch);
+				self.vrf_sign::<sr25519::Pair>(id, &public, &data)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			H344_CRYPTO_ID => {
+				let public = HybridPublic::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				let data = babe_vrf_data;
+				self.vrf_sign::<HybridPair>(id, &public, &data)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			_ => Err(TraitError::KeyNotSupported(id)),
+		}
 	}
 
 	fn sr25519_public_keys(&self, key_type: KeyTypeId) -> Vec<sr25519::Public> {
