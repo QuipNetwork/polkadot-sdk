@@ -18328,6 +18328,7 @@ dependencies = [
 [[package]]
 name = "quip-crypto-primitives"
 version = "0.1.0"
+source = "git+https://gitlab.com/quip.network/quip-protocol-rs.git?rev=37afd1b78c43e28d0a48fc70de8dc339638c1cf5#37afd1b78c43e28d0a48fc70de8dc339638c1cf5"
 dependencies = [
  "blake2 0.10.6",
  "ed25519-zebra",
@@ -18338,9 +18339,9 @@ dependencies = [
  "scale-info",
  "schnorrkel 0.11.5",
  "sha2 0.10.9",
- "sp-application-crypto 45.0.0",
- "sp-core 40.0.0",
- "sp-io 45.0.0",
+ "sp-application-crypto 45.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-core 40.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-io 45.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
  "subtle 2.6.1",
  "thiserror 1.0.65",
  "zeroize",
@@ -23289,6 +23290,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-application-crypto"
+version = "45.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core 40.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-io 45.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+]
+
+[[package]]
 name = "sp-application-crypto-test"
 version = "2.0.0"
 dependencies = [
@@ -23635,6 +23648,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-core"
+version = "40.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "ark-vrf",
+ "array-bytes 6.2.2",
+ "bip39",
+ "bitflags 1.3.2",
+ "blake2 0.10.6",
+ "bounded-collections 0.3.2",
+ "bs58",
+ "dyn-clone",
+ "ed25519-zebra",
+ "futures",
+ "hash-db",
+ "hash256-std-hasher",
+ "impl-serde",
+ "itertools 0.11.0",
+ "k256",
+ "libsecp256k1",
+ "log",
+ "merlin",
+ "parity-scale-codec",
+ "parking_lot 0.12.3",
+ "paste",
+ "primitive-types 0.13.1",
+ "rand 0.8.5",
+ "scale-info",
+ "schnorrkel 0.11.5",
+ "secp256k1 0.28.2",
+ "secrecy 0.8.0",
+ "serde",
+ "sha2 0.10.9",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-debug-derive 15.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-externalities 0.32.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-std 14.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-storage 23.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "ss58-registry",
+ "substrate-bip39 0.6.1 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "thiserror 1.0.65",
+ "tracing",
+ "w3f-bls",
+ "zeroize",
+]
+
+[[package]]
 name = "sp-core-fuzz"
 version = "0.1.0"
 dependencies = [
@@ -23711,6 +23771,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-crypto-hashing"
+version = "0.1.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "blake2b_simd",
+ "byteorder",
+ "digest 0.10.7",
+ "sha2 0.10.9",
+ "sha3",
+ "twox-hash 1.6.3",
+]
+
+[[package]]
 name = "sp-crypto-hashing-proc-macro"
 version = "0.1.0"
 dependencies = [
@@ -23771,6 +23844,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-debug-derive"
+version = "15.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "proc-macro-warning",
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "sp-externalities"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -23788,6 +23872,16 @@ dependencies = [
  "environmental",
  "parity-scale-codec",
  "sp-storage 23.0.0",
+]
+
+[[package]]
+name = "sp-externalities"
+version = "0.32.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "environmental",
+ "parity-scale-codec",
+ "sp-storage 23.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
 ]
 
 [[package]]
@@ -23894,6 +23988,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-io"
+version = "45.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "bytes",
+ "docify",
+ "ed25519-dalek",
+ "libsecp256k1",
+ "log",
+ "parity-scale-codec",
+ "polkavm-derive 0.31.0",
+ "rustversion",
+ "secp256k1 0.28.2",
+ "sp-core 40.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-externalities 0.32.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-keystore 0.46.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-runtime-interface 34.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-state-machine 0.50.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-tracing 19.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-trie 43.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "tracing",
+ "tracing-core",
+]
+
+[[package]]
 name = "sp-keyring"
 version = "46.0.0"
 dependencies = [
@@ -23922,6 +24042,17 @@ dependencies = [
  "parking_lot 0.12.3",
  "sp-core 40.0.0",
  "sp-externalities 0.32.0",
+]
+
+[[package]]
+name = "sp-keystore"
+version = "0.46.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "parity-scale-codec",
+ "parking_lot 0.12.3",
+ "sp-core 40.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-externalities 0.32.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
 ]
 
 [[package]]
@@ -24035,6 +24166,15 @@ name = "sp-panic-handler"
 version = "13.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8b52e69a577cbfdea62bfaf16f59eb884422ce98f78b5cd8d9bf668776bced1"
+dependencies = [
+ "backtrace",
+ "regex",
+]
+
+[[package]]
+name = "sp-panic-handler"
+version = "13.0.2"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
 dependencies = [
  "backtrace",
  "regex",
@@ -24159,6 +24299,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-runtime-interface"
+version = "34.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "bytes",
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "polkavm-derive 0.31.0",
+ "sp-externalities 0.32.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-runtime-interface-proc-macro 21.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-std 14.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-storage 23.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-tracing 19.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-wasm-interface 24.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "static_assertions",
+]
+
+[[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "20.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -24175,6 +24333,19 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "21.0.0"
+dependencies = [
+ "Inflector",
+ "expander",
+ "proc-macro-crate 3.1.0",
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.98",
+]
+
+[[package]]
+name = "sp-runtime-interface-proc-macro"
+version = "21.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
 dependencies = [
  "Inflector",
  "expander",
@@ -24292,6 +24463,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-state-machine"
+version = "0.50.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "hash-db",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.12.3",
+ "rand 0.8.5",
+ "smallvec",
+ "sp-core 40.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-externalities 0.32.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-panic-handler 13.0.2 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-trie 43.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "thiserror 1.0.65",
+ "tracing",
+ "trie-db 0.31.0",
+]
+
+[[package]]
 name = "sp-statement-store"
 version = "25.0.0"
 dependencies = [
@@ -24327,6 +24518,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12f8ee986414b0a9ad741776762f4083cd3a5128449b982a3919c4df36874834"
 
 [[package]]
+name = "sp-std"
+version = "14.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+
+[[package]]
 name = "sp-storage"
 version = "22.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -24348,6 +24544,18 @@ dependencies = [
  "ref-cast",
  "serde",
  "sp-debug-derive 15.0.0",
+]
+
+[[package]]
+name = "sp-storage"
+version = "23.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "impl-serde",
+ "parity-scale-codec",
+ "ref-cast",
+ "serde",
+ "sp-debug-derive 15.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
 ]
 
 [[package]]
@@ -24389,6 +24597,18 @@ name = "sp-tracing"
 version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2c7372456c39cc81e15befe54d0caab8378f2b30fd34d1bcb5f0f56631c6b6e"
+dependencies = [
+ "parity-scale-codec",
+ "regex",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber 0.3.19",
+]
+
+[[package]]
+name = "sp-tracing"
+version = "19.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
 dependencies = [
  "parity-scale-codec",
  "regex",
@@ -24475,6 +24695,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-trie"
+version = "43.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "ahash 0.8.11",
+ "foldhash",
+ "hash-db",
+ "hashbrown 0.15.3",
+ "memory-db",
+ "nohash-hasher",
+ "parity-scale-codec",
+ "parking_lot 0.12.3",
+ "rand 0.8.5",
+ "scale-info",
+ "schnellru",
+ "sp-core 40.0.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "sp-externalities 0.32.0 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "substrate-prometheus-endpoint 0.17.7 (git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ)",
+ "thiserror 1.0.65",
+ "tracing",
+ "trie-db 0.31.0",
+ "trie-root",
+]
+
+[[package]]
 name = "sp-version"
 version = "42.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -24556,6 +24801,17 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "wasmtime",
+]
+
+[[package]]
+name = "sp-wasm-interface"
+version = "24.0.0"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "anyhow",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -25188,6 +25444,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "substrate-bip39"
+version = "0.6.1"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
+dependencies = [
+ "hmac 0.12.1",
+ "pbkdf2",
+ "schnorrkel 0.11.5",
+ "sha2 0.10.9",
+ "zeroize",
+]
+
+[[package]]
 name = "substrate-bn"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -25280,6 +25548,20 @@ name = "substrate-prometheus-endpoint"
 version = "0.17.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d23e4bc8e910a312820d589047ab683928b761242dbe31dee081fbdb37cbe0be"
+dependencies = [
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-util",
+ "log",
+ "prometheus",
+ "thiserror 1.0.65",
+ "tokio",
+]
+
+[[package]]
+name = "substrate-prometheus-endpoint"
+version = "0.17.7"
+source = "git+https://github.com/QuipNetwork/polkadot-sdk.git?branch=ru%2Ffeature%2Fbabe-hybrid-integ#ff0e0cd5641963fc7fcf4910d1eaf8dd5310dbbb"
 dependencies = [
  "http-body-util",
  "hyper 1.6.0",
