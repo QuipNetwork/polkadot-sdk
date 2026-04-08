@@ -20,7 +20,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { features = ["derive"], workspace = true }
 finality-grandpa = { features = ["derive-codec"], workspace = true }
 log = { workspace = true }
-quip-crypto-primitives = { path = "/Users/romanuseinov/projects/quip/quip-protocol-rs/primitives/crypto", default-features = false }
+quip-crypto-primitives = { workspace = true, default-features = false }
 scale-info = { features = ["derive"], workspace = true }
 serde = { features = ["alloc", "derive"], optional = true, workspace = true }
 sp-api = { workspace = true }

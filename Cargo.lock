@@ -74,7 +74,7 @@ dependencies = [
  "cipher 0.4.4",
  "ctr",
  "ghash",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -1946,7 +1946,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "regex",
@@ -1967,7 +1967,7 @@ dependencies = [
  "rand_core 0.6.4",
  "ripemd",
  "sha2 0.10.9",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -4137,7 +4137,7 @@ checksum = "cf4c2f4e1afd912bc40bfd6fed5d9dc1f288e0ba01bfcc835cc5bc3eb13efe15"
 dependencies = [
  "generic-array 0.14.7",
  "rand_core 0.6.4",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -4169,7 +4169,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 dependencies = [
  "generic-array 0.14.7",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -4183,7 +4183,7 @@ dependencies = [
  "generic-array 0.14.7",
  "poly1305",
  "salsa20",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -5232,7 +5232,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.0",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -5610,7 +5610,7 @@ dependencies = [
  "block-buffer 0.10.4",
  "const-oid",
  "crypto-common",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -5835,7 +5835,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "sha2 0.10.9",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -5891,7 +5891,7 @@ dependencies = [
  "rand_core 0.6.4",
  "sec1",
  "serdect",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -6390,7 +6390,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
  "rand_core 0.6.4",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -6479,6 +6479,18 @@ checksum = "2384245d85162258a14b43567a9ee3598f5ae746a1581fb5d3d2cb780f0dbf95"
 dependencies = [
  "futures-timer",
  "pin-project",
+]
+
+[[package]]
+name = "fips204"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9fb5a367b9846933e271a3c2a992930743f82ae5e8cb7faa780715a80fa0b15"
+dependencies = [
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "sha3",
+ "zeroize",
 ]
 
 [[package]]
@@ -7627,7 +7639,7 @@ checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff",
  "rand_core 0.6.4",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -9783,7 +9795,7 @@ checksum = "5be9b9bb642d8522a44d533eab56c16c738301965504753b03ad1de3425d5451"
 dependencies = [
  "crunchy",
  "digest 0.9.0",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -10374,7 +10386,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_distr",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "thiserror 1.0.65",
  "zeroize",
 ]
@@ -14636,7 +14648,7 @@ checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
 dependencies = [
  "base64ct",
  "rand_core 0.6.4",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -15110,7 +15122,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sc-keystore",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "sp-application-crypto 45.0.0",
  "sp-authority-discovery",
  "sp-core 40.0.0",
@@ -15453,7 +15465,7 @@ dependencies = [
  "rand_core 0.6.4",
  "sc-keystore",
  "schnellru",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "sp-application-crypto 45.0.0",
  "sp-consensus 0.47.0",
  "sp-consensus-babe",
@@ -15489,7 +15501,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "sc-keystore",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "sp-consensus 0.47.0",
  "sp-consensus-babe",
  "sp-core 40.0.0",
@@ -15933,7 +15945,7 @@ dependencies = [
  "polkadot-parachain-primitives",
  "polkadot-primitives",
  "sc-keystore",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "serde",
  "sp-application-crypto 45.0.0",
  "sp-consensus-babe",
@@ -18042,7 +18054,7 @@ checksum = "f8650aabb6c35b860610e9cff5dc1af886c9e25073b7b1712a68972af4281302"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "once_cell",
@@ -18311,6 +18323,27 @@ dependencies = [
  "socket2",
  "tracing",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "quip-crypto-primitives"
+version = "0.1.0"
+dependencies = [
+ "blake2 0.10.6",
+ "ed25519-zebra",
+ "fips204",
+ "hkdf",
+ "parity-scale-codec",
+ "rand_core 0.6.4",
+ "scale-info",
+ "schnorrkel 0.11.5",
+ "sha2 0.10.9",
+ "sp-application-crypto 45.0.0",
+ "sp-core 40.0.0",
+ "sp-io 45.0.0",
+ "subtle 2.6.1",
+ "thiserror 1.0.65",
+ "zeroize",
 ]
 
 [[package]]
@@ -19008,7 +19041,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac 0.12.1",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -19264,7 +19297,7 @@ dependencies = [
  "rand_core 0.6.4",
  "signature",
  "spki",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -19490,7 +19523,7 @@ dependencies = [
  "ring 0.17.14",
  "rustls-pki-types",
  "rustls-webpki 0.103.7",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -20528,7 +20561,9 @@ name = "sc-keystore"
 version = "40.0.0"
 dependencies = [
  "array-bytes 6.2.2",
+ "parity-scale-codec",
  "parking_lot 0.12.3",
+ "quip-crypto-primitives",
  "serde_json",
  "sp-application-crypto 45.0.0",
  "sp-core 40.0.0",
@@ -21686,9 +21721,9 @@ dependencies = [
 
 [[package]]
 name = "schnorrkel"
-version = "0.11.4"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de18f6d8ba0aad7045f5feae07ec29899c1112584a38509a84ad7b04451eaa0"
+checksum = "6e9fcb6c2e176e86ec703e22560d99d65a5ee9056ae45a08e13e84ebf796296f"
 dependencies = [
  "aead",
  "arrayref",
@@ -21699,7 +21734,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde_bytes",
  "sha2 0.10.9",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -21754,7 +21789,7 @@ dependencies = [
  "generic-array 0.14.7",
  "pkcs8",
  "serdect",
- "subtle 2.5.0",
+ "subtle 2.6.1",
  "zeroize",
 ]
 
@@ -22348,7 +22383,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "ruzstd 0.6.0",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -22402,7 +22437,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "ruzstd 0.8.1",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -22509,7 +22544,7 @@ dependencies = [
  "ring 0.17.14",
  "rustc_version 0.4.0",
  "sha2 0.10.9",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
@@ -23418,6 +23453,7 @@ version = "0.47.0"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
+ "quip-crypto-primitives",
  "scale-info",
  "serde",
  "sp-api 41.0.0",
@@ -23457,6 +23493,7 @@ dependencies = [
  "finality-grandpa",
  "log",
  "parity-scale-codec",
+ "quip-crypto-primitives",
  "scale-info",
  "serde",
  "sp-api 41.0.0",
@@ -23530,7 +23567,7 @@ dependencies = [
  "primitive-types 0.13.1",
  "rand 0.8.5",
  "scale-info",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "secp256k1 0.28.2",
  "secrecy 0.8.0",
  "serde",
@@ -23578,7 +23615,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "scale-info",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "secp256k1 0.28.2",
  "secrecy 0.8.0",
  "serde",
@@ -25132,7 +25169,7 @@ checksum = "ca58ffd742f693dc13d69bdbb2e642ae239e0053f6aab3b104252892f856700a"
 dependencies = [
  "hmac 0.12.1",
  "pbkdf2",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "sha2 0.10.9",
  "zeroize",
 ]
@@ -25145,7 +25182,7 @@ dependencies = [
  "hmac 0.12.1",
  "pbkdf2",
  "rustc-hex",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "sha2 0.10.9",
  "zeroize",
 ]
@@ -25530,9 +25567,9 @@ checksum = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 
 [[package]]
 name = "subtle"
-version = "2.5.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "subtle-ng"
@@ -25872,7 +25909,7 @@ dependencies = [
  "parity-scale-codec",
  "pbkdf2",
  "regex",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "scrypt",
  "secp256k1 0.30.0",
  "secrecy 0.10.3",
@@ -25902,7 +25939,7 @@ dependencies = [
  "parity-scale-codec",
  "pbkdf2",
  "regex",
- "schnorrkel 0.11.4",
+ "schnorrkel 0.11.5",
  "scrypt",
  "secp256k1 0.30.0",
  "secrecy 0.10.3",
@@ -27251,7 +27288,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
 dependencies = [
  "crypto-common",
- "subtle 2.5.0",
+ "subtle 2.6.1",
 ]
 
 [[package]]
