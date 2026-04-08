@@ -35,7 +35,7 @@ use frame_support::{
 use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
 use sp_consensus_babe::{
 	digests::{NextConfigDescriptor, NextEpochDescriptor, PreDigest},
-	AllowedSlots, BabeAuthorityWeight, BabeEpochConfiguration, ConsensusLog, Epoch,
+	make_vrf_bytes, AllowedSlots, BabeAuthorityWeight, BabeEpochConfiguration, ConsensusLog, Epoch,
 	EquivocationProof, Randomness as BabeRandomness, Slot, BABE_ENGINE_ID, RANDOMNESS_LENGTH,
 	RANDOMNESS_VRF_CONTEXT,
 };
@@ -379,8 +379,7 @@ pub mod pallet {
 								public.vrf_verify(&sign_data, &signature)
 							});
 
-							public
-								.make_bytes(RANDOMNESS_VRF_CONTEXT, &sign_data, &signature)
+							make_vrf_bytes(public, RANDOMNESS_VRF_CONTEXT, &sign_data, &signature)
 						});
 
 					if let Some(randomness) = pre_digest.is_primary().then(|| randomness).flatten()

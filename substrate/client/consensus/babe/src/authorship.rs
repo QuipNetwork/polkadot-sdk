@@ -24,7 +24,7 @@ use sc_consensus_epochs::Epoch as EpochT;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_babe::{
 	digests::{PreDigest, PrimaryPreDigest, SecondaryPlainPreDigest, SecondaryVRFPreDigest},
-	make_vrf_sign_data, AuthorityId, BabeAuthorityWeight, Randomness, Slot,
+	make_vrf_bytes, make_vrf_sign_data, AuthorityId, BabeAuthorityWeight, Randomness, Slot,
 };
 use sp_core::{
 	crypto::{ByteArray, Wraps},
@@ -256,11 +256,8 @@ fn claim_primary_slot(
 	}
 
 	let data = make_vrf_sign_data(&epoch.randomness, slot, epoch_index);
-	let babe_vrf_data = BabeVrfSignData {
-		randomness: epoch.randomness,
-		slot: *slot,
-		epoch: epoch_index,
-	};
+	let babe_vrf_data =
+		BabeVrfSignData { randomness: epoch.randomness, slot: *slot, epoch: epoch_index };
 
 	for (authority_id, authority_index) in keys {
 		let result = keystore.vrf_sign_with(
@@ -275,15 +272,14 @@ fn claim_primary_slot(
 			};
 			let threshold = calculate_primary_threshold(c, &epoch.authorities, *authority_index);
 
-			let can_claim = authority_id
-				.as_inner_ref()
-				.make_bytes::<AUTHORING_SCORE_LENGTH>(
-					AUTHORING_SCORE_VRF_CONTEXT,
-					&data,
-					&vrf_signature,
-				)
-				.map(|bytes| u128::from_le_bytes(bytes) < threshold)
-				.unwrap_or_default();
+			let can_claim = make_vrf_bytes::<AUTHORING_SCORE_LENGTH>(
+				authority_id.as_inner_ref(),
+				AUTHORING_SCORE_VRF_CONTEXT,
+				&data,
+				&vrf_signature,
+			)
+			.map(|bytes| u128::from_le_bytes(bytes) < threshold)
+			.unwrap_or_default();
 
 			if can_claim {
 				let pre_digest = PreDigest::Primary(PrimaryPreDigest {

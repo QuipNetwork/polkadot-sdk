@@ -31,6 +31,7 @@ use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sp_core::crypto::Wraps;
 use sp_runtime::{traits::Header, ConsensusEngineId};
 
 use crate::digests::{NextConfigDescriptor, NextEpochDescriptor};
@@ -107,15 +108,26 @@ pub type BabeBlockWeight = u32;
 /// Make VRF input suitable for BABE's randomness generation.
 pub fn make_vrf_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfInput {
 	quip_crypto_primitives::substrate::sr25519_mldsa44::babe::make_vrf_transcript(
-		randomness,
-		*slot,
-		epoch,
+		randomness, *slot, epoch,
 	)
 }
 
 /// Make VRF signing data suitable for BABE's protocol.
 pub fn make_vrf_sign_data(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfSignData {
 	make_vrf_transcript(randomness, slot, epoch).into()
+}
+
+/// Derive protocol bytes from a verified BABE hybrid VRF proof.
+pub fn make_vrf_bytes<const N: usize>(
+	public: &<AuthorityId as Wraps>::Inner,
+	context: &[u8],
+	data: &VrfSignData,
+	signature: &VrfSignature,
+) -> Option<[u8; N]>
+where
+	[u8; N]: Default,
+{
+	quip_crypto_primitives::substrate::sr25519_mldsa44::make_bytes(public, context, data, signature)
 }
 
 /// An consensus log item for BABE.
