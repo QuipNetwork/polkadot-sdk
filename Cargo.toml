@@ -1498,7 +1498,7 @@ zombienet-sdk = { version = "0.4.7" }
 zstd = { version = "0.12.4", default-features = false }
 
 ## quip
-quip-crypto-primitives = { git = "https://gitlab.com/quip.network/quip-protocol-rs.git", branch = "ru/feature/hybrid-signature", default-features = false }
+quip-crypto-primitives = { path = "quip/primitives/crypto", default-features = false }
 
 [profile.release]
 # Polkadot runtime requires unwinding.
