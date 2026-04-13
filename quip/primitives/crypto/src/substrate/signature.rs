@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 use core::{fmt, marker::PhantomData};
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
-use scale_info::TypeInfo;
+use scale_info::{build::Fields, Path, Type, TypeInfo};
 use sp_application_crypto::RuntimePublic;
 use sp_core::crypto::{
     ByteArray, CryptoType, CryptoTypeId, Derive, DeriveError, DeriveJunction, PublicBytes,
@@ -128,6 +128,44 @@ impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> AsMut<[u8]>
     }
 }
 
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> sp_core::crypto::Wraps
+    for Public<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    type Inner = InnerPublic<W, PUBLIC_LEN>;
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> From<InnerPublic<W, PUBLIC_LEN>>
+    for Public<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    fn from(inner: InnerPublic<W, PUBLIC_LEN>) -> Self {
+        Self(inner)
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> From<Public<W, PUBLIC_LEN, SIGNATURE_LEN>>
+    for InnerPublic<W, PUBLIC_LEN>
+{
+    fn from(outer: Public<W, PUBLIC_LEN, SIGNATURE_LEN>) -> Self {
+        outer.0
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> AsRef<InnerPublic<W, PUBLIC_LEN>>
+    for Public<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    fn as_ref(&self) -> &InnerPublic<W, PUBLIC_LEN> {
+        &self.0
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> AsMut<InnerPublic<W, PUBLIC_LEN>>
+    for Public<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    fn as_mut(&mut self) -> &mut InnerPublic<W, PUBLIC_LEN> {
+        &mut self.0
+    }
+}
+
 impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> sp_core::crypto::ByteArray
     for Public<W, PUBLIC_LEN, SIGNATURE_LEN>
 {
@@ -160,7 +198,9 @@ impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> fmt::Debug
     for Public<W, PUBLIC_LEN, SIGNATURE_LEN>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Public").field(&self.as_ref()).finish()
+        f.debug_tuple("Public")
+            .field(&<Self as AsRef<[u8]>>::as_ref(self))
+            .finish()
     }
 }
 
@@ -177,7 +217,7 @@ where
 
     /// Parses the wrapper bytes back into the suite public key type.
     pub fn to_suite_public(&self) -> Result<<W::Suite as HybridSignatureScheme>::PublicKey, ()> {
-        W::Suite::public_key_from_bytes(self.as_ref()).map_err(|_| ())
+        W::Suite::public_key_from_bytes(<Self as AsRef<[u8]>>::as_ref(self)).map_err(|_| ())
     }
 }
 
@@ -210,8 +250,13 @@ where
         key_type: sp_application_crypto::KeyTypeId,
         msg: &M,
     ) -> Option<Self::Signature> {
-        sp_io::crypto::crypto_sign_with(key_type, W::CRYPTO_ID.0, self.as_ref(), msg.as_ref())
-            .and_then(|signature| <Self::Signature as ByteArray>::from_slice(&signature).ok())
+        sp_io::crypto::crypto_sign_with(
+            key_type,
+            W::CRYPTO_ID.0,
+            <Self as AsRef<[u8]>>::as_ref(self),
+            msg.as_ref(),
+        )
+        .and_then(|signature| <Self::Signature as ByteArray>::from_slice(&signature).ok())
     }
 
     fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &Self::Signature) -> bool {
@@ -227,8 +272,13 @@ where
             <Pair<W, PUBLIC_LEN, SIGNATURE_LEN> as NonAggregatable>::proof_of_possession_statement(
                 owner,
             );
-        sp_io::crypto::crypto_sign_with(key_type, W::CRYPTO_ID.0, self.as_ref(), &statement)
-            .and_then(|signature| <Self::Signature as ByteArray>::from_slice(&signature).ok())
+        sp_io::crypto::crypto_sign_with(
+            key_type,
+            W::CRYPTO_ID.0,
+            <Self as AsRef<[u8]>>::as_ref(self),
+            &statement,
+        )
+        .and_then(|signature| <Self::Signature as ByteArray>::from_slice(&signature).ok())
     }
 
     fn verify_proof_of_possession(&self, owner: &[u8], pop: &Self::ProofOfPossession) -> bool {
@@ -240,9 +290,11 @@ where
     }
 }
 
+#[derive(TypeInfo)]
+struct SignatureMetadata2484([u8; 2048], [u8; 436]);
+
 /// Generic Substrate-style encoded hybrid signature.
-#[derive(Encode, Decode, DecodeWithMemTracking, TypeInfo)]
-#[scale_info(skip_type_params(W))]
+#[derive(Encode, Decode, DecodeWithMemTracking)]
 pub struct Signature<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize>(
     InnerSignature<W, SIGNATURE_LEN>,
 );
@@ -284,6 +336,26 @@ where
     type Pair = Pair<W, PUBLIC_LEN, SIGNATURE_LEN>;
 }
 
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> TypeInfo
+    for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
+where
+    W: SubstrateSignatureScheme + 'static,
+{
+    type Identity = Self;
+
+    fn type_info() -> Type {
+        let fields = if SIGNATURE_LEN == 2484 {
+            Fields::unnamed().field(|f| f.ty::<SignatureMetadata2484>())
+        } else {
+            Fields::unnamed().field(|f| f.ty::<InnerSignature<W, SIGNATURE_LEN>>())
+        };
+
+        Type::builder()
+            .path(Path::new("Signature", module_path!()))
+            .composite(fields)
+    }
+}
+
 impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> AsRef<[u8]>
     for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
 {
@@ -297,6 +369,44 @@ impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> AsMut<[u8]>
 {
     fn as_mut(&mut self) -> &mut [u8] {
         self.0.as_mut()
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> sp_core::crypto::Wraps
+    for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    type Inner = InnerSignature<W, SIGNATURE_LEN>;
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> From<InnerSignature<W, SIGNATURE_LEN>>
+    for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    fn from(inner: InnerSignature<W, SIGNATURE_LEN>) -> Self {
+        Self(inner)
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize>
+    From<Signature<W, PUBLIC_LEN, SIGNATURE_LEN>> for InnerSignature<W, SIGNATURE_LEN>
+{
+    fn from(outer: Signature<W, PUBLIC_LEN, SIGNATURE_LEN>) -> Self {
+        outer.0
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize>
+    AsRef<InnerSignature<W, SIGNATURE_LEN>> for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    fn as_ref(&self) -> &InnerSignature<W, SIGNATURE_LEN> {
+        &self.0
+    }
+}
+
+impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize>
+    AsMut<InnerSignature<W, SIGNATURE_LEN>> for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
+{
+    fn as_mut(&mut self) -> &mut InnerSignature<W, SIGNATURE_LEN> {
+        &mut self.0
     }
 }
 
@@ -327,7 +437,9 @@ impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> fmt::Debug
     for Signature<W, PUBLIC_LEN, SIGNATURE_LEN>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Signature").field(&self.as_ref()).finish()
+        f.debug_tuple("Signature")
+            .field(&<Self as AsRef<[u8]>>::as_ref(self))
+            .finish()
     }
 }
 
@@ -344,7 +456,7 @@ where
 
     /// Parses the wrapper bytes back into the suite signature type.
     pub fn to_suite_signature(&self) -> Result<<W::Suite as HybridSignatureScheme>::Signature, ()> {
-        W::Suite::signature_from_bytes(self.as_ref()).map_err(|_| ())
+        W::Suite::signature_from_bytes(<Self as AsRef<[u8]>>::as_ref(self)).map_err(|_| ())
     }
 }
 

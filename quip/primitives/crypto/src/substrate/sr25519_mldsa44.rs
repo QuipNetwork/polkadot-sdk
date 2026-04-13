@@ -14,7 +14,7 @@ use core::fmt;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use hkdf::Hkdf;
-use scale_info::TypeInfo;
+use scale_info::{build::Fields, Path, Type, TypeInfo};
 use sha2::{Digest, Sha256};
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 use sp_core::crypto::VrfSecret;
@@ -86,7 +86,7 @@ pub type Pair = SignaturePair<SubstrateH3, HYBRID_PK_LEN, HYBRID_SIG_LEN>;
 fn split_public_components(
     public: &Public,
 ) -> ([u8; SR25519_PUBLIC_KEY_LEN], [u8; PQ_PUBLIC_KEY_LEN]) {
-    let bytes = public.as_ref();
+    let bytes = <Public as AsRef<[u8]>>::as_ref(public);
 
     let mut classical = [0u8; SR25519_PUBLIC_KEY_LEN];
     classical.copy_from_slice(&bytes[..SR25519_PUBLIC_KEY_LEN]);
@@ -229,12 +229,37 @@ impl VrfOutput {
 ///
 /// This keeps the native sr25519 VRF proof material intact and adds the
 /// ML-DSA-44 binding signature over `H("hybrid-vrf" || input || vrf_output)`.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, MaxEncodedLen, TypeInfo)]
+#[derive(TypeInfo)]
+struct PqSignatureMetadata2420([u8; 2048], [u8; 372]);
+
+#[derive(Clone, Eq, PartialEq, Encode, Decode, MaxEncodedLen)]
 pub struct VrfSignature {
     /// Native sr25519 VRF proof material.
     pub sr25519: sr25519::vrf::VrfSignature,
     /// ML-DSA-44 binding signature over the canonical input/output hash.
     pub pq_signature: [u8; PQ_SIGNATURE_LEN],
+}
+
+impl TypeInfo for VrfSignature {
+    type Identity = Self;
+
+    fn type_info() -> Type {
+        Type::builder()
+            .path(Path::new("VrfSignature", module_path!()))
+            .composite(
+                Fields::named()
+                    .field(|f| {
+                        f.ty::<sr25519::vrf::VrfSignature>()
+                            .name("sr25519")
+                            .type_name("sr25519::vrf::VrfSignature")
+                    })
+                    .field(|f| {
+                        f.ty::<PqSignatureMetadata2420>()
+                            .name("pq_signature")
+                            .type_name("[u8; PQ_SIGNATURE_LEN]")
+                    }),
+            )
+    }
 }
 
 impl fmt::Debug for VrfSignature {
