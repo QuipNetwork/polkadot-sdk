@@ -1022,6 +1022,19 @@ fn build_bloaty_blob(
 		}
 	}
 
+	// `--target` for the Riscv runtime points at a JSON target spec produced by
+	// `polkavm-linker`. Rust 1.95 added `-Z json-target-spec`; later versions
+	// require it to be opted into explicitly. Older versions don't know the flag,
+	// so guard on the version. `RUSTC_BOOTSTRAP=1` is already set by the
+	// `-Z build-std` block above (Riscv always opts into `build-std`).
+	if matches!(target, RuntimeTarget::Riscv) &&
+		cargo_cmd
+			.version()
+			.is_some_and(|v| v.major > 1 || (v.major == 1 && v.minor >= 95))
+	{
+		build_cmd.arg("-Z").arg("json-target-spec");
+	}
+
 	// Inherit jobserver in child cargo command to ensure we don't try to use more concurrency than
 	// available
 	if let Some(c) = get_jobserver() {
