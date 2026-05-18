@@ -29,6 +29,7 @@ log = { workspace = true, default-features = true }
 names = { workspace = true }
 rand = { workspace = true, default-features = true }
 regex = { workspace = true }
+quip-crypto-primitives = { workspace = true, default-features = true }
 rpassword = { workspace = true }
 sc-client-api = { default-features = true, workspace = true }
 sc-client-db = { default-features = false, workspace = true }
