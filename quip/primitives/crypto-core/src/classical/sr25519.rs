@@ -19,7 +19,7 @@
 use blake2::digest::{Update, VariableOutput};
 use blake2::Blake2bVar;
 use rand_core::CryptoRngCore;
-use sp_core::{sr25519, Pair};
+use schnorrkel::{ExpansionMode, MiniSecretKey};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Length in bytes of an sr25519 mini-secret seed.
@@ -35,15 +35,17 @@ const SUBSTRATE_SIGNING_CONTEXT: &[u8] = b"substrate";
 
 /// Derives an sr25519 keypair from a 32-byte seed.
 ///
-/// Returns the public key plus the 64-byte raw secret-key encoding emitted by
-/// `sp_core::sr25519::Pair::to_raw_vec()`.
+/// Returns the public key plus the 64-byte raw secret-key encoding. The seed is
+/// expanded in Ed25519 mode and serialized exactly as Substrate's
+/// `sp_core::sr25519::Pair` does (`MiniSecretKey::expand_to_keypair` +
+/// `SecretKey::to_bytes`), so the bytes are identical to the previous
+/// `sp_core`-backed implementation.
 pub fn from_seed(seed: &[u8; SEED_LEN]) -> ([u8; PUBLIC_KEY_LEN], [u8; SECRET_KEY_LEN]) {
-    let pair = sr25519::Pair::from_seed_slice(seed).expect("32-byte seed is always valid");
-    let public = *pair.public().as_array_ref();
-    let secret = pair
-        .to_raw_vec()
-        .try_into()
-        .expect("sp_core sr25519 secret key is always 64 bytes");
+    let keypair = MiniSecretKey::from_bytes(seed)
+        .expect("32-byte seed is always valid")
+        .expand_to_keypair(ExpansionMode::Ed25519);
+    let public = keypair.public.to_bytes();
+    let secret = keypair.secret.to_bytes();
     (public, secret)
 }
 
@@ -111,9 +113,15 @@ pub fn verify(
     msg_prime: &[u8],
     signature: &[u8; SIGNATURE_LEN],
 ) -> bool {
-    let public = sr25519::Public::from_raw(*public);
-    let signature = sr25519::Signature::from_raw(*signature);
-    sr25519::Pair::verify(&signature, msg_prime, &public)
+    let Ok(public) = schnorrkel::PublicKey::from_bytes(public) else {
+        return false;
+    };
+    let Ok(signature) = schnorrkel::Signature::from_bytes(signature) else {
+        return false;
+    };
+    public
+        .verify_simple(SUBSTRATE_SIGNING_CONTEXT, msg_prime, &signature)
+        .is_ok()
 }
 
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -189,9 +197,14 @@ fn blake2_256_seed_counter(seed: &[u8; 32], counter: u64) -> [u8; 32] {
     let mut input = [0u8; 40];
     input[..32].copy_from_slice(seed);
     input[32..].copy_from_slice(&counter.to_le_bytes());
-    let hash = sp_core::hashing::blake2_256(&input);
+    let mut hasher = Blake2bVar::new(32).expect("32-byte Blake2b output is valid");
+    hasher.update(&input);
+    let mut out = [0u8; 32];
+    hasher
+        .finalize_variable(&mut out)
+        .expect("output length matches buffer");
     input.zeroize();
-    hash
+    out
 }
 
 /// Computes a 32-byte BLAKE2 hash over a list of secret and public byte slices.

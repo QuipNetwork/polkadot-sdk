@@ -2462,9 +2462,9 @@ dependencies = [
  "bp-parachains",
  "bp-polkadot-core",
  "bp-runtime",
+ "ed25519-dalek",
  "finality-grandpa",
  "parity-scale-codec",
- "quip-crypto-primitives",
  "sp-application-crypto 45.0.0",
  "sp-consensus-grandpa",
  "sp-core 40.0.0",
@@ -18454,19 +18454,29 @@ dependencies = [
 name = "quip-crypto-primitives"
 version = "0.1.0"
 dependencies = [
- "blake2 0.10.6",
- "ed25519-zebra",
- "fips204",
  "hkdf",
  "parity-scale-codec",
- "rand_core 0.6.4",
+ "quip-crypto-primitives-core",
  "scale-info",
- "schnorrkel 0.11.5",
  "sha2 0.10.9",
  "sp-application-crypto 45.0.0",
  "sp-consensus-babe",
  "sp-core 40.0.0",
  "sp-io 45.0.0",
+ "zeroize",
+]
+
+[[package]]
+name = "quip-crypto-primitives-core"
+version = "0.1.0"
+dependencies = [
+ "blake2 0.10.6",
+ "ed25519-zebra",
+ "fips204",
+ "hkdf",
+ "rand_core 0.6.4",
+ "schnorrkel 0.11.5",
+ "sha2 0.10.9",
  "subtle 2.6.1",
  "thiserror 1.0.69",
  "zeroize",
@@ -20040,6 +20050,7 @@ dependencies = [
  "log",
  "names",
  "parity-scale-codec",
+ "quip-crypto-primitives",
  "rand 0.8.5",
  "regex",
  "rpassword",

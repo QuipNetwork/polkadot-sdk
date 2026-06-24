@@ -1,0 +1,41 @@
+[package]
+name = "quip-crypto-primitives-core"
+version = "0.1.0"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+schnorrkel = { workspace = true, default-features = false }
+ed25519-zebra = { version = "4", default-features = false }
+fips204 = { version = "0.4", default-features = false, features = ["ml-dsa-44"]}
+blake2 = { version = "0.10", default-features = false }
+hkdf = { version = "0.12", default-features = false }
+sha2 = { version = "0.10", default-features = false } # can't be bumped to 0.11 as it breaks other dependencies.
+subtle = { version = "2.6", default-features = false }
+zeroize = { version = "1", default-features = false, features = ["derive"] }
+rand_core = { version = "0.6", default-features = false  } # can't be bumped due to schnorrkel and fips204 depending on this api version.
+thiserror = { version = "1", optional = true }
+
+[features]
+default = ["std"]
+std = [
+    "dep:thiserror",
+    "rand_core/std",
+    "subtle/std",
+    "blake2/std",
+    "hkdf/std",
+    "sha2/std",
+    "zeroize/std",
+    "schnorrkel/std",
+    "ed25519-zebra/std",
+    "fips204/default",
+]
+
+[dev-dependencies]
+rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }

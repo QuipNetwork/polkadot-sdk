@@ -1499,6 +1499,7 @@ zstd = { version = "0.12.4", default-features = false }
 
 ## quip
 quip-crypto-primitives = { path = "quip/primitives/crypto", default-features = false }
+quip-crypto-primitives-core = { path = "quip/primitives/crypto-core", default-features = false }
 
 [profile.release]
 # Polkadot runtime requires unwinding.

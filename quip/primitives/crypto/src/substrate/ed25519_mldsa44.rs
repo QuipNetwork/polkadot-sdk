@@ -109,6 +109,9 @@ mod tests {
         let pair = Pair::from_string("//Alice", None).unwrap();
         let pair_again = Pair::from_string("//Alice", None).unwrap();
 
-        assert_eq!(pair.public().as_ref(), pair_again.public().as_ref());
+        assert_eq!(
+            AsRef::<[u8]>::as_ref(&pair.public()),
+            AsRef::<[u8]>::as_ref(&pair_again.public())
+        );
     }
 }
