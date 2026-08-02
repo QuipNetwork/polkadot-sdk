@@ -198,8 +198,8 @@ pub fn invoke_build(current_dir: &Path) -> Result<()> {
 	let toolchain =
 		env::var(OVERRIDE_RUSTUP_TOOLCHAIN_ENV_VAR).or_else(|_| env::var("RUSTUP_TOOLCHAIN"));
 
-	// Necessary to make this work with both 1.92+ and versions before 1.92 of rustc.
-	let new_immediate_abort = {
+	// Detect rustc major.minor for the version-gated flags below.
+	let (major, minor) = {
 		let mut cmd = Command::new("rustc");
 		if let Ok(toolchain) = &toolchain {
 			cmd.env("RUSTUP_TOOLCHAIN", toolchain);
@@ -221,8 +221,14 @@ pub fn invoke_build(current_dir: &Path) -> Result<()> {
 			.ok_or_else(|| anyhow::anyhow!("missing minor version"))?
 			.parse()
 			.context("invalid minor version")?;
-		major > 1 || (major == 1 && minor >= 92)
+		(major, minor)
 	};
+
+	// 1.92+: `-Cpanic=immediate-abort` is a stable rustflag.
+	let new_immediate_abort = major > 1 || (major == 1 && minor >= 92);
+	// 1.95+: `-Z json-target-spec` was added; later rustc requires it for any
+	// `--target=*.json` invocation. Pre-1.95 doesn't know the flag.
+	let needs_json_target_spec = major > 1 || (major == 1 && minor >= 95);
 
 	// on newer version this is a stable compiler flag
 	let encoded_rustflags = if new_immediate_abort {
@@ -245,6 +251,11 @@ pub fn invoke_build(current_dir: &Path) -> Result<()> {
 		.args(["build", "--release", "-Zbuild-std=core"])
 		.arg("--target")
 		.arg(polkavm_linker::target_json_path(args).unwrap());
+
+	// 1.95+: opt into JSON target specs explicitly (required by recent rustc).
+	if needs_json_target_spec {
+		build_command.arg("-Zjson-target-spec");
+	}
 
 	// on older versions this is a unstable cargo cli argument
 	if !new_immediate_abort {
