@@ -610,6 +610,108 @@ mod tests {
         .is_none());
     }
 
+    /// Stands in for a block producer's own RNG. Deterministic so the test is
+    /// reproducible.
+    struct CountingRng(u64);
+
+    impl rand_core::RngCore for CountingRng {
+        fn next_u32(&mut self) -> u32 {
+            self.next_u64() as u32
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            self.0
+        }
+
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            for chunk in dest.chunks_mut(8) {
+                let bytes = self.next_u64().to_le_bytes();
+                let len = chunk.len();
+                chunk.copy_from_slice(&bytes[..len]);
+            }
+        }
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+            self.fill_bytes(dest);
+            Ok(())
+        }
+    }
+
+    impl rand_core::CryptoRng for CountingRng {}
+
+    /// Two valid ML-DSA-44 bindings over one VRF input must yield the same
+    /// consensus-decisive bytes.
+    ///
+    /// ML-DSA-44 is not unique per (key, message). The signer picks the signing
+    /// randomness and the verifier cannot recover it, so a block producer can
+    /// mint unlimited valid bindings for a fixed input. While the consensus
+    /// derivation hashes the binding in, each one yields a different BABE
+    /// authoring score, which makes primary-slot leader election and epoch
+    /// randomness grindable.
+    ///
+    /// `hybrid_vrf_roundtrip_works` and any repeated-call determinism check
+    /// cannot catch this. They exercise only the honest signer, which calls
+    /// `sign_deterministic`, so they pass on the grindable construction too.
+    ///
+    /// IGNORED ON PURPOSE: this fails against the current derivation, which is
+    /// the defect itself, not a broken test. QUI-984 makes it pass by deriving
+    /// `make_bytes` from the unique sr25519 pre-output alone and keeping the
+    /// ML-DSA binding out of every consensus-decisive value. Remove `#[ignore]`
+    /// as part of that change. The test must then pass unmodified. Tracked by
+    /// QUI-925, specified in Section 15 of the Hybrid Post-Quantum Signature
+    /// Constructions document.
+    #[test]
+    #[ignore = "QUI-925: expected to fail until QUI-984 removes the PQ binding from the consensus-decisive derivation"]
+    fn hybrid_vrf_output_is_independent_of_the_pq_binding() {
+        let seed = [29u8; MASTER_SEED_LEN];
+        let pair = Pair::from_seed(&seed);
+        let public = pair.public();
+        let randomness = [11u8; babe::RANDOMNESS_LENGTH];
+        let sign_data = babe::make_vrf_sign_data(&randomness, 5, 13);
+
+        let honest = VrfSecret::vrf_sign(&pair, &sign_data);
+
+        // Re-sign the same binding message with randomness of our choosing.
+        // This is exactly what a block producer controls. Nothing in the
+        // protocol forces them onto the deterministic path.
+        let secret = pair.expanded_secret();
+        let message = binding_message(sign_data.input(), &honest.sr25519.pre_output);
+        let mut rng = CountingRng(0x5EED);
+        let alternative = VrfSignature {
+            sr25519: honest.sr25519.clone(),
+            pq_signature: pq_mldsa44::sign(pq_secret_bytes(&secret), &message, &mut rng),
+        };
+
+        assert_ne!(
+            honest.pq_signature.as_slice(),
+            alternative.pq_signature.as_slice(),
+            "the two bindings must differ, otherwise this test proves nothing",
+        );
+        assert!(
+            VrfPublic::vrf_verify(&public, &sign_data, &alternative),
+            "the verifier accepts any valid ML-DSA binding, including a chosen one",
+        );
+
+        let honest_bytes =
+            make_bytes::<32>(&public, babe::RANDOMNESS_VRF_CONTEXT, &sign_data, &honest).unwrap();
+        let alternative_bytes = make_bytes::<32>(
+            &public,
+            babe::RANDOMNESS_VRF_CONTEXT,
+            &sign_data,
+            &alternative,
+        )
+        .unwrap();
+
+        assert_eq!(
+            honest_bytes, alternative_bytes,
+            "consensus-decisive bytes must not depend on which valid PQ binding the signer publishes",
+        );
+    }
+
     #[test]
     fn hybrid_vrf_output_matches_signed_proof_output() {
         let seed = [19u8; MASTER_SEED_LEN];

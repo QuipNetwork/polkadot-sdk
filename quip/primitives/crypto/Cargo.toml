@@ -39,3 +39,4 @@ full_crypto = ["sp-core/full_crypto"]
 
 [dev-dependencies]
 sp-consensus-babe = { workspace = true, default-features = false, features = ["std"] }
+rand_core = { version = "0.6", default-features = false } # must match the version fips204 expects.
