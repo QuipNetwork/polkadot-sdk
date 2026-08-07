@@ -18457,6 +18457,7 @@ dependencies = [
  "hkdf",
  "parity-scale-codec",
  "quip-crypto-primitives-core",
+ "rand_core 0.6.4",
  "scale-info",
  "sha2 0.10.9",
  "sp-application-crypto 45.0.0",
