@@ -1501,6 +1501,11 @@ zstd = { version = "0.12.4", default-features = false }
 quip-crypto-primitives = { path = "quip/primitives/crypto", default-features = false }
 quip-crypto-primitives-core = { path = "quip/primitives/crypto-core", default-features = false }
 
+# Local-only development override for the pinned pqhybridsign git dependency.
+[patch."ssh://git@gitlab.com/quip.network/pqhybridsign.git"]
+pqhybridsign = { path = "../pqhybridsign/crates/pqhybridsign" }
+pqhybridsign-core = { path = "../pqhybridsign/crates/pqhybridsign-core" }
+
 [profile.release]
 # Polkadot runtime requires unwinding.
 opt-level = 3

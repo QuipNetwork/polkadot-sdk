@@ -1,16 +1,17 @@
 //! Hybrid signature primitives for the Quip protocol (`sp`-free core).
 //!
 //! This crate contains the pure, `no_std`, dependency-light implementation of
-//! the fixed-size hybrid signature suites that pair a classical signature
-//! algorithm with ML-DSA-44:
+//! fixed-buffer hybrid signature suites that pair a classical signature
+//! algorithm with ML-DSA-44 or FN-DSA-512:
 //! - [`Ed25519MlDsa44`]
 //! - [`Sr25519MlDsa44`]
+//! - [`Ed25519FnDsa512`]
+//! - [`Sr25519FnDsa512`]
 //!
-//! It deliberately depends only on the underlying crypto primitives
-//! (`schnorrkel`, `ed25519-zebra`, `fips204`, `blake2`, `hkdf`, `sha2`, …) and
-//! **not** on `sp-core`/`sp-io`, so it can be reused by both the Substrate
-//! runtime wrappers (in `quip-crypto-primitives`) and by `no_std`/wasm signers
-//! that cannot link Substrate host functions.
+//! It deliberately has no `sp-core`/`sp-io` dependency, so it can be reused by
+//! both the Substrate runtime wrappers (in `quip-crypto-primitives`) and by
+//! `no_std`/wasm signers that cannot link Substrate host functions. H2 and H4
+//! delegate their cryptographic pipeline to the pinned `pqhybridsign` library.
 //!
 //! Internally, the crate is organized into a few layers:
 //! - [`classical`] and [`pq`] adapt concrete component algorithms into a common
@@ -37,6 +38,11 @@ pub mod seed;
 pub mod suite;
 
 pub use error::{HybridSignatureError, Result};
+pub use suite::ed25519_fndsa512::Ed25519FnDsa512;
+pub use suite::ed25519_fndsa512::{
+    PublicKey as Ed25519FnDsa512PublicKey, SecretKey as Ed25519FnDsa512SecretKey,
+    Signature as Ed25519FnDsa512Signature,
+};
 pub use suite::ed25519_mldsa44::Ed25519MlDsa44;
 pub use suite::ed25519_mldsa44::{
     PublicKey as Ed25519MlDsa44PublicKey, SecretKey as Ed25519MlDsa44SecretKey,
@@ -46,6 +52,11 @@ pub use suite::sr25519_mldsa44::Sr25519MlDsa44;
 pub use suite::sr25519_mldsa44::{
     PublicKey as Sr25519MlDsa44PublicKey, SecretKey as Sr25519MlDsa44SecretKey,
     Signature as Sr25519MlDsa44Signature,
+};
+pub use suite::sr25519_fndsa512::Sr25519FnDsa512;
+pub use suite::sr25519_fndsa512::{
+    PublicKey as Sr25519FnDsa512PublicKey, SecretKey as Sr25519FnDsa512SecretKey,
+    Signature as Sr25519FnDsa512Signature,
 };
 
 use rand_core::CryptoRngCore;
@@ -138,8 +149,10 @@ pub trait HybridSignatureScheme {
         msg: &[u8],
         ctx: &[u8],
         sig: &Self::Signature,
-        expected_nonce: &[u8],
-    ) -> bool;
+        _expected_nonce: &[u8],
+    ) -> bool {
+        Self::verify(pk, msg, ctx, sig)
+    }
 }
 
 /// Common interface for hybrid VRF constructions.

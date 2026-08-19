@@ -21,6 +21,9 @@ subtle = { version = "2.6", default-features = false }
 zeroize = { version = "1", default-features = false, features = ["derive"] }
 rand_core = { version = "0.6", default-features = false  } # can't be bumped due to schnorrkel and fips204 depending on this api version.
 thiserror = { version = "1", optional = true }
+pqhybridsign = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "d17e054a4d54bc078f60bf5ddefd3b9a2fbaa2cd", default-features = false }
+pqhybridsign-core = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "d17e054a4d54bc078f60bf5ddefd3b9a2fbaa2cd", default-features = false, features = ["alloc"] }
+fn-dsa = { version = "0.4.0", default-features = false }
 
 [features]
 default = ["std"]
@@ -35,7 +38,12 @@ std = [
     "schnorrkel/std",
     "ed25519-zebra/std",
     "fips204/default",
+    "pqhybridsign/std",
+    "pqhybridsign-core/std",
 ]
 
 [dev-dependencies]
 rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

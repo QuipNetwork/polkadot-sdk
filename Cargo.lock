@@ -6591,6 +6591,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "fn-dsa"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13662b90285f1d8d0cf7bc600808b036a52802eeadbd9912992bc9a357fbdfd0"
+dependencies = [
+ "fn-dsa-comm",
+ "fn-dsa-kgen",
+ "fn-dsa-sign",
+ "fn-dsa-vrfy",
+]
+
+[[package]]
+name = "fn-dsa-comm"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1635e68ba9d301da36ab5fb4a78e5dc006c3b0faa8ea07f2acb986d880512579"
+dependencies = [
+ "cpufeatures 0.2.17",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "fn-dsa-kgen"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1dcea5794c0cd70a7b084851a6ab8b070c956b332d8b91760d569e5a6778218"
+dependencies = [
+ "fn-dsa-comm",
+ "zeroize",
+]
+
+[[package]]
+name = "fn-dsa-sign"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01a64adea5213c0f5d5f77d862b5d06b56a47dc317f19d7e3b164830c92f4693"
+dependencies = [
+ "fn-dsa-comm",
+ "zeroize",
+]
+
+[[package]]
+name = "fn-dsa-vrfy"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1028459ccd32c695ce0ca44ae5d59ea7046a04bc145004cc1b8aabd91d3457a7"
+dependencies = [
+ "fn-dsa-comm",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17843,6 +17894,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "pqhybridsign"
+version = "0.0.0-rc1"
+dependencies = [
+ "ed25519-zebra",
+ "fips204",
+ "fn-dsa",
+ "pqhybridsign-core",
+ "rand_core 0.6.4",
+ "schnorrkel 0.11.5",
+ "sha2 0.10.9",
+ "subtle 2.6.1",
+ "zeroize",
+]
+
+[[package]]
+name = "pqhybridsign-core"
+version = "0.0.0-rc1"
+dependencies = [
+ "hkdf",
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "subtle 2.6.1",
+ "zeroize",
+]
+
+[[package]]
 name = "predicates"
 version = "3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18473,9 +18550,15 @@ dependencies = [
  "blake2 0.10.6",
  "ed25519-zebra",
  "fips204",
+ "fn-dsa",
+ "hex",
  "hkdf",
+ "pqhybridsign",
+ "pqhybridsign-core",
  "rand_core 0.6.4",
  "schnorrkel 0.11.5",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "subtle 2.6.1",
  "thiserror 1.0.69",
