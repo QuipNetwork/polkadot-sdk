@@ -21,12 +21,12 @@
 use codec::Encode;
 use parking_lot::RwLock;
 use quip_crypto_primitives::substrate::{
-	ed25519_mldsa44::{
-		Pair as HybridGrandpaPair, Public as HybridGrandpaPublic, CRYPTO_ID as H144_CRYPTO_ID,
+	ed25519_fndsa512::{
+		Pair as HybridGrandpaPair, Public as HybridGrandpaPublic, CRYPTO_ID as H244_CRYPTO_ID,
 	},
-	sr25519_mldsa44::{
+	sr25519_fndsa512::{
 		babe as hybrid_babe, Pair as HybridPair, Public as HybridPublic,
-		CRYPTO_ID as H344_CRYPTO_ID,
+		CRYPTO_ID as H444_CRYPTO_ID,
 	},
 };
 use sp_application_crypto::{AppCrypto, AppPair, IsWrappedBy};
@@ -67,7 +67,7 @@ const KEYSTORE_FILENAME_BUDGET: usize = 240;
 ///
 /// 32-byte classical pubkeys (sr25519/ed25519) + the 4-byte key-type prefix
 /// produce a 72-char filename and fit easily; hybrid post-quantum pubkeys
-/// (~1344 bytes) blow past `NAME_MAX` and must be hashed into the filename
+/// (929 bytes) blow past `NAME_MAX` and must be hashed into the filename
 /// while preserving the full pubkey inside the file body.
 fn needs_hashed_filename(public: &[u8]) -> bool {
     8usize.saturating_add(public.len().saturating_mul(2)) > KEYSTORE_FILENAME_BUDGET
@@ -242,12 +242,12 @@ impl Keystore for LocalKeystore {
 		crypto_id: CryptoTypeId,
 	) -> std::result::Result<Vec<Vec<u8>>, TraitError> {
 		match crypto_id {
-			H144_CRYPTO_ID => Ok(self
+			H244_CRYPTO_ID => Ok(self
 				.public_keys::<HybridGrandpaPair>(id)
 				.into_iter()
 				.map(|public| public.to_raw_vec())
 				.collect()),
-			H344_CRYPTO_ID => Ok(self
+			H444_CRYPTO_ID => Ok(self
 				.public_keys::<HybridPair>(id)
 				.into_iter()
 				.map(|public| public.to_raw_vec())
@@ -263,10 +263,10 @@ impl Keystore for LocalKeystore {
 		seed: Option<&str>,
 	) -> std::result::Result<Vec<u8>, TraitError> {
 		match crypto_id {
-			H144_CRYPTO_ID => self
+			H244_CRYPTO_ID => self
 				.generate_new::<HybridGrandpaPair>(id, seed)
 				.map(|public| public.to_raw_vec()),
-			H344_CRYPTO_ID => {
+			H444_CRYPTO_ID => {
 				self.generate_new::<HybridPair>(id, seed).map(|public| public.to_raw_vec())
 			},
 			_ => sp_keystore::generate_new_with_default(self, id, crypto_id, seed),
@@ -281,13 +281,13 @@ impl Keystore for LocalKeystore {
 		msg: &[u8],
 	) -> std::result::Result<Option<Vec<u8>>, TraitError> {
 		match crypto_id {
-			H144_CRYPTO_ID => {
+			H244_CRYPTO_ID => {
 				let public = HybridGrandpaPublic::from_slice(public)
 					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
 				self.sign::<HybridGrandpaPair>(id, &public, msg)
 					.map(|signature| signature.map(|s| s.encode()))
 			},
-			H344_CRYPTO_ID => {
+			H444_CRYPTO_ID => {
 				let public = HybridPublic::from_slice(public)
 					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
 				self.sign::<HybridPair>(id, &public, msg)
@@ -319,7 +319,7 @@ impl Keystore for LocalKeystore {
 				self.vrf_sign::<sr25519::Pair>(id, &public, &data)
 					.map(|signature| signature.map(|s| s.encode()))
 			},
-			H344_CRYPTO_ID => {
+			H444_CRYPTO_ID => {
 				let public = HybridPublic::from_slice(public)
 					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
 				let data = babe_vrf_data;
@@ -758,7 +758,7 @@ impl KeystoreInner {
 	///
 	/// Most filesystems cap filenames at 255 bytes (`NAME_MAX`). For classical
 	/// 32-byte pubkeys the full hex (64 chars + 8-char key-type prefix) fits
-	/// easily; for hybrid post-quantum pubkeys (~1344 bytes raw) it does not.
+	/// easily; for hybrid post-quantum pubkeys (929 bytes raw) it does not.
 	/// In that case we encode the pubkey via a blake2_256 hash so the filename
 	/// stays under the limit; the full pubkey is preserved inside the file
 	/// (see [`write_to_file`] and [`read_suri_from_keystore_file`]).
@@ -845,8 +845,17 @@ impl KeystoreInner {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use codec::Decode;
+	use quip_crypto_primitives::substrate::{
+		ed25519_fndsa512::Signature as HybridGrandpaSignature,
+		sr25519_fndsa512::{Signature as HybridSignature, VrfSignature as HybridVrfSignature},
+	};
 	use sp_application_crypto::{ed25519, sr25519, AppPublic};
-	use sp_core::{crypto::Ss58Codec, testing::SR25519, Pair};
+	use sp_core::{
+		crypto::{Ss58Codec, VrfPublic},
+		testing::SR25519,
+		Pair,
+	};
 	use std::{fs, str::FromStr};
 	use tempfile::TempDir;
 
@@ -1035,6 +1044,57 @@ mod tests {
 		assert_eq!(store.sr25519_public_keys(TEST_KEY_TYPE).len(), 1);
 		store.sr25519_generate_new(TEST_KEY_TYPE, None).unwrap();
 		assert_eq!(store.sr25519_public_keys(TEST_KEY_TYPE).len(), 2);
+	}
+
+	#[test]
+	fn h2_h4_dispatch_generates_signs_and_verifies_vrf() {
+		let store = LocalKeystore::in_memory();
+
+		let h2_public = store
+			.generate_new_with(TEST_KEY_TYPE, H244_CRYPTO_ID, Some("//Alice"))
+			.unwrap();
+		assert_eq!(h2_public.len(), 929);
+		assert_eq!(
+			store.public_keys_with(TEST_KEY_TYPE, H244_CRYPTO_ID).unwrap(),
+			vec![h2_public.clone()]
+		);
+		let h2_signature = store
+			.sign_with(TEST_KEY_TYPE, H244_CRYPTO_ID, &h2_public, b"grandpa")
+			.unwrap()
+			.unwrap();
+		let h2_signature = HybridGrandpaSignature::decode(&mut h2_signature.as_slice()).unwrap();
+		let h2_public = HybridGrandpaPublic::from_slice(&h2_public).unwrap();
+		assert!(HybridGrandpaPair::verify(&h2_signature, b"grandpa", &h2_public));
+
+		let h4_public = store
+			.generate_new_with(TEST_KEY_TYPE, H444_CRYPTO_ID, Some("//Bob"))
+			.unwrap();
+		assert_eq!(h4_public.len(), 929);
+		let h4_signature = store
+			.sign_with(TEST_KEY_TYPE, H444_CRYPTO_ID, &h4_public, b"babe")
+			.unwrap()
+			.unwrap();
+		let h4_signature = HybridSignature::decode(&mut h4_signature.as_slice()).unwrap();
+		let h4_public = HybridPublic::from_slice(&h4_public).unwrap();
+		assert!(HybridPair::verify(&h4_signature, b"babe", &h4_public));
+
+		let transcript = BabeVrfSignData { randomness: [7u8; 32], slot: 3, epoch: 9 };
+		let vrf_signature = store
+			.vrf_sign_with(
+				TEST_KEY_TYPE,
+				H444_CRYPTO_ID,
+				h4_public.as_ref(),
+				&transcript,
+			)
+			.unwrap()
+			.unwrap();
+		let vrf_signature = HybridVrfSignature::decode(&mut vrf_signature.as_slice()).unwrap();
+		let sign_data = hybrid_babe::make_vrf_sign_data(
+			&transcript.randomness,
+			transcript.slot,
+			transcript.epoch,
+		);
+		assert!(h4_public.vrf_verify(&sign_data, &vrf_signature));
 	}
 
 	#[test]

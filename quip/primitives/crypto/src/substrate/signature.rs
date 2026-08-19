@@ -291,7 +291,12 @@ where
 }
 
 #[derive(TypeInfo)]
+#[allow(dead_code)]
 struct SignatureMetadata2484([u8; 2048], [u8; 436]);
+
+#[derive(TypeInfo)]
+#[allow(dead_code)]
+struct SignatureMetadata731([u8; 512], [u8; 219]);
 
 /// Generic Substrate-style encoded hybrid signature.
 #[derive(Encode, Decode, DecodeWithMemTracking)]
@@ -344,10 +349,10 @@ where
     type Identity = Self;
 
     fn type_info() -> Type {
-        let fields = if SIGNATURE_LEN == 2484 {
-            Fields::unnamed().field(|f| f.ty::<SignatureMetadata2484>())
-        } else {
-            Fields::unnamed().field(|f| f.ty::<InnerSignature<W, SIGNATURE_LEN>>())
+        let fields = match SIGNATURE_LEN {
+            2484 => Fields::unnamed().field(|f| f.ty::<SignatureMetadata2484>()),
+            731 => Fields::unnamed().field(|f| f.ty::<SignatureMetadata731>()),
+            _ => Fields::unnamed().field(|f| f.ty::<InnerSignature<W, SIGNATURE_LEN>>()),
         };
 
         Type::builder()

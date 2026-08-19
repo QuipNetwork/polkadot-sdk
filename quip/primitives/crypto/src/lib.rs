@@ -1,7 +1,8 @@
 //! Substrate-facing hybrid signature primitives for the Quip protocol.
 //!
 //! The pure, `sp`-free hybrid signature engine — the fixed-size suites
-//! ([`Sr25519MlDsa44`], [`Ed25519MlDsa44`]), their wrapper types, the
+//! ([`Sr25519MlDsa44`], [`Ed25519MlDsa44`], [`Sr25519FnDsa512`],
+//! [`Ed25519FnDsa512`]), their wrapper types, the
 //! [`HybridSignatureScheme`]/[`HybridVrf`] traits, and the shared
 //! [`seed`]/[`domain`] helpers — lives in `quip-crypto-primitives-core` and is
 //! re-exported here unchanged. This crate adds the [`substrate`] wrappers that

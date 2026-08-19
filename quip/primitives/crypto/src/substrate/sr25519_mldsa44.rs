@@ -230,6 +230,7 @@ impl VrfOutput {
 /// This keeps the native sr25519 VRF proof material intact and adds the
 /// ML-DSA-44 binding signature over `H("hybrid-vrf" || input || vrf_output)`.
 #[derive(TypeInfo)]
+#[allow(dead_code)]
 struct PqSignatureMetadata2420([u8; 2048], [u8; 372]);
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode, MaxEncodedLen)]
