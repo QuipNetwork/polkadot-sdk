@@ -8,6 +8,18 @@
 //! The shared core is reusable by non-VRF suites such as H2
 //! `ed25519 + FN-DSA-512` GRANDPA wrapper. This file keeps only the logic that
 //! is specific to H4's hybrid VRF construction.
+//!
+//! # Signature-byte dependence and grinding
+//!
+//! The consensus-facing VRF output hashes the exact unpadded H4 binding
+//! signature bytes, not only the sr25519 pre-output. An H4 verifier proves
+//! that those bytes form a valid signature, but it cannot prove that the
+//! signer used this module's deterministic external nonce or otherwise chose
+//! one canonical valid FN-DSA signature. A signer able to produce multiple
+//! valid encodings for the same binding message can therefore grind the
+//! resulting VRF output. The deterministic signing construction limits honest
+//! implementations to one output; nonce/canonicality enforcement is not a
+//! property of verification and must not be assumed by consensus callers.
 
 use alloc::vec::Vec;
 use core::fmt;
@@ -22,7 +34,7 @@ use sp_core::crypto::{CryptoTypeId, DeriveError, DeriveJunction, VrfCrypto, VrfP
 use sp_core::sr25519;
 use sp_core::Pair as _;
 
-use crate::seed::MASTER_SEED_LEN;
+use crate::MASTER_SEED_LEN;
 use crate::substrate::signature::{
 	Pair as SignaturePair, Public as SignaturePublic, Signature as SignatureWrapper,
 	SubstrateSignatureScheme,
@@ -47,7 +59,8 @@ const SR25519_PUBLIC_KEY_LEN: usize = 32;
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 const SR25519_SECRET_KEY_LEN: usize = 64;
 const DELTA_OFFSET: usize = 64;
-const MIN_HYBRID_SIGNATURE_LEN: usize = 64 + 1 + 411;
+const MIN_HYBRID_SIGNATURE_LEN: usize =
+	64 + 1 + pqhybridsign::MIN_FALCON512_SIG_LEN;
 
 /// Shared Substrate-signature wrapper marker for H4.
 #[doc(hidden)]

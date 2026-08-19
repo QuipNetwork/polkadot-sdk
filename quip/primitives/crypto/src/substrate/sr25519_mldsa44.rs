@@ -22,17 +22,19 @@ use sp_core::crypto::{CryptoTypeId, DeriveError, DeriveJunction, VrfCrypto, VrfP
 use sp_core::sr25519;
 use sp_core::Pair as _;
 
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-use crate::fixed::FixedHybridEncoding;
-use crate::pq::mldsa44 as pq_mldsa44;
-use crate::seed::MASTER_SEED_LEN;
+use crate::MASTER_SEED_LEN;
 use crate::substrate::signature::{
     Pair as SignaturePair, Public as SignaturePublic, Signature as SignatureWrapper,
     SubstrateSignatureScheme,
 };
 #[cfg(any(feature = "std", feature = "full_crypto"))]
-use crate::suite::sr25519_mldsa44::SecretKey as HybridSecretKey;
-use crate::suite::sr25519_mldsa44::{Sr25519MlDsa44, HYBRID_PK_LEN, HYBRID_SIG_LEN};
+use crate::suite::sr25519_mldsa44::{
+    sign_ml_dsa_component, SecretKey as HybridSecretKey,
+};
+use crate::suite::sr25519_mldsa44::{
+    verify_ml_dsa_component, Sr25519MlDsa44, HYBRID_PK_LEN, HYBRID_SIG_LEN,
+    ML_DSA_PUBLIC_KEY_LEN, ML_DSA_SIGNATURE_LEN,
+};
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 use crate::HybridVrf;
 
@@ -44,10 +46,8 @@ const HYBRID_VRF_LABEL: &[u8] = b"hybrid-vrf";
 pub const VRF_OUTPUT_LENGTH: usize = 32;
 
 const SR25519_PUBLIC_KEY_LEN: usize = 32;
-const PQ_PUBLIC_KEY_LEN: usize = pq_mldsa44::PUBLIC_KEY_LEN;
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-const PQ_SECRET_KEY_LEN: usize = pq_mldsa44::SECRET_KEY_LEN;
-const PQ_SIGNATURE_LEN: usize = pq_mldsa44::SIGNATURE_LEN;
+const PQ_PUBLIC_KEY_LEN: usize = ML_DSA_PUBLIC_KEY_LEN;
+const PQ_SIGNATURE_LEN: usize = ML_DSA_SIGNATURE_LEN;
 
 /// Shared Substrate-signature wrapper marker for H3.
 #[doc(hidden)]
@@ -294,34 +294,26 @@ impl VrfSignature {
 
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 fn sr25519_pair(secret: &HybridSecretKey) -> sr25519::Pair {
-    let (classical, _) = <Sr25519MlDsa44 as FixedHybridEncoding>::split_secret_key(secret);
+    let (classical, _) = secret.split_components();
     sr25519::Pair::from_seed_slice(classical)
         .expect("stored H3 secret key contains a valid sr25519 secret")
-}
-
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-fn pq_secret_bytes(secret: &HybridSecretKey) -> &[u8; PQ_SECRET_KEY_LEN] {
-    let (_, pq) = <Sr25519MlDsa44 as FixedHybridEncoding>::split_secret_key(secret);
-    pq.try_into()
-        .expect("stored H3 secret key contains a fixed-size ML-DSA secret")
 }
 
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 fn pq_binding_signature(
     input: &VrfInput,
     pre_output: &sr25519::vrf::VrfPreOutput,
-    pq_secret: &[u8; PQ_SECRET_KEY_LEN],
+    secret: &HybridSecretKey,
 ) -> [u8; PQ_SIGNATURE_LEN] {
     let message = binding_message(input, pre_output);
-    pq_mldsa44::sign_deterministic(pq_secret, &message)
+    sign_ml_dsa_component(secret, &message)
 }
 
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 fn pair_vrf_output(pair: &Pair, input: &VrfInput) -> VrfOutput {
     let secret = pair.expanded_secret();
-    let pq_secret = pq_secret_bytes(&secret);
     let sr25519_pre_output = sr25519_pair(&secret).vrf_pre_output(&input.clone_sr25519());
-    let pq_signature = pq_binding_signature(input, &sr25519_pre_output, pq_secret);
+    let pq_signature = pq_binding_signature(input, &sr25519_pre_output, &secret);
     VrfOutput::from_parts(&sr25519_pre_output, &pq_signature)
 }
 
@@ -348,9 +340,8 @@ impl VrfSecret for SignaturePair<SubstrateH3, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 
     fn vrf_sign(&self, data: &Self::VrfSignData) -> Self::VrfSignature {
         let secret = self.expanded_secret();
-        let pq_secret = pq_secret_bytes(&secret);
         let sr25519 = sr25519_pair(&secret).vrf_sign(&data.clone_sr25519());
-        let pq_signature = pq_binding_signature(data.input(), &sr25519.pre_output, pq_secret);
+        let pq_signature = pq_binding_signature(data.input(), &sr25519.pre_output, &secret);
 
         VrfSignature {
             sr25519,
@@ -376,7 +367,7 @@ impl VrfPublic for SignaturePublic<SubstrateH3, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
         }
 
         let message = binding_message(data.input(), &signature.sr25519.pre_output);
-        pq_mldsa44::verify(&pq, &message, &signature.pq_signature)
+        verify_ml_dsa_component(&pq, &message, &signature.pq_signature)
     }
 }
 

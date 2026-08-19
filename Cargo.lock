@@ -18533,6 +18533,7 @@ version = "0.1.0"
 dependencies = [
  "hkdf",
  "parity-scale-codec",
+ "pqhybridsign",
  "quip-crypto-primitives-core",
  "scale-info",
  "sha2 0.10.9",
@@ -18547,20 +18548,16 @@ dependencies = [
 name = "quip-crypto-primitives-core"
 version = "0.1.0"
 dependencies = [
- "blake2 0.10.6",
  "ed25519-zebra",
  "fips204",
  "fn-dsa",
  "hex",
- "hkdf",
  "pqhybridsign",
  "pqhybridsign-core",
  "rand_core 0.6.4",
  "schnorrkel 0.11.5",
  "serde",
  "serde_json",
- "sha2 0.10.9",
- "subtle 2.6.1",
  "thiserror 1.0.69",
  "zeroize",
 ]

@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 quip-crypto-primitives-core = { workspace = true, default-features = false }
+pqhybridsign = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "d17e054a4d54bc078f60bf5ddefd3b9a2fbaa2cd", default-features = false }
 codec = { workspace = true, default-features = false }
 scale-info = { workspace = true, default-features = false }
 sp-core = { workspace = true, default-features = false }
@@ -25,6 +26,7 @@ zeroize = { version = "1", default-features = false, features = ["derive"] }
 default = ["std"]
 std = [
     "quip-crypto-primitives-core/std",
+    "pqhybridsign/std",
     "codec/std",
     "scale-info/std",
     "sp-core/std",

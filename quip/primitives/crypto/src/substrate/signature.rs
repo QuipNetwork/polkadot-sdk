@@ -25,7 +25,7 @@ use sp_core::proof_of_possession::{NonAggregatable, ProofOfPossessionVerifier};
 use sp_core::Pair as _;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::seed::MASTER_SEED_LEN;
+use crate::MASTER_SEED_LEN;
 use crate::HybridSignatureScheme;
 
 /// Wrapper-specific behavior needed by the shared Substrate glue.

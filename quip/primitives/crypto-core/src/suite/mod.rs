@@ -7,18 +7,6 @@
 pub mod ed25519_fndsa512;
 pub mod ed25519_mldsa44;
 mod fndsa512;
+mod mldsa44;
 pub mod sr25519_fndsa512;
 pub mod sr25519_mldsa44;
-
-/// Default version byte used in the domain-separated hybrid message format.
-pub const DEFAULT_HYBRID_SIGNATURE_VERSION: u8 = 0x01;
-
-/// Compile-time metadata for a concrete hybrid signature suite.
-pub trait FixedHybridSuite {
-    /// Domain-separation label for the suite, including the trailing NUL byte
-    /// required by the current specification.
-    const LABEL: &'static [u8];
-
-    /// Version byte prepended to the domain-separated message.
-    const VERSION: u8 = DEFAULT_HYBRID_SIGNATURE_VERSION;
-}

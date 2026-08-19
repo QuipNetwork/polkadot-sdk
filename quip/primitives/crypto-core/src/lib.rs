@@ -1,8 +1,7 @@
 //! Hybrid signature primitives for the Quip protocol (`sp`-free core).
 //!
-//! This crate contains the pure, `no_std`, dependency-light implementation of
-//! fixed-buffer hybrid signature suites that pair a classical signature
-//! algorithm with ML-DSA-44 or FN-DSA-512:
+//! This crate contains pure, `no_std`, fixed-buffer adapters for the four
+//! stateless suites implemented by the pinned `pqhybridsign` library:
 //! - [`Ed25519MlDsa44`]
 //! - [`Sr25519MlDsa44`]
 //! - [`Ed25519FnDsa512`]
@@ -10,16 +9,18 @@
 //!
 //! It deliberately has no `sp-core`/`sp-io` dependency, so it can be reused by
 //! both the Substrate runtime wrappers (in `quip-crypto-primitives`) and by
-//! `no_std`/wasm signers that cannot link Substrate host functions. H2 and H4
-//! delegate their cryptographic pipeline to the pinned `pqhybridsign` library.
+//! `no_std`/wasm signers that cannot link Substrate host functions.
 //!
-//! Internally, the crate is organized into a few layers:
-//! - [`classical`] and [`pq`] adapt concrete component algorithms into a common
-//!   byte-oriented interface
-//! - [`fixed`] contains the reusable engine for fixed-size hybrid suites
-//! - [`suite`] contains concrete suite definitions, labels, and wrapper types
-//! - [`seed`] and [`domain`] provide shared seed-expansion and message-binding
-//!   helpers
+//! H1/H3 use `pqhybridsign_core::composite`; H2/H4 use
+//! `pqhybridsign_core::composite_delta`. The local code only adapts their wire
+//! encodings to fixed-size Rust types and performs semantic key parsing needed
+//! by the Substrate-facing API. The former in-tree component, seed-expansion,
+//! message-binding, and composition engine has been removed.
+//!
+//! The library-backed H1/H3 derivation is intentionally incompatible with the
+//! former fork engine: `pqhybridsign` includes the null-terminated suite label
+//! in its suite-separated HKDF `info`, while the fork used one fixed `pq` info
+//! value. The same master seed therefore derives different H1/H3 keys.
 //!
 //! The public API is centered around [`HybridSignatureScheme`], which exposes
 //! generation, serialization, signing, and verification for a concrete hybrid
@@ -27,14 +28,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate alloc;
-
-pub mod classical;
-pub mod domain;
 mod error;
-pub mod fixed;
-pub mod pq;
-pub mod seed;
 pub mod suite;
 
 pub use error::{HybridSignatureError, Result};
@@ -62,6 +56,9 @@ pub use suite::sr25519_fndsa512::{
 use rand_core::CryptoRngCore;
 use zeroize::Zeroize;
 
+/// Length in bytes of a hybrid suite master seed.
+pub const MASTER_SEED_LEN: usize = 32;
+
 /// Common interface for hybrid signature constructions.
 ///
 /// Signing has two modes:
@@ -70,9 +67,10 @@ use zeroize::Zeroize;
 ///
 /// Verification has two modes:
 /// - `verify` — works for signatures produced by either signing function.
-/// - `verify_deterministic` — additionally checks the nonce where it is embedded
-///   in the signature (Falcon-512 hybrids). For ML-DSA-44 hybrids this is equivalent
-///   to `verify`.
+/// - `verify_deterministic` — currently equivalent to `verify`. The external
+///   nonce influences deterministic signing where supported, but no current
+///   suite exposes enough information for a verifier to prove which nonce was
+///   used.
 pub trait HybridSignatureScheme {
     /// Serialized public-key type for the suite.
     type PublicKey: AsRef<[u8]> + Clone;
@@ -141,9 +139,8 @@ pub trait HybridSignatureScheme {
     ///
     /// `ctx` must exactly match the context used during signing.
     ///
-    /// For Falcon-512 hybrids: extracts the nonce embedded in the PQ component
-    /// and compares it to `expected_nonce`.
-    /// For ML-DSA-44 hybrids: equivalent to `verify` (nonce is not embedded).
+    /// The current H1-H4 wire encodings do not let a verifier recompute or
+    /// recover the external signing nonce, so this defaults to [`verify`](Self::verify).
     fn verify_deterministic(
         pk: &Self::PublicKey,
         msg: &[u8],
