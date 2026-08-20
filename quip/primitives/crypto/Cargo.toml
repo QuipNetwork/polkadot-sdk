@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 quip-crypto-primitives-core = { workspace = true, default-features = false }
-pqhybridsign = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "cfa59138388aa7d63af90db5d02b1aa8be4dc70c", default-features = false }
+pqhybridsign = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "5dc540e90ff6173e2347cf11c0031ccfe216e59f", default-features = false }
 codec = { workspace = true, default-features = false }
 scale-info = { workspace = true, default-features = false }
 sp-core = { workspace = true, default-features = false }
