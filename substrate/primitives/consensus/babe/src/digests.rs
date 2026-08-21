@@ -19,12 +19,11 @@
 
 use super::{
 	AllowedSlots, AuthorityId, AuthorityIndex, AuthoritySignature, BabeAuthorityWeight,
-	BabeEpochConfiguration, Randomness, Slot, BABE_ENGINE_ID,
+	BabeEpochConfiguration, Randomness, Slot, VrfSignature, BABE_ENGINE_ID,
 };
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
-use sp_core::sr25519::vrf::VrfSignature;
 use sp_runtime::DigestItem;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};

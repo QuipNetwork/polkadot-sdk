@@ -34,6 +34,7 @@ use sp_core::{
 };
 
 use alloc::{string::String, sync::Arc, vec::Vec};
+use codec::{Decode, Encode};
 
 /// Keystore error
 #[derive(Debug)]
@@ -46,6 +47,18 @@ pub enum Error {
 	Unavailable,
 	/// Programming errors
 	Other(String),
+}
+
+/// BABE transcript components needed to derive a scheme-specific VRF signing
+/// payload.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct BabeVrfSignData {
+	/// Chain randomness for the epoch.
+	pub randomness: [u8; 32],
+	/// Slot number being claimed.
+	pub slot: u64,
+	/// Epoch index associated with the slot claim.
+	pub epoch: u64,
 }
 
 impl core::fmt::Display for Error {
@@ -61,6 +74,126 @@ impl core::fmt::Display for Error {
 
 #[cfg(feature = "std")]
 impl std::error::Error for Error {}
+
+/// Shared implementation of [`Keystore::public_keys_with`] for the built-in
+/// Substrate crypto schemes.
+pub fn public_keys_with_default<K: Keystore + ?Sized>(
+	keystore: &K,
+	id: KeyTypeId,
+	crypto_id: CryptoTypeId,
+) -> Result<Vec<Vec<u8>>, Error> {
+	let public_keys = match crypto_id {
+		sr25519::CRYPTO_ID => keystore
+			.sr25519_public_keys(id)
+			.into_iter()
+			.map(|public| public.to_raw_vec())
+			.collect(),
+		ed25519::CRYPTO_ID => keystore
+			.ed25519_public_keys(id)
+			.into_iter()
+			.map(|public| public.to_raw_vec())
+			.collect(),
+		ecdsa::CRYPTO_ID => keystore
+			.ecdsa_public_keys(id)
+			.into_iter()
+			.map(|public| public.to_raw_vec())
+			.collect(),
+		#[cfg(feature = "bandersnatch-experimental")]
+		bandersnatch::CRYPTO_ID => keystore
+			.bandersnatch_public_keys(id)
+			.into_iter()
+			.map(|public| public.to_raw_vec())
+			.collect(),
+		#[cfg(feature = "bls-experimental")]
+		bls381::CRYPTO_ID => keystore
+			.bls381_public_keys(id)
+			.into_iter()
+			.map(|public| public.to_raw_vec())
+			.collect(),
+		#[cfg(feature = "bls-experimental")]
+		ecdsa_bls381::CRYPTO_ID => keystore
+			.ecdsa_bls381_public_keys(id)
+			.into_iter()
+			.map(|public| public.to_raw_vec())
+			.collect(),
+		_ => return Err(Error::KeyNotSupported(id)),
+	};
+
+	Ok(public_keys)
+}
+
+/// Shared implementation of [`Keystore::generate_new_with`] for the built-in
+/// Substrate crypto schemes.
+pub fn generate_new_with_default<K: Keystore + ?Sized>(
+	keystore: &K,
+	id: KeyTypeId,
+	crypto_id: CryptoTypeId,
+	seed: Option<&str>,
+) -> Result<Vec<u8>, Error> {
+	let public = match crypto_id {
+		sr25519::CRYPTO_ID => keystore.sr25519_generate_new(id, seed)?.to_raw_vec(),
+		ed25519::CRYPTO_ID => keystore.ed25519_generate_new(id, seed)?.to_raw_vec(),
+		ecdsa::CRYPTO_ID => keystore.ecdsa_generate_new(id, seed)?.to_raw_vec(),
+		#[cfg(feature = "bandersnatch-experimental")]
+		bandersnatch::CRYPTO_ID => keystore.bandersnatch_generate_new(id, seed)?.to_raw_vec(),
+		#[cfg(feature = "bls-experimental")]
+		bls381::CRYPTO_ID => keystore.bls381_generate_new(id, seed)?.to_raw_vec(),
+		#[cfg(feature = "bls-experimental")]
+		ecdsa_bls381::CRYPTO_ID => keystore.ecdsa_bls381_generate_new(id, seed)?.to_raw_vec(),
+		_ => return Err(Error::KeyNotSupported(id)),
+	};
+
+	Ok(public)
+}
+
+/// Shared implementation of [`Keystore::sign_with`] for the built-in
+/// Substrate crypto schemes.
+pub fn sign_with_default<K: Keystore + ?Sized>(
+	keystore: &K,
+	id: KeyTypeId,
+	crypto_id: CryptoTypeId,
+	public: &[u8],
+	msg: &[u8],
+) -> Result<Option<Vec<u8>>, Error> {
+	let signature = match crypto_id {
+		sr25519::CRYPTO_ID => {
+			let public = sr25519::Public::from_slice(public)
+				.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
+			keystore.sr25519_sign(id, &public, msg)?.map(|s| s.encode())
+		},
+		ed25519::CRYPTO_ID => {
+			let public = ed25519::Public::from_slice(public)
+				.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
+			keystore.ed25519_sign(id, &public, msg)?.map(|s| s.encode())
+		},
+		ecdsa::CRYPTO_ID => {
+			let public = ecdsa::Public::from_slice(public)
+				.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
+			keystore.ecdsa_sign(id, &public, msg)?.map(|s| s.encode())
+		},
+		#[cfg(feature = "bandersnatch-experimental")]
+		bandersnatch::CRYPTO_ID => {
+			let public = bandersnatch::Public::from_slice(public)
+				.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
+			keystore.bandersnatch_sign(id, &public, msg)?.map(|s| s.encode())
+		},
+		#[cfg(feature = "bls-experimental")]
+		bls381::CRYPTO_ID => {
+			let public = bls381::Public::from_slice(public)
+				.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
+			keystore.bls381_sign(id, &public, msg)?.map(|s| s.encode())
+		},
+		#[cfg(feature = "bls-experimental")]
+		ecdsa_bls381::CRYPTO_ID => {
+			let public = ecdsa_bls381::Public::from_slice(public)
+				.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
+			keystore.ecdsa_bls381_sign(id, &public, msg)?.map(|s| s.encode())
+		},
+		_ => return Err(Error::KeyNotSupported(id)),
+	};
+
+	Ok(signature)
+}
 
 /// Something that generates, stores and provides access to secret keys.
 pub trait Keystore: Send + Sync {
@@ -385,6 +518,31 @@ pub trait Keystore: Send + Sync {
 	/// Returns `true` iff all private keys could be found.
 	fn has_keys(&self, public_keys: &[(Vec<u8>, KeyTypeId)]) -> bool;
 
+	/// Convenience method to list public keys using the cryptographic primitive
+	/// specified by `crypto_id`.
+	///
+	/// Returns the raw public key bytes for all matching keys.
+	fn public_keys_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+	) -> Result<Vec<Vec<u8>>, Error> {
+		public_keys_with_default(self, id, crypto_id)
+	}
+
+	/// Convenience method to generate a key using the cryptographic primitive
+	/// specified by `crypto_id`.
+	///
+	/// Returns the raw public key bytes of the generated key.
+	fn generate_new_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		seed: Option<&str>,
+	) -> Result<Vec<u8>, Error> {
+		generate_new_with_default(self, id, crypto_id, seed)
+	}
+
 	/// Convenience method to sign a message using the given key type and a raw public key
 	/// for secret lookup.
 	///
@@ -409,46 +567,30 @@ pub trait Keystore: Send + Sync {
 		public: &[u8],
 		msg: &[u8],
 	) -> Result<Option<Vec<u8>>, Error> {
-		use codec::Encode;
+		sign_with_default(self, id, crypto_id, public, msg)
+	}
 
-		let signature = match crypto_id {
-			sr25519::CRYPTO_ID => {
-				let public = sr25519::Public::from_slice(public)
-					.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
-				self.sr25519_sign(id, &public, msg)?.map(|s| s.encode())
-			},
-			ed25519::CRYPTO_ID => {
-				let public = ed25519::Public::from_slice(public)
-					.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
-				self.ed25519_sign(id, &public, msg)?.map(|s| s.encode())
-			},
-			ecdsa::CRYPTO_ID => {
-				let public = ecdsa::Public::from_slice(public)
-					.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
-
-				self.ecdsa_sign(id, &public, msg)?.map(|s| s.encode())
-			},
-			#[cfg(feature = "bandersnatch-experimental")]
-			bandersnatch::CRYPTO_ID => {
-				let public = bandersnatch::Public::from_slice(public)
-					.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
-				self.bandersnatch_sign(id, &public, msg)?.map(|s| s.encode())
-			},
-			#[cfg(feature = "bls-experimental")]
-			bls381::CRYPTO_ID => {
-				let public = bls381::Public::from_slice(public)
-					.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
-				self.bls381_sign(id, &public, msg)?.map(|s| s.encode())
-			},
-			#[cfg(feature = "bls-experimental")]
-			ecdsa_bls381::CRYPTO_ID => {
-				let public = ecdsa_bls381::Public::from_slice(public)
-					.map_err(|_| Error::ValidationError("Invalid public key format".into()))?;
-				self.ecdsa_bls381_sign(id, &public, msg)?.map(|s| s.encode())
-			},
-			_ => return Err(Error::KeyNotSupported(id)),
-		};
-		Ok(signature)
+	/// Convenience method to generate a VRF signature using the given key type
+	/// and a raw public key for secret lookup.
+	///
+	/// The VRF signing data is SCALE encoded and interpreted using the
+	/// cryptographic primitive specified by `crypto_id`.
+	///
+	/// Schemes supported by the default trait implementation:
+	/// - sr25519
+	///
+	/// Additional schemes can be supported by overriding this method.
+	///
+	/// Returns the SCALE encoded VRF signature if key is found and supported,
+	/// `None` if the key doesn't exist, or an error when something failed.
+	fn vrf_sign_with(
+		&self,
+		id: KeyTypeId,
+		_crypto_id: CryptoTypeId,
+		_public: &[u8],
+		_data: &BabeVrfSignData,
+	) -> Result<Option<Vec<u8>>, Error> {
+		Err(Error::KeyNotSupported(id))
 	}
 }
 
@@ -678,6 +820,19 @@ impl<T: Keystore + ?Sized> Keystore for Arc<T> {
 		(**self).has_keys(public_keys)
 	}
 
+	fn public_keys_with(&self, id: KeyTypeId, crypto_id: CryptoTypeId) -> Result<Vec<Vec<u8>>, Error> {
+		(**self).public_keys_with(id, crypto_id)
+	}
+
+	fn generate_new_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		seed: Option<&str>,
+	) -> Result<Vec<u8>, Error> {
+		(**self).generate_new_with(id, crypto_id, seed)
+	}
+
 	fn sign_with(
 		&self,
 		id: KeyTypeId,
@@ -686,6 +841,16 @@ impl<T: Keystore + ?Sized> Keystore for Arc<T> {
 		msg: &[u8],
 	) -> Result<Option<Vec<u8>>, Error> {
 		(**self).sign_with(id, crypto_id, public, msg)
+	}
+
+	fn vrf_sign_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		public: &[u8],
+		data: &BabeVrfSignData,
+	) -> Result<Option<Vec<u8>>, Error> {
+		(**self).vrf_sign_with(id, crypto_id, public, data)
 	}
 }
 

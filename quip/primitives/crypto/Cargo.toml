@@ -1,0 +1,41 @@
+[package]
+name = "quip-crypto-primitives"
+version = "0.1.0"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+quip-crypto-primitives-core = { workspace = true, default-features = false }
+codec = { workspace = true, default-features = false }
+scale-info = { workspace = true, default-features = false }
+sp-core = { workspace = true, default-features = false }
+sp-application-crypto = { workspace = true, default-features = false }
+sp-io = { workspace = true, default-features = false }
+hkdf = { version = "0.12", default-features = false }
+sha2 = { version = "0.10", default-features = false } # can't be bumped to 0.11 as it breaks other dependencies.
+zeroize = { version = "1", default-features = false, features = ["derive"] }
+
+[features]
+default = ["std"]
+std = [
+    "quip-crypto-primitives-core/std",
+    "codec/std",
+    "scale-info/std",
+    "sp-core/std",
+    "sp-application-crypto/std",
+    "sp-io/std",
+    "sp-core/full_crypto",
+    "hkdf/std",
+    "sha2/std",
+    "zeroize/std",
+]
+full_crypto = ["sp-core/full_crypto"]
+
+[dev-dependencies]
+sp-consensus-babe = { workspace = true, default-features = false, features = ["std"] }

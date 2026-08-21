@@ -18,14 +18,37 @@
 
 //! Implementation of the `insert` subcommand
 
-use crate::{
-	utils, with_crypto_scheme, CryptoScheme, Error, KeystoreParams, SharedParams, SubstrateCli,
-};
-use clap::Parser;
+use crate::{utils, Error, KeystoreParams, SharedParams, SubstrateCli};
+use clap::{Parser, ValueEnum};
 use sc_keystore::LocalKeystore;
 use sc_service::config::{BasePath, KeystoreConfig};
 use sp_core::crypto::{KeyTypeId, SecretString};
 use sp_keystore::KeystorePtr;
+
+/// Cryptography scheme accepted by [`InsertKeyCmd`].
+///
+/// This is a superset of the workspace-wide [`crate::CryptoScheme`] — it adds
+/// the hybrid post-quantum variants used by Quip's consensus
+/// (`sr25519 + ML-DSA-44` for BABE/tx, `ed25519 + ML-DSA-44` for GRANDPA).
+/// Other CLI commands (`generate`, `sign`, `inspect`, `verify`) keep using the
+/// narrower [`crate::CryptoScheme`] because their helpers require trait bounds
+/// (`Into<MultiSigner>`, etc.) that the hybrid public types don't satisfy.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum InsertKeyScheme {
+	/// Use ed25519.
+	Ed25519,
+	/// Use sr25519.
+	Sr25519,
+	/// Use ecdsa.
+	Ecdsa,
+	/// Use the hybrid `sr25519 + ML-DSA-44` (H344) scheme — BABE consensus
+	/// and transaction signing on Quip.
+	HybridBabeH344,
+	/// Use the hybrid `ed25519 + ML-DSA-44` (H144) scheme — GRANDPA finality
+	/// on Quip.
+	HybridGrandpaH144,
+}
 
 /// The `insert` command
 #[derive(Debug, Clone, Parser)]
@@ -51,7 +74,7 @@ pub struct InsertKeyCmd {
 
 	/// The cryptography scheme that should be used to generate the key out of the given URI.
 	#[arg(long, value_name = "SCHEME", value_enum, ignore_case = true)]
-	pub scheme: CryptoScheme,
+	pub scheme: InsertKeyScheme,
 }
 
 impl InsertKeyCmd {
@@ -68,7 +91,20 @@ impl InsertKeyCmd {
 
 		let (keystore, public) = match self.keystore_params.keystore_config(&config_dir)? {
 			KeystoreConfig::Path { path, password } => {
-				let public = with_crypto_scheme!(self.scheme, to_vec(&suri, password.clone()))?;
+				let public = match self.scheme {
+					InsertKeyScheme::Sr25519 =>
+						to_vec::<sp_core::sr25519::Pair>(&suri, password.clone())?,
+					InsertKeyScheme::Ed25519 =>
+						to_vec::<sp_core::ed25519::Pair>(&suri, password.clone())?,
+					InsertKeyScheme::Ecdsa =>
+						to_vec::<sp_core::ecdsa::Pair>(&suri, password.clone())?,
+					InsertKeyScheme::HybridBabeH344 => to_vec::<
+						quip_crypto_primitives::substrate::sr25519_mldsa44::Pair,
+					>(&suri, password.clone())?,
+					InsertKeyScheme::HybridGrandpaH144 => to_vec::<
+						quip_crypto_primitives::substrate::ed25519_mldsa44::Pair,
+					>(&suri, password.clone())?,
+				};
 				let keystore: KeystorePtr = LocalKeystore::open(path, password)?.into();
 				(keystore, public)
 			},

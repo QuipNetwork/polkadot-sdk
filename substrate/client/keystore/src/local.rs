@@ -18,13 +18,28 @@
 //
 //! Local keystore implementation
 
+use codec::Encode;
 use parking_lot::RwLock;
+use quip_crypto_primitives::substrate::{
+	ed25519_mldsa44::{
+		Pair as HybridGrandpaPair, Public as HybridGrandpaPublic, CRYPTO_ID as H144_CRYPTO_ID,
+	},
+	sr25519_mldsa44::{
+		babe as hybrid_babe, Pair as HybridPair, Public as HybridPublic,
+		CRYPTO_ID as H344_CRYPTO_ID,
+	},
+};
 use sp_application_crypto::{AppCrypto, AppPair, IsWrappedBy};
 use sp_core::{
-	crypto::{ByteArray, ExposeSecret, KeyTypeId, Pair as CorePair, SecretString, VrfSecret},
+	crypto::{
+		ByteArray, CryptoTypeId, ExposeSecret, KeyTypeId, Pair as CorePair, SecretString, VrfSecret,
+	},
 	ecdsa, ed25519, sr25519,
 };
-use sp_keystore::{Error as TraitError, Keystore, KeystorePtr};
+use sp_keystore::{
+	public_keys_with_default, sign_with_default, BabeVrfSignData, Error as TraitError, Keystore,
+	KeystorePtr,
+};
 use std::{
 	collections::HashMap,
 	fs::{self, File},
@@ -42,6 +57,41 @@ use sp_core::{bls381, ecdsa_bls381, KeccakHasher, proof_of_possession::ProofOfPo
 }
 
 use crate::{Error, Result};
+
+/// Conservative budget for keystore filenames, well below the typical 255-byte
+/// `NAME_MAX` on Linux/macOS so headroom remains for filesystem-specific
+/// encoding overhead.
+const KEYSTORE_FILENAME_BUDGET: usize = 240;
+
+/// Whether `public` is too long for the filename to encode it as raw hex.
+///
+/// 32-byte classical pubkeys (sr25519/ed25519) + the 4-byte key-type prefix
+/// produce a 72-char filename and fit easily; hybrid post-quantum pubkeys
+/// (~1344 bytes) blow past `NAME_MAX` and must be hashed into the filename
+/// while preserving the full pubkey inside the file body.
+fn needs_hashed_filename(public: &[u8]) -> bool {
+    8usize.saturating_add(public.len().saturating_mul(2)) > KEYSTORE_FILENAME_BUDGET
+}
+
+/// Read the secret URI back from a keystore file written by [`KeystoreInner::write_to_file`].
+///
+/// Supports both:
+/// * legacy format: bare JSON string containing the URI/mnemonic
+/// * envelope format: `{"public":"0x…","suri":"<uri>"}` used when the pubkey
+///   wouldn't fit in the filename
+fn read_suri_from_keystore_file(file: &File) -> Result<String> {
+    let raw: serde_json::Value = serde_json::from_reader(file)?;
+    match raw {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Object(obj) => match obj.get("suri") {
+            Some(serde_json::Value::String(s)) => Ok(s.clone()),
+            _ => Err(Error::Io(std::io::Error::other(
+                "keystore envelope missing 'suri' string",
+            ))),
+        },
+        _ => Err(Error::Io(std::io::Error::other("unexpected keystore file format"))),
+    }
+}
 
 /// A local based keystore that is either memory-based or filesystem-based.
 pub struct LocalKeystore(RwLock<KeystoreInner>);
@@ -184,6 +234,100 @@ impl Keystore for LocalKeystore {
 		public_keys
 			.iter()
 			.all(|(p, t)| self.0.read().key_phrase_by_type(p, *t).ok().flatten().is_some())
+	}
+
+	fn public_keys_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+	) -> std::result::Result<Vec<Vec<u8>>, TraitError> {
+		match crypto_id {
+			H144_CRYPTO_ID => Ok(self
+				.public_keys::<HybridGrandpaPair>(id)
+				.into_iter()
+				.map(|public| public.to_raw_vec())
+				.collect()),
+			H344_CRYPTO_ID => Ok(self
+				.public_keys::<HybridPair>(id)
+				.into_iter()
+				.map(|public| public.to_raw_vec())
+				.collect()),
+			_ => public_keys_with_default(self, id, crypto_id),
+		}
+	}
+
+	fn generate_new_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		seed: Option<&str>,
+	) -> std::result::Result<Vec<u8>, TraitError> {
+		match crypto_id {
+			H144_CRYPTO_ID => self
+				.generate_new::<HybridGrandpaPair>(id, seed)
+				.map(|public| public.to_raw_vec()),
+			H344_CRYPTO_ID => {
+				self.generate_new::<HybridPair>(id, seed).map(|public| public.to_raw_vec())
+			},
+			_ => sp_keystore::generate_new_with_default(self, id, crypto_id, seed),
+		}
+	}
+
+	fn sign_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		public: &[u8],
+		msg: &[u8],
+	) -> std::result::Result<Option<Vec<u8>>, TraitError> {
+		match crypto_id {
+			H144_CRYPTO_ID => {
+				let public = HybridGrandpaPublic::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				self.sign::<HybridGrandpaPair>(id, &public, msg)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			H344_CRYPTO_ID => {
+				let public = HybridPublic::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				self.sign::<HybridPair>(id, &public, msg)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			_ => sign_with_default(self, id, crypto_id, public, msg),
+		}
+	}
+
+	fn vrf_sign_with(
+		&self,
+		id: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		public: &[u8],
+		data: &BabeVrfSignData,
+	) -> std::result::Result<Option<Vec<u8>>, TraitError> {
+		let babe_vrf_data =
+			hybrid_babe::make_vrf_sign_data(&data.randomness, data.slot, data.epoch);
+
+		match crypto_id {
+			sr25519::CRYPTO_ID => {
+				let public = sr25519::Public::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				let data = hybrid_babe::make_sr25519_vrf_sign_data(
+					&data.randomness,
+					data.slot,
+					data.epoch,
+				);
+				self.vrf_sign::<sr25519::Pair>(id, &public, &data)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			H344_CRYPTO_ID => {
+				let public = HybridPublic::from_slice(public)
+					.map_err(|_| TraitError::ValidationError("Invalid public key format".into()))?;
+				let data = babe_vrf_data;
+				self.vrf_sign::<HybridPair>(id, &public, &data)
+					.map(|signature| signature.map(|s| s.encode()))
+			},
+			_ => Err(TraitError::KeyNotSupported(id)),
+		}
 	}
 
 	fn sr25519_public_keys(&self, key_type: KeyTypeId) -> Vec<sr25519::Public> {
@@ -501,7 +645,7 @@ impl KeystoreInner {
 	/// Places it into the file system store, if a path is configured.
 	fn insert(&self, key_type: KeyTypeId, suri: &str, public: &[u8]) -> Result<()> {
 		if let Some(path) = self.key_file_path(public, key_type) {
-			Self::write_to_file(path, suri)?;
+			Self::write_to_file(path, suri, public)?;
 		}
 
 		Ok(())
@@ -513,8 +657,9 @@ impl KeystoreInner {
 	/// it into the memory cache only.
 	fn generate_by_type<Pair: CorePair>(&mut self, key_type: KeyTypeId) -> Result<Pair> {
 		let (pair, phrase, _) = Pair::generate_with_phrase(self.password());
-		if let Some(path) = self.key_file_path(pair.public().as_slice(), key_type) {
-			Self::write_to_file(path, &phrase)?;
+		let public_bytes = pair.public().to_raw_vec();
+		if let Some(path) = self.key_file_path(&public_bytes, key_type) {
+			Self::write_to_file(path, &phrase, &public_bytes)?;
 		} else {
 			self.insert_ephemeral_pair(&pair, &phrase, key_type);
 		}
@@ -522,8 +667,16 @@ impl KeystoreInner {
 		Ok(pair)
 	}
 
-	/// Write the given `data` to `file`.
-	fn write_to_file(file: PathBuf, data: &str) -> Result<()> {
+	/// Write `suri` to `file`, with format depending on public-key length:
+	///
+	/// * **Legacy** (≤ 32 bytes pubkey): JSON string `"<suri>"`. Filename encodes
+	///   the full pubkey hex so [`raw_public_keys`] can recover it.
+	/// * **Envelope** (long pubkey, e.g. hybrid post-quantum): JSON object
+	///   `{"public":"0x…","suri":"<suri>"}`. The filename is hash-based to fit
+	///   under `NAME_MAX`, so the full pubkey must travel inside the file.
+	///
+	/// Both formats are recognised on read.
+	fn write_to_file(file: PathBuf, suri: &str, public: &[u8]) -> Result<()> {
 		let mut file = File::create(file)?;
 
 		#[cfg(target_family = "unix")]
@@ -532,7 +685,15 @@ impl KeystoreInner {
 			file.set_permissions(fs::Permissions::from_mode(0o600))?;
 		}
 
-		serde_json::to_writer(&file, data)?;
+		if needs_hashed_filename(public) {
+			let envelope = serde_json::json!({
+				"public": format!("0x{}", array_bytes::bytes2hex("", public)),
+				"suri": suri,
+			});
+			serde_json::to_writer(&file, &envelope)?;
+		} else {
+			serde_json::to_writer(&file, suri)?;
+		}
 		file.flush()?;
 		Ok(())
 	}
@@ -564,8 +725,7 @@ impl KeystoreInner {
 
 		if path.exists() {
 			let file = File::open(path)?;
-
-			serde_json::from_reader(&file).map_err(Into::into).map(Some)
+			read_suri_from_keystore_file(&file).map(Some)
 		} else {
 			Ok(None)
 		}
@@ -595,11 +755,22 @@ impl KeystoreInner {
 	/// Get the file path for the given public key and key type.
 	///
 	/// Returns `None` if the keystore only exists in-memory and there isn't any path to provide.
+	///
+	/// Most filesystems cap filenames at 255 bytes (`NAME_MAX`). For classical
+	/// 32-byte pubkeys the full hex (64 chars + 8-char key-type prefix) fits
+	/// easily; for hybrid post-quantum pubkeys (~1344 bytes raw) it does not.
+	/// In that case we encode the pubkey via a blake2_256 hash so the filename
+	/// stays under the limit; the full pubkey is preserved inside the file
+	/// (see [`write_to_file`] and [`read_suri_from_keystore_file`]).
 	fn key_file_path(&self, public: &[u8], key_type: KeyTypeId) -> Option<PathBuf> {
 		let mut buf = self.path.as_ref()?.clone();
-		let key_type = array_bytes::bytes2hex("", &key_type.0);
-		let key = array_bytes::bytes2hex("", public);
-		buf.push(key_type + key.as_str());
+		let key_type_hex = array_bytes::bytes2hex("", &key_type.0);
+		let suffix = if needs_hashed_filename(public) {
+			array_bytes::bytes2hex("", sp_core::hashing::blake2_256(public))
+		} else {
+			array_bytes::bytes2hex("", public)
+		};
+		buf.push(key_type_hex + suffix.as_str());
 		Some(buf)
 	}
 
@@ -615,20 +786,42 @@ impl KeystoreInner {
 		if let Some(path) = &self.path {
 			for entry in fs::read_dir(&path)? {
 				let entry = entry?;
-				let path = entry.path();
+				let entry_path = entry.path();
 
 				// skip directories and non-unicode file names (hex is unicode)
-				if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-					match array_bytes::hex2bytes(name) {
-						Ok(ref hex) if hex.len() > 4 => {
-							if hex[0..4] != key_type.0 {
-								continue;
+				let Some(name) = entry_path.file_name().and_then(|n| n.to_str()) else {
+					continue;
+				};
+
+				let prefix_hex = array_bytes::bytes2hex("", &key_type.0);
+				let Some(suffix_hex) = name.strip_prefix(&prefix_hex) else {
+					continue;
+				};
+
+				// Try to read the file as the envelope format first; the public
+				// key in the envelope is authoritative when the filename is a
+				// hash (long pubkey case). For legacy files (short pubkey) the
+				// content is a plain JSON string and we recover the pubkey
+				// from the filename suffix.
+				let Ok(file) = File::open(&entry_path) else { continue };
+				let Ok(raw) = serde_json::from_reader::<_, serde_json::Value>(&file) else {
+					continue;
+				};
+				match raw {
+					serde_json::Value::Object(obj) => {
+						if let Some(serde_json::Value::String(pub_hex)) = obj.get("public") {
+							let hex = pub_hex.trim_start_matches("0x");
+							if let Ok(public) = array_bytes::hex2bytes(hex) {
+								public_keys.push(public);
 							}
-							let public = hex[4..].to_vec();
+						}
+					},
+					serde_json::Value::String(_) => {
+						if let Ok(public) = array_bytes::hex2bytes(suffix_hex) {
 							public_keys.push(public);
-						},
-						_ => continue,
-					}
+						}
+					},
+					_ => continue,
 				}
 			}
 		}

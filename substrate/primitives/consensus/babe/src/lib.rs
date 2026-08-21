@@ -31,20 +31,26 @@ use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sp_core::crypto::Wraps;
 use sp_runtime::{traits::Header, ConsensusEngineId};
 
 use crate::digests::{NextConfigDescriptor, NextEpochDescriptor};
 
-pub use sp_core::sr25519::vrf::{
-	VrfInput, VrfPreOutput, VrfProof, VrfSignData, VrfSignature, VrfTranscript,
+pub use quip_crypto_primitives::substrate::sr25519_mldsa44::{
+	VrfInput, VrfOutput, VrfSignData, VrfSignature,
 };
+/// Backward-compatible alias for BABE's VRF pre-output type.
+pub type VrfPreOutput = VrfOutput;
+/// Backward-compatible alias for BABE's VRF transcript/input type.
+pub type VrfTranscript = VrfInput;
 
 /// Key type for BABE module.
 pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_application_crypto::key_types::BABE;
 
 mod app {
-	use sp_application_crypto::{app_crypto, key_types::BABE, sr25519};
-	app_crypto!(sr25519, BABE);
+	use quip_crypto_primitives::substrate::sr25519_mldsa44 as hybrid;
+	use sp_application_crypto::{app_crypto, key_types::BABE};
+	app_crypto!(hybrid, BABE);
 }
 
 /// VRF context used for per-slot randomness generation.
@@ -71,8 +77,8 @@ pub type AuthorityId = app::Public;
 /// The `ConsensusEngineId` of BABE.
 pub const BABE_ENGINE_ID: ConsensusEngineId = *b"BABE";
 
-/// The length of the public key
-pub const PUBLIC_KEY_LENGTH: usize = 32;
+/// The length of the public key.
+pub const PUBLIC_KEY_LENGTH: usize = <AuthorityId as sp_core::crypto::ByteArray>::LEN;
 
 /// How many blocks to wait before running the median algorithm for relative time
 /// This will not vary from chain to chain as it is not dependent on slot duration
@@ -101,19 +107,27 @@ pub type BabeBlockWeight = u32;
 
 /// Make VRF input suitable for BABE's randomness generation.
 pub fn make_vrf_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfInput {
-	VrfInput::new(
-		&BABE_ENGINE_ID,
-		&[
-			(b"slot number", &slot.to_le_bytes()),
-			(b"current epoch", &epoch.to_le_bytes()),
-			(b"chain randomness", randomness),
-		],
+	quip_crypto_primitives::substrate::sr25519_mldsa44::babe::make_vrf_transcript(
+		randomness, *slot, epoch,
 	)
 }
 
 /// Make VRF signing data suitable for BABE's protocol.
 pub fn make_vrf_sign_data(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfSignData {
 	make_vrf_transcript(randomness, slot, epoch).into()
+}
+
+/// Derive protocol bytes from a verified BABE hybrid VRF proof.
+pub fn make_vrf_bytes<const N: usize>(
+	public: &<AuthorityId as Wraps>::Inner,
+	context: &[u8],
+	data: &VrfSignData,
+	signature: &VrfSignature,
+) -> Option<[u8; N]>
+where
+	[u8; N]: Default,
+{
+	quip_crypto_primitives::substrate::sr25519_mldsa44::make_bytes(public, context, data, signature)
 }
 
 /// An consensus log item for BABE.
@@ -284,7 +298,7 @@ where
 	H: Header,
 {
 	use digests::*;
-	use sp_application_crypto::RuntimeAppPublic;
+	use sp_application_crypto::Pair;
 
 	let find_pre_digest =
 		|header: &H| header.digest().logs().iter().find_map(|log| log.as_babe_pre_digest());
@@ -293,7 +307,7 @@ where
 		let seal = header.digest_mut().pop()?.as_babe_seal()?;
 		let pre_hash = header.hash();
 
-		if !offender.verify(&pre_hash.as_ref(), &seal) {
+		if !app::Pair::verify(&seal, pre_hash.as_ref(), offender) {
 			return None;
 		}
 

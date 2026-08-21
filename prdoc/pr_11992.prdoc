@@ -1,0 +1,19 @@
+title: Pass -Zjson-target-spec when building with a .json target spec
+doc:
+- audience: Runtime Dev
+  description: |-
+    Recent rustc requires `-Z json-target-spec` to opt into the JSON target spec format whenever `--target=*.json` is used. Without this, builds that go through `polkavm-linker::target_json_path` fail with:
+
+      error: `.json` target specs require -Zjson-target-spec
+
+    Fix the two places in the workspace that invoke cargo with a JSON target spec for the Riscv runtime:
+
+    - substrate-wasm-builder (`wasm_project.rs`): pass the flag for `RuntimeTarget::Riscv`. `RUSTC_BOOTSTRAP=1` is already set by the preceding `-Z build-std` block (Riscv always opts into build-std).
+    - pallet-revive-fixtures (`builder.rs`): refactor the inline rustc version detection to expose major/minor and derive both `new_immediate_abort` (1.92+) and `needs_json_target_spec` (1.95+) from them.
+
+    The flag is gated on rustc 1.95+ where it was introduced. Older rustc doesn't recognize it; later rustc requires it.
+crates:
+- name: pallet-revive-fixtures
+  bump: patch
+- name: substrate-wasm-builder
+  bump: patch

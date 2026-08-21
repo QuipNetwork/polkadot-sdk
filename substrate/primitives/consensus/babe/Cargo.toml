@@ -18,6 +18,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { optional = true, workspace = true }
 codec = { workspace = true }
+quip-crypto-primitives = { workspace = true, default-features = false }
 scale-info = { features = ["derive"], workspace = true }
 serde = { features = ["alloc", "derive"], optional = true, workspace = true }
 sp-api = { workspace = true }
@@ -33,6 +34,7 @@ default = ["std"]
 std = [
 	"async-trait",
 	"codec/std",
+	"quip-crypto-primitives/std",
 	"scale-info/std",
 	"serde/std",
 	"sp-api/std",

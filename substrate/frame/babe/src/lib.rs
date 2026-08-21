@@ -35,7 +35,7 @@ use frame_support::{
 use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
 use sp_consensus_babe::{
 	digests::{NextConfigDescriptor, NextEpochDescriptor, PreDigest},
-	AllowedSlots, BabeAuthorityWeight, BabeEpochConfiguration, ConsensusLog, Epoch,
+	make_vrf_bytes, AllowedSlots, BabeAuthorityWeight, BabeEpochConfiguration, ConsensusLog, Epoch,
 	EquivocationProof, Randomness as BabeRandomness, Slot, BABE_ENGINE_ID, RANDOMNESS_LENGTH,
 	RANDOMNESS_VRF_CONTEXT,
 };
@@ -369,22 +369,17 @@ pub mod pallet {
 								CurrentSlot::<T>::get(),
 								EpochIndex::<T>::get(),
 							);
+							let sign_data = transcript.clone().into();
 
 							// NOTE: this is verified by the client when importing the block, before
 							// execution. We don't run the verification again here to avoid slowing
 							// down the runtime.
 							debug_assert!({
 								use sp_core::crypto::VrfPublic;
-								public.vrf_verify(&transcript.clone().into_sign_data(), &signature)
+								public.vrf_verify(&sign_data, &signature)
 							});
 
-							public
-								.make_bytes(
-									RANDOMNESS_VRF_CONTEXT,
-									&transcript,
-									&signature.pre_output,
-								)
-								.ok()
+							make_vrf_bytes(public, RANDOMNESS_VRF_CONTEXT, &sign_data, &signature)
 						});
 
 					if let Some(randomness) = pre_digest.is_primary().then(|| randomness).flatten()
