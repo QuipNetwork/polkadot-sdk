@@ -3,7 +3,7 @@
 use core::marker::PhantomData;
 
 use fn_dsa::{SigningKey, SigningKey512, VerifyingKey, VerifyingKey512};
-use pqhybridsign_core::{composite_delta, suite::DeltaSuite};
+use pqhybridsign::{composite_delta, suite::DeltaSuite};
 use rand_core::CryptoRngCore;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 

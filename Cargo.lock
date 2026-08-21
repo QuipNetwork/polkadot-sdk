@@ -17895,27 +17895,15 @@ dependencies = [
 
 [[package]]
 name = "pqhybridsign"
-version = "0.0.0-rc1"
-source = "git+ssh://git@gitlab.com/quip.network/pqhybridsign.git?rev=5dc540e90ff6173e2347cf11c0031ccfe216e59f#5dc540e90ff6173e2347cf11c0031ccfe216e59f"
+version = "0.0.0-rc3"
+source = "git+ssh://git@gitlab.com/quip.network/pqhybridsign.git?rev=8a5d9b4389dbee40f288345e455205f0b9628f9f#8a5d9b4389dbee40f288345e455205f0b9628f9f"
 dependencies = [
  "ed25519-zebra",
  "fips204",
  "fn-dsa",
- "pqhybridsign-core",
- "rand_core 0.6.4",
- "schnorrkel 0.11.5",
- "sha2 0.10.9",
- "subtle 2.6.1",
- "zeroize",
-]
-
-[[package]]
-name = "pqhybridsign-core"
-version = "0.0.0-rc1"
-source = "git+ssh://git@gitlab.com/quip.network/pqhybridsign.git?rev=5dc540e90ff6173e2347cf11c0031ccfe216e59f#5dc540e90ff6173e2347cf11c0031ccfe216e59f"
-dependencies = [
  "hkdf",
  "rand_core 0.6.4",
+ "schnorrkel 0.11.5",
  "sha2 0.10.9",
  "subtle 2.6.1",
  "zeroize",
@@ -18555,7 +18543,6 @@ dependencies = [
  "fn-dsa",
  "hex",
  "pqhybridsign",
- "pqhybridsign-core",
  "rand_core 0.6.4",
  "schnorrkel 0.11.5",
  "serde",

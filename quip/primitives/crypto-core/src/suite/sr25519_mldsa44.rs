@@ -6,7 +6,7 @@
 //! seed derives different H3 keys than the former in-tree fork engine.
 
 use pqhybridsign::{pq::MlDsa44, H3};
-use pqhybridsign_core::{component::PqScheme, suite::Suite};
+use pqhybridsign::{component::PqScheme, suite::Suite};
 use rand_core::CryptoRngCore;
 use zeroize::Zeroize;
 

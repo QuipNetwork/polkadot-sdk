@@ -1,7 +1,7 @@
 //! H4: sr25519 + FN-DSA-512 hybrid signature scheme.
 
 use pqhybridsign::H4;
-use pqhybridsign_core::suite::DeltaSuite;
+use pqhybridsign::suite::DeltaSuite;
 use rand_core::CryptoRngCore;
 use zeroize::Zeroize;
 

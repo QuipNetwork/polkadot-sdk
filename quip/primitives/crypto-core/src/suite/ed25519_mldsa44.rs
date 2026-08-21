@@ -7,7 +7,7 @@
 
 use ed25519_zebra::VerificationKey;
 use pqhybridsign::{classical::Ed25519, H1};
-use pqhybridsign_core::{component::ClassicalScheme, suite::Suite};
+use pqhybridsign::{component::ClassicalScheme, suite::Suite};
 use rand_core::CryptoRngCore;
 use zeroize::Zeroizing;
 

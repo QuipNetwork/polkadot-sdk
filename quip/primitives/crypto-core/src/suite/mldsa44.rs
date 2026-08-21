@@ -6,7 +6,7 @@ use fips204::{
 	ml_dsa_44,
 	traits::{SerDes, Signer},
 };
-use pqhybridsign_core::{composite, suite::Suite};
+use pqhybridsign::{composite, suite::Suite};
 use rand_core::CryptoRngCore;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 

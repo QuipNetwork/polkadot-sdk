@@ -11,8 +11,8 @@
 //! both the Substrate runtime wrappers (in `quip-crypto-primitives`) and by
 //! `no_std`/wasm signers that cannot link Substrate host functions.
 //!
-//! H1/H3 use `pqhybridsign_core::composite`; H2/H4 use
-//! `pqhybridsign_core::composite_delta`. The local code only adapts their wire
+//! H1/H3 use `pqhybridsign::composite`; H2/H4 use
+//! `pqhybridsign::composite_delta`. The local code only adapts their wire
 //! encodings to fixed-size Rust types and performs semantic key parsing needed
 //! by the Substrate-facing API. The former in-tree component, seed-expansion,
 //! message-binding, and composition engine has been removed.
