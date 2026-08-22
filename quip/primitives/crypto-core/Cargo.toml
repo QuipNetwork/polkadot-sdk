@@ -20,7 +20,7 @@ fips204 = { version = "0.4", default-features = false, features = ["ml-dsa-44"]}
 zeroize = { version = "1", default-features = false, features = ["derive"] }
 rand_core = { version = "0.6", default-features = false  } # can't be bumped due to schnorrkel and fips204 depending on this api version.
 thiserror = { version = "1", optional = true }
-pqhybridsign = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "8a5d9b4389dbee40f288345e455205f0b9628f9f", default-features = false, features = ["alloc"] }
+pqhybridsign = { git = "ssh://git@gitlab.com/quip.network/pqhybridsign.git", rev = "330596f453ffb9de30d965352227f536731a6c8e", default-features = false, features = ["alloc"] }
 fn-dsa = { version = "0.4.0", default-features = false }
 
 [features]
