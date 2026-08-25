@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 quip-crypto-primitives-core = { workspace = true, default-features = false }
-pqhybridsign = { version = "0.0.0-rc5", default-features = false }
+pqhybridsign = { version = "=0.0.0-rc7", default-features = false, features = ["vrf"] }
 codec = { workspace = true, default-features = false }
 scale-info = { workspace = true, default-features = false }
 sp-core = { workspace = true, default-features = false }
@@ -40,4 +40,5 @@ std = [
 full_crypto = ["sp-core/full_crypto"]
 
 [dev-dependencies]
+rand_core = { workspace = true, features = ["getrandom"] }
 sp-consensus-babe = { workspace = true, default-features = false, features = ["std"] }

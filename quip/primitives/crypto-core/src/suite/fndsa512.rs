@@ -94,6 +94,12 @@ pub struct SecretKey<C> {
 	marker: PhantomData<fn() -> C>,
 }
 
+impl<C> Clone for SecretKey<C> {
+	fn clone(&self) -> Self {
+		Self::from_array(self.bytes)
+	}
+}
+
 impl<C> SecretKey<C> {
 	fn from_array(bytes: [u8; HYBRID_SK_LEN]) -> Self {
 		Self { bytes, marker: PhantomData }

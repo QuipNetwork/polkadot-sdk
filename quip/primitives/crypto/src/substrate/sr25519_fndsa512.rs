@@ -9,23 +9,18 @@
 //! `ed25519 + FN-DSA-512` GRANDPA wrapper. This file keeps only the logic that
 //! is specific to H4's hybrid VRF construction.
 //!
-//! # Signature-byte dependence and grinding
-//!
-//! The consensus-facing VRF output hashes the exact unpadded H4 binding
-//! signature bytes, not only the sr25519 pre-output. An H4 verifier proves
-//! that those bytes form a valid signature, but it cannot prove that the
-//! signer used this module's deterministic external nonce or otherwise chose
-//! one canonical valid FN-DSA signature. A signer able to produce multiple
-//! valid encodings for the same binding message can therefore grind the
-//! resulting VRF output. The deterministic signing construction limits honest
-//! implementations to one output; nonce/canonicality enforcement is not a
-//! property of verification and must not be assumed by consensus callers.
+//! The VRF construction delegates to [`pqhybridsign::vrf`]. Its output is
+//! derived from the unique sr25519 pre-output alone; the FN-DSA-512 binding is
+//! verified as authentication and never contributes entropy. Consequently,
+//! multiple valid proofs for one key and input cannot move BABE's score or
+//! randomness contribution.
 
 use alloc::vec::Vec;
 use core::fmt;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use hkdf::Hkdf;
+use pqhybridsign::{vrf, H4, MIN_FALCON512_SIG_LEN};
 use scale_info::{build::Fields, Path, Type, TypeInfo};
 use sha2::{Digest, Sha256};
 #[cfg(any(feature = "std", feature = "full_crypto"))]
@@ -39,28 +34,20 @@ use crate::substrate::signature::{
 	Pair as SignaturePair, Public as SignaturePublic, Signature as SignatureWrapper,
 	SubstrateSignatureScheme,
 };
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-use crate::suite::sr25519_fndsa512::SecretKey as HybridSecretKey;
 use crate::suite::sr25519_fndsa512::{Sr25519FnDsa512, HYBRID_PK_LEN, HYBRID_SIG_LEN};
-use crate::HybridSignatureScheme;
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 use crate::HybridVrf;
 
 /// Unique identifier for the H4 hybrid crypto scheme.
 pub const CRYPTO_ID: CryptoTypeId = CryptoTypeId(*b"h444");
 
-const HYBRID_VRF_LABEL: &[u8] = b"hybrid-vrf";
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-const HYBRID_VRF_NONCE_LABEL: &[u8] = b"hybrid-vrf-nonce";
 /// Length in bytes of the consensus-facing hybrid VRF output.
 pub const VRF_OUTPUT_LENGTH: usize = 32;
 
-const SR25519_PUBLIC_KEY_LEN: usize = 32;
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-const SR25519_SECRET_KEY_LEN: usize = 64;
-const DELTA_OFFSET: usize = 64;
-const MIN_HYBRID_SIGNATURE_LEN: usize =
-	64 + 1 + pqhybridsign::MIN_FALCON512_SIG_LEN;
+const SR25519_VRF_PROOF_LEN: usize = 64;
+const LIBRARY_VRF_HEADER_LEN: usize = VRF_OUTPUT_LENGTH + SR25519_VRF_PROOF_LEN;
+const VRF_BINDING_DELTA_OFFSET: usize = 0;
+const MIN_VRF_BINDING_LEN: usize = 1 + MIN_FALCON512_SIG_LEN;
 
 /// Shared Substrate-signature wrapper marker for H4.
 #[doc(hidden)]
@@ -92,17 +79,9 @@ pub type ProofOfPossession = Signature;
 
 /// Hybrid keypair backed by the 32-byte suite master seed.
 ///
-/// The pair stores only the master seed and a cached public key. The expanded
-/// suite secret key is reconstructed on demand for signing.
+/// The pair caches the expanded suite secret key so consensus hot paths do not
+/// repeat FN-DSA-512 key generation for every signature.
 pub type Pair = SignaturePair<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN>;
-
-fn classical_public_component(public: &Public) -> [u8; SR25519_PUBLIC_KEY_LEN] {
-	let bytes = <Public as AsRef<[u8]>>::as_ref(public);
-
-	let mut classical = [0u8; SR25519_PUBLIC_KEY_LEN];
-	classical.copy_from_slice(&bytes[..SR25519_PUBLIC_KEY_LEN]);
-	classical
-}
 
 fn verified_public_output(
 	public: &Public,
@@ -178,9 +157,9 @@ impl VrfSignData {
 
 /// Consensus-facing hybrid VRF output.
 ///
-/// This is the 32-byte `hybrid_output = H(vrf_output || h4_binding_sig)` value that
-/// BABE should eventually consume for leader election, `make_bytes`, and epoch
-/// randomness.
+/// This is `SHA-256(sr25519_pre_output)`. The H4 binding is deliberately
+/// excluded: it authenticates the proof but is not a unique signature and
+/// therefore cannot safely contribute to consensus randomness.
 #[derive(
 	Clone, Eq, PartialEq, Hash, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo,
 )]
@@ -199,13 +178,9 @@ impl fmt::Debug for VrfOutput {
 }
 
 impl VrfOutput {
-	fn from_parts(
-		pre_output: &sr25519::vrf::VrfPreOutput,
-		binding_signature: &[u8; HYBRID_SIG_LEN],
-	) -> Self {
+	fn from_pre_output(pre_output: &sr25519::vrf::VrfPreOutput) -> Self {
 		let mut hasher = Sha256::new();
 		hasher.update(pre_output.0.as_bytes());
-		hasher.update(binding_signature_wire_bytes(binding_signature));
 
 		let digest = hasher.finalize();
 		let mut out = [0u8; VRF_OUTPUT_LENGTH];
@@ -213,7 +188,10 @@ impl VrfOutput {
 		Self(out)
 	}
 
-	/// Expands the hybrid output into `N` bytes using HKDF-SHA256.
+	/// Expands this pre-output digest into `N` bytes using HKDF-SHA256.
+	///
+	/// Protocol callers should use the module-level [`make_bytes`] helper,
+	/// which verifies the proof and delegates derivation to pqhybridsign.
 	pub fn make_bytes<const N: usize>(&self, context: &[u8]) -> [u8; N]
 	where
 		[u8; N]: Default,
@@ -228,8 +206,9 @@ impl VrfOutput {
 
 /// Hybrid H4 VRF proof.
 ///
-/// This keeps the native sr25519 VRF proof material intact and adds the full
-/// H4 binding signature over `H("hybrid-vrf" || input || vrf_output)`.
+/// This keeps the native sr25519 VRF proof material intact and adds the H4
+/// FN-DSA-512 binding produced by pqhybridsign's domain-separated
+/// `binding_message(H4::LABEL, input, pre_output)` construction.
 #[derive(TypeInfo)]
 #[allow(dead_code)]
 struct PqSignatureMetadata731([u8; 512], [u8; 219]);
@@ -238,7 +217,7 @@ struct PqSignatureMetadata731([u8; 512], [u8; 219]);
 pub struct VrfSignature {
 	/// Native sr25519 VRF proof material.
 	pub sr25519: sr25519::vrf::VrfSignature,
-	/// Full H4 binding signature over the canonical input/output hash.
+	/// Delta byte plus FN-DSA-512 binding, zero-padded to the legacy field size.
 	pub pq_signature: [u8; HYBRID_SIG_LEN],
 }
 
@@ -274,7 +253,7 @@ impl fmt::Debug for VrfSignature {
 impl VrfSignature {
 	/// Returns the consensus-facing hybrid output bound to this proof.
 	pub fn output(&self) -> VrfOutput {
-		VrfOutput::from_parts(&self.sr25519.pre_output, &self.pq_signature)
+		VrfOutput::from_pre_output(&self.sr25519.pre_output)
 	}
 
 	/// Builds a hybrid VRF proof from an sr25519 proof with an all-zero PQ
@@ -288,32 +267,60 @@ impl VrfSignature {
 	}
 }
 
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-fn sr25519_pair(secret: &HybridSecretKey) -> sr25519::Pair {
-	let secret = secret.to_bytes();
-	sr25519::Pair::from_seed_slice(&secret[..SR25519_SECRET_KEY_LEN])
-		.expect("stored H4 secret key contains a valid sr25519 secret")
+fn library_proof(signature: &VrfSignature) -> Option<Vec<u8>> {
+	let binding_len = MIN_VRF_BINDING_LEN
+		.checked_add(usize::from(signature.pq_signature[VRF_BINDING_DELTA_OFFSET]))?;
+	if binding_len > signature.pq_signature.len()
+		|| signature.pq_signature[binding_len..].iter().any(|byte| *byte != 0)
+	{
+		return None;
+	}
+
+	let mut proof = signature.sr25519.encode();
+	if proof.len() != LIBRARY_VRF_HEADER_LEN {
+		return None;
+	}
+	proof.extend_from_slice(&signature.pq_signature[..binding_len]);
+	Some(proof)
+}
+
+fn signature_from_library_proof(proof: &[u8]) -> Option<VrfSignature> {
+	if proof.len() < LIBRARY_VRF_HEADER_LEN + MIN_VRF_BINDING_LEN {
+		return None;
+	}
+	let mut encoded_sr25519 = &proof[..LIBRARY_VRF_HEADER_LEN];
+	let sr25519 = sr25519::vrf::VrfSignature::decode(&mut encoded_sr25519).ok()?;
+	if !encoded_sr25519.is_empty() {
+		return None;
+	}
+
+	let binding = &proof[LIBRARY_VRF_HEADER_LEN..];
+	if binding.len() > HYBRID_SIG_LEN {
+		return None;
+	}
+	let mut pq_signature = [0u8; HYBRID_SIG_LEN];
+	pq_signature[..binding.len()].copy_from_slice(binding);
+	Some(VrfSignature { sr25519, pq_signature })
 }
 
 #[cfg(any(feature = "std", feature = "full_crypto"))]
-fn pq_binding_signature(
-	input: &VrfInput,
-	pre_output: &sr25519::vrf::VrfPreOutput,
-	secret: &HybridSecretKey,
-) -> [u8; HYBRID_SIG_LEN] {
-	let message = binding_message(input, pre_output);
-	// Consensus-critical deterministic nonce:
-	// SHA256("hybrid-vrf-nonce" || binding_input || vrf_pre_output).
-	let nonce = binding_nonce(input, pre_output);
-	Sr25519FnDsa512::sign_deterministic(secret, &message, b"", &nonce).to_bytes()
+fn pair_vrf_signature(pair: &Pair, input: &VrfInput) -> VrfSignature {
+	let secret = pair.secret().to_bytes();
+	let mut proof = alloc::vec![0u8; vrf::max_proof_len_delta::<H4>()];
+	let written = vrf::sign_delta_deterministic::<H4>(
+		secret.as_ref(),
+		input.binding_input(),
+		&mut proof,
+	)
+	.expect("stored H4 key and exact VRF proof buffer cannot fail");
+	proof.truncate(written);
+	signature_from_library_proof(&proof)
+		.expect("pqhybridsign emits a valid native sr25519 proof and H4 binding")
 }
 
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 fn pair_vrf_output(pair: &Pair, input: &VrfInput) -> VrfOutput {
-	let secret = pair.expanded_secret();
-	let sr25519_pre_output = sr25519_pair(&secret).vrf_pre_output(&input.clone_sr25519());
-	let pq_signature = pq_binding_signature(input, &sr25519_pre_output, &secret);
-	VrfOutput::from_parts(&sr25519_pre_output, &pq_signature)
+	pair_vrf_signature(pair, input).output()
 }
 
 #[cfg(any(feature = "std", feature = "full_crypto"))]
@@ -321,7 +328,15 @@ fn pair_make_bytes<const N: usize>(pair: &Pair, context: &[u8], input: &VrfInput
 where
 	[u8; N]: Default,
 {
-	pair_vrf_output(pair, input).make_bytes(context)
+	let signature = pair_vrf_signature(pair, input);
+	let proof = library_proof(&signature).expect("fresh H4 proof has canonical padding");
+	vrf::make_bytes_delta::<H4, [u8; N]>(
+		pair.public().as_ref(),
+		input.binding_input(),
+		&proof,
+		context,
+	)
+	.expect("fresh H4 proof and public key are valid")
 }
 
 impl VrfCrypto for SignaturePair<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
@@ -338,11 +353,7 @@ impl VrfSecret for SignaturePair<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 	}
 
 	fn vrf_sign(&self, data: &Self::VrfSignData) -> Self::VrfSignature {
-		let secret = self.expanded_secret();
-		let sr25519 = sr25519_pair(&secret).vrf_sign(&data.clone_sr25519());
-		let pq_signature = pq_binding_signature(data.input(), &sr25519.pre_output, &secret);
-
-		VrfSignature { sr25519, pq_signature }
+		pair_vrf_signature(self, data.input())
 	}
 }
 
@@ -355,22 +366,10 @@ impl VrfCrypto for SignaturePublic<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 
 impl VrfPublic for SignaturePublic<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 	fn vrf_verify(&self, data: &Self::VrfSignData, signature: &Self::VrfSignature) -> bool {
-		let classical = classical_public_component(self);
-		let classical = sr25519::Public::from_raw(classical);
-
-		if !classical.vrf_verify(&data.clone_sr25519(), &signature.sr25519) {
-			return false;
-		}
-
-		let message = binding_message(data.input(), &signature.sr25519.pre_output);
-		let Ok(public) = self.to_suite_public() else {
+		let Some(proof) = library_proof(signature) else {
 			return false;
 		};
-		let Ok(binding_signature) = Sr25519FnDsa512::signature_from_bytes(&signature.pq_signature)
-		else {
-			return false;
-		};
-		Sr25519FnDsa512::verify(&public, &message, b"", &binding_signature)
+		vrf::verify_delta::<H4>(self.as_ref(), data.input().binding_input(), &proof)
 	}
 }
 
@@ -461,42 +460,6 @@ pub mod babe {
 	}
 }
 
-fn binding_message(
-	input: &VrfInput,
-	pre_output: &sr25519::vrf::VrfPreOutput,
-) -> [u8; VRF_OUTPUT_LENGTH] {
-	let mut hasher = Sha256::new();
-	hasher.update(HYBRID_VRF_LABEL);
-	hasher.update(input.binding_input());
-	hasher.update(pre_output.0.as_bytes());
-
-	let digest = hasher.finalize();
-	let mut out = [0u8; VRF_OUTPUT_LENGTH];
-	out.copy_from_slice(&digest);
-	out
-}
-
-#[cfg(any(feature = "std", feature = "full_crypto"))]
-fn binding_nonce(
-	input: &VrfInput,
-	pre_output: &sr25519::vrf::VrfPreOutput,
-) -> [u8; VRF_OUTPUT_LENGTH] {
-	let mut hasher = Sha256::new();
-	hasher.update(HYBRID_VRF_NONCE_LABEL);
-	hasher.update(input.binding_input());
-	hasher.update(pre_output.0.as_bytes());
-
-	let digest = hasher.finalize();
-	let mut out = [0u8; VRF_OUTPUT_LENGTH];
-	out.copy_from_slice(&digest);
-	out
-}
-
-fn binding_signature_wire_bytes(signature: &[u8; HYBRID_SIG_LEN]) -> &[u8] {
-	let real_len = MIN_HYBRID_SIGNATURE_LEN + usize::from(signature[DELTA_OFFSET]);
-	&signature[..real_len]
-}
-
 /// Recomputes the hybrid output from a proof after verifying it.
 pub fn vrf_output(
 	public: &Public,
@@ -516,7 +479,18 @@ pub fn make_bytes<const N: usize>(
 where
 	[u8; N]: Default,
 {
-	vrf_output(public, data, signature).map(|output| output.make_bytes(context))
+	let proof = library_proof(signature)?;
+	vrf::verify_delta::<H4>(public.as_ref(), data.input().binding_input(), &proof)
+		.then(|| {
+			vrf::make_bytes_delta::<H4, [u8; N]>(
+				public.as_ref(),
+				data.input().binding_input(),
+				&proof,
+				context,
+			)
+			.ok()
+		})
+		.flatten()
 }
 
 #[cfg(test)]
@@ -524,7 +498,40 @@ mod tests {
 	use super::*;
 	use crate::suite::sr25519_fndsa512::Sr25519FnDsa512;
 	use crate::HybridSignatureScheme;
+	use pqhybridsign::{
+		component::{ClassicalScheme, PqScheme},
+		encoding_delta,
+		suite::DeltaSuite,
+	};
+	use rand_core::OsRng;
 	use sp_core::crypto::{VrfPublic, VrfSecret};
+
+	fn randomized_binding_proof(pair: &Pair, input: &VrfInput, base_proof: &[u8]) -> Vec<u8> {
+		let secret = pair.secret().to_bytes();
+		let classical_secret_len =
+			<<H4 as DeltaSuite>::Classical as ClassicalScheme>::SECRET_KEY_LEN;
+		let mut binding = vec![0u8; <<H4 as DeltaSuite>::Pq as PqScheme>::SIGNATURE_LEN];
+		let message = vrf::binding_message(
+			H4::LABEL,
+			input.binding_input(),
+			&base_proof[..VRF_OUTPUT_LENGTH],
+		);
+		<<H4 as DeltaSuite>::Pq as PqScheme>::sign(
+			&secret[classical_secret_len..],
+			&message,
+			&mut OsRng,
+			&mut binding,
+		)
+		.expect("sign randomized FN-DSA-512 binding");
+
+		let mut proof = base_proof[..LIBRARY_VRF_HEADER_LEN].to_vec();
+		proof.push(
+			encoding_delta::encode_delta_byte(binding.len(), H4::MIN_PQ_SIG_LEN)
+				.expect("H4 binding length is representable"),
+		);
+		proof.extend_from_slice(&binding);
+		proof
+	}
 
 	mod app {
 		use crate::substrate::sr25519_fndsa512 as hybrid;
@@ -590,8 +597,12 @@ mod tests {
 		let sign_data = babe::make_vrf_sign_data(&randomness, 7, 11);
 
 		let signature = VrfSecret::vrf_sign(&pair, &sign_data);
+		let wrong_pair = Pair::from_seed(&[14u8; MASTER_SEED_LEN]);
+		let wrong_input = babe::make_vrf_sign_data(&randomness, 8, 11);
 
 		assert!(VrfPublic::vrf_verify(&public, &sign_data, &signature));
+		assert!(!VrfPublic::vrf_verify(&wrong_pair.public(), &sign_data, &signature));
+		assert!(!VrfPublic::vrf_verify(&public, &wrong_input, &signature));
 		assert_eq!(
 			pair_make_bytes::<32>(&pair, babe::RANDOMNESS_VRF_CONTEXT, sign_data.input()),
 			make_bytes::<32>(&public, babe::RANDOMNESS_VRF_CONTEXT, &sign_data, &signature)
@@ -621,12 +632,104 @@ mod tests {
 		let public = pair.public();
 		let sign_data = babe::make_vrf_sign_data(&[4u8; babe::RANDOMNESS_LENGTH], 5, 20);
 		let mut signature = VrfSecret::vrf_sign(&pair, &sign_data);
-		assert!(signature.pq_signature[DELTA_OFFSET] > 0);
-		signature.pq_signature[DELTA_OFFSET] -= 1;
-		let padding_offset = binding_signature_wire_bytes(&signature.pq_signature).len();
+		assert!(signature.pq_signature[VRF_BINDING_DELTA_OFFSET] > 0);
+		signature.pq_signature[VRF_BINDING_DELTA_OFFSET] -= 1;
+		let padding_offset = MIN_VRF_BINDING_LEN
+			+ usize::from(signature.pq_signature[VRF_BINDING_DELTA_OFFSET]);
 		signature.pq_signature[padding_offset] = 1;
 
 		assert!(!VrfPublic::vrf_verify(&public, &sign_data, &signature));
+	}
+
+	#[test]
+	fn a_second_valid_proof_has_the_same_vrf_output() {
+		let pair = Pair::from_seed(&[20u8; MASTER_SEED_LEN]);
+		let public = pair.public();
+		let input = babe::make_vrf_transcript(&[6u8; babe::RANDOMNESS_LENGTH], 9, 3);
+		let secret = pair.secret().to_bytes();
+		let mut base = vec![0u8; vrf::max_proof_len_delta::<H4>()];
+		let written = vrf::sign_delta::<H4>(
+			secret.as_ref(),
+			input.binding_input(),
+			&mut OsRng,
+			&mut base,
+		)
+		.expect("evaluate H4 VRF");
+		base.truncate(written);
+
+		let evaluate = || {
+			let proof = randomized_binding_proof(&pair, &input, &base);
+			assert!(vrf::verify_delta::<H4>(
+				public.as_ref(),
+				input.binding_input(),
+				&proof
+			));
+			(proof.clone(), signature_from_library_proof(&proof).expect("native proof"))
+		};
+
+		let (first_proof, first) = evaluate();
+		let (second_proof, second) = evaluate();
+		assert_ne!(
+			&first_proof[LIBRARY_VRF_HEADER_LEN..],
+			&second_proof[LIBRARY_VRF_HEADER_LEN..],
+			"the randomized FN-DSA-512 bindings should differ"
+		);
+		assert_eq!(first.output(), second.output());
+	}
+
+	#[test]
+	fn grinding_many_valid_proofs_cannot_move_the_output() {
+		const ATTEMPTS: usize = 64;
+
+		let pair = Pair::from_seed(&[21u8; MASTER_SEED_LEN]);
+		let public = pair.public();
+		let input = babe::make_vrf_transcript(&[8u8; babe::RANDOMNESS_LENGTH], 10, 4);
+		let base = library_proof(&pair_vrf_signature(&pair, &input)).expect("base proof");
+		let mut bindings = std::collections::BTreeSet::new();
+		let mut expected_output = None;
+
+		for _ in 0..ATTEMPTS {
+			let proof = randomized_binding_proof(&pair, &input, &base);
+			assert!(vrf::verify_delta::<H4>(
+				public.as_ref(),
+				input.binding_input(),
+				&proof
+			));
+			let signature = signature_from_library_proof(&proof).expect("native proof");
+			let output = signature.output();
+			match &expected_output {
+				Some(expected) => assert_eq!(expected, &output),
+				None => expected_output = Some(output),
+			}
+			bindings.insert(proof[LIBRARY_VRF_HEADER_LEN..].to_vec());
+		}
+
+		assert_eq!(bindings.len(), ATTEMPTS, "all accepted bindings should be distinct");
+	}
+
+	#[test]
+	fn vrf_binding_and_pair_signature_are_domain_separated() {
+		let pair = Pair::from_seed(&[22u8; MASTER_SEED_LEN]);
+		let public = pair.public();
+		let input = babe::make_vrf_transcript(&[10u8; babe::RANDOMNESS_LENGTH], 11, 5);
+		let sign_data = VrfSignData::new(input.clone());
+		let vrf_signature = VrfSecret::vrf_sign(&pair, &sign_data);
+		let binding_digest = vrf::binding_message(
+			H4::LABEL,
+			input.binding_input(),
+			vrf_signature.sr25519.pre_output.0.as_bytes(),
+		);
+
+		let ordinary = pair.sign(&binding_digest);
+		assert!(Pair::verify(&ordinary, binding_digest, &public));
+
+		let mut ordinary_as_vrf = vrf_signature.clone();
+		ordinary_as_vrf.pq_signature.copy_from_slice(ordinary.as_ref());
+		assert!(!VrfPublic::vrf_verify(&public, &sign_data, &ordinary_as_vrf));
+
+		let binding_as_ordinary = Signature::try_from(vrf_signature.pq_signature.as_slice())
+			.expect("fixed-size wrapper");
+		assert!(!Pair::verify(&binding_as_ordinary, binding_digest, &public));
 	}
 
 	#[test]

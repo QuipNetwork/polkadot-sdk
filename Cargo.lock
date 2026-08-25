@@ -5455,7 +5455,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ab67060fc6b8ef687992d439ca0fa36e7ed17e9a0b16b25b601e8757df720de"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -17895,14 +17895,16 @@ dependencies = [
 
 [[package]]
 name = "pqhybridsign"
-version = "0.0.0-rc5"
+version = "0.0.0-rc7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d3fc7602091cc722dcce69198ebe0bcfb5334b5530f61ce414e823467d0f041"
+checksum = "ebe267d6d59861d1c6c8820c30a2c00f118a81dc784fa4a32666feb0f13130f3"
 dependencies = [
+ "curve25519-dalek",
  "ed25519-zebra",
  "fips204",
  "fn-dsa",
  "hkdf",
+ "merlin",
  "rand_core 0.6.4",
  "schnorrkel 0.11.5",
  "sha2 0.10.9",
@@ -18526,6 +18528,7 @@ dependencies = [
  "parity-scale-codec",
  "pqhybridsign",
  "quip-crypto-primitives-core",
+ "rand_core 0.6.4",
  "scale-info",
  "sha2 0.10.9",
  "sp-application-crypto 45.0.0",
