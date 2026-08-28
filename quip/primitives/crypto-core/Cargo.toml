@@ -11,31 +11,32 @@ publish = false
 workspace = true
 
 [dependencies]
+# These component crates are used only to validate fixed-buffer key encodings
+# and recover public keys from imported secrets. All key derivation, message
+# binding, signing, and verification delegate to pqhybridsign.
 schnorrkel = { workspace = true, default-features = false }
 ed25519-zebra = { version = "4", default-features = false }
 fips204 = { version = "0.4", default-features = false, features = ["ml-dsa-44"]}
-blake2 = { version = "0.10", default-features = false }
-hkdf = { version = "0.12", default-features = false }
-sha2 = { version = "0.10", default-features = false } # can't be bumped to 0.11 as it breaks other dependencies.
-subtle = { version = "2.6", default-features = false }
 zeroize = { version = "1", default-features = false, features = ["derive"] }
 rand_core = { version = "0.6", default-features = false  } # can't be bumped due to schnorrkel and fips204 depending on this api version.
 thiserror = { version = "1", optional = true }
+pqhybridsign = { version = "=0.0.0-rc9", default-features = false, features = ["alloc"] }
+fn-dsa = { version = "0.4.0", default-features = false }
 
 [features]
 default = ["std"]
 std = [
     "dep:thiserror",
     "rand_core/std",
-    "subtle/std",
-    "blake2/std",
-    "hkdf/std",
-    "sha2/std",
     "zeroize/std",
     "schnorrkel/std",
     "ed25519-zebra/std",
     "fips204/default",
+    "pqhybridsign/std",
 ]
 
 [dev-dependencies]
 rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
