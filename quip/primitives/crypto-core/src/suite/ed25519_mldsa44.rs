@@ -1,12 +1,12 @@
 //! H1: ed25519 + ML-DSA-44 hybrid signature scheme.
 //!
 //! This legacy-named API now delegates key derivation, message binding, and
-//! composite signing/verification to [`pqhybridsign::H1`]. The library's
+//! composite signing/verification to [`pqhybridsign::EdMl44`]. The library's
 //! suite-separated HKDF includes the label's trailing NUL byte, so a master
 //! seed derives different H1 keys than the former in-tree fork engine.
 
 use ed25519_zebra::VerificationKey;
-use pqhybridsign::{classical::Ed25519, H1};
+use pqhybridsign::{classical::Ed25519, EdMl44};
 use pqhybridsign::{component::ClassicalScheme, suite::Suite};
 use rand_core::CryptoRngCore;
 use zeroize::Zeroizing;
@@ -22,9 +22,9 @@ pub const HYBRID_SK_LEN: usize = mldsa44::HYBRID_SK_LEN;
 pub const HYBRID_SIG_LEN: usize = mldsa44::HYBRID_SIG_LEN;
 
 const _: () = {
-	assert!(H1::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
-	assert!(H1::SECRET_KEY_LEN == HYBRID_SK_LEN);
-	assert!(H1::SIGNATURE_LEN == HYBRID_SIG_LEN);
+	assert!(EdMl44::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
+	assert!(EdMl44::SECRET_KEY_LEN == HYBRID_SK_LEN);
+	assert!(EdMl44::SIGNATURE_LEN == HYBRID_SIG_LEN);
 };
 
 /// Fixed-size H1 public key.
@@ -38,7 +38,7 @@ pub type Signature = mldsa44::Signature<Ed25519MlDsa44>;
 pub struct Ed25519MlDsa44;
 
 impl Config for Ed25519MlDsa44 {
-	type LibrarySuite = H1;
+	type LibrarySuite = EdMl44;
 
 	fn classical_public_is_valid(bytes: &[u8]) -> bool {
 		let Ok(bytes): core::result::Result<[u8; 32], _> = bytes.try_into() else {

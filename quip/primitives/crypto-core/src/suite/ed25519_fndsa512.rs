@@ -1,7 +1,7 @@
 //! H2: ed25519 + FN-DSA-512 hybrid signature scheme.
 
 use ed25519_zebra::VerificationKey;
-use pqhybridsign::{classical::Ed25519, H2};
+use pqhybridsign::{classical::Ed25519, EdFn512};
 use pqhybridsign::{component::ClassicalScheme, suite::DeltaSuite};
 use rand_core::CryptoRngCore;
 use zeroize::Zeroizing;
@@ -17,9 +17,9 @@ pub const HYBRID_SK_LEN: usize = fndsa512::HYBRID_SK_LEN;
 pub const HYBRID_SIG_LEN: usize = fndsa512::HYBRID_SIG_LEN;
 
 const _: () = {
-	assert!(H2::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
-	assert!(H2::SECRET_KEY_LEN == HYBRID_SK_LEN);
-	assert!(H2::MAX_SIGNATURE_LEN == HYBRID_SIG_LEN);
+	assert!(EdFn512::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
+	assert!(EdFn512::SECRET_KEY_LEN == HYBRID_SK_LEN);
+	assert!(EdFn512::MAX_SIGNATURE_LEN == HYBRID_SIG_LEN);
 };
 
 /// Fixed-size H2 public key.
@@ -33,7 +33,7 @@ pub type Signature = fndsa512::Signature<Ed25519FnDsa512>;
 pub struct Ed25519FnDsa512;
 
 impl Config for Ed25519FnDsa512 {
-	type LibrarySuite = H2;
+	type LibrarySuite = EdFn512;
 
 	fn classical_public_is_valid(bytes: &[u8]) -> bool {
 		let Ok(bytes): core::result::Result<[u8; 32], _> = bytes.try_into() else {

@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 quip-crypto-primitives-core = { workspace = true, default-features = false }
-pqhybridsign = { version = "=0.0.0-rc7", default-features = false, features = ["vrf"] }
+pqhybridsign = { version = "=0.0.0-rc9", default-features = false, features = ["vrf"] }
 codec = { workspace = true, default-features = false }
 scale-info = { workspace = true, default-features = false }
 sp-core = { workspace = true, default-features = false }

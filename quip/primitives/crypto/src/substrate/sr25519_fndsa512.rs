@@ -20,7 +20,7 @@ use core::fmt;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use hkdf::Hkdf;
-use pqhybridsign::{vrf, H4, MIN_FALCON512_SIG_LEN};
+use pqhybridsign::{vrf, SrFn512, MIN_FALCON512_SIG_LEN};
 use scale_info::{build::Fields, Path, Type, TypeInfo};
 use sha2::{Digest, Sha256};
 #[cfg(any(feature = "std", feature = "full_crypto"))]
@@ -208,7 +208,7 @@ impl VrfOutput {
 ///
 /// This keeps the native sr25519 VRF proof material intact and adds the H4
 /// FN-DSA-512 binding produced by pqhybridsign's domain-separated
-/// `binding_message(H4::LABEL, input, pre_output)` construction.
+/// `binding_message(SrFn512::LABEL, input, pre_output)` construction.
 #[derive(TypeInfo)]
 #[allow(dead_code)]
 struct PqSignatureMetadata731([u8; 512], [u8; 219]);
@@ -306,8 +306,8 @@ fn signature_from_library_proof(proof: &[u8]) -> Option<VrfSignature> {
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 fn pair_vrf_signature(pair: &Pair, input: &VrfInput) -> VrfSignature {
 	let secret = pair.secret().to_bytes();
-	let mut proof = alloc::vec![0u8; vrf::max_proof_len_delta::<H4>()];
-	let written = vrf::sign_delta_deterministic::<H4>(
+	let mut proof = alloc::vec![0u8; vrf::max_proof_len_delta::<SrFn512>()];
+	let written = vrf::sign_delta_deterministic::<SrFn512>(
 		secret.as_ref(),
 		input.binding_input(),
 		&mut proof,
@@ -330,7 +330,7 @@ where
 {
 	let signature = pair_vrf_signature(pair, input);
 	let proof = library_proof(&signature).expect("fresh H4 proof has canonical padding");
-	vrf::make_bytes_delta::<H4, [u8; N]>(
+	vrf::make_bytes_delta::<SrFn512, [u8; N]>(
 		pair.public().as_ref(),
 		input.binding_input(),
 		&proof,
@@ -369,7 +369,7 @@ impl VrfPublic for SignaturePublic<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 		let Some(proof) = library_proof(signature) else {
 			return false;
 		};
-		vrf::verify_delta::<H4>(self.as_ref(), data.input().binding_input(), &proof)
+		vrf::verify_delta::<SrFn512>(self.as_ref(), data.input().binding_input(), &proof)
 	}
 }
 
@@ -480,9 +480,9 @@ where
 	[u8; N]: Default,
 {
 	let proof = library_proof(signature)?;
-	vrf::verify_delta::<H4>(public.as_ref(), data.input().binding_input(), &proof)
+	vrf::verify_delta::<SrFn512>(public.as_ref(), data.input().binding_input(), &proof)
 		.then(|| {
-			vrf::make_bytes_delta::<H4, [u8; N]>(
+			vrf::make_bytes_delta::<SrFn512, [u8; N]>(
 				public.as_ref(),
 				data.input().binding_input(),
 				&proof,
@@ -509,14 +509,14 @@ mod tests {
 	fn randomized_binding_proof(pair: &Pair, input: &VrfInput, base_proof: &[u8]) -> Vec<u8> {
 		let secret = pair.secret().to_bytes();
 		let classical_secret_len =
-			<<H4 as DeltaSuite>::Classical as ClassicalScheme>::SECRET_KEY_LEN;
-		let mut binding = vec![0u8; <<H4 as DeltaSuite>::Pq as PqScheme>::SIGNATURE_LEN];
+			<<SrFn512 as DeltaSuite>::Classical as ClassicalScheme>::SECRET_KEY_LEN;
+		let mut binding = vec![0u8; <<SrFn512 as DeltaSuite>::Pq as PqScheme>::SIGNATURE_LEN];
 		let message = vrf::binding_message(
-			H4::LABEL,
+			SrFn512::LABEL,
 			input.binding_input(),
 			&base_proof[..VRF_OUTPUT_LENGTH],
 		);
-		<<H4 as DeltaSuite>::Pq as PqScheme>::sign(
+		<<SrFn512 as DeltaSuite>::Pq as PqScheme>::sign(
 			&secret[classical_secret_len..],
 			&message,
 			&mut OsRng,
@@ -526,7 +526,7 @@ mod tests {
 
 		let mut proof = base_proof[..LIBRARY_VRF_HEADER_LEN].to_vec();
 		proof.push(
-			encoding_delta::encode_delta_byte(binding.len(), H4::MIN_PQ_SIG_LEN)
+			encoding_delta::encode_delta_byte(binding.len(), SrFn512::MIN_PQ_SIG_LEN)
 				.expect("H4 binding length is representable"),
 		);
 		proof.extend_from_slice(&binding);
@@ -647,8 +647,8 @@ mod tests {
 		let public = pair.public();
 		let input = babe::make_vrf_transcript(&[6u8; babe::RANDOMNESS_LENGTH], 9, 3);
 		let secret = pair.secret().to_bytes();
-		let mut base = vec![0u8; vrf::max_proof_len_delta::<H4>()];
-		let written = vrf::sign_delta::<H4>(
+		let mut base = vec![0u8; vrf::max_proof_len_delta::<SrFn512>()];
+		let written = vrf::sign_delta::<SrFn512>(
 			secret.as_ref(),
 			input.binding_input(),
 			&mut OsRng,
@@ -659,7 +659,7 @@ mod tests {
 
 		let evaluate = || {
 			let proof = randomized_binding_proof(&pair, &input, &base);
-			assert!(vrf::verify_delta::<H4>(
+			assert!(vrf::verify_delta::<SrFn512>(
 				public.as_ref(),
 				input.binding_input(),
 				&proof
@@ -690,7 +690,7 @@ mod tests {
 
 		for _ in 0..ATTEMPTS {
 			let proof = randomized_binding_proof(&pair, &input, &base);
-			assert!(vrf::verify_delta::<H4>(
+			assert!(vrf::verify_delta::<SrFn512>(
 				public.as_ref(),
 				input.binding_input(),
 				&proof
@@ -715,7 +715,7 @@ mod tests {
 		let sign_data = VrfSignData::new(input.clone());
 		let vrf_signature = VrfSecret::vrf_sign(&pair, &sign_data);
 		let binding_digest = vrf::binding_message(
-			H4::LABEL,
+			SrFn512::LABEL,
 			input.binding_input(),
 			vrf_signature.sr25519.pre_output.0.as_bytes(),
 		);

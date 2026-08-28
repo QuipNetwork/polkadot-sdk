@@ -1,11 +1,11 @@
 //! H3: sr25519 + ML-DSA-44 hybrid signature scheme.
 //!
 //! This legacy-named API now delegates key derivation, message binding, and
-//! composite signing/verification to [`pqhybridsign::H3`]. The library's
+//! composite signing/verification to [`pqhybridsign::SrMl44`]. The library's
 //! suite-separated HKDF includes the label's trailing NUL byte, so a master
 //! seed derives different H3 keys than the former in-tree fork engine.
 
-use pqhybridsign::{pq::MlDsa44, H3};
+use pqhybridsign::{pq::MlDsa44, SrMl44};
 use pqhybridsign::{component::PqScheme, suite::Suite};
 use rand_core::CryptoRngCore;
 use zeroize::Zeroize;
@@ -27,9 +27,9 @@ pub const ML_DSA_PUBLIC_KEY_LEN: usize = MlDsa44::PUBLIC_KEY_LEN;
 pub const ML_DSA_SIGNATURE_LEN: usize = MlDsa44::SIGNATURE_LEN;
 
 const _: () = {
-	assert!(H3::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
-	assert!(H3::SECRET_KEY_LEN == HYBRID_SK_LEN);
-	assert!(H3::SIGNATURE_LEN == HYBRID_SIG_LEN);
+	assert!(SrMl44::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
+	assert!(SrMl44::SECRET_KEY_LEN == HYBRID_SK_LEN);
+	assert!(SrMl44::SIGNATURE_LEN == HYBRID_SIG_LEN);
 };
 
 /// Fixed-size H3 public key.
@@ -43,7 +43,7 @@ pub type Signature = mldsa44::Signature<Sr25519MlDsa44>;
 pub struct Sr25519MlDsa44;
 
 impl Config for Sr25519MlDsa44 {
-	type LibrarySuite = H3;
+	type LibrarySuite = SrMl44;
 
 	fn classical_public_is_valid(bytes: &[u8]) -> bool {
 		schnorrkel::PublicKey::from_bytes(bytes).is_ok()

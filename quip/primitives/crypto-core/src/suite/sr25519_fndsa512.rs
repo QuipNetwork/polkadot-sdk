@@ -1,6 +1,6 @@
 //! H4: sr25519 + FN-DSA-512 hybrid signature scheme.
 
-use pqhybridsign::H4;
+use pqhybridsign::SrFn512;
 use pqhybridsign::suite::DeltaSuite;
 use rand_core::CryptoRngCore;
 use zeroize::Zeroize;
@@ -16,9 +16,9 @@ pub const HYBRID_SK_LEN: usize = fndsa512::HYBRID_SK_LEN;
 pub const HYBRID_SIG_LEN: usize = fndsa512::HYBRID_SIG_LEN;
 
 const _: () = {
-	assert!(H4::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
-	assert!(H4::SECRET_KEY_LEN == HYBRID_SK_LEN);
-	assert!(H4::MAX_SIGNATURE_LEN == HYBRID_SIG_LEN);
+	assert!(SrFn512::PUBLIC_KEY_LEN == HYBRID_PK_LEN);
+	assert!(SrFn512::SECRET_KEY_LEN == HYBRID_SK_LEN);
+	assert!(SrFn512::MAX_SIGNATURE_LEN == HYBRID_SIG_LEN);
 };
 
 /// Fixed-size H4 public key.
@@ -32,7 +32,7 @@ pub type Signature = fndsa512::Signature<Sr25519FnDsa512>;
 pub struct Sr25519FnDsa512;
 
 impl Config for Sr25519FnDsa512 {
-	type LibrarySuite = H4;
+	type LibrarySuite = SrFn512;
 
 	fn classical_public_is_valid(bytes: &[u8]) -> bool {
 		schnorrkel::PublicKey::from_bytes(bytes).is_ok()

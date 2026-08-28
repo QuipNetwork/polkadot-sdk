@@ -18,7 +18,7 @@ use core::fmt;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use hkdf::Hkdf;
-use pqhybridsign::{vrf, H3};
+use pqhybridsign::{vrf, SrMl44};
 use scale_info::{build::Fields, Path, Type, TypeInfo};
 use sha2::{Digest, Sha256};
 #[cfg(any(feature = "std", feature = "full_crypto"))]
@@ -212,7 +212,7 @@ impl VrfOutput {
 ///
 /// This keeps the native sr25519 VRF proof material intact and adds the
 /// ML-DSA-44 binding produced by pqhybridsign's domain-separated
-/// `binding_message(H3::LABEL, input, pre_output)` construction.
+/// `binding_message(SrMl44::LABEL, input, pre_output)` construction.
 #[derive(TypeInfo)]
 #[allow(dead_code)]
 struct PqSignatureMetadata2420([u8; 2048], [u8; 372]);
@@ -304,9 +304,9 @@ fn signature_from_library_proof(proof: &[u8]) -> Option<VrfSignature> {
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 fn pair_vrf_signature(pair: &Pair, input: &VrfInput) -> VrfSignature {
     let secret = pair.secret().to_bytes();
-    let mut proof = alloc::vec![0u8; vrf::proof_len::<H3>()];
+    let mut proof = alloc::vec![0u8; vrf::proof_len::<SrMl44>()];
     let written =
-        vrf::sign_deterministic::<H3>(secret.as_ref(), input.binding_input(), &mut proof)
+        vrf::sign_deterministic::<SrMl44>(secret.as_ref(), input.binding_input(), &mut proof)
             .expect("stored H3 key and exact VRF proof buffer cannot fail");
     debug_assert_eq!(written, proof.len());
     signature_from_library_proof(&proof)
@@ -324,7 +324,7 @@ where
     [u8; N]: Default,
 {
     let signature = pair_vrf_signature(pair, input);
-    vrf::make_bytes::<H3, [u8; N]>(
+    vrf::make_bytes::<SrMl44, [u8; N]>(
         pair.public().as_ref(),
         input.binding_input(),
         &library_proof(&signature),
@@ -360,7 +360,7 @@ impl VrfCrypto for SignaturePublic<SubstrateH3, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 
 impl VrfPublic for SignaturePublic<SubstrateH3, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
     fn vrf_verify(&self, data: &Self::VrfSignData, signature: &Self::VrfSignature) -> bool {
-        vrf::verify::<H3>(
+        vrf::verify::<SrMl44>(
             self.as_ref(),
             data.input().binding_input(),
             &library_proof(signature),
@@ -477,9 +477,9 @@ where
     [u8; N]: Default,
 {
     let proof = library_proof(signature);
-    vrf::verify::<H3>(public.as_ref(), data.input().binding_input(), &proof)
+    vrf::verify::<SrMl44>(public.as_ref(), data.input().binding_input(), &proof)
         .then(|| {
-            vrf::make_bytes::<H3, [u8; N]>(
+            vrf::make_bytes::<SrMl44, [u8; N]>(
                 public.as_ref(),
                 data.input().binding_input(),
                 &proof,
@@ -604,15 +604,15 @@ mod tests {
         let secret = pair.secret().to_bytes();
 
         let evaluate = || {
-            let mut proof = vec![0u8; vrf::proof_len::<H3>()];
-            vrf::sign::<H3>(
+            let mut proof = vec![0u8; vrf::proof_len::<SrMl44>()];
+            vrf::sign::<SrMl44>(
                 secret.as_ref(),
                 input.binding_input(),
                 &mut OsRng,
                 &mut proof,
             )
             .expect("evaluate H3 VRF");
-            assert!(vrf::verify::<H3>(
+            assert!(vrf::verify::<SrMl44>(
                 public.as_ref(),
                 input.binding_input(),
                 &proof
