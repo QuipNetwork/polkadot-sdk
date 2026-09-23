@@ -14,7 +14,7 @@ use sp_core::crypto::{CryptoTypeId, DeriveError, DeriveJunction};
 use sp_core::ed25519;
 use sp_core::Pair as _;
 
-use crate::seed::MASTER_SEED_LEN;
+use crate::MASTER_SEED_LEN;
 use crate::substrate::signature::{
     Pair as SignaturePair, Public as SignaturePublic, Signature as SignatureWrapper,
     SubstrateSignatureScheme,

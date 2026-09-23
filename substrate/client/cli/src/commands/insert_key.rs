@@ -29,7 +29,7 @@ use sp_keystore::KeystorePtr;
 ///
 /// This is a superset of the workspace-wide [`crate::CryptoScheme`] — it adds
 /// the hybrid post-quantum variants used by Quip's consensus
-/// (`sr25519 + ML-DSA-44` for BABE/tx, `ed25519 + ML-DSA-44` for GRANDPA).
+/// (`sr25519 + FN-DSA-512` for BABE/tx, `ed25519 + FN-DSA-512` for GRANDPA).
 /// Other CLI commands (`generate`, `sign`, `inspect`, `verify`) keep using the
 /// narrower [`crate::CryptoScheme`] because their helpers require trait bounds
 /// (`Into<MultiSigner>`, etc.) that the hybrid public types don't satisfy.
@@ -42,12 +42,12 @@ pub enum InsertKeyScheme {
 	Sr25519,
 	/// Use ecdsa.
 	Ecdsa,
-	/// Use the hybrid `sr25519 + ML-DSA-44` (H344) scheme — BABE consensus
+	/// Use the hybrid `sr25519 + FN-DSA-512` (H444) scheme — BABE consensus
 	/// and transaction signing on Quip.
-	HybridBabeH344,
-	/// Use the hybrid `ed25519 + ML-DSA-44` (H144) scheme — GRANDPA finality
+	HybridBabeH444,
+	/// Use the hybrid `ed25519 + FN-DSA-512` (H244) scheme — GRANDPA finality
 	/// on Quip.
-	HybridGrandpaH144,
+	HybridGrandpaH244,
 }
 
 /// The `insert` command
@@ -98,11 +98,11 @@ impl InsertKeyCmd {
 						to_vec::<sp_core::ed25519::Pair>(&suri, password.clone())?,
 					InsertKeyScheme::Ecdsa =>
 						to_vec::<sp_core::ecdsa::Pair>(&suri, password.clone())?,
-					InsertKeyScheme::HybridBabeH344 => to_vec::<
-						quip_crypto_primitives::substrate::sr25519_mldsa44::Pair,
+					InsertKeyScheme::HybridBabeH444 => to_vec::<
+						quip_crypto_primitives::substrate::sr25519_fndsa512::Pair,
 					>(&suri, password.clone())?,
-					InsertKeyScheme::HybridGrandpaH144 => to_vec::<
-						quip_crypto_primitives::substrate::ed25519_mldsa44::Pair,
+					InsertKeyScheme::HybridGrandpaH244 => to_vec::<
+						quip_crypto_primitives::substrate::ed25519_fndsa512::Pair,
 					>(&suri, password.clone())?,
 				};
 				let keystore: KeystorePtr = LocalKeystore::open(path, password)?.into();
@@ -136,6 +136,18 @@ mod tests {
 	use tempfile::TempDir;
 
 	struct Cli;
+
+	#[test]
+	fn hybrid_scheme_names_match_h2_h4_crypto_ids() {
+		assert_eq!(
+			InsertKeyScheme::from_str("hybrid-babe-h444", true).unwrap(),
+			InsertKeyScheme::HybridBabeH444
+		);
+		assert_eq!(
+			InsertKeyScheme::from_str("hybrid-grandpa-h244", true).unwrap(),
+			InsertKeyScheme::HybridGrandpaH244
+		);
+	}
 
 	impl SubstrateCli for Cli {
 		fn impl_name() -> String {

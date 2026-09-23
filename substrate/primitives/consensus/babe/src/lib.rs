@@ -36,7 +36,7 @@ use sp_runtime::{traits::Header, ConsensusEngineId};
 
 use crate::digests::{NextConfigDescriptor, NextEpochDescriptor};
 
-pub use quip_crypto_primitives::substrate::sr25519_mldsa44::{
+pub use quip_crypto_primitives::substrate::sr25519_fndsa512::{
 	VrfInput, VrfOutput, VrfSignData, VrfSignature,
 };
 /// Backward-compatible alias for BABE's VRF pre-output type.
@@ -48,7 +48,7 @@ pub type VrfTranscript = VrfInput;
 pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_application_crypto::key_types::BABE;
 
 mod app {
-	use quip_crypto_primitives::substrate::sr25519_mldsa44 as hybrid;
+	use quip_crypto_primitives::substrate::sr25519_fndsa512 as hybrid;
 	use sp_application_crypto::{app_crypto, key_types::BABE};
 	app_crypto!(hybrid, BABE);
 }
@@ -107,7 +107,7 @@ pub type BabeBlockWeight = u32;
 
 /// Make VRF input suitable for BABE's randomness generation.
 pub fn make_vrf_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfInput {
-	quip_crypto_primitives::substrate::sr25519_mldsa44::babe::make_vrf_transcript(
+	quip_crypto_primitives::substrate::sr25519_fndsa512::babe::make_vrf_transcript(
 		randomness, *slot, epoch,
 	)
 }
@@ -127,7 +127,7 @@ pub fn make_vrf_bytes<const N: usize>(
 where
 	[u8; N]: Default,
 {
-	quip_crypto_primitives::substrate::sr25519_mldsa44::make_bytes(public, context, data, signature)
+	quip_crypto_primitives::substrate::sr25519_fndsa512::make_bytes(public, context, data, signature)
 }
 
 /// An consensus log item for BABE.
