@@ -44,6 +44,14 @@ use crate::{
 const VERSION_KEY: &[u8] = b"grandpa_schema_version";
 const SET_STATE_KEY: &[u8] = b"grandpa_completed_round";
 const CONCLUDED_ROUNDS: &[u8] = b"grandpa_concluded_rounds";
+const CONCLUDED_ROUNDS_PRUNED_BELOW: &[u8] = b"grandpa_concluded_rounds_pruned_below";
+
+// Removing write_concluded_round entirely is under active consideration. These records have no
+// reader and exist only for a validator-recovery feature that was never built upstream
+// (paritytech/polkadot-sdk#93, open since substrate#4203 in 2019). Keeping a bounded forensic tail
+// is the conservative choice while that decision remains open.
+const KEEP_CONCLUDED_ROUNDS: RoundNumber = 8;
+const MAX_PRUNE_PER_WRITE: RoundNumber = 4096;
 const AUTHORITY_SET_KEY: &[u8] = b"grandpa_voters";
 const BEST_JUSTIFICATION: &[u8] = b"grandpa_best_justification";
 
@@ -486,16 +494,58 @@ pub(crate) fn write_voter_set_state<Block: BlockT, B: AuxStore>(
 	backend.insert_aux(&[(SET_STATE_KEY, state.encode().as_slice())], &[])
 }
 
+fn concluded_round_key(round: RoundNumber) -> Vec<u8> {
+	let mut key = CONCLUDED_ROUNDS.to_vec();
+	round.using_encoded(|n| key.extend(n));
+	key
+}
+
 /// Write concluded round.
 pub(crate) fn write_concluded_round<Block: BlockT, B: AuxStore>(
 	backend: &B,
 	round_data: &CompletedRound<Block>,
 ) -> ClientResult<()> {
-	let mut key = CONCLUDED_ROUNDS.to_vec();
 	let round_number = round_data.number;
-	round_number.using_encoded(|n| key.extend(n));
+	let round_key = concluded_round_key(round_number);
+	let encoded_round = round_data.encode();
+	let stored_cursor = load_decode::<_, RoundNumber>(backend, CONCLUDED_ROUNDS_PRUNED_BELOW)?;
+	let mut cursor = stored_cursor.unwrap_or_else(|| {
+		// Do not reclaim records written before this pruning scheme. The key space is dense from
+		// round zero, so a startup sweep could construct keys without an iterator. Such a sweep
+		// must be bounded by a cross-set monotonic value, rather than the current set's round
+		// counter, because that counter resets at authority-set changes and would silently strand
+		// the pre-handoff tail. It also needs a startup-cost benchmark.
+		round_number.saturating_add(1).saturating_sub(KEEP_CONCLUDED_ROUNDS)
+	});
+	let mut keys_to_delete = Vec::new();
 
-	backend.insert_aux(&[(&key[..], round_data.encode().as_slice())], &[])
+	if stored_cursor.is_some() {
+		if round_number < cursor {
+			// A new authority set resets its round counter. Restart pruning from zero. Up to
+			// KEEP_CONCLUDED_ROUNDS records from each previous set may remain as accepted residue.
+			cursor = 0;
+		}
+
+		// The cursor is exclusive, so adding one retains exactly KEEP_CONCLUDED_ROUNDS
+		// records including the round written by this call.
+		let prune_below = round_number.saturating_add(1).saturating_sub(KEEP_CONCLUDED_ROUNDS);
+		if prune_below > cursor {
+			let new_cursor = cursor.saturating_add(MAX_PRUNE_PER_WRITE).min(prune_below);
+			keys_to_delete.extend((cursor..new_cursor).map(concluded_round_key));
+			cursor = new_cursor;
+		}
+	}
+
+	let encoded_cursor = cursor.encode();
+	let delete_refs = keys_to_delete.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
+	backend.insert_aux(
+		&[
+			(round_key.as_slice(), encoded_round.as_slice()),
+			(CONCLUDED_ROUNDS_PRUNED_BELOW, encoded_cursor.as_slice()),
+		],
+		&delete_refs,
+	)
 }
 
 #[cfg(test)]
@@ -514,6 +564,36 @@ mod test {
 
 	fn dummy_id() -> AuthorityId {
 		AuthorityId::unchecked_from([1; 32])
+	}
+
+	fn completed_round(number: RoundNumber) -> CompletedRound<Block> {
+		let round_state = RoundState::genesis((H256::random(), number));
+		CompletedRound {
+			number,
+			state: round_state.clone(),
+			base: round_state.prevote_ghost.unwrap(),
+			votes: vec![],
+		}
+	}
+
+	fn insert_concluded_round_without_pruning(
+		client: &substrate_test_runtime_client::TestClient,
+		round: RoundNumber,
+	) {
+		let key = concluded_round_key(round);
+		let encoded = completed_round(round).encode();
+		client.insert_aux(&[(key.as_slice(), encoded.as_slice())], &[]).unwrap();
+	}
+
+	fn has_concluded_round(
+		client: &substrate_test_runtime_client::TestClient,
+		round: RoundNumber,
+	) -> bool {
+		client.get_aux(&concluded_round_key(round)).unwrap().is_some()
+	}
+
+	fn concluded_round_cursor(client: &substrate_test_runtime_client::TestClient) -> RoundNumber {
+		load_decode(client, CONCLUDED_ROUNDS_PRUNED_BELOW).unwrap().unwrap()
 	}
 
 	#[test]
@@ -783,9 +863,7 @@ mod test {
 
 		assert!(write_concluded_round(&client, &completed_round).is_ok());
 
-		let round_number = completed_round.number;
-		let mut key = CONCLUDED_ROUNDS.to_vec();
-		round_number.using_encoded(|n| key.extend(n));
+		let key = concluded_round_key(completed_round.number);
 
 		assert_eq!(
 			load_decode::<_, CompletedRound::<substrate_test_runtime_client::runtime::Block>>(
@@ -794,5 +872,88 @@ mod test {
 			.unwrap(),
 			Some(completed_round),
 		);
+	}
+
+	#[test]
+	fn concluded_round_cursor_initializes_without_deleting() {
+		let client = substrate_test_runtime_client::new();
+		insert_concluded_round_without_pruning(&client, 0);
+
+		write_concluded_round(&client, &completed_round(100)).unwrap();
+
+		assert_eq!(concluded_round_cursor(&client), 101 - KEEP_CONCLUDED_ROUNDS);
+		assert!(has_concluded_round(&client, 0));
+		assert!(has_concluded_round(&client, 100));
+	}
+
+	#[test]
+	fn concluded_round_pruning_retains_bounded_tail() {
+		let client = substrate_test_runtime_client::new();
+		let last_round = 9_999;
+
+		for round in 0..=last_round {
+			write_concluded_round(&client, &completed_round(round)).unwrap();
+		}
+
+		let retained =
+			(0..=last_round).filter(|round| has_concluded_round(&client, *round)).count();
+		assert_eq!(retained as RoundNumber, KEEP_CONCLUDED_ROUNDS);
+		assert!(has_concluded_round(&client, last_round));
+	}
+
+	#[test]
+	fn concluded_round_pruning_covers_catch_up_gaps() {
+		let client = substrate_test_runtime_client::new();
+		write_concluded_round(&client, &completed_round(0)).unwrap();
+		for round in 1..=64 {
+			insert_concluded_round_without_pruning(&client, round);
+		}
+
+		write_concluded_round(&client, &completed_round(100)).unwrap();
+
+		assert!((0..=64).all(|round| !has_concluded_round(&client, round)));
+		assert!(has_concluded_round(&client, 100));
+	}
+
+	#[test]
+	fn concluded_round_pruning_resets_cursor_after_set_change() {
+		let client = substrate_test_runtime_client::new();
+		write_concluded_round(&client, &completed_round(100)).unwrap();
+
+		write_concluded_round(&client, &completed_round(1)).unwrap();
+
+		assert_eq!(concluded_round_cursor(&client), 0);
+		assert!(has_concluded_round(&client, 100));
+		assert!(has_concluded_round(&client, 1));
+	}
+
+	#[test]
+	fn concluded_round_pruning_limits_each_write_and_catches_up() {
+		let client = substrate_test_runtime_client::new();
+		let distant_round = MAX_PRUNE_PER_WRITE * 2 + KEEP_CONCLUDED_ROUNDS + 10;
+		write_concluded_round(&client, &completed_round(0)).unwrap();
+
+		write_concluded_round(&client, &completed_round(distant_round)).unwrap();
+		assert_eq!(concluded_round_cursor(&client), MAX_PRUNE_PER_WRITE);
+		assert!(has_concluded_round(&client, distant_round));
+
+		write_concluded_round(&client, &completed_round(distant_round + 1)).unwrap();
+		assert_eq!(concluded_round_cursor(&client), MAX_PRUNE_PER_WRITE * 2);
+		assert!(has_concluded_round(&client, distant_round + 1));
+
+		write_concluded_round(&client, &completed_round(distant_round + 2)).unwrap();
+		assert_eq!(concluded_round_cursor(&client), distant_round + 3 - KEEP_CONCLUDED_ROUNDS);
+		assert!(has_concluded_round(&client, distant_round + 2));
+	}
+
+	#[test]
+	fn concluded_round_pruning_never_deletes_current_write() {
+		let client = substrate_test_runtime_client::new();
+		write_concluded_round(&client, &completed_round(0)).unwrap();
+		let distant_round = MAX_PRUNE_PER_WRITE + KEEP_CONCLUDED_ROUNDS + 1;
+
+		write_concluded_round(&client, &completed_round(distant_round)).unwrap();
+
+		assert!(has_concluded_round(&client, distant_round));
 	}
 }
