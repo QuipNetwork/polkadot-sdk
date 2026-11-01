@@ -2004,6 +2004,23 @@ where
 		core::iter::once(&mut self.first_frame).chain(&mut self.frames).rev()
 	}
 
+	/// Caller of the frame at `depth`, counting from the top frame.
+	///
+	/// A delegate frame runs as the delegating contract, so its caller is the one recorded in
+	/// its [`DelegateInfo`]. Any other frame is called by the frame below it, or by the origin
+	/// when it is the first frame.
+	fn caller_at(&self, depth: usize) -> Origin<T> {
+		let Some(frame) = self.frames().nth(depth) else { return self.origin.clone() };
+		if let Some(DelegateInfo { caller, .. }) = &frame.delegate {
+			caller.clone()
+		} else {
+			self.frames()
+				.nth(depth + 1)
+				.map(|f| Origin::from_account_id(f.account_id.clone()))
+				.unwrap_or(self.origin.clone())
+		}
+	}
+
 	/// Returns whether the specified contract allows to be reentered right now.
 	fn allows_reentry(&self, id: &T::AccountId) -> bool {
 		!self.frames().any(|f| &f.account_id == id && !f.allows_reentry)
@@ -2433,27 +2450,11 @@ where
 			return mock_caller;
 		}
 
-		if let Some(DelegateInfo { caller, .. }) = &self.top_frame().delegate {
-			caller.clone()
-		} else {
-			self.frames()
-				.nth(1)
-				.map(|f| Origin::from_account_id(f.account_id.clone()))
-				.unwrap_or(self.origin.clone())
-		}
+		self.caller_at(0)
 	}
 
 	fn caller_of_caller(&self) -> Origin<T> {
-		// fetch top frame of top frame
-		let caller_of_caller_frame = match self.frames().nth(2) {
-			None => return self.origin.clone(),
-			Some(frame) => frame,
-		};
-		if let Some(DelegateInfo { caller, .. }) = &caller_of_caller_frame.delegate {
-			caller.clone()
-		} else {
-			Origin::from_account_id(caller_of_caller_frame.account_id.clone())
-		}
+		self.caller_at(1)
 	}
 
 	fn origin(&self) -> &Origin<T> {

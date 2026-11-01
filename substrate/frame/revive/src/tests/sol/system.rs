@@ -487,3 +487,256 @@ fn caller_is_root_does_not_cross_regular_call(fixture_type: FixtureType) {
 		);
 	});
 }
+
+/// Through a delegate call: root -> proxy -> delegatecall -> implementation. The caller of the
+/// delegated code is the caller of the proxy, which is Root, so `callerIsRoot` holds.
+#[test_case(FixtureType::Solc)]
+#[test_case(FixtureType::Resolc)]
+fn caller_is_root_through_delegate_call(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("OriginIsRoot", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+		let Contract { addr: proxy, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([1u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: implementation, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([2u8; 32]))
+			.build_and_unwrap_contract();
+
+		let call_data =
+			OriginIsRootFixture::delegateCallerIsRootCall { _impl: implementation.0.into() }
+				.abi_encode();
+
+		let root_result = builder::bare_call(proxy)
+			.origin(RuntimeOrigin::root())
+			.data(call_data.clone())
+			.build_and_unwrap_result();
+		assert!(
+			OriginIsRootFixture::delegateCallerIsRootCall::abi_decode_returns(&root_result.data)
+				.unwrap(),
+		);
+
+		let signed_result = builder::bare_call(proxy).data(call_data).build_and_unwrap_result();
+		assert!(
+			!OriginIsRootFixture::delegateCallerIsRootCall::abi_decode_returns(&signed_result.data)
+				.unwrap(),
+		);
+	});
+}
+
+/// Through a delegate call followed by a regular call: root -> contract -> delegatecall ->
+/// regular call -> target. The caller of `target` is the contract, so `callerIsRoot` is false,
+/// even though root called the contract.
+#[test_case(FixtureType::Solc)]
+#[test_case(FixtureType::Resolc)]
+fn caller_is_root_does_not_cross_regular_call_after_delegate_call(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("OriginIsRoot", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+		let Contract { addr: caller, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([1u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: lib, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([2u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: target, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([3u8; 32]))
+			.build_and_unwrap_contract();
+
+		let result = builder::bare_call(caller)
+			.origin(RuntimeOrigin::root())
+			.data(
+				OriginIsRootFixture::forwardDelegateCall {
+					_impl: lib.0.into(),
+					data: OriginIsRootFixture::callCallerIsRootCall { target: target.0.into() }
+						.abi_encode()
+						.into(),
+				}
+				.abi_encode(),
+			)
+			.build_and_unwrap_result();
+		assert!(
+			!OriginIsRootFixture::forwardDelegateCall::abi_decode_returns(&result.data).unwrap()
+		);
+	});
+}
+
+/// Through a regular call followed by a delegate call: root -> contract -> regular call -> proxy
+/// -> delegatecall -> implementation. The caller of the delegated code is the caller of the proxy,
+/// which is the contract, so `callerIsRoot` is false, even though root called the contract.
+#[test_case(FixtureType::Solc)]
+#[test_case(FixtureType::Resolc)]
+fn caller_is_root_does_not_cross_regular_call_before_delegate_call(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("OriginIsRoot", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+		let Contract { addr: caller, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([1u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: proxy, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([2u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: implementation, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([3u8; 32]))
+			.build_and_unwrap_contract();
+
+		let result = builder::bare_call(caller)
+			.origin(RuntimeOrigin::root())
+			.data(
+				OriginIsRootFixture::forwardCall {
+					target: proxy.0.into(),
+					data: OriginIsRootFixture::delegateCallerIsRootCall {
+						_impl: implementation.0.into(),
+					}
+					.abi_encode()
+					.into(),
+				}
+				.abi_encode(),
+			)
+			.build_and_unwrap_result();
+		assert!(!OriginIsRootFixture::forwardCall::abi_decode_returns(&result.data).unwrap());
+	});
+}
+
+/// Through two chained delegate calls: root -> proxy -> delegatecall -> implementation ->
+/// delegatecall -> library. Each delegate frame keeps the caller of the contract it runs as, so
+/// `callerIsRoot` holds in the library. A contract the library calls with a regular call sees
+/// the proxy as its caller, so `callerIsRoot` is false there.
+#[test_case(FixtureType::Solc)]
+#[test_case(FixtureType::Resolc)]
+fn caller_is_root_through_chained_delegate_calls(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("OriginIsRoot", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+		let Contract { addr: proxy, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([1u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: implementation, .. } =
+			builder::bare_instantiate(Code::Upload(code.clone()))
+				.salt(Some([2u8; 32]))
+				.build_and_unwrap_contract();
+		let Contract { addr: library, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([3u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: target, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([4u8; 32]))
+			.build_and_unwrap_contract();
+
+		// proxy -> delegatecall -> implementation -> delegatecall -> library.callerIsRoot()
+		let chained = OriginIsRootFixture::forwardDelegateCall {
+			_impl: implementation.0.into(),
+			data: OriginIsRootFixture::delegateCallerIsRootCall { _impl: library.0.into() }
+				.abi_encode()
+				.into(),
+		}
+		.abi_encode();
+
+		let root_result = builder::bare_call(proxy)
+			.origin(RuntimeOrigin::root())
+			.data(chained.clone())
+			.build_and_unwrap_result();
+		assert!(
+			OriginIsRootFixture::forwardDelegateCall::abi_decode_returns(&root_result.data)
+				.unwrap(),
+		);
+
+		let signed_result = builder::bare_call(proxy).data(chained).build_and_unwrap_result();
+		assert!(
+			!OriginIsRootFixture::forwardDelegateCall::abi_decode_returns(&signed_result.data)
+				.unwrap(),
+		);
+
+		// proxy -> delegatecall -> implementation -> delegatecall -> library -> regular call ->
+		// target.callerIsRoot()
+		let chained_then_call = OriginIsRootFixture::forwardDelegateCall {
+			_impl: implementation.0.into(),
+			data: OriginIsRootFixture::forwardDelegateCall {
+				_impl: library.0.into(),
+				data: OriginIsRootFixture::callCallerIsRootCall { target: target.0.into() }
+					.abi_encode()
+					.into(),
+			}
+			.abi_encode()
+			.into(),
+		}
+		.abi_encode();
+
+		let result = builder::bare_call(proxy)
+			.origin(RuntimeOrigin::root())
+			.data(chained_then_call)
+			.build_and_unwrap_result();
+		assert!(
+			!OriginIsRootFixture::forwardDelegateCall::abi_decode_returns(&result.data).unwrap()
+		);
+	});
+}
+
+/// Through a delegate call: origin -> proxy -> delegatecall -> implementation. The caller of the
+/// delegated code is the caller of the proxy, which is the origin, so `callerIsOrigin` holds.
+#[test_case(FixtureType::Solc)]
+#[test_case(FixtureType::Resolc)]
+fn caller_is_origin_through_delegate_call(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("OriginIsRoot", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+		let Contract { addr: proxy, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([1u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: implementation, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([2u8; 32]))
+			.build_and_unwrap_contract();
+
+		let result = builder::bare_call(proxy)
+			.data(
+				OriginIsRootFixture::delegateCallerIsOriginCall { _impl: implementation.0.into() }
+					.abi_encode(),
+			)
+			.build_and_unwrap_result();
+		assert!(
+			OriginIsRootFixture::delegateCallerIsOriginCall::abi_decode_returns(&result.data)
+				.unwrap(),
+		);
+	});
+}
+
+/// Through a delegate call followed by a regular call: origin -> contract -> delegatecall ->
+/// regular call -> target. The caller of `target` is the contract, so `callerIsOrigin` is false,
+/// even though the origin called the contract.
+#[test_case(FixtureType::Solc)]
+#[test_case(FixtureType::Resolc)]
+fn caller_is_origin_does_not_cross_regular_call_after_delegate_call(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("OriginIsRoot", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+		let Contract { addr: caller, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([1u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: lib, .. } = builder::bare_instantiate(Code::Upload(code.clone()))
+			.salt(Some([2u8; 32]))
+			.build_and_unwrap_contract();
+		let Contract { addr: target, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([3u8; 32]))
+			.build_and_unwrap_contract();
+
+		let result = builder::bare_call(caller)
+			.data(
+				OriginIsRootFixture::forwardDelegateCall {
+					_impl: lib.0.into(),
+					data: OriginIsRootFixture::callCallerIsOriginCall { target: target.0.into() }
+						.abi_encode()
+						.into(),
+				}
+				.abi_encode(),
+			)
+			.build_and_unwrap_result();
+		assert!(
+			!OriginIsRootFixture::forwardDelegateCall::abi_decode_returns(&result.data).unwrap()
+		);
+	});
+}
