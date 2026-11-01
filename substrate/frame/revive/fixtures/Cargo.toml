@@ -1,6 +1,6 @@
 [package]
 name = "pallet-revive-fixtures"
-version = "0.16.1"
+version = "0.16.2"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

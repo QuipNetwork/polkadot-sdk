@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-jemalloc-shim"
-version = "0.11.0"
+version = "0.12.0"
 description = "Shim crate to enable jemalloc-allocator feature for polkadot crates and setting global allocator to jemalloc"
 license.workspace = true
 authors.workspace = true

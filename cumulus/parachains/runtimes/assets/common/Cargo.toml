@@ -1,6 +1,6 @@
 [package]
 name = "assets-common"
-version = "0.38.0"
+version = "0.40.0"
 authors.workspace = true
 edition.workspace = true
 description = "Assets common utilities"

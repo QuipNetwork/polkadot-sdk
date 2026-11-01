@@ -1,6 +1,6 @@
 [package]
 name = "penpal-runtime"
-version = "0.46.0"
+version = "0.48.0"
 authors = ["Anonymous"]
 description = "A parachain for communication back and forth with XCM of assets and uniques."
 license = "Unlicense"

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-revive-uapi"
-version = "0.15.3"
+version = "0.15.4"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

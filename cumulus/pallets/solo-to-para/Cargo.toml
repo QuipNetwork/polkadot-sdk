@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-pallet-solo-to-para"
-version = "0.31.0"
+version = "0.32.0"
 authors.workspace = true
 edition.workspace = true
 description = "Adds functionality to migrate from a Solo to a Parachain"

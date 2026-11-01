@@ -1,6 +1,6 @@
 [package]
 name = "yet-another-parachain-runtime"
-version = "0.15.0"
+version = "0.16.0"
 authors.workspace = true
 edition.workspace = true
 description = "Simple runtime used by the testing parachain(s)"

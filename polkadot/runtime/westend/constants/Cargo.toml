@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime-constants"
-version = "33.0.0"
+version = "35.0.0"
 description = "Constants used throughout the Westend network."
 authors.workspace = true
 edition.workspace = true

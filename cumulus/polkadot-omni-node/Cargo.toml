@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-omni-node"
-version = "0.23.0"
+version = "0.24.0"
 authors.workspace = true
 edition.workspace = true
 build = "build.rs"

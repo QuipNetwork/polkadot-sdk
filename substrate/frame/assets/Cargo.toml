@@ -1,6 +1,6 @@
 [package]
 name = "pallet-assets"
-version = "54.0.0"
+version = "54.0.1"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

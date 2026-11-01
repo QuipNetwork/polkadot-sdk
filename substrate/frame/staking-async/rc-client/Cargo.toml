@@ -2,7 +2,7 @@
 name = "pallet-staking-async-rc-client"
 description = "Pallet handling the communication with staking-ah-client. It's role is to glue the staking pallet (on AssetHub chain) and session pallet (on Relay Chain) in a transparent way."
 license = "Apache-2.0"
-version = "0.12.0"
+version = "0.13.0"
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true

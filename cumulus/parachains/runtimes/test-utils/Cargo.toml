@@ -1,6 +1,6 @@
 [package]
 name = "parachains-runtimes-test-utils"
-version = "38.0.0"
+version = "40.0.0"
 authors.workspace = true
 edition.workspace = true
 description = "Utils for Runtimes testing"

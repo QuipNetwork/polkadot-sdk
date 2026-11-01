@@ -1,6 +1,6 @@
 [package]
 name = "pallet-revive"
-version = "0.20.1"
+version = "0.20.2"
 authors.workspace = true
 edition = "2024"
 license = "Apache-2.0"

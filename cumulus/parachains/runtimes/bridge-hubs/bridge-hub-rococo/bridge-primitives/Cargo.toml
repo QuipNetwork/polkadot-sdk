@@ -1,7 +1,7 @@
 [package]
 name = "bp-bridge-hub-rococo"
 description = "Primitives of BridgeHubRococo parachain runtime."
-version = "0.37.0"
+version = "0.39.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

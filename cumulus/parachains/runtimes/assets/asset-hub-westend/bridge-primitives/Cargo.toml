@@ -1,7 +1,7 @@
 [package]
 name = "bp-asset-hub-westend"
 description = "Primitives of AssetHubWestend parachain runtime."
-version = "0.32.0"
+version = "0.34.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

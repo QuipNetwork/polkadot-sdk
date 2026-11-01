@@ -4,7 +4,7 @@ description = "Tools & types for building with XCM and its executor."
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-version = "30.0.0"
+version = "31.0.0"
 homepage.workspace = true
 repository.workspace = true
 

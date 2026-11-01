@@ -1,7 +1,7 @@
 [package]
 name = "snowbridge-outbound-queue-primitives"
 description = "Snowbridge Outbound Queue Primitives"
-version = "0.13.0"
+version = "0.14.0"
 authors = ["Snowfork <contact@snowfork.com>"]
 edition.workspace = true
 repository.workspace = true

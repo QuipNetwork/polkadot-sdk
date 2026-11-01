@@ -1,6 +1,6 @@
 [package]
 name = "pallet-staking-async-rc-runtime-constants"
-version = "0.14.0"
+version = "0.16.0"
 description = "Constants used throughout the Staking Async RC network."
 authors.workspace = true
 edition.workspace = true

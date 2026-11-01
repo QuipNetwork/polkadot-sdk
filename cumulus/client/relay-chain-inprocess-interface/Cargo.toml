@@ -1,7 +1,7 @@
 [package]
 authors.workspace = true
 name = "cumulus-relay-chain-inprocess-interface"
-version = "0.41.0"
+version = "0.42.0"
 edition.workspace = true
 description = "Implementation of the RelayChainInterface trait for Polkadot full-nodes."
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"

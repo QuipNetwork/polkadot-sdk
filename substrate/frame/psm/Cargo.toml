@@ -1,6 +1,6 @@
 [package]
 name = "pallet-psm"
-version = "0.6.0"
+version = "0.6.1"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
