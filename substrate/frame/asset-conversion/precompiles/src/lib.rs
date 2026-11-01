@@ -233,6 +233,7 @@ const ERR_BALANCE_CONVERSION_FAILED: &str = "Balance conversion failed";
 const ERR_INVALID_ASSET_PAIR: &str = "Invalid asset pair";
 const ERR_POOL_NOT_FOUND: &str = "Pool does not exist or has no liquidity";
 const ERR_POOL_EMPTY: &str = "Pool exists but has no liquidity";
+const ERR_POOL_UNAVAILABLE: &str = "Pool is frozen or blocked";
 const ERR_UNEXPECTED: &str = "Unexpected error";
 const ERR_PATH_TOO_LONG: &str = "Swap path exceeds MaxSwapPathLength";
 const ERR_INVALID_ASSET_ENCODING: &str = "Failed to SCALE-decode asset kind";
@@ -510,7 +511,10 @@ where
 			pallet_asset_conversion::Error::PoolEmpty => {
 				Error::Revert(Revert { reason: ERR_POOL_EMPTY.into() })
 			},
-			// get_reserves only produces the two variants above; list the rest
+			pallet_asset_conversion::Error::PoolUnavailable => {
+				Error::Revert(Revert { reason: ERR_POOL_UNAVAILABLE.into() })
+			},
+			// get_reserves only produces the three variants above; list the rest
 			// exhaustively so adding a new Error variant triggers a compile error.
 			pallet_asset_conversion::Error::PoolExists |
 			pallet_asset_conversion::Error::WrongDesiredAmount |

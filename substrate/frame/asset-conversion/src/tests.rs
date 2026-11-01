@@ -24,7 +24,7 @@ use frame_support::{
 		fungible::{Inspect as FungibleInspect, NativeOrWithId},
 		fungibles,
 		fungibles::{Inspect, InspectEnumerable},
-		Get,
+		Get, LockableCurrency, WithdrawReasons,
 	},
 };
 use sp_arithmetic::Permill;
@@ -1227,6 +1227,241 @@ fn quote_price_returns_none_when_output_exceeds_pool_withdrawable() {
 			true,
 		)
 		.is_some());
+	});
+}
+
+#[test]
+fn blocked_or_frozen_pool_is_unavailable() {
+	new_test_ext().execute_with(|| {
+		let user = 1;
+		let token_1 = NativeOrWithId::Native;
+		let token_2 = NativeOrWithId::WithId(2);
+
+		// Set up a native/token_2 pool. `user` creates token_2, which makes it the token's
+		// freezer and lets it block and freeze the pool account later.
+		create_tokens_with_ed(user, vec![token_2.clone()], 1);
+		assert_ok!(AssetConversion::create_pool(
+			RuntimeOrigin::signed(user),
+			Box::new(token_1.clone()),
+			Box::new(token_2.clone())
+		));
+		assert_ok!(Balances::force_set_balance(RuntimeOrigin::root(), user, 10_000_000));
+		assert_ok!(Assets::mint(RuntimeOrigin::signed(user), 2, user, 10_000));
+		assert_ok!(AssetConversion::add_liquidity(
+			RuntimeOrigin::signed(user),
+			Box::new(token_1.clone()),
+			Box::new(token_2.clone()),
+			1_000_000,
+			2_000,
+			1,
+			1,
+			user,
+		));
+
+		let pool_id = (token_1.clone(), token_2.clone());
+		let pool_account = <Test as Config>::PoolLocator::address(&pool_id).unwrap();
+
+		// Quotes for selling token_2 to the pool, using both the exact input and the exact
+		// output quote functions.
+		let quote_token_2_to_native = || {
+			[
+				AssetConversion::quote_price_exact_tokens_for_tokens(
+					token_2.clone(),
+					token_1.clone(),
+					100,
+					true,
+				),
+				AssetConversion::quote_price_tokens_for_exact_tokens(
+					token_2.clone(),
+					token_1.clone(),
+					100,
+					true,
+				),
+			]
+		};
+
+		// Normal pool: both quotes return a price.
+		assert!(quote_token_2_to_native().iter().all(Option::is_some));
+
+		// Blocked pool can't send token_2, so no quote.
+		assert_ok!(Assets::block(RuntimeOrigin::signed(user), 2, pool_account));
+		assert_eq!(quote_token_2_to_native(), [None, None]);
+
+		// Unblocked: quotes work again.
+		assert_ok!(Assets::thaw(RuntimeOrigin::signed(user), 2, pool_account));
+		assert!(quote_token_2_to_native().iter().all(Option::is_some));
+
+		// Frozen asset class: no quote, until it's thawed.
+		assert_ok!(Assets::freeze_asset(RuntimeOrigin::signed(user), 2));
+		assert_eq!(quote_token_2_to_native(), [None, None]);
+		assert_ok!(Assets::thaw_asset(RuntimeOrigin::signed(user), 2));
+		assert!(quote_token_2_to_native().iter().all(Option::is_some));
+
+		// Frozen pool can't send token_2, so it's halted in both directions.
+		assert_ok!(Assets::freeze(RuntimeOrigin::signed(user), 2, pool_account));
+		assert_eq!(quote_token_2_to_native(), [None, None]);
+		assert_noop!(
+			AssetConversion::swap_exact_tokens_for_tokens(
+				RuntimeOrigin::signed(user),
+				bvec![token_2.clone(), token_1.clone()],
+				100,
+				1,
+				user,
+				false,
+			),
+			Error::<Test>::PoolUnavailable
+		);
+		assert_eq!(
+			AssetConversion::quote_price_exact_tokens_for_tokens(
+				token_1.clone(),
+				token_2.clone(),
+				100,
+				true,
+			),
+			None
+		);
+		assert_eq!(
+			AssetConversion::quote_price_tokens_for_exact_tokens(
+				token_1.clone(),
+				token_2.clone(),
+				100,
+				true,
+			),
+			None
+		);
+	});
+}
+
+#[test]
+fn pool_with_native_reserve_at_minimum_can_still_be_refilled() {
+	new_test_ext().execute_with(|| {
+		let user = 1;
+		let native = NativeOrWithId::Native;
+		let token = NativeOrWithId::WithId(2);
+		let native_ed = <Test as pallet_balances::Config>::ExistentialDeposit::get();
+		let native_liquidity = 1_000_000;
+
+		// Create a native/token pool.
+		create_tokens_with_ed(user, vec![token.clone()], 1);
+		assert_ok!(AssetConversion::create_pool(
+			RuntimeOrigin::signed(user),
+			Box::new(native.clone()),
+			Box::new(token.clone())
+		));
+		assert_ok!(Balances::force_set_balance(RuntimeOrigin::root(), user, 10_000_000));
+		assert_ok!(Assets::mint(RuntimeOrigin::signed(user), 2, user, 1_000_000_000));
+		assert_ok!(AssetConversion::add_liquidity(
+			RuntimeOrigin::signed(user),
+			Box::new(native.clone()),
+			Box::new(token.clone()),
+			native_liquidity,
+			2_000,
+			1,
+			1,
+			user,
+		));
+		let pool_id = (native.clone(), token.clone());
+		let pool_account = <Test as Config>::PoolLocator::address(&pool_id).unwrap();
+
+		// Send the pool account an unrelated non-sufficient asset. This is what makes its
+		// native ED unspendable, as on live chains.
+		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 3, user, false, 1));
+		assert_ok!(Assets::mint(RuntimeOrigin::signed(user), 3, user, 1000));
+		assert_ok!(Assets::transfer(RuntimeOrigin::signed(user), 3, pool_account, 1));
+
+		// Buy out all native the pool can give, so it holds exactly the ED.
+		assert_ok!(AssetConversion::swap_tokens_for_exact_tokens(
+			RuntimeOrigin::signed(user),
+			bvec![token.clone(), native.clone()],
+			native_liquidity - native_ed,
+			u128::MAX,
+			user,
+			false,
+		));
+		assert_eq!(Balances::free_balance(pool_account), native_ed);
+
+		// The pool is at its minimum but not frozen, so selling native into it still works.
+		assert!(AssetConversion::quote_price_exact_tokens_for_tokens(
+			native.clone(),
+			token.clone(),
+			1_000,
+			true,
+		)
+		.is_some());
+		assert_ok!(AssetConversion::swap_exact_tokens_for_tokens(
+			RuntimeOrigin::signed(user),
+			bvec![native.clone(), token.clone()],
+			1_000,
+			1,
+			user,
+			false,
+		));
+		assert_eq!(Balances::free_balance(pool_account), native_ed + 1_000);
+	});
+}
+
+#[test]
+fn pool_with_locked_native_is_still_usable() {
+	new_test_ext().execute_with(|| {
+		let user = 1;
+		let native = NativeOrWithId::Native;
+		let token = NativeOrWithId::WithId(2);
+
+		create_tokens_with_ed(user, vec![token.clone()], 1);
+		assert_ok!(AssetConversion::create_pool(
+			RuntimeOrigin::signed(user),
+			Box::new(native.clone()),
+			Box::new(token.clone())
+		));
+		assert_ok!(Balances::force_set_balance(RuntimeOrigin::root(), user, 10_000_000));
+		assert_ok!(Assets::mint(RuntimeOrigin::signed(user), 2, user, 10_000));
+		assert_ok!(AssetConversion::add_liquidity(
+			RuntimeOrigin::signed(user),
+			Box::new(native.clone()),
+			Box::new(token.clone()),
+			1_000_000,
+			2_000,
+			1,
+			1,
+			user,
+		));
+		let pool_id = (native.clone(), token.clone());
+		let pool_account = <Test as Config>::PoolLocator::address(&pool_id).unwrap();
+
+		let (native_reserve, token_reserve) =
+			AssetConversion::get_reserves(native.clone(), token.clone()).unwrap();
+
+		// Anyone can send the pool funds locked under a vesting schedule.
+		assert_ok!(Balances::transfer_allow_death(
+			RuntimeOrigin::signed(user),
+			pool_account,
+			10_000
+		));
+		Balances::set_lock(*b"vesting ", &pool_account, 10_000, WithdrawReasons::all());
+
+		// The pool's native reserve grows by the vested amount and nothing else changes.
+		assert_eq!(
+			AssetConversion::get_reserves(native.clone(), token.clone()).unwrap(),
+			(native_reserve + 10_000, token_reserve),
+		);
+
+		// The pool still works in both directions.
+		assert_ok!(AssetConversion::swap_exact_tokens_for_tokens(
+			RuntimeOrigin::signed(user),
+			bvec![token.clone(), native.clone()],
+			100,
+			1,
+			user,
+			false,
+		));
+		assert_ok!(AssetConversion::swap_exact_tokens_for_tokens(
+			RuntimeOrigin::signed(user),
+			bvec![native.clone(), token.clone()],
+			10_000,
+			1,
+			user,
+			false,
+		));
 	});
 }
 
