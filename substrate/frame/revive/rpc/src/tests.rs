@@ -32,7 +32,7 @@ use crate::{
 };
 use alloy_network::EthereumWallet;
 use alloy_primitives::{Address as AlloyAddress, B256, Bytes as AlloyBytes, U256 as AlloyU256};
-use alloy_provider::{Provider, ProviderBuilder, ext::DebugApi as _};
+use alloy_provider::{Provider, ProviderBuilder, WsConnect, ext::DebugApi as _};
 use alloy_rpc_types::{
 	BlockId, BlockNumberOrTag, Filter, TransactionRequest,
 	state::{AccountOverride, StateOverride},
@@ -390,7 +390,7 @@ async fn run_all_eth_rpc_tests_inner() -> anyhow::Result<()> {
 		test_multiple_transactions_in_block,
 		test_mixed_evm_substrate_transactions,
 		test_runtime_pallets_address_upload_code,
-		test_subscribe_new_heads,
+		test_new_heads_subscription_delivers_matching_header_via_alloy,
 		test_subscribe_new_heads_multiple_blocks,
 		test_subscribe_logs,
 		test_subscribe_logs_with_address_filter,
@@ -1277,16 +1277,17 @@ async fn test_runtime_pallets_address_upload_code() -> anyhow::Result<()> {
 	Ok(())
 }
 
-/// Verify that subscribing to `newHeads` delivers a block header matching the
-/// corresponding block fetched via `eth_getBlockByNumber` after a transaction
-/// triggers a new block.
-async fn test_subscribe_new_heads() -> anyhow::Result<()> {
+/// Verify that Alloy can subscribe to `newHeads` and receive the transaction's block header.
+async fn test_new_heads_subscription_delivers_matching_header_via_alloy() -> anyhow::Result<()> {
 	// Arrange
 	let client = Arc::new(SharedResources::client().await);
+	let provider = ProviderBuilder::new()
+		.connect_ws(WsConnect::new("ws://localhost:45788"))
+		.await?;
 	let ethan = Account::from(subxt_signer::eth::dev::ethan());
 	let value = U256::from(1_000_000_000_000u128);
 
-	let mut sub = client.eth_subscribe(SubscriptionKind::NewBlockHeaders, None).await?;
+	let mut sub = provider.subscribe_blocks().await?;
 
 	// Act
 	let tx = TransactionBuilder::new(client.clone())
@@ -1294,29 +1295,25 @@ async fn test_subscribe_new_heads() -> anyhow::Result<()> {
 		.to(ethan.address())
 		.send()
 		.await?;
-	tx.wait_for_receipt().await?;
+	let receipt = tx.wait_for_receipt().await?;
 
-	let notification = tokio::time::timeout(tokio::time::Duration::from_secs(10), sub.next())
+	let header = tokio::time::timeout(tokio::time::Duration::from_secs(10), sub.recv_result())
 		.await
 		.expect("Timed out waiting for newHeads notification")
 		.expect("Subscription stream ended unexpectedly")
-		.expect("Subscription returned an error");
-
-	let header = match notification {
-		SubscriptionItem::BlockHeader(header) => header,
-		other => panic!("Expected BlockHeader, got: {other:?}"),
-	};
+		.expect("Alloy should deserialize the newHeads notification");
 
 	let block = client
-		.get_block_by_number(BlockNumberOrTag::Number(header.number.as_u64()), false)
+		.get_block_by_number(BlockNumberOrTag::Number(header.number), false)
 		.await?
 		.expect("Block should exist");
 
 	// Assert
-	assert!(header.number > U256::zero(), "Block number should be > 0");
-	assert_ne!(header.hash, H256::zero(), "Block hash should not be zero");
-	assert_ne!(header.parent_hash, H256::zero(), "Parent hash should not be zero");
+	assert_eq!(U256::from(header.number), receipt.block_number);
+	assert_eq!(H256(header.hash.0), receipt.block_hash);
+	assert_ne!(header.parent_hash, B256::ZERO, "Parent hash should not be zero");
 
+	let header = serde_json::from_value::<BlockHeader>(serde_json::to_value(header)?)?;
 	let expected_header = BlockHeader::from(block);
 	assert_eq!(
 		header, expected_header,

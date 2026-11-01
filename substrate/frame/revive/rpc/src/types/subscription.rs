@@ -33,6 +33,10 @@ pub struct BlockHeader {
 	pub parent_hash: H256,
 	/// Nonce
 	pub nonce: Bytes8,
+	/// Block difficulty required by Ethereum clients when decoding subscription headers.
+	pub difficulty: U256,
+	/// Block mix hash required by Ethereum clients when decoding subscription headers.
+	pub mix_hash: H256,
 	/// Ommers hash
 	pub sha_3_uncles: H256,
 	/// Bloom filter
@@ -62,6 +66,8 @@ impl From<BlockV1> for BlockHeader {
 			hash: block.hash,
 			parent_hash: block.parent_hash,
 			nonce: block.nonce,
+			difficulty: block.difficulty,
+			mix_hash: block.mix_hash,
 			sha_3_uncles: block.sha_3_uncles,
 			logs_bloom: block.logs_bloom,
 			transactions_root: block.transactions_root,
@@ -80,6 +86,7 @@ impl From<BlockV1> for BlockHeader {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionKind {
+	#[serde(rename = "newHeads")]
 	NewBlockHeaders,
 	Logs,
 }

@@ -68,6 +68,7 @@ alloy-primitives = { workspace = true, default-features = true }
 alloy-provider = { workspace = true, default-features = true, features = [
 	"debug-api",
 	"reqwest",
+	"ws",
 ] }
 alloy-signer-local = { workspace = true, default-features = true }
 env_logger = { workspace = true }

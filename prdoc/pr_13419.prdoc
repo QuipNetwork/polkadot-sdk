@@ -1,0 +1,14 @@
+title: Fix `eth_subscribe("newHeads")` in the ETH RPC
+doc:
+- audience: [Node Dev, Node Operator]
+  description: |-
+    `eth_subscribe("newHeads")` is now accepted. It was previously rejected
+    with an invalid-params error because the server only accepted the
+    non-standard `newBlockHeaders` name, which is no longer accepted.
+
+    `newHeads` notifications now include `difficulty` and `mixHash`. Clients
+    such as alloy require both fields to decode a block header.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: major
+  validate: false
