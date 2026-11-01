@@ -1,0 +1,20 @@
+title: 'pallet-psm: reduce debt by the amount actually burned on redeem'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      `redeem` burns the internal asset with `Preservation::Expendable`. When the redeemer is
+      left below the internal asset's `min_balance`, `burn_from` also burns that remainder and
+      lowers the issuance by more than `effective_internal_net`, while `PsmDebt` only dropped by
+      `effective_internal_net`. A plain redeem could therefore leave the issuance below the debt,
+      failing the `try_state` check and keeping the debt from ever reaching zero.
+
+      Such a remainder is now sent to the fee destination along with the fee, so `burn_from` burns
+      exactly `effective_internal_net`. This matters when the remainder was minted against another
+      external asset, since the redeemed pair's debt may not cover it. The debt is reduced by the
+      amount `burn_from` returns, and `Redeemed::internal_consumed` reports that amount plus the
+      fee.
+
+crates:
+  - name: pallet-psm
+    bump: patch

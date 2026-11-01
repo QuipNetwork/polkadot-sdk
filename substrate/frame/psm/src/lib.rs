@@ -827,7 +827,7 @@ pub mod pallet {
 
 			let fee_rate = RedemptionFee::<T>::get(&internal_asset, &external_asset);
 			ensure!(fee_rate <= max_fee, Error::<T>::FeeTooHigh);
-			let fee = fee_rate.mul_ceil(internal_amount);
+			let mut fee = fee_rate.mul_ceil(internal_amount);
 			let internal_net = internal_amount.saturating_sub(fee);
 
 			let external_out =
@@ -852,6 +852,15 @@ pub mod pallet {
 				return Err(Error::<T>::Unexpected.into());
 			}
 
+			// `burn_from` would also burn a remainder below `min_balance`, which this pair's debt
+			// may not cover. Send it to the fee destination along with the fee instead.
+			let remainder = T::Fungibles::balance(internal_asset.clone(), &who)
+				.saturating_sub(fee.saturating_add(effective_internal_net));
+
+			if remainder < T::Fungibles::minimum_balance(internal_asset.clone()) {
+				fee.saturating_accrue(remainder);
+			}
+
 			if !fee.is_zero() {
 				T::Fungibles::transfer(
 					internal_asset.clone(),
@@ -862,7 +871,7 @@ pub mod pallet {
 				)?;
 			}
 
-			if !effective_internal_net.is_zero() {
+			let burned = if !effective_internal_net.is_zero() {
 				T::Fungibles::burn_from(
 					internal_asset.clone(),
 					&who,
@@ -870,8 +879,10 @@ pub mod pallet {
 					Preservation::Expendable,
 					Precision::Exact,
 					Fortitude::Polite,
-				)?;
-			}
+				)?
+			} else {
+				BalanceOf::<T>::zero()
+			};
 
 			let psm_account = Self::psm_account(&internal_asset);
 			if !external_out.is_zero() {
@@ -885,14 +896,14 @@ pub mod pallet {
 			}
 
 			PsmDebt::<T>::mutate(&internal_asset, &external_asset, |debt| {
-				*debt = debt.saturating_sub(effective_internal_net);
+				*debt = debt.saturating_sub(burned);
 			});
 
 			Self::deposit_event(Event::Redeemed {
 				who,
 				internal_asset,
 				external_asset,
-				internal_consumed: effective_internal_net.saturating_add(fee),
+				internal_consumed: burned.saturating_add(fee),
 				external_received: external_out,
 				internal_fee: fee,
 			});

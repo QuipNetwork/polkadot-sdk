@@ -716,6 +716,187 @@ mod redeem {
 			);
 		});
 	}
+
+	#[test]
+	fn redeem_with_nonzero_fee_charges_fee_destination() {
+		new_test_ext().execute_with(|| {
+			set_redemption_fee(USDC_ASSET_ID, Permill::from_percent(1));
+			let mint_fee = MintingFee::<Test>::get(INTERNAL_ASSET_ID, USDC_ASSET_ID);
+			assert_ok!(Psm::mint(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				1_000 * INTERNAL_UNIT,
+				mint_fee,
+			));
+
+			let held = get_asset_balance(INTERNAL_ASSET_ID, ALICE);
+			let before = get_asset_balance(INTERNAL_ASSET_ID, INSURANCE_FUND);
+			assert_ok!(Psm::redeem(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				held,
+				Permill::from_percent(1)
+			));
+			assert!(get_asset_balance(INTERNAL_ASSET_ID, INSURANCE_FUND) > before);
+		});
+	}
+
+	#[test]
+	fn redeem_fails_when_sender_has_no_internal() {
+		new_test_ext().execute_with(|| {
+			use frame_support::traits::{
+				fungibles::Mutate,
+				tokens::{Fortitude, Precision, Preservation},
+			};
+
+			let mint_fee = MintingFee::<Test>::get(INTERNAL_ASSET_ID, USDC_ASSET_ID);
+			assert_ok!(Psm::mint(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				1_000 * INTERNAL_UNIT,
+				mint_fee,
+			));
+			set_redemption_fee(USDC_ASSET_ID, Permill::from_percent(1));
+
+			let held = get_asset_balance(INTERNAL_ASSET_ID, ALICE);
+			assert_ok!(Assets::burn_from(
+				INTERNAL_ASSET_ID,
+				&ALICE,
+				held,
+				Preservation::Expendable,
+				Precision::BestEffort,
+				Fortitude::Force,
+			));
+
+			assert_noop!(
+				Psm::redeem(
+					RuntimeOrigin::signed(ALICE),
+					INTERNAL_ASSET_ID,
+					USDC_ASSET_ID,
+					1_000 * INTERNAL_UNIT,
+					Permill::from_percent(1)
+				),
+				TokenError::FundsUnavailable
+			);
+		});
+	}
+
+	/// `burn_from` also burns a remainder below `min_balance`; the debt must drop by the same
+	/// amount so that issuance keeps covering it.
+	#[test]
+	fn redeem_leaving_dust_keeps_issuance_equal_to_debt() {
+		new_test_ext().execute_with(|| {
+			let min_balance = 10_000;
+			let fee = Permill::from_parts(100);
+			pallet_assets::Asset::<Test>::mutate(INTERNAL_ASSET_ID, |details| {
+				details.as_mut().expect("internal asset exists in the mock; qed").min_balance =
+					min_balance
+			});
+			set_minting_fee(USDC_ASSET_ID, Permill::zero());
+			set_redemption_fee(USDC_ASSET_ID, fee);
+			crate::Psm::<Test>::mutate(INTERNAL_ASSET_ID, |info| {
+				info.as_mut().expect("test PSM installed; qed").min_swap_amount = INTERNAL_UNIT
+			});
+			assert_ok!(Psm::mint(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				1_000 * INTERNAL_UNIT,
+				Permill::zero(),
+			));
+			let dust = min_balance / 2;
+			let redeem = get_asset_balance(INTERNAL_ASSET_ID, ALICE) - dust;
+
+			assert_ok!(Psm::redeem(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				redeem,
+				fee,
+			));
+
+			assert_eq!(get_asset_balance(INTERNAL_ASSET_ID, ALICE), 0);
+			assert_eq!(
+				<Assets as frame_support::traits::fungibles::Inspect<AccountId>>::total_issuance(
+					INTERNAL_ASSET_ID
+				),
+				PsmDebt::<Test>::get(INTERNAL_ASSET_ID, USDC_ASSET_ID)
+			);
+			assert_ok!(crate::Pallet::<Test>::do_try_state());
+		});
+	}
+
+	/// Dust minted against another external asset is sent to the fee destination instead of being
+	/// burned, since the redeemed pair's debt cannot absorb it.
+	#[test]
+	fn redeem_sends_dust_from_other_pair_to_fee_destination() {
+		new_test_ext().execute_with(|| {
+			use frame_support::traits::{fungibles::Mutate, tokens::Preservation};
+
+			let min_balance = 10_000;
+			let dust = min_balance / 2;
+			pallet_assets::Asset::<Test>::mutate(INTERNAL_ASSET_ID, |details| {
+				details.as_mut().expect("internal asset exists in the mock; qed").min_balance =
+					min_balance
+			});
+			set_minting_fee(USDC_ASSET_ID, Permill::zero());
+			set_minting_fee(USDT_ASSET_ID, Permill::zero());
+			set_redemption_fee(USDC_ASSET_ID, Permill::zero());
+
+			assert_ok!(Psm::mint(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				1_000 * INTERNAL_UNIT,
+				Permill::zero(),
+			));
+			assert_ok!(Psm::mint(
+				RuntimeOrigin::signed(BOB),
+				INTERNAL_ASSET_ID,
+				USDT_ASSET_ID,
+				500 * INTERNAL_UNIT,
+				Permill::zero(),
+			));
+			// The fee destination needs an account to receive an amount below `min_balance`.
+			assert_ok!(<Assets as Mutate<AccountId>>::transfer(
+				INTERNAL_ASSET_ID,
+				&BOB,
+				&INSURANCE_FUND,
+				min_balance,
+				Preservation::Preserve,
+			));
+			// Alice now holds dust backed by the USDT reserve.
+			assert_ok!(<Assets as Mutate<AccountId>>::transfer(
+				INTERNAL_ASSET_ID,
+				&BOB,
+				&ALICE,
+				dust,
+				Preservation::Preserve,
+			));
+
+			assert_ok!(Psm::redeem(
+				RuntimeOrigin::signed(ALICE),
+				INTERNAL_ASSET_ID,
+				USDC_ASSET_ID,
+				1_000 * INTERNAL_UNIT,
+				Permill::zero(),
+			));
+
+			assert_eq!(get_asset_balance(INTERNAL_ASSET_ID, ALICE), 0);
+			assert_eq!(get_asset_balance(INTERNAL_ASSET_ID, INSURANCE_FUND), min_balance + dust);
+			assert_eq!(PsmDebt::<Test>::get(INTERNAL_ASSET_ID, USDC_ASSET_ID), 0);
+			assert_eq!(
+				<Assets as frame_support::traits::fungibles::Inspect<AccountId>>::total_issuance(
+					INTERNAL_ASSET_ID
+				),
+				crate::Pallet::<Test>::total_psm_debt(&INTERNAL_ASSET_ID)
+			);
+			assert_ok!(crate::Pallet::<Test>::do_try_state());
+		});
+	}
 }
 
 mod governance {
