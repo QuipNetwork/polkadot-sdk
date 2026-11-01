@@ -43,7 +43,7 @@ pub const RUNTIME_LOG_TARGET: &str = "runtime::grandpa";
 pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_application_crypto::key_types::GRANDPA;
 
 mod app {
-	use quip_crypto_primitives::substrate::ed25519_mldsa44 as hybrid;
+	use quip_crypto_primitives::substrate::ed25519_fndsa512 as hybrid;
 	use sp_application_crypto::{app_crypto, key_types::GRANDPA};
 
 	app_crypto!(hybrid, GRANDPA);

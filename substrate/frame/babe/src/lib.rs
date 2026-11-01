@@ -371,9 +371,9 @@ pub mod pallet {
 							);
 							let sign_data = transcript.clone().into();
 
-							// NOTE: this is verified by the client when importing the block, before
-							// execution. We don't run the verification again here to avoid slowing
-							// down the runtime.
+							// The client verifies this while importing the block. Runtime execution
+							// verifies it again inside `make_vrf_bytes` before deriving randomness;
+							// the debug assertion keeps that invariant explicit in debug builds.
 							debug_assert!({
 								use sp_core::crypto::VrfPublic;
 								public.vrf_verify(&sign_data, &signature)

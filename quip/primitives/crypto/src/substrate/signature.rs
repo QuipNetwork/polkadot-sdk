@@ -25,8 +25,16 @@ use sp_core::proof_of_possession::{NonAggregatable, ProofOfPossessionVerifier};
 use sp_core::Pair as _;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::seed::MASTER_SEED_LEN;
+use crate::MASTER_SEED_LEN;
 use crate::HybridSignatureScheme;
+
+/// Domain separator for Substrate's ordinary `Pair::sign` surface.
+///
+/// Hybrid VRF bindings use pqhybridsign's suite label and binding-message
+/// construction instead. Keeping this context non-empty and distinct makes
+/// an ordinary signature unusable as a VRF binding even when a caller signs
+/// the binding digest verbatim.
+pub(crate) const PAIR_SIGNATURE_CONTEXT: &[u8] = b"quip/substrate-pair-signature/v1";
 
 /// Wrapper-specific behavior needed by the shared Substrate glue.
 pub trait SubstrateSignatureScheme {
@@ -291,7 +299,12 @@ where
 }
 
 #[derive(TypeInfo)]
+#[allow(dead_code)]
 struct SignatureMetadata2484([u8; 2048], [u8; 436]);
+
+#[derive(TypeInfo)]
+#[allow(dead_code)]
+struct SignatureMetadata731([u8; 512], [u8; 219]);
 
 /// Generic Substrate-style encoded hybrid signature.
 #[derive(Encode, Decode, DecodeWithMemTracking)]
@@ -344,10 +357,10 @@ where
     type Identity = Self;
 
     fn type_info() -> Type {
-        let fields = if SIGNATURE_LEN == 2484 {
-            Fields::unnamed().field(|f| f.ty::<SignatureMetadata2484>())
-        } else {
-            Fields::unnamed().field(|f| f.ty::<InnerSignature<W, SIGNATURE_LEN>>())
+        let fields = match SIGNATURE_LEN {
+            2484 => Fields::unnamed().field(|f| f.ty::<SignatureMetadata2484>()),
+            731 => Fields::unnamed().field(|f| f.ty::<SignatureMetadata731>()),
+            _ => Fields::unnamed().field(|f| f.ty::<InnerSignature<W, SIGNATURE_LEN>>()),
         };
 
         Type::builder()
@@ -461,12 +474,18 @@ where
 }
 
 /// Generic hybrid keypair backed by the suite master seed.
+///
+/// The expanded suite secret key is computed once at construction and cached:
+/// re-deriving it from the seed costs a full post-quantum keygen (~7x the
+/// price of a signature), which is unacceptable on the BABE/GRANDPA signing
+/// hot paths.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Pair<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize>
 where
     W: SubstrateSignatureScheme,
 {
     seed: [u8; MASTER_SEED_LEN],
+    secret: <W::Suite as HybridSignatureScheme>::SecretKey,
     #[zeroize(skip)]
     public: Public<W, PUBLIC_LEN, SIGNATURE_LEN>,
 }
@@ -475,10 +494,12 @@ impl<W, const PUBLIC_LEN: usize, const SIGNATURE_LEN: usize> Clone
     for Pair<W, PUBLIC_LEN, SIGNATURE_LEN>
 where
     W: SubstrateSignatureScheme,
+    <W::Suite as HybridSignatureScheme>::SecretKey: Clone,
 {
     fn clone(&self) -> Self {
         Self {
             seed: self.seed,
+            secret: self.secret.clone(),
             public: self.public.clone(),
         }
     }
@@ -505,21 +526,20 @@ where
 {
     /// Constructs the pair from a validated master seed.
     pub(crate) fn from_master_seed(seed: [u8; MASTER_SEED_LEN]) -> Result<Self, SecretStringError> {
-        let (_secret, public) =
+        let (secret, public) =
             W::Suite::from_seed_slice(&seed).map_err(|_| SecretStringError::InvalidSeed)?;
 
         Ok(Self {
             seed,
+            secret,
             public: Public::from_suite_public(public),
         })
     }
 
-    /// Re-expands the cached master seed into the suite secret key.
+    /// Returns the cached suite secret key, expanded once at construction.
     #[cfg(any(feature = "std", feature = "full_crypto"))]
-    pub(crate) fn expanded_secret(&self) -> <W::Suite as HybridSignatureScheme>::SecretKey {
-        W::Suite::from_seed_slice(&self.seed)
-            .expect("pair seed is validated on construction; qed")
-            .0
+    pub(crate) fn secret(&self) -> &<W::Suite as HybridSignatureScheme>::SecretKey {
+        &self.secret
     }
 }
 
@@ -556,8 +576,12 @@ where
 
     #[cfg(any(feature = "std", feature = "full_crypto"))]
     fn sign(&self, message: &[u8]) -> Self::Signature {
-        let secret = self.expanded_secret();
-        Signature::from_suite_signature(W::Suite::sign_deterministic(&secret, message, b"", b""))
+        Signature::from_suite_signature(W::Suite::sign_deterministic(
+            self.secret(),
+            message,
+            PAIR_SIGNATURE_CONTEXT,
+            b"",
+        ))
     }
 
     fn verify<M: AsRef<[u8]>>(sig: &Self::Signature, message: M, pubkey: &Self::Public) -> bool {
@@ -568,7 +592,7 @@ where
             return false;
         };
 
-        W::Suite::verify(&public, message.as_ref(), b"", &signature)
+        W::Suite::verify(&public, message.as_ref(), PAIR_SIGNATURE_CONTEXT, &signature)
     }
 
     fn public(&self) -> Self::Public {
