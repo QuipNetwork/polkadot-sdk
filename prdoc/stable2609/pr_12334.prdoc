@@ -1,0 +1,15 @@
+title: '[RWF] sc-client-db: fix finalization can leave best_number below finalized_number'
+doc:
+- audience: Runtime Dev
+  description: "Closes #12305.\n\n## Summary\n`finalize_block_with_transaction` always\
+    \ returns `MetaUpdate { is_best: false, .. }`, and `update_meta` only updates\
+    \ `best_number`/`best_hash` when `is_best` is true. If the best block is behind\
+    \ the block being finalized (e.g. after a re-org moves `best` to an earlier block),\
+    \ finalizing a later block leaves `best_number < finalized_number` \u2014 violating\
+    \ the metadata invariant.\n\n## Fix\nIn `update_meta`, when applying a finalized\
+    \ `MetaUpdate`, if `number > meta.best_number`, advance `best_number`/`best_hash`\
+    \ to match. A finalized block is canonical by definition, so `best` can never\
+    \ legitimately lag behind `finalized`."
+crates:
+- name: sc-client-db
+  bump: patch

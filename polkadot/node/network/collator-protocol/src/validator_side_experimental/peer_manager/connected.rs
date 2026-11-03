@@ -14,9 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::validator_side_experimental::{
-	common::{PeerInfo, PeerState, Score},
-	peer_manager::{DeclarationOutcome, ReputationUpdate, ReputationUpdateKind, TryAcceptOutcome},
+use crate::{
+	validator_side_experimental::{
+		common::{PeerInfo, PeerState, Score},
+		peer_manager::{
+			DeclarationOutcome, ReputationUpdate, ReputationUpdateKind, TryAcceptOutcome,
+		},
+	},
+	validator_side_metrics::ScoreBand,
 };
 use polkadot_node_network_protocol::{peer_set::CollationVersion, PeerId};
 use polkadot_primitives::Id as ParaId;
@@ -183,6 +188,31 @@ impl ConnectedPeers {
 	/// Get a reference to the peer's info, if connected.
 	pub fn peer_info(&self, peer_id: &PeerId) -> Option<&PeerInfo> {
 		self.peer_info.get(&peer_id)
+	}
+
+	/// The number of *declared* collators per para, grouped by their reputation score band.
+	///
+	/// Undeclared (`PeerState::Connected`) peers reserve a slot in every assigned para until they
+	/// declare, so skip them here to avoid multi-counting one peer across paras.
+	pub fn score_distribution(&self) -> BTreeMap<ParaId, BTreeMap<ScoreBand, u64>> {
+		let mut distribution: BTreeMap<ParaId, BTreeMap<ScoreBand, u64>> = BTreeMap::new();
+
+		for (para_id, per_para) in &self.per_para {
+			for (peer_id, score) in &per_para.per_peer_score {
+				if matches!(
+					self.peer_info.get(peer_id).map(|info| &info.state),
+					Some(PeerState::Collating(declared)) if declared == para_id
+				) {
+					*distribution
+						.entry(*para_id)
+						.or_default()
+						.entry(ScoreBand::classify(u16::from(*score)))
+						.or_default() += 1;
+				}
+			}
+		}
+
+		distribution
 	}
 
 	pub fn peer_score(&self, peer_id: &PeerId, para_id: &ParaId) -> Option<Score> {

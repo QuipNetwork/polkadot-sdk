@@ -2,7 +2,7 @@
 authors.workspace = true
 edition.workspace = true
 name = "cumulus-pallet-xcm"
-version = "0.25.0"
+version = "0.28.0"
 license = "Apache-2.0"
 description = "Pallet for stuff specific to parachains' usage of XCM"
 homepage.workspace = true
@@ -13,13 +13,16 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-primitives-core = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
+
 xcm = { workspace = true }
+
+cumulus-primitives-core = { workspace = true }
 
 [features]
 default = ["std"]

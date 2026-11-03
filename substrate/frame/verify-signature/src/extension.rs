@@ -38,12 +38,18 @@ use sp_weights::Weight;
 /// functionality that traditionally signed transactions had with the implicit signature checking
 /// implemented in [`Checkable`](sp_runtime::traits::Checkable). It is meant to be placed ahead of
 /// any other extensions that do authorization work in the [`TransactionExtension`] pipeline.
-#[derive(Encode, Decode, DecodeWithMemTracking, Clone, Eq, PartialEq, TypeInfo)]
+///
+/// The variants are ordered so that the [`Disabled`](Self::Disabled) (passthrough) state encodes
+/// as the SCALE byte `0x00`, which is compatible with current signers and wallets.
+#[derive(Encode, Decode, DecodeWithMemTracking, Clone, Eq, PartialEq, TypeInfo, Default)]
 #[scale_info(skip_type_params(T))]
 pub enum VerifySignature<T>
 where
 	T: Config + Send + Sync,
 {
+	/// The extension is disabled and will be passthrough.
+	#[default]
+	Disabled,
 	/// The extension will verify the signature and, if successful, authorize a traditionally
 	/// signed transaction.
 	Signed {
@@ -52,8 +58,6 @@ where
 		/// The account that signed the payload.
 		account: T::AccountId,
 	},
-	/// The extension is disabled and will be passthrough.
-	Disabled,
 }
 
 impl<T> core::fmt::Debug for VerifySignature<T>

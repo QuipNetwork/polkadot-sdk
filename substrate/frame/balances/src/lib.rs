@@ -471,6 +471,10 @@ pub mod pallet {
 	pub type TotalIssuance<T: Config<I>, I: 'static = ()> = StorageValue<_, T::Balance, ValueQuery>;
 
 	/// The total units of outstanding deactivated balance in the system.
+	///
+	/// This is not guaranteed to be less than or equal to [`TotalIssuance`]. Total issuance may be
+	/// reduced independently of this value, including while a reversible imbalance is outstanding.
+	/// Active issuance is therefore derived using saturating subtraction.
 	#[pallet::storage]
 	#[pallet::whitelist_storage]
 	pub type InactiveIssuance<T: Config<I>, I: 'static = ()> =
@@ -1125,19 +1129,16 @@ pub mod pallet {
 				// Evaluates `maybe_dust`, which is `Some` containing the dust to be dropped, iff
 				// some dust should be dropped.
 				//
-				// We should never be dropping if reserved is non-zero. Reserved being non-zero
-				// should imply that we have a consumer ref, so this is economically safe.
+				// We should never be dropping if there are either reserves or freezes since that
+				// implies a consumer ref.
 				let ed = Self::ed();
-				let maybe_dust = if account.free < ed && account.reserved.is_zero() {
+				let maybe_dust = if account.free < ed && !does_consume {
 					if account.free.is_zero() {
 						None
 					} else {
 						Some(account.free)
 					}
 				} else {
-					assert!(
-						account.free.is_zero() || account.free >= ed || !account.reserved.is_zero()
-					);
 					*maybe_account = Some(account);
 					None
 				};
@@ -1174,8 +1175,8 @@ pub mod pallet {
 			let freezes = Freezes::<T, I>::get(who);
 			let mut prev_frozen = Zero::zero();
 			let mut after_frozen = Zero::zero();
-			// We do not alter ED, so the account will not get dusted. Yet, consumer limit might be
-			// full, therefore we pass `true` into `mutate_account` to make sure this cannot fail
+			// The consumer limit might be full, therefore we pass `true` into `mutate_account` to
+			// make sure this cannot fail.
 			let res = Self::mutate_account(who, true, |b| {
 				prev_frozen = b.frozen;
 				b.frozen = Zero::zero();
@@ -1187,23 +1188,22 @@ pub mod pallet {
 				}
 				after_frozen = b.frozen;
 			});
-			match res {
-				Ok((_, None)) => {
-					// expected -- all good.
-				},
-				Ok((_, Some(_dust))) => {
-					Self::deposit_event(Event::Unexpected(UnexpectedKind::BalanceUpdated));
-					defensive!("caused unexpected dusting/balance update.");
-				},
-				_ => {
+			let maybe_dust = match res {
+				Ok((_, maybe_dust)) => maybe_dust,
+				Err(_) => {
 					Self::deposit_event(Event::Unexpected(UnexpectedKind::FailedToMutateAccount));
 					defensive!("errored in mutate_account");
+					None
 				},
-			}
+			};
 
 			match locks.is_empty() {
 				true => Locks::<T, I>::remove(who),
 				false => Locks::<T, I>::insert(who, bounded_locks),
+			}
+
+			if let Some(dust) = maybe_dust {
+				<Self as fungible::Unbalanced<_>>::handle_raw_dust(dust);
 			}
 
 			if prev_frozen > after_frozen {
@@ -1233,15 +1233,17 @@ pub mod pallet {
 				}
 				after_frozen = b.frozen;
 			})?;
-			if maybe_dust.is_some() {
-				Self::deposit_event(Event::Unexpected(UnexpectedKind::BalanceUpdated));
-				defensive!("caused unexpected dusting/balance update.");
-			}
+
 			if freezes.is_empty() {
 				Freezes::<T, I>::remove(who);
 			} else {
 				Freezes::<T, I>::insert(who, freezes);
 			}
+
+			if let Some(dust) = maybe_dust {
+				<Self as fungible::Unbalanced<_>>::handle_raw_dust(dust);
+			}
+
 			if prev_frozen > after_frozen {
 				let amount = prev_frozen.saturating_sub(after_frozen);
 				Self::deposit_event(Event::Thawed { who: who.clone(), amount });

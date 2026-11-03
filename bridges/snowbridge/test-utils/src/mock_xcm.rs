@@ -78,7 +78,7 @@ impl SendXcm for MockXcmSender {
 			if let Some((_, ref f)) = &*s.borrow() {
 				f(ticket)
 			} else {
-				let hash = ticket.using_encoded(sp_core::hashing::blake2_256);
+				let hash = ticket.using_encoded(sp_crypto_hashing::blake2_256);
 				Ok(hash)
 			}
 		});

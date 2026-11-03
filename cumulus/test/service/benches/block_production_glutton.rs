@@ -78,7 +78,7 @@ fn benchmark_block_production_compute(c: &mut Criterion) {
 						let mut block_builder = BlockBuilderBuilder::new(&*client)
 							.on_parent_block(best_hash)
 							.with_parent_block_number(best_number)
-							.enable_proof_recording()
+							.with_proof_recorder(Some(Default::default()))
 							.build()
 							.unwrap();
 						block_builder.push(validation_data).unwrap();

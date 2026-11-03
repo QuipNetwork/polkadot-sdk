@@ -356,7 +356,7 @@ pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<Sess
 pub fn dmq_contents<T: dmp::Config>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<BlockNumberFor<T>>> {
-	dmp::Pallet::<T>::dmq_contents(recipient)
+	dmp::Pallet::<T>::dmq_contents_do_not_call_in_consensus(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
@@ -463,7 +463,7 @@ pub fn backing_constraints<T: initializer::Config>(
 	let now = frame_system::Pallet::<T>::block_number();
 
 	// Workaround for issue #64.
-	let min_relay_parent_number = if shared::Pallet::<T>::on_chain_storage_version() ==
+	let min_global_relay_parent_number = if shared::Pallet::<T>::on_chain_storage_version() ==
 		StorageVersion::new(1)
 	{
 		shared::migration::v1::AllowedRelayParents::<T>::get().hypothetical_earliest_block_number(
@@ -473,6 +473,10 @@ pub fn backing_constraints<T: initializer::Config>(
 	} else {
 		shared::Pallet::<T>::get_minimum_relay_parent_number().unwrap_or(now)
 	};
+
+	let min_para_relay_parent_number = inclusion::Pallet::<T>::para_most_recent_context(&para_id)
+		.map(|ctx| core::cmp::max(ctx, min_global_relay_parent_number))
+		.unwrap_or(min_global_relay_parent_number);
 
 	let required_parent = paras::Heads::<T>::get(para_id)?;
 	let validation_code_hash = paras::CurrentCodeHash::<T>::get(para_id)?;
@@ -489,7 +493,7 @@ pub fn backing_constraints<T: initializer::Config>(
 	let ump_remaining = config.max_upward_queue_count - ump_msg_count;
 	let ump_remaining_bytes = config.max_upward_queue_size - ump_total_bytes;
 
-	let dmp_remaining_messages = dmp::Pallet::<T>::dmq_contents(para_id)
+	let dmp_remaining_messages = dmp::Pallet::<T>::dmq_contents_do_not_call_in_consensus(para_id)
 		.into_iter()
 		.map(|msg| msg.sent_at)
 		.collect();
@@ -504,7 +508,7 @@ pub fn backing_constraints<T: initializer::Config>(
 		.collect();
 
 	Some(Constraints {
-		min_relay_parent_number,
+		min_relay_parent_number: min_para_relay_parent_number,
 		max_pov_size: config.max_pov_size,
 		max_code_size: config.max_code_size,
 		max_head_data_size: Constraints::<BlockNumberFor<T>>::DEFAULT_MAX_HEAD_DATA_SIZE,

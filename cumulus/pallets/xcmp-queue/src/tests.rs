@@ -720,7 +720,7 @@ fn send_xcm_nested_works() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(send_xcm::<XcmpQueue>(dest.into(), good.clone()));
 		assert_eq!(
-			XcmpQueue::take_outbound_messages(usize::MAX),
+			XcmpQueue::take_outbound_messages(usize::MAX, &[]),
 			vec![(
 				HRMP_PARA_ID.into(),
 				(XcmpMessageFormat::ConcatenatedVersionedXcm, VersionedXcm::from(good.clone()))
@@ -733,7 +733,7 @@ fn send_xcm_nested_works() {
 	let bad = Xcm(vec![SetAppendix(good)]);
 	new_test_ext().execute_with(|| {
 		assert_err!(send_xcm::<XcmpQueue>(dest.into(), bad), SendError::ExceedsMaxMessageSize);
-		assert!(XcmpQueue::take_outbound_messages(usize::MAX).is_empty());
+		assert!(XcmpQueue::take_outbound_messages(usize::MAX, &[]).is_empty());
 	});
 }
 
@@ -766,7 +766,7 @@ fn hrmp_signals_are_prioritized() {
 			},
 		);
 
-		let taken = XcmpQueue::take_outbound_messages(130);
+		let taken = XcmpQueue::take_outbound_messages(130, &[]);
 		assert_eq!(taken, vec![]);
 
 		// Enqueue some messages
@@ -783,14 +783,14 @@ fn hrmp_signals_are_prioritized() {
 		}
 
 		hypothetically!({
-			let taken = XcmpQueue::take_outbound_messages(usize::MAX);
+			let taken = XcmpQueue::take_outbound_messages(usize::MAX, &[]);
 			assert_eq!(taken, vec![(sibling_para_id.into(), expected_msg,)]);
 		});
 
 		// But a signal gets prioritized instead of the messages:
 		assert_ok!(XcmpQueue::send_signal(sibling_para_id.into(), ChannelSignal::Suspend));
 
-		let taken = XcmpQueue::take_outbound_messages(130);
+		let taken = XcmpQueue::take_outbound_messages(130, &[]);
 		assert_eq!(
 			taken,
 			vec![(
@@ -1030,13 +1030,13 @@ fn xcmp_queue_send_xcm_works() {
 		ParachainSystem::open_outbound_hrmp_channel_for_benchmarks_or_tests(sibling_para_id);
 
 		// check empty outbound queue
-		assert!(XcmpQueue::take_outbound_messages(usize::MAX).is_empty());
+		assert!(XcmpQueue::take_outbound_messages(usize::MAX, &[]).is_empty());
 
 		// now send works
 		assert_ok!(send_xcm::<XcmpQueue>(dest, msg));
 
 		// check outbound queue contains message/page for sibling_para_id
-		assert!(XcmpQueue::take_outbound_messages(usize::MAX)
+		assert!(XcmpQueue::take_outbound_messages(usize::MAX, &[])
 			.iter()
 			.any(|(para_id, _)| para_id == &sibling_para_id));
 	})
@@ -1074,7 +1074,7 @@ fn xcmp_queue_send_too_big_xcm_fails() {
 		assert_eq!(encoded_message_size, max_message_size as usize - versioned_size);
 
 		// check empty outbound queue
-		assert!(XcmpQueue::take_outbound_messages(usize::MAX).is_empty());
+		assert!(XcmpQueue::take_outbound_messages(usize::MAX, &[]).is_empty());
 
 		// Message is too big because after adding the VersionedXcm enum, it would reach
 		// `max_message_size` Then, adding the format, which is the worst case scenario in which a
@@ -1082,7 +1082,7 @@ fn xcmp_queue_send_too_big_xcm_fails() {
 		assert_eq!(send_xcm::<XcmpQueue>(dest, message), Err(SendError::Transport("TooBig")),);
 
 		// outbound queue is still empty
-		assert!(XcmpQueue::take_outbound_messages(usize::MAX).is_empty());
+		assert!(XcmpQueue::take_outbound_messages(usize::MAX, &[]).is_empty());
 	});
 }
 
@@ -1099,7 +1099,7 @@ fn concatenated_opaque_version_xcm_negotiation_works() {
 		// If there is a message in the queue, the notification is not sent
 		assert_ok!(send_xcm::<XcmpQueue>(dest.clone(), msg.clone()));
 		assert_eq!(
-			XcmpQueue::take_outbound_messages(usize::MAX),
+			XcmpQueue::take_outbound_messages(usize::MAX, &[]),
 			vec![(
 				sibling_para_id,
 				[ConcatenatedVersionedXcm.encode(), VersionedXcm::V5(msg.clone()).encode()]
@@ -1109,12 +1109,12 @@ fn concatenated_opaque_version_xcm_negotiation_works() {
 
 		// The queue is empty. The notification should be sent.
 		assert_eq!(
-			XcmpQueue::take_outbound_messages(usize::MAX),
+			XcmpQueue::take_outbound_messages(usize::MAX, &[]),
 			vec![(sibling_para_id, ConcatenatedOpaqueVersionedXcm.encode())]
 		);
 
 		// The notification should not be sent again
-		assert!(XcmpQueue::take_outbound_messages(usize::MAX).is_empty());
+		assert!(XcmpQueue::take_outbound_messages(usize::MAX, &[]).is_empty());
 
 		// The recipient parachain still uses the `ConcatenatedVersionedXcm`.
 		let page = generate_mock_xcm_page(0, 1, XcmEncoding::Simple);
@@ -1122,7 +1122,7 @@ fn concatenated_opaque_version_xcm_negotiation_works() {
 		// The next message is still sent using the `ConcatenatedVersionedXcm` format.
 		assert_ok!(send_xcm::<XcmpQueue>(dest.clone(), msg.clone()));
 		assert_eq!(
-			XcmpQueue::take_outbound_messages(usize::MAX),
+			XcmpQueue::take_outbound_messages(usize::MAX, &[]),
 			vec![(
 				sibling_para_id,
 				[ConcatenatedVersionedXcm.encode(), VersionedXcm::V5(msg.clone()).encode()]
@@ -1136,7 +1136,7 @@ fn concatenated_opaque_version_xcm_negotiation_works() {
 		// The next message is sent using the `ConcatenatedOpaqueVersionedXcm` format.
 		assert_ok!(send_xcm::<XcmpQueue>(dest, msg.clone()));
 		assert_eq!(
-			XcmpQueue::take_outbound_messages(usize::MAX),
+			XcmpQueue::take_outbound_messages(usize::MAX, &[]),
 			vec![(
 				sibling_para_id,
 				[ConcatenatedOpaqueVersionedXcm.encode(), VersionedXcm::V5(msg).encode().encode()]
@@ -1215,10 +1215,10 @@ fn verify_fee_factor_increase_and_decrease() {
 		// Fee factor only decreases in `take_outbound_messages`
 		for _ in 0..5 {
 			// We take 5 100 byte pages
-			XcmpQueue::take_outbound_messages(1);
+			XcmpQueue::take_outbound_messages(1, &[]);
 		}
 		assert!(DeliveryFeeFactor::<Test>::get(sibling_para_id) < FixedU128::from_float(1.72));
-		XcmpQueue::take_outbound_messages(1);
+		XcmpQueue::take_outbound_messages(1, &[]);
 		assert!(DeliveryFeeFactor::<Test>::get(sibling_para_id) < FixedU128::from_float(1.63));
 	});
 }
@@ -1288,5 +1288,47 @@ fn page_not_modified_when_fragment_does_not_fit() {
 				panic!("Too many pages created");
 			}
 		}
+	});
+}
+
+fn actual_queued_bytes(para: ParaId, status: &OutboundChannelDetails) -> u32 {
+	(status.first_index..status.last_index)
+		.map(|i| OutboundXcmpMessages::<Test>::get(para, i).len() as u32)
+		.sum()
+}
+
+fn status_for(para: ParaId) -> OutboundChannelDetails {
+	OutboundXcmpStatus::<Test>::get()
+		.into_iter()
+		.find(|s| s.recipient == para)
+		.expect("channel exists")
+}
+
+#[test]
+fn queued_bytes_tracks_send_and_take() {
+	new_test_ext().execute_with(|| {
+		let sibling = ParaId::from(2001);
+		ParachainSystem::open_outbound_hrmp_channel_for_benchmarks_or_tests(sibling);
+		let destination: Location = (Parent, Parachain(sibling.into())).into();
+		let message = Xcm(vec![ClearOrigin]);
+
+		for _ in 0..5 {
+			assert_ok!(send_xcm::<XcmpQueue>(destination.clone(), message.clone()));
+			let status = status_for(sibling);
+			assert_eq!(status.queued_bytes, actual_queued_bytes(sibling, &status));
+		}
+
+		while !XcmpQueue::take_outbound_messages(1, &[]).is_empty() {
+			if let Some(status) =
+				OutboundXcmpStatus::<Test>::get().into_iter().find(|s| s.recipient == sibling)
+			{
+				assert_eq!(status.queued_bytes, actual_queued_bytes(sibling, &status));
+			}
+		}
+
+		let drained = status_for(sibling);
+		assert_eq!(drained.first_index, 0);
+		assert_eq!(drained.last_index, 0);
+		assert_eq!(drained.queued_bytes, 0);
 	});
 }

@@ -19,9 +19,10 @@
 
 use crate::{
 	BlockInfoProvider,
-	client::{Client, ClientError, SubstrateBlockNumber},
+	client::{Client, ClientError, GapFillRequest, SubstrateBlockNumber},
 };
 use pallet_revive::evm::H256;
+use tokio::sync::mpsc;
 
 const LOG_TARGET: &str = "eth-rpc::block-sync";
 
@@ -85,6 +86,8 @@ struct BackwardSyncRange {
 	set_head: bool,
 	/// Checkpoint `Tail` label periodically and at end.
 	checkpoint_tail: bool,
+	/// When true, persist the first EVM block boundary if a non-EVM block is encountered.
+	persist_first_evm_block: bool,
 }
 
 impl Client {
@@ -122,10 +125,10 @@ impl Client {
 						 (node may have pruned it — use an archive node with --eth-pruning archive)");
 					ClientError::SyncBoundaryMismatch
 				})?;
-				if block.hash() != stored_hash {
+				if block.block_hash() != stored_hash {
 					log::error!(target: LOG_TARGET,
 						"Boundary #{num}: hash mismatch — stored {stored_hash:?}, \
-						 chain {:?}", block.hash());
+						 chain {:?}", block.block_hash());
 					return Err(ClientError::SyncBoundaryMismatch);
 				}
 				Ok(())
@@ -166,8 +169,10 @@ impl Client {
 	async fn sync_backward_inner(&self) -> Result<(), ClientError> {
 		let genesis_hash = self.validate_chain_identity().await?;
 		let latest_finalized_block = self.latest_finalized_block().await;
-		let latest_finalized =
-			SyncCheckpoint::new(latest_finalized_block.number(), latest_finalized_block.hash());
+		let latest_finalized = SyncCheckpoint::new(
+			latest_finalized_block.block_number(),
+			latest_finalized_block.block_hash(),
+		);
 
 		// Store genesis (idempotent).
 		self.receipt_provider()
@@ -215,6 +220,7 @@ impl Client {
 			to: first_evm,
 			set_head: true,
 			checkpoint_tail: true,
+			persist_first_evm_block: true,
 		})
 		.await
 	}
@@ -238,6 +244,7 @@ impl Client {
 					to: head.block_number.saturating_add(1),
 					set_head: false,
 					checkpoint_tail: false,
+					persist_first_evm_block: false,
 				})
 				.await?;
 
@@ -258,6 +265,7 @@ impl Client {
 					to: first_evm,
 					set_head: false,
 					checkpoint_tail: true,
+					persist_first_evm_block: true,
 				})
 				.await?;
 			} else {
@@ -275,7 +283,13 @@ impl Client {
 	/// Stops early if a non-EVM block is discovered (auto-discovery of first EVM block).
 	async fn sync_backward_range(
 		&self,
-		BackwardSyncRange { from, to, set_head, checkpoint_tail }: BackwardSyncRange,
+		BackwardSyncRange {
+			from,
+			to,
+			set_head,
+			checkpoint_tail,
+			persist_first_evm_block,
+		}: BackwardSyncRange,
 	) -> Result<(), ClientError> {
 		if from < to {
 			log::debug!(target: LOG_TARGET,	"⬇️ Backward sync: nothing to sync (#{from}..#{to})");
@@ -296,18 +310,28 @@ impl Client {
 			|synced: u64| synced <= 1 || synced.is_multiple_of(u64::from(BLOCK_INTERVAL));
 
 		let loop_result: Result<(), ClientError> = loop {
-			let block_number = block.number();
-			let block_hash = block.hash();
+			let block_number = block.block_number();
+			let block_hash = block.block_hash();
 
-			let ethereum_hash = match self
-				.runtime_api(block_hash)
-				.eth_block_hash(pallet_revive::evm::U256::from(block_number))
-				.await
-			{
-				Ok(h) => h,
+			// A block whose runtime does not expose `eth_block_hash` predates pallet-revive and
+			// is treated exactly like a block without an EVM hash: it marks the end of the
+			// backward sync.
+			let ethereum_hash = match self.runtime_api(block_hash).await {
+				Ok(runtime_api) => {
+					match runtime_api.eth_block_hash(pallet_revive::evm::U256::from(block_number)) {
+						Some(future) => match future.await {
+							Ok(hash) => hash,
+							Err(err) => {
+								log::error!(target: LOG_TARGET,	"⚠️ eth_block_hash failed for #{block_number}: {err:?}, stopping");
+								break Err(err);
+							},
+						},
+						None => None,
+					}
+				},
 				Err(err) => {
 					log::error!(target: LOG_TARGET,	"⚠️ eth_block_hash failed for #{block_number}: {err:?}, stopping");
-					break Err(err.into());
+					break Err(err);
 				},
 			};
 
@@ -338,13 +362,18 @@ impl Client {
 					}
 				},
 				None => {
-					let first_evm_block = block_number.saturating_add(1);
-					log::debug!(target: LOG_TARGET,
-						"🔍 No EVM hash at #{block_number}, setting first_evm_block to #{first_evm_block}");
-					if let Err(err) =
-						self.receipt_provider().set_first_evm_block(first_evm_block).await
-					{
-						log::warn!(target: LOG_TARGET, "Failed to persist first-evm-block: {err:?}");
+					if persist_first_evm_block {
+						let first_evm_block = block_number.saturating_add(1);
+						log::debug!(target: LOG_TARGET,
+							"🔍 No EVM hash at #{block_number}, setting first_evm_block to #{first_evm_block}");
+						if let Err(err) =
+							self.receipt_provider().set_first_evm_block(first_evm_block).await
+						{
+							log::warn!(target: LOG_TARGET, "Failed to persist first-evm-block: {err:?}");
+						}
+					} else {
+						log::debug!(target: LOG_TARGET,
+							"🔍 No EVM hash at #{block_number}, skipping first EVM block update");
 					}
 
 					break Ok(());
@@ -352,7 +381,7 @@ impl Client {
 			}
 
 			if block_number > to {
-				let parent_hash = block.header().parent_hash;
+				let parent_hash = block.block_header().await?.parent_hash;
 				match self
 					.block_provider()
 					.block_by_hash(&parent_hash)
@@ -384,5 +413,33 @@ impl Client {
 			 (requested #{from}..#{to})");
 
 		loop_result
+	}
+
+	/// Run the background subscription gap filler, processing requests sequentially.
+	pub(crate) async fn run_subscription_gap_filler(&self, mut rx: mpsc::Receiver<GapFillRequest>) {
+		log::info!(target: LOG_TARGET, "🔄 Subscription gap filler started");
+
+		while let Some(GapFillRequest { from_inclusive, to_inclusive }) = rx.recv().await {
+			log::info!(target: LOG_TARGET, "🔄 Subscription gap filler: processing #{from_inclusive} down to #{to_inclusive}");
+			if let Err(err) = self
+				.sync_backward_range(BackwardSyncRange {
+					from: from_inclusive,
+					to: to_inclusive,
+					set_head: false,
+					checkpoint_tail: false,
+					persist_first_evm_block: false,
+				})
+				.await
+			{
+				log::error!(target: LOG_TARGET, "🔄 Subscription gap fill failed for #{from_inclusive}..#{to_inclusive}: {err:?}");
+			} else {
+				log::info!(target: LOG_TARGET, "🔄 Subscription gap filler: done with #{from_inclusive}..#{to_inclusive}");
+			}
+			// Mark done unconditionally — mirrors how subscribe_new_blocks handles
+			// callback errors: log and move on.
+			self.subscription_gap_queue().mark_done();
+		}
+
+		log::info!(target: LOG_TARGET, "🔄 Subscription gap filler stopped");
 	}
 }

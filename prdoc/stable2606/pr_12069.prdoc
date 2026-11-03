@@ -1,0 +1,20 @@
+title: 'pallet-revive: fix execution tracer reporting zero gas for plain transfers'
+doc:
+- audience: Runtime Dev
+  description: "Fixes [paritytech/contract-issues#278](https://github.com/paritytech/contract-issues/issues/278).\n\
+    \n`Stack::run_call`'s no-code branch was passing `Default::default()` to\n`exit_child_span`,\
+    \ so the execution tracer reported `gas: 0` for any\ntransaction whose destination\
+    \ has no contract code (plain EOA transfers),\neven when the meter had charged\
+    \ an existential deposit. The contract-call\nbranch already reads `frame_meter.total_consumed_gas()`\
+    \ /\n`frame_meter.weight_consumed()` and forwards them \u2014 this PR does the\
+    \ same\nat the transaction-meter level for the no-code branch.\n\n## Tests\n\n\
+    - New regression test `execution_tracing_records_consumption_for_plain_transfer`\n\
+    \  in `tests/pvm.rs`: transfers to an unfunded account, asserts\n  `trace.gas\
+    \ > 0`. Fails on `master`, passes here.\n- Updated `tracing_works_for_transfers`,\
+    \ which previously asserted the\n  buggy zero via `..Default::default()`, to compare\
+    \ against the `bare_call`\n  result's `gas_consumed`.\n\nEnd-to-end: 1500 transfers\
+    \ via `manual-seal-6000` then\n`debug_traceBlockByNumber` \u2192 before: every\
+    \ trace `gas: 0`; after: every\ntrace `gas: 200000` (the ED charge)."
+crates:
+- name: pallet-revive
+  bump: patch

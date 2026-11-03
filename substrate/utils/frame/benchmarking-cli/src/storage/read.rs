@@ -253,7 +253,9 @@ fn measure_block_validation<B: BlockT + Debug>(
 	);
 	let batch_size = on_validation_batch.len();
 	let wasm_module = get_wasm_module();
-	let mut instance = wasm_module.new_instance().expect("Failed to create wasm instance");
+	let mut instance = wasm_module
+		.new_instance(sc_executor_common::wasm_runtime::DEFAULT_HEAP_ALLOC_STRATEGY)
+		.expect("Failed to create wasm instance");
 	let params = StorageAccessParams::<B>::new_read(root, storage_proof, on_validation_batch);
 	let dry_run_encoded = params.as_dry_run().encode();
 	let encoded = params.encode();

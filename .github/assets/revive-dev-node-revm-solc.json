@@ -1,1 +1,7 @@
-{}
+{
+  "fixtures/solidity/complex/create/create2_many/test.json::1::E M3 S+": "Failed",
+  "fixtures/solidity/complex/create/create2_many/test.json::1::Y M3 S+": "Failed",
+  "fixtures/solidity/complex/create/create_many/test.json::1::E M3 S+": "Failed",
+  "fixtures/solidity/complex/create/create_many/test.json::1::Y M3 S+": "Failed",
+  "fixtures/solidity/translated_semantic_tests/storageLayoutSpecifier/mapping_storage_end/test.json::0::E M0 S-": "Failed"
+}

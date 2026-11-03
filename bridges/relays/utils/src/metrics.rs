@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-pub use float_json_value::FloatJsonValueMetric;
 pub use global::GlobalMetrics;
 pub use prometheus_endpoint::{
 	prometheus::core::{Atomic, Collector},
@@ -25,7 +24,6 @@ use async_trait::async_trait;
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
-mod float_json_value;
 mod global;
 
 /// Shared reference to `f64` value that is updated by the metric.

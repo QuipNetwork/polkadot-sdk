@@ -1,6 +1,6 @@
 [package]
 name = "sp-externalities"
-version = "0.32.0"
+version = "0.25.0"
 license = "Apache-2.0"
 authors.workspace = true
 edition.workspace = true

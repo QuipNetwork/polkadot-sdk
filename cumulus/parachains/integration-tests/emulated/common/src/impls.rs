@@ -802,7 +802,30 @@ macro_rules! impl_assets_helpers_for_parachain {
 
 #[macro_export]
 macro_rules! impl_foreign_assets_helpers_for_parachain {
+	// By default, we assume that the pallet_assets instance handling foreign assets is called
+	// `ForeignAssets` and uses `Instance2`. There are exceptions like `Penpal`, where it is
+	// simply called `Assets`.
 	($chain:ident, $asset_id_type:ty, $reserve_data_type:ty) => {
+		$crate::impl_foreign_assets_helpers_for_parachain!(
+			$chain,
+			$asset_id_type,
+			$reserve_data_type,
+			ForeignAssets,
+			$crate::impls::pallet_assets::Instance2
+		);
+	};
+
+	($chain:ident, $asset_id_type:ty, $reserve_data_type:ty, $pallet_asset_name:ident) => {
+		$crate::impl_foreign_assets_helpers_for_parachain!(
+			$chain,
+			$asset_id_type,
+			$reserve_data_type,
+			$pallet_asset_name,
+			$crate::impls::pallet_assets::Instance2
+		);
+	};
+
+	($chain:ident, $asset_id_type:ty, $reserve_data_type:ty, $pallet_asset_name:ident, $instance:ty) => {
 		$crate::impls::paste::paste! {
 			impl<N: $crate::impls::Network> $chain<N> {
 				/// Create foreign assets using sudo `ForeignAssets::force_create()`
@@ -817,7 +840,7 @@ macro_rules! impl_foreign_assets_helpers_for_parachain {
 					let sudo_origin = <$chain<N> as $crate::impls::Chain>::RuntimeOrigin::root();
 					<Self as $crate::impls::TestExt>::execute_with(|| {
 						$crate::impls::assert_ok!(
-							<Self as [<$chain ParaPallet>]>::ForeignAssets::force_create(
+							<Self as [<$chain ParaPallet>]>::$pallet_asset_name::force_create(
 								sudo_origin,
 								id.clone(),
 								owner.clone().into(),
@@ -825,12 +848,12 @@ macro_rules! impl_foreign_assets_helpers_for_parachain {
 								min_balance,
 							)
 						);
-						assert!(<Self as [<$chain ParaPallet>]>::ForeignAssets::asset_exists(id.clone()));
+						assert!(<Self as [<$chain ParaPallet>]>::$pallet_asset_name::asset_exists(id.clone()));
 						type RuntimeEvent<N> = <$chain<N> as $crate::impls::Chain>::RuntimeEvent;
 						$crate::impls::assert_expected_events!(
 							Self,
 							vec![
-								RuntimeEvent::<N>::ForeignAssets(
+								RuntimeEvent::<N>::$pallet_asset_name(
 									$crate::impls::pallet_assets::Event::ForceCreated {
 										asset_id,
 										..
@@ -857,7 +880,7 @@ macro_rules! impl_foreign_assets_helpers_for_parachain {
 						<$chain<N> as $crate::impls::Chain>::RuntimeOrigin::signed(owner.clone());
 					<Self as $crate::impls::TestExt>::execute_with(|| {
 						$crate::impls::assert_ok!(
-							<Self as [<$chain ParaPallet>]>::ForeignAssets::set_reserves(
+							<Self as [<$chain ParaPallet>]>::$pallet_asset_name::set_reserves(
 								owner_origin,
 								id.clone(),
 								reserves.try_into().unwrap(),
@@ -874,7 +897,7 @@ macro_rules! impl_foreign_assets_helpers_for_parachain {
 					amount_to_mint: u128,
 				) {
 					<Self as $crate::impls::TestExt>::execute_with(|| {
-						$crate::impls::assert_ok!(<Self as [<$chain ParaPallet>]>::ForeignAssets::mint(
+						$crate::impls::assert_ok!(<Self as [<$chain ParaPallet>]>::$pallet_asset_name::mint(
 							signed_origin,
 							id.clone().into(),
 							beneficiary.clone().into(),
@@ -886,7 +909,7 @@ macro_rules! impl_foreign_assets_helpers_for_parachain {
 						$crate::impls::assert_expected_events!(
 							Self,
 							vec![
-								RuntimeEvent::<N>::ForeignAssets(
+								RuntimeEvent::<N>::$pallet_asset_name(
 									$crate::impls::pallet_assets::Event::Issued { asset_id, owner, amount }
 								) => {
 									asset_id: *asset_id == id,
@@ -906,9 +929,9 @@ macro_rules! impl_foreign_assets_helpers_for_parachain {
 				) -> $crate::impls::DoubleEncoded<()> {
 					use $crate::impls::{Chain, Encode};
 
-					<Self as Chain>::RuntimeCall::ForeignAssets($crate::impls::pallet_assets::Call::<
+					<Self as Chain>::RuntimeCall::$pallet_asset_name($crate::impls::pallet_assets::Call::<
 						<Self as Chain>::Runtime,
-						$crate::impls::pallet_assets::Instance2,
+						$instance,
 					>::create {
 						id: asset_id.into(),
 						min_balance,

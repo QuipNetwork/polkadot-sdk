@@ -60,12 +60,16 @@ pub type QueryId = u64;
 #[derive(Default, DecodeWithMemTracking, Encode, TypeInfo)]
 #[derive_where(Clone, Eq, PartialEq, Debug)]
 #[codec(encode_bound())]
+#[codec(decode_with_mem_tracking_bound(Call: Decode))]
 #[scale_info(bounds(), skip_type_params(Call))]
 #[scale_info(replace_segment("staging_xcm", "xcm"))]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 
-impl<Call> Decode for Xcm<Call> {
+impl<Call> Decode for Xcm<Call>
+where
+	Call: Decode,
+{
 	fn decode<I: CodecInput>(input: &mut I) -> core::result::Result<Self, CodecError> {
 		Ok(Xcm(decode_xcm_instructions(input)?))
 	}
@@ -473,8 +477,8 @@ impl XcmContext {
 )]
 #[derive_where(Clone, Eq, PartialEq, Debug)]
 #[codec(encode_bound())]
-#[codec(decode_bound())]
-#[codec(decode_with_mem_tracking_bound())]
+#[codec(decode_bound(Call: Decode))]
+#[codec(decode_with_mem_tracking_bound(Call: Decode))]
 #[scale_info(bounds(), skip_type_params(Call))]
 #[scale_info(replace_segment("staging_xcm", "xcm"))]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -1167,7 +1171,7 @@ impl<Call> Instruction<Call> {
 				HrmpChannelClosing { initiator, sender, recipient }
 			},
 			Transact { origin_kind, require_weight_at_most, call } => {
-				Transact { origin_kind, require_weight_at_most, call: call.into() }
+				Transact { origin_kind, require_weight_at_most, call: call.transmute_encoded() }
 			},
 			ReportError(response_info) => ReportError(response_info),
 			DepositAsset { assets, beneficiary } => DepositAsset { assets, beneficiary },

@@ -25,7 +25,7 @@ use frame_support::{
 	traits::{
 		fungibles::InspectEnumerable,
 		tokens::{Preservation::Protect, Provenance},
-		Currency,
+		Currency, LockableCurrency, WithdrawReasons,
 	},
 	BoundedVec,
 };
@@ -990,6 +990,36 @@ fn transfer_owner_should_work() {
 }
 
 #[test]
+fn transfer_ownership_fails_when_deposit_is_locked() {
+	build_and_execute(|| {
+		Balances::make_free_balance_be(&1, 100);
+		Balances::make_free_balance_be(&2, 100);
+		// Reserves 1 from owner 1: free=99, reserved=1.
+		assert_ok!(Assets::create(RuntimeOrigin::signed(1), 0, 1, 1));
+		assert_eq!(Balances::free_balance(&1), 99);
+		assert_eq!(Balances::reserved_balance(&1), 1);
+
+		// Lock the owner's full balance, so frozen=100 > free=99 and 1 unit of the
+		// reserve becomes immovable under `Polite` repatriation.
+		Balances::set_lock(*b"test/lk0", &1, 100, WithdrawReasons::all());
+
+		assert_noop!(
+			Assets::transfer_ownership(RuntimeOrigin::signed(1), 0, 2),
+			Error::<Test>::IncompleteDepositTransfer,
+		);
+		// State is rolled back: original owner still holds the deposit.
+		assert_eq!(Balances::reserved_balance(&1), 1);
+		assert_eq!(Balances::reserved_balance(&2), 0);
+
+		// Clearing the lock unblocks the call.
+		Balances::remove_lock(*b"test/lk0", &1);
+		assert_ok!(Assets::transfer_ownership(RuntimeOrigin::signed(1), 0, 2));
+		assert_eq!(Balances::reserved_balance(&1), 0);
+		assert_eq!(Balances::reserved_balance(&2), 1);
+	});
+}
+
+#[test]
 fn set_team_should_work() {
 	build_and_execute(|| {
 		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 0, 1, true, 1));
@@ -1675,6 +1705,34 @@ fn freezing_and_holds_work() {
 }
 
 #[test]
+fn releasing_hold_at_minimum_balance_keeps_freeze() {
+	build_and_execute(|| {
+		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 0, 1, true, 10));
+		assert_ok!(Assets::mint(RuntimeOrigin::signed(1), 0, 1, 1010));
+		set_balance_on_hold(0, 1, 1000);
+		set_frozen_balance(0, 1, 1000);
+
+		assert_eq!(Assets::balance(0, 1), 10);
+		assert_noop!(
+			Assets::transfer(RuntimeOrigin::signed(1), 0, 2, 10),
+			Error::<Test>::BalanceLow
+		);
+
+		clear_balance_on_hold(0, 1);
+		assert_eq!(Assets::balance(0, 1), 1010);
+		assert_eq!(TestFreezer::frozen_balance(0, &1), Some(1000));
+		assert_eq!(Assets::total_supply(0), 1010);
+		assert_noop!(
+			Assets::transfer(RuntimeOrigin::signed(1), 0, 2, 11),
+			Error::<Test>::BalanceLow
+		);
+		assert_ok!(Assets::transfer(RuntimeOrigin::signed(1), 0, 2, 10));
+		assert_eq!(Assets::balance(0, 1), 1000);
+		assert_eq!(Assets::total_supply(0), 1010);
+	});
+}
+
+#[test]
 fn imbalances_should_work() {
 	use frame_support::traits::fungibles::Balanced;
 
@@ -2202,47 +2260,116 @@ fn asset_id_cannot_be_reused() {
 		// Enable auto increment. Next asset id must be 5.
 		pallet::NextAssetId::<Test>::put(5);
 
+		// `create` must follow the sequence: only the next id is accepted.
 		assert_noop!(Assets::create(RuntimeOrigin::signed(1), 0, 1, 1), Error::<Test>::BadAssetId);
 		assert_noop!(Assets::create(RuntimeOrigin::signed(1), 1, 1, 1), Error::<Test>::BadAssetId);
-		assert_noop!(
-			Assets::force_create(RuntimeOrigin::root(), 0, 1, false, 1),
-			Error::<Test>::BadAssetId
-		);
-		assert_noop!(
-			Assets::force_create(RuntimeOrigin::root(), 1, 1, true, 1),
-			Error::<Test>::BadAssetId
-		);
 
-		// Asset with id `5` is created.
+		// Asset with id `5` is created and the sequence advances to `6`.
 		assert_ok!(Assets::create(RuntimeOrigin::signed(1), 5, 1, 1));
 		assert!(Asset::<Test>::contains_key(5));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(6));
 
-		// Destroy asset with id `6`.
+		// Destroy asset with id `5`.
 		assert_ok!(Assets::start_destroy(RuntimeOrigin::signed(1), 5));
 		assert_ok!(Assets::finish_destroy(RuntimeOrigin::signed(1), 5));
 
-		assert!(!Asset::<Test>::contains_key(0));
+		assert!(!Asset::<Test>::contains_key(5));
 
-		// Asset id `5` cannot be reused.
+		// Asset id `5` cannot be reused: the sequence has moved past it.
 		assert_noop!(Assets::create(RuntimeOrigin::signed(1), 5, 1, 1), Error::<Test>::BadAssetId);
 
 		assert_ok!(Assets::create(RuntimeOrigin::signed(1), 6, 1, 1));
 		assert!(Asset::<Test>::contains_key(6));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(7));
+	});
+}
 
-		// Destroy asset with id `6`.
-		assert_ok!(Assets::start_destroy(RuntimeOrigin::signed(1), 6));
-		assert_ok!(Assets::finish_destroy(RuntimeOrigin::signed(1), 6));
+#[test]
+fn force_create_can_use_arbitrary_id() {
+	build_and_execute(|| {
+		// Enable auto increment with the next id at `50`, reserving the `0..50` range for
+		// deliberate, forced assignment.
+		pallet::NextAssetId::<Test>::put(50);
 
-		assert!(!Asset::<Test>::contains_key(6));
+		// A forced id below the sequence is allowed and leaves the sequence untouched.
+		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 10, 1, false, 1));
+		assert!(Asset::<Test>::contains_key(10));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(50));
 
-		// Asset id `6` cannot be reused with force.
+		// A forced id cannot collide with a currently-live asset.
 		assert_noop!(
-			Assets::force_create(RuntimeOrigin::root(), 6, 1, false, 1),
-			Error::<Test>::BadAssetId
+			Assets::force_create(RuntimeOrigin::root(), 10, 1, false, 1),
+			Error::<Test>::InUse
 		);
 
-		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 7, 1, false, 1));
-		assert!(Asset::<Test>::contains_key(7));
+		// A forced id at or beyond the sequence advances `NextAssetId` past it, so the sequence
+		// never later collides.
+		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 60, 1, false, 1));
+		assert!(Asset::<Test>::contains_key(60));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(61));
+
+		// A subsequent sequential `create` picks up from the advanced sequence.
+		assert_noop!(Assets::create(RuntimeOrigin::signed(1), 50, 1, 1), Error::<Test>::BadAssetId);
+		Balances::make_free_balance_be(&1, 100);
+		assert_ok!(Assets::create(RuntimeOrigin::signed(1), 61, 1, 1));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(62));
+
+		// Forcing exactly the next id also advances the sequence.
+		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 62, 1, false, 1));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(63));
+	});
+}
+
+#[test]
+fn force_create_arbitrary_id_is_inert_without_auto_increment() {
+	build_and_execute(|| {
+		// Auto increment inactive: `NextAssetId` is not set.
+		assert_eq!(pallet::NextAssetId::<Test>::get(), None);
+
+		// A privileged origin can still pick any id, and the sequence stays inactive.
+		assert_ok!(Assets::force_create(RuntimeOrigin::root(), 123, 1, false, 1));
+		assert!(Asset::<Test>::contains_key(123));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), None);
+	});
+}
+
+#[test]
+fn fungibles_create_must_follow_the_allocator() {
+	build_and_execute(|| {
+		use frame_support::traits::fungibles::Create;
+
+		pallet::NextAssetId::<Test>::put(5);
+
+		// Not gated on `ForceOrigin`, so a non-sequential id is rejected.
+		assert_noop!(<Assets as Create<_>>::create(0, 1, false, 1), Error::<Test>::BadAssetId);
+		assert!(!Asset::<Test>::contains_key(0));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(5));
+
+		// The sequential id is accepted and advances the allocator.
+		assert_ok!(<Assets as Create<_>>::create(5, 1, false, 1));
+		assert!(Asset::<Test>::contains_key(5));
+		assert_eq!(pallet::NextAssetId::<Test>::get(), Some(6));
+	});
+}
+
+#[test]
+fn allocating_past_the_id_space_fails() {
+	build_and_execute(|| {
+		Balances::make_free_balance_be(&1, 100);
+
+		// Forcing the top of the id space cannot advance the sequence past it.
+		pallet::NextAssetId::<Test>::put(u32::MAX);
+		assert_noop!(
+			Assets::force_create(RuntimeOrigin::root(), u32::MAX, 1, false, 1),
+			Error::<Test>::AssetIdAllocationFailed
+		);
+		assert!(!Asset::<Test>::contains_key(u32::MAX));
+
+		// The sequential `create` path overflows the same way.
+		assert_noop!(
+			Assets::create(RuntimeOrigin::signed(1), u32::MAX, 1, 1),
+			Error::<Test>::AssetIdAllocationFailed
+		);
 	});
 }
 

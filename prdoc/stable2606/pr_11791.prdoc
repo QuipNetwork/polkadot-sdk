@@ -1,0 +1,39 @@
+title: 'Make block producer overridable for non-Aura chains'
+doc:
+  - audience: Runtime Dev
+    description: |
+      Introduces a `BlockProducer` trait used by `xcm-emulator` to drive slot duration
+      and pre-runtime digest construction when emulating a parachain block. The default
+      `AuraBlockProducer<T>` impl preserves the previous behaviour (slot derived from
+      `pallet_aura::Pallet::<T>::slot_duration()` and an Aura `PreRuntime` digest under
+      `AURA_ENGINE_ID`), so existing Aura-based `decl_test_parachains!` invocations are
+      unaffected.
+
+      The `decl_test_parachains!` macro gains an optional `BlockProducer:` field. Nimbus-based
+      parachains (e.g. Moonbeam) can now plug in a custom producer that emits a Nimbus
+      pre-runtime digest and a bespoke slot duration instead of being forced to implement
+      `pallet_aura::Config` just to participate in xcm-emulator integration tests.
+
+      Example:
+
+      ```rust
+      decl_test_parachains! {
+          pub struct MyPara {
+              // ...
+              core = {
+                  XcmpMessageHandler: my_runtime::XcmpQueue,
+                  LocationToAccountId: my_runtime::LocationToAccountId,
+                  ParachainInfo: my_runtime::ParachainInfo,
+                  MessageOrigin: cumulus_primitives_core::AggregateMessageOrigin,
+                  BlockProducer: MyNimbusBlockProducer,
+              },
+              // ...
+          }
+      }
+      ```
+
+      Downstream crates that implement `Parachain` directly (rather than via the macro)
+      must now also provide a `type BlockProducer: BlockProducer` associated type.
+crates:
+  - name: xcm-emulator
+    bump: major

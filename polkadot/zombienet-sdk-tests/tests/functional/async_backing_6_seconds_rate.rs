@@ -3,6 +3,7 @@
 
 // Test we are producing 12-second parachain blocks if using an old collator, pre async-backing.
 
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
 
 use cumulus_zombienet_sdk_helpers::{assert_finality_lag, assert_para_throughput};
@@ -27,7 +28,9 @@ async fn async_backing_6_seconds_rate_test() -> Result<(), anyhow::Error> {
 				.with_chain("rococo-local")
 				.with_default_command("polkadot")
 				.with_default_image(images.polkadot.as_str())
-				.with_default_args(vec![("-lparachain=debug").into()])
+				.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+					("-lparachain=debug").into(),
+				]))
 				.with_genesis_overrides(json!({
 					"configuration": {
 						"config": {
@@ -62,6 +65,13 @@ async fn async_backing_6_seconds_rate_test() -> Result<(), anyhow::Error> {
 				.with_default_args(vec![("-lparachain=debug,aura=debug").into()])
 				.with_collator(|n| n.with_name("collator-2001"))
 		})
+		.with_global_settings(|global_settings| {
+			let global_settings = match std::env::var("ZOMBIENET_SDK_BASE_DIR") {
+				Ok(val) => global_settings.with_base_dir(val),
+				_ => global_settings,
+			};
+			global_settings.with_tear_down_on_failure(false)
+		})
 		.build()
 		.map_err(|e| {
 			let errs = e.into_iter().map(|e| e.to_string()).collect::<Vec<_>>().join(" ");
@@ -80,6 +90,7 @@ async fn async_backing_6_seconds_rate_test() -> Result<(), anyhow::Error> {
 		&relay_client,
 		15,
 		[(ParaId::from(2000), 11..16), (ParaId::from(2001), 11..16)],
+		[],
 	)
 	.await?;
 

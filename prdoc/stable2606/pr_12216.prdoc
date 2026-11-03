@@ -1,0 +1,12 @@
+title: '[revive] test: dry-run max_storage_deposit from an unfunded account'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    Adds a regression test that verifies a `bare_call` dispatched with the
+    runtime-api dry-run `ExecConfig` from an account with no balance still
+    reports the same `max_storage_deposit` as a funded run on the same call.
+crates:
+- name: pallet-revive
+  bump: patch

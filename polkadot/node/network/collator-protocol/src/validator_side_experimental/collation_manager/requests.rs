@@ -27,8 +27,8 @@ use futures::{
 	FutureExt,
 };
 use polkadot_node_network_protocol::request_response::{
-	outgoing::Recipient, v1 as request_v1, v2 as request_v2, OutgoingRequest, OutgoingResult,
-	Requests,
+	outgoing::Recipient, v1 as request_v1, v2 as request_v2, v3 as request_v3, OutgoingRequest,
+	OutgoingResult, Requests,
 };
 use polkadot_node_subsystem_util::metrics::prometheus::prometheus::HistogramTimer;
 use std::{collections::HashMap, future::Future, pin::Pin};
@@ -64,7 +64,7 @@ impl PendingRequests {
 				let requests = Requests::CollationFetchingV1(req);
 				(requests, response_recv.boxed())
 			},
-			Some(ProspectiveCandidate { candidate_hash, .. }) => {
+			Some(ProspectiveCandidate::ByHash { candidate_hash, .. }) => {
 				let (req, response_recv) = OutgoingRequest::new(
 					Recipient::Peer(advertisement.peer_id),
 					request_v2::CollationFetchingRequest {
@@ -74,6 +74,31 @@ impl PendingRequests {
 					},
 				);
 				let requests = Requests::CollationFetchingV2(req);
+				(requests, response_recv.boxed())
+			},
+			Some(ProspectiveCandidate::ByOutputHead { output_head_data_hash, .. }) => {
+				let (req, response_recv) = OutgoingRequest::new(
+					Recipient::Peer(advertisement.peer_id),
+					request_v3::CollationFetchingRequest {
+						scheduling_parent: advertisement.scheduling_parent,
+						para_id: advertisement.para_id,
+						output_head_data_hash,
+					},
+				);
+				let requests = Requests::CollationFetchingV3(req);
+				let response_recv = response_recv.map(|res| {
+					res.map(|response| match response {
+						request_v3::CollationFetchingResponse::Collation {
+							receipt,
+							pov,
+							parent_head_data,
+						} => request_v2::CollationFetchingResponse::CollationWithParentHeadData {
+							receipt,
+							pov,
+							parent_head_data,
+						},
+					})
+				});
 				(requests, response_recv.boxed())
 			},
 		};
@@ -87,6 +112,11 @@ impl PendingRequests {
 		});
 
 		req
+	}
+
+	/// Iterator over advertisements currently being fetched.
+	pub fn iter(&self) -> impl Iterator<Item = &Advertisement> {
+		self.cancellation_tokens.keys()
 	}
 
 	pub fn cancel(&mut self, advertisement: &Advertisement) {

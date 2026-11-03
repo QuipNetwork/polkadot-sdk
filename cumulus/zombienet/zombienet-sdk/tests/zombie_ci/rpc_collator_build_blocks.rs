@@ -31,7 +31,7 @@ async fn rpc_collator_builds_blocks() -> Result<(), anyhow::Error> {
 	let alice_client: OnlineClient<PolkadotConfig> = alice.wait_client().await?;
 
 	log::info!("Ensuring parachain making progress");
-	assert_para_throughput(&alice_client, 20, [(ParaId::from(PARA_ID), 2..40)]).await?;
+	assert_para_throughput(&alice_client, 20, [(ParaId::from(PARA_ID), 2..40)], []).await?;
 
 	let dave = network.get_node("dave")?;
 	let eve = network.get_node("eve")?;
@@ -82,6 +82,56 @@ async fn rpc_collator_builds_blocks() -> Result<(), anyhow::Error> {
 
 		assert!(result.success(), "Consensus hook failed at {}: {:?}", node.name(), result);
 	}
+
+	Ok(())
+}
+
+// This test makes sure that an RPC collator that had to fail over to another relay chain RPC node
+// switches back to the first one in its list once that node is available again.
+#[tokio::test(flavor = "multi_thread")]
+async fn rpc_collator_switches_back_to_preferred_rpc_node() -> Result<(), anyhow::Error> {
+	let _ = env_logger::try_init_from_env(
+		env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+	);
+
+	log::info!("Spawning network");
+	let config = build_network_config().await?;
+	let network = initialize_network(config).await?;
+
+	let dave = network.get_node("dave")?;
+	let eve = network.get_node("eve")?;
+	for node in [dave, eve] {
+		log::info!("Ensuring {} reports expected block height", node.name());
+		assert!(node
+			.wait_metric_with_timeout(BEST_BLOCK_METRIC, |b| b >= 5.0, 250u64)
+			.await
+			.is_ok());
+	}
+
+	// 'one' is the first relay chain RPC node of both collators, so they fail over to 'two'.
+	log::info!("Restarting 'one'");
+	network.get_node("one")?.restart(None).await?;
+
+	// The collators check for their preferred node every 5 minutes, allow for two checks in case
+	// 'one' has not caught up by the first one.
+	for node in [dave, eve] {
+		log::info!("Ensuring {} switches back to 'one'", node.name());
+		let result = node
+			.wait_log_line_count_with_timeout(
+				"Switched back to preferred external relay chain node",
+				false,
+				LogLineCountOptions::new(|n| n >= 1, Duration::from_secs(11 * 60), false),
+			)
+			.await?;
+		assert!(result.success(), "{} did not switch back to 'one': {:?}", node.name(), result);
+	}
+
+	log::info!("Ensuring dave keeps producing blocks");
+	let best = dave.reports(BEST_BLOCK_METRIC).await?;
+	assert!(dave
+		.wait_metric_with_timeout(BEST_BLOCK_METRIC, move |b| b >= best + 5.0, 200u64)
+		.await
+		.is_ok());
 
 	Ok(())
 }

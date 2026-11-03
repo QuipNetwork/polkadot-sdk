@@ -17,7 +17,9 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, coretime, disputes, dmp, hrmp,
+	configuration, coretime, disputes,
+	disputes::slashing as disputes_slashing,
+	dmp, hrmp,
 	inclusion::{self, AggregateMessageOrigin, UmpQueueId},
 	initializer, on_demand, origin, paras,
 	paras::ParaKind,
@@ -39,16 +41,18 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{limits, EnsureRoot};
 use polkadot_primitives::{
-	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Moment, SessionIndex, UpwardMessage,
-	ValidationCode, ValidatorIndex,
+	slashing::DisputesTimeSlot, AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash,
+	DisputeOffenceKind, Moment, SessionIndex, UpwardMessage, ValidationCode, ValidatorId,
+	ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
-use sp_core::{ConstU32, H256};
+use sp_core::{crypto::KeyTypeId, ConstU32, H256};
 use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
 	BuildStorage, FixedU128, Perbill, Permill,
 };
+use sp_staking::offence::OffenceError;
 use std::{
 	cell::RefCell,
 	collections::{btree_map::BTreeMap, HashMap},
@@ -82,6 +86,7 @@ frame_support::construct_runtime!(
 		ParachainsOrigin: origin,
 		SessionInfo: session_info,
 		Disputes: disputes,
+		Slashing: disputes_slashing,
 		Babe: pallet_babe,
 	}
 );
@@ -252,7 +257,9 @@ impl crate::paras::Config for Test {
 	type AuthorizeCurrentCodeOrigin = EnsureRoot<AccountId>;
 }
 
-impl crate::dmp::Config for Test {}
+impl crate::dmp::Config for Test {
+	type WeightInfo = ();
+}
 
 parameter_types! {
 	pub const DefaultChannelSizeAndCapacityWithSystem: (u32, u32) = (4, 1);
@@ -345,6 +352,162 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn initializer_finalize() {}
 
 	fn initializer_on_new_session(_: SessionIndex) {}
+}
+
+parameter_types! {
+	pub const SlashingReportLongevity: u64 = 100;
+}
+
+thread_local! {
+	pub static MOCK_KEY_OWNERSHIP_PROOFS:
+		RefCell<HashMap<(KeyTypeId, ValidatorId, MockKeyOwnerProof), AccountId>>
+		= RefCell::new(HashMap::new());
+	pub static MOCK_REPORTED_OFFENCES:
+		RefCell<Vec<(DisputesTimeSlot, DisputeOffenceKind, Vec<(AccountId, ())>)>>
+		= RefCell::new(Vec::new());
+	pub static MOCK_KNOWN_OFFENCES: RefCell<Vec<(DisputesTimeSlot, AccountId)>>
+		= RefCell::new(Vec::new());
+	pub static MOCK_REPORT_OFFENCE_RESULT: RefCell<MockReportResult>
+		= const { RefCell::new(MockReportResult::Ok) };
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum MockReportResult {
+	Ok,
+	DuplicateReport,
+	#[allow(dead_code)]
+	Other(u8),
+}
+
+impl MockReportResult {
+	fn as_offence_result(self) -> Result<(), OffenceError> {
+		match self {
+			MockReportResult::Ok => Ok(()),
+			MockReportResult::DuplicateReport => Err(OffenceError::DuplicateReport),
+			MockReportResult::Other(e) => Err(OffenceError::Other(e)),
+		}
+	}
+}
+
+#[derive(
+	Clone,
+	PartialEq,
+	Eq,
+	Hash,
+	Debug,
+	codec::Encode,
+	codec::Decode,
+	codec::DecodeWithMemTracking,
+	scale_info::TypeInfo,
+)]
+pub struct MockKeyOwnerProof {
+	pub session: SessionIndex,
+	pub validator_count: u32,
+	pub tag: u32,
+}
+
+impl sp_session::GetSessionNumber for MockKeyOwnerProof {
+	fn session(&self) -> SessionIndex {
+		self.session
+	}
+}
+
+impl sp_session::GetValidatorCount for MockKeyOwnerProof {
+	fn validator_count(&self) -> sp_session::ValidatorCount {
+		self.validator_count
+	}
+}
+
+pub struct MockKeyOwnerProofSystem;
+
+impl frame_support::traits::KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>
+	for MockKeyOwnerProofSystem
+{
+	type Proof = MockKeyOwnerProof;
+	type IdentificationTuple = (AccountId, ());
+
+	fn prove(_key: (KeyTypeId, ValidatorId)) -> Option<Self::Proof> {
+		None
+	}
+
+	fn check_proof(
+		key: (KeyTypeId, ValidatorId),
+		proof: Self::Proof,
+	) -> Option<Self::IdentificationTuple> {
+		MOCK_KEY_OWNERSHIP_PROOFS.with(|m| {
+			m.borrow()
+				.get(&(key.0, key.1, proof))
+				.cloned()
+				.map(|account_id| (account_id, ()))
+		})
+	}
+}
+
+pub fn register_mock_key_owner_proof(
+	validator_id: ValidatorId,
+	proof: MockKeyOwnerProof,
+	account_id: AccountId,
+) {
+	MOCK_KEY_OWNERSHIP_PROOFS.with(|m| {
+		m.borrow_mut().insert((PARACHAIN_KEY_TYPE_ID, validator_id, proof), account_id);
+	});
+}
+
+pub fn mock_reported_offences() -> Vec<(DisputesTimeSlot, DisputeOffenceKind, Vec<(AccountId, ())>)>
+{
+	MOCK_REPORTED_OFFENCES.with(|r| r.borrow().clone())
+}
+
+pub fn set_mock_known_offence(time_slot: DisputesTimeSlot, account_id: AccountId) {
+	MOCK_KNOWN_OFFENCES.with(|r| r.borrow_mut().push((time_slot, account_id)));
+}
+
+pub fn set_mock_report_offence_result(result: MockReportResult) {
+	MOCK_REPORT_OFFENCE_RESULT.with(|r| *r.borrow_mut() = result);
+}
+
+pub struct MockHandleReports;
+
+impl crate::disputes::slashing::HandleReports<Test> for MockHandleReports {
+	type ReportLongevity = SlashingReportLongevity;
+
+	fn report_offence(
+		offence: crate::disputes::slashing::SlashingOffence<(AccountId, ())>,
+	) -> Result<(), OffenceError> {
+		let result = MOCK_REPORT_OFFENCE_RESULT.with(|r| *r.borrow()).as_offence_result();
+		if result.is_ok() {
+			MOCK_REPORTED_OFFENCES.with(|r| {
+				r.borrow_mut()
+					.push((offence.time_slot.clone(), offence.kind, offence.offenders));
+			});
+		}
+		result
+	}
+
+	fn is_known_offence(offenders: &[(AccountId, ())], time_slot: &DisputesTimeSlot) -> bool {
+		MOCK_KNOWN_OFFENCES.with(|r| {
+			let known = r.borrow();
+			offenders.iter().any(|(account, _)| {
+				known.iter().any(|(slot, acc)| slot == time_slot && acc == account)
+			})
+		})
+	}
+
+	fn submit_unsigned_slashing_report(
+		_dispute_proof: polkadot_primitives::slashing::DisputeProof,
+		_key_owner_proof: <Test as crate::disputes::slashing::Config>::KeyOwnerProof,
+	) -> Result<(), sp_runtime::TryRuntimeError> {
+		Ok(())
+	}
+}
+
+impl crate::disputes::slashing::Config for Test {
+	type KeyOwnerProof = MockKeyOwnerProof;
+	type KeyOwnerIdentification = (AccountId, ());
+	type KeyOwnerProofSystem = MockKeyOwnerProofSystem;
+	type HandleReports = MockHandleReports;
+	type WeightInfo = crate::disputes::slashing::TestWeightInfo;
+	type BenchmarkingConfig = crate::disputes::slashing::BenchConfig<200>;
 }
 
 impl crate::scheduler::Config for Test {}
@@ -484,11 +647,19 @@ impl ValidatorSet<AccountId> for MockValidatorSet {
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = ValidatorIdOf;
 	fn session_index() -> SessionIndex {
-		0
+		MOCK_CURRENT_SESSION.with(|s| *s.borrow())
 	}
 	fn validators() -> Vec<Self::ValidatorId> {
 		Vec::new()
 	}
+}
+
+thread_local! {
+	pub static MOCK_CURRENT_SESSION: RefCell<SessionIndex> = const { RefCell::new(0) };
+}
+
+pub fn set_mock_current_session(session: SessionIndex) {
+	MOCK_CURRENT_SESSION.with(|s| *s.borrow_mut() = session);
 }
 
 impl ValidatorSetWithIdentification<AccountId> for MockValidatorSet {

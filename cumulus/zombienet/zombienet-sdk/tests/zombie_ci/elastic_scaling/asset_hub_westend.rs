@@ -4,7 +4,9 @@
 use crate::utils::initialize_network;
 
 use anyhow::anyhow;
-use cumulus_zombienet_sdk_helpers::{assert_para_throughput, assign_cores};
+use cumulus_zombienet_sdk_helpers::{
+	assert_para_throughput, assign_cores, wait_for_first_session_change, wait_for_pvf_prepare,
+};
 use polkadot_primitives::Id as ParaId;
 use serde_json::json;
 use zombienet_sdk::{
@@ -36,7 +38,9 @@ async fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 						"config": {
 							"scheduler_params": {
 								"num_cores": 3,
-								"max_validators_per_core": 1
+								"max_validators_per_core": 1,
+								"group_rotation_frequency": 5,
+								"lookahead": 5,
 							}
 						}
 					}
@@ -44,7 +48,7 @@ async fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 				// Have to set a `with_validator` outside of the loop below, so that `r` has the right
 				// type.
 				.with_validator(|node| node.with_name("validator-0"));
-			(1..9).fold(r, |acc, i| acc.with_validator(|node| node.with_name(&format!("validator-{i}"))))
+			(1..6).fold(r, |acc, i| acc.with_validator(|node| node.with_name(&format!("validator-{i}"))))
 		})
 		.with_parachain(|p| {
 			p.with_id(PARA_ID)
@@ -84,16 +88,20 @@ async fn elastic_scaling_asset_hub_westend() -> Result<(), anyhow::Error> {
 	let relay_node = network.get_node("validator-0")?;
 	let relay_client: OnlineClient<PolkadotConfig> = relay_node.wait_client().await?;
 
-	assign_cores(&relay_client, PARA_ID, vec![0]).await?;
+	let mut blocks_sub = relay_client.blocks().subscribe_finalized().await?;
+	wait_for_first_session_change(&mut blocks_sub).await?;
 
-	assert_para_throughput(&relay_client, 10, [(ParaId::from(PARA_ID), 3..18)]).await?;
+	// Wait for PVF preparation to complete.
+	wait_for_pvf_prepare(&network, 1).await?;
+
+	assert_para_throughput(&relay_client, 10, [(ParaId::from(PARA_ID), 8..11)], []).await?;
 
 	// 1 core is assigned by default, we are assigning 2 more cores: 0 and 1.
-	assign_cores(&relay_client, PARA_ID, vec![1]).await?;
+	assign_cores(&relay_client, PARA_ID, vec![0, 1]).await?;
 
 	log::info!("Ensure elastic scaling works, 3 blocks should be produced in each 6s slot");
 
-	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 50..61)]).await?;
+	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 50..61)], []).await?;
 
 	log::info!("Test finished successfully.");
 

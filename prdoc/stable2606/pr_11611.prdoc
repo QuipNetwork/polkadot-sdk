@@ -1,0 +1,7 @@
+title: 'statement-store: add concurrent and multi-peer propagation tests'
+doc:
+- audience: Node Dev
+  description: Implements unit tests for "Propagation under normal load" #11534
+crates:
+- name: sc-network-statement
+  bump: none

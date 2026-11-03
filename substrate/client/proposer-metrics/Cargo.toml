@@ -1,6 +1,6 @@
 [package]
 name = "sc-proposer-metrics"
-version = "0.20.0"
+version = "0.17.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -17,4 +17,4 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 log = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }

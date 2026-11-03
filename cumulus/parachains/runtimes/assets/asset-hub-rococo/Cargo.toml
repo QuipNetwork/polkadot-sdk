@@ -1,6 +1,6 @@
 [package]
 name = "asset-hub-rococo-runtime"
-version = "0.32.0"
+version = "0.44.0"
 authors.workspace = true
 edition.workspace = true
 description = "Rococo variant of Asset Hub parachain runtime"
@@ -13,6 +13,12 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
+hex-literal = { workspace = true, default-features = true }
+scale-info = { features = ["derive"], workspace = true }
+serde_json = { features = ["alloc"], workspace = true }
+tracing = { workspace = true }
+
+# Substrate
 frame-benchmarking = { optional = true, workspace = true }
 frame-executive = { workspace = true }
 frame-metadata-hash-extension = { workspace = true }
@@ -21,7 +27,6 @@ frame-system = { workspace = true }
 frame-system-benchmarking = { optional = true, workspace = true }
 frame-system-rpc-runtime-api = { workspace = true }
 frame-try-runtime = { optional = true, workspace = true }
-hex-literal = { workspace = true, default-features = true }
 pallet-asset-conversion = { workspace = true }
 pallet-asset-conversion-ops = { workspace = true }
 pallet-asset-conversion-tx-payment = { workspace = true }
@@ -42,8 +47,6 @@ pallet-transaction-payment = { workspace = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-uniques = { workspace = true }
 pallet-utility = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-serde_json = { features = ["alloc"], workspace = true }
 sp-api = { workspace = true }
 sp-block-builder = { workspace = true }
 sp-consensus-aura = { workspace = true }
@@ -58,14 +61,23 @@ sp-storage = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
 sp-weights = { workspace = true }
-tracing = { workspace = true }
 
 # num-traits feature needed for dex integer sq root:
+primitive-types = { features = ["codec", "num-traits", "scale-info"], workspace = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
+pallet-xcm-benchmarks = { optional = true, workspace = true }
+polkadot-parachain-primitives = { workspace = true }
+polkadot-runtime-common = { workspace = true }
+rococo-runtime-constants = { workspace = true }
+xcm = { workspace = true }
+xcm-builder = { workspace = true }
+xcm-executor = { workspace = true }
+xcm-runtime-apis = { workspace = true }
+
+# Cumulus
 assets-common = { workspace = true }
-bp-asset-hub-rococo = { workspace = true }
-bp-asset-hub-westend = { workspace = true }
-bp-bridge-hub-rococo = { workspace = true }
-bp-bridge-hub-westend = { workspace = true }
 cumulus-pallet-aura-ext = { workspace = true }
 cumulus-pallet-parachain-system = { workspace = true }
 cumulus-pallet-session-benchmarking = { workspace = true }
@@ -76,24 +88,20 @@ cumulus-primitives-aura = { workspace = true }
 cumulus-primitives-core = { workspace = true }
 cumulus-primitives-utility = { workspace = true }
 pallet-collator-selection = { workspace = true }
-pallet-xcm = { workspace = true }
-pallet-xcm-benchmarks = { optional = true, workspace = true }
-pallet-xcm-bridge-hub-router = { workspace = true }
 parachain-info = { workspace = true }
 parachains-common = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-runtime-common = { workspace = true }
-primitive-types = { features = ["codec", "num-traits", "scale-info"], workspace = true }
-rococo-runtime-constants = { workspace = true }
 testnet-parachains-constants = { features = ["rococo"], workspace = true }
-xcm = { workspace = true }
-xcm-builder = { workspace = true }
-xcm-executor = { workspace = true }
-xcm-runtime-apis = { workspace = true }
+
+# Bridges
+bp-asset-hub-rococo = { workspace = true }
+bp-asset-hub-westend = { workspace = true }
+bp-bridge-hub-rococo = { workspace = true }
+bp-bridge-hub-westend = { workspace = true }
+pallet-xcm-bridge-hub-router = { workspace = true }
 
 [dev-dependencies]
-asset-test-utils = { default-features = true, workspace = true }
-parachains-runtimes-test-utils = { default-features = true, workspace = true }
+asset-test-utils = { workspace = true, default-features = true }
+parachains-runtimes-test-utils = { workspace = true, default-features = true }
 
 [build-dependencies]
 substrate-wasm-builder = { optional = true, workspace = true, default-features = true }
@@ -101,6 +109,7 @@ substrate-wasm-builder = { optional = true, workspace = true, default-features =
 [features]
 default = ["std"]
 runtime-benchmarks = [
+	"asset-test-utils/runtime-benchmarks",
 	"assets-common/runtime-benchmarks",
 	"cumulus-pallet-parachain-system/runtime-benchmarks",
 	"cumulus-pallet-session-benchmarking/runtime-benchmarks",
@@ -134,6 +143,7 @@ runtime-benchmarks = [
 	"pallet-xcm-bridge-hub-router/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"parachains-common/runtime-benchmarks",
+	"parachains-runtimes-test-utils/runtime-benchmarks",
 	"polkadot-parachain-primitives/runtime-benchmarks",
 	"polkadot-runtime-common/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
@@ -178,6 +188,7 @@ try-runtime = [
 	"pallet-xcm/try-runtime",
 	"parachain-info/try-runtime",
 	"parachains-common/try-runtime",
+	"parachains-runtimes-test-utils/try-runtime",
 	"polkadot-runtime-common/try-runtime",
 	"sp-runtime/try-runtime",
 ]

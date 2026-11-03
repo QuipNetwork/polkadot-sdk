@@ -462,16 +462,11 @@ pub fn remove_pallet<T>() -> frame_support::weights::Weight
 where
 	T: frame_system::Config,
 {
-	#[allow(deprecated)]
-	use frame_support::migration::remove_storage_prefix;
-	#[allow(deprecated)]
-	remove_storage_prefix(b"Purchase", b"Accounts", b"");
-	#[allow(deprecated)]
-	remove_storage_prefix(b"Purchase", b"PaymentAccount", b"");
-	#[allow(deprecated)]
-	remove_storage_prefix(b"Purchase", b"Statement", b"");
-	#[allow(deprecated)]
-	remove_storage_prefix(b"Purchase", b"UnlockBlock", b"");
+	use frame_support::migration::clear_storage_prefix;
+	let _ = clear_storage_prefix(b"Purchase", b"Accounts", b"", None, None);
+	let _ = clear_storage_prefix(b"Purchase", b"PaymentAccount", b"", None, None);
+	let _ = clear_storage_prefix(b"Purchase", b"Statement", b"", None, None);
+	let _ = clear_storage_prefix(b"Purchase", b"UnlockBlock", b"", None, None);
 
 	<T as frame_system::Config>::BlockWeights::get().max_block
 }

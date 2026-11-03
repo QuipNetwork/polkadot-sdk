@@ -1,6 +1,6 @@
 [package]
 name = "sp-storage"
-version = "23.0.0"
+version = "19.0.0"
 authors.workspace = true
 edition.workspace = true
 description = "Storage related primitives"

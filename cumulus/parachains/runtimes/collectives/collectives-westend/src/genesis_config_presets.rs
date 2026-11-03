@@ -18,17 +18,13 @@
 use crate::*;
 use alloc::{vec, vec::Vec};
 use cumulus_primitives_core::ParaId;
-use frame_support::{build_struct_json_patch, sp_runtime::traits::AccountIdConversion};
+use frame_support::build_struct_json_patch;
 use parachains_common::{AccountId, AuraId};
 use sp_genesis_builder::PresetId;
 use sp_keyring::Sr25519Keyring;
 use testnet_parachains_constants::westend::xcm_version::SAFE_XCM_VERSION;
 
 const COLLECTIVES_WESTEND_ED: Balance = ExistentialDeposit::get();
-
-fn dap_satellite_account() -> AccountId {
-	DapSatellitePalletId::get().into_account_truncating()
-}
 
 fn collectives_westend_genesis(
 	invulnerables: Vec<(AccountId, AuraId)>,
@@ -41,7 +37,10 @@ fn collectives_westend_genesis(
 				.iter()
 				.cloned()
 				.map(|k| (k, COLLECTIVES_WESTEND_ED * 4096))
-				.chain(core::iter::once((dap_satellite_account(), COLLECTIVES_WESTEND_ED)))
+				.chain(core::iter::once((
+					AccumulateForward::accumulation_account(),
+					COLLECTIVES_WESTEND_ED
+				)))
 				.collect::<Vec<_>>(),
 		},
 		parachain_info: ParachainInfoConfig { parachain_id: id },

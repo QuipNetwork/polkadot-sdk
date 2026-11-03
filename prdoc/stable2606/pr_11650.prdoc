@@ -1,0 +1,18 @@
+title: Update PolkaVM to latest version (0.31 → 0.33)
+
+doc:
+  - audience: [Runtime Dev, Node Dev]
+    description: |
+      Updates all PolkaVM dependencies from 0.31.0 to 0.33.0.
+
+crates:
+  - name: sp-wasm-interface
+    bump: major
+  - name: sc-executor-common
+    bump: major
+  - name: sc-executor-polkavm
+    bump: minor
+  - name: sc-executor-wasmtime
+    bump: patch
+  - name: pallet-revive
+    bump: major

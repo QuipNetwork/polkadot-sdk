@@ -1,6 +1,6 @@
 [package]
 name = "sc-consensus-slots"
-version = "0.55.0"
+version = "0.59.0"
 authors.workspace = true
 description = "Generic slots-based utilities for consensus"
 edition.workspace = true
@@ -22,18 +22,18 @@ codec = { workspace = true, default-features = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
 log = { workspace = true, default-features = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus = { default-features = true, workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
-sp-arithmetic = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-consensus-slots = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-telemetry = { workspace = true, default-features = true }
+sp-arithmetic = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-consensus-slots = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 
 [dev-dependencies]
 substrate-test-runtime-client = { workspace = true }

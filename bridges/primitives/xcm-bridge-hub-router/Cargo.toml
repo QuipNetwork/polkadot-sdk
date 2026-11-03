@@ -1,7 +1,7 @@
 [package]
 name = "bp-xcm-bridge-hub-router"
 description = "Primitives of the xcm-bridge-hub fee pallet."
-version = "0.23.0"
+version = "0.26.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -13,8 +13,12 @@ workspace = true
 [dependencies]
 codec = { features = ["bit-vec", "derive"], workspace = true }
 scale-info = { features = ["bit-vec", "derive"], workspace = true }
+
+# Substrate Dependencies
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
+
+# Polkadot Dependencies
 xcm = { workspace = true }
 
 [features]

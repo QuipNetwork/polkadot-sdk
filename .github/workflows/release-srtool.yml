@@ -110,7 +110,7 @@ jobs:
           echo "Compressed Runtime: $WASM_COMPRESSED_PATH"
 
       - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path:  ${{ steps.srtool_build.outputs.wasm }}
 
@@ -154,7 +154,7 @@ jobs:
             tee "${CHAIN}-diff.txt"
 
       - name: Archive Subwasm results
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.chain }}-runtime
           path: |

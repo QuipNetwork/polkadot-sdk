@@ -1,0 +1,302 @@
+{
+  "gen": "srtool v0.18.3",
+  "src": "git",
+  "version": "0.1.0",
+  "commit": "48004f09eaa1ca17a14d2e5bb0ec32409f7aa9a4",
+  "tag": "polkadot--rc1",
+  "branch": "stable2509",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "pkg": "people-westend-runtime",
+  "tmsp": "2025-09-09T15:05:41Z",
+  "size": "1473255",
+  "prop": "0xacb62e69865c055fff9186a7f7e617054f0b7cd19dca5af3fb664b37ce8439f8",
+  "authorize_upgrade_prop": "0x53aba0fa0e44b9d44fdcf475ec7fc04dab030ac13520e769fb8183c82453e76c",
+  "ipfs": "QmYEYheB1MHTT5xaFku7DvVt11TvmGsTpCbqxLTPgcStoY",
+  "sha256": "0x7e0e47ce24548f94a4ddcc8f9b79de000075983767f8e08e4b8cc55469cf443b",
+  "wasm": "cumulus/parachains/runtimes/people/people-westend/target/srtool/production/wbuild/people-westend-runtime/people_westend_runtime.compact.compressed.wasm",
+  "info": {
+    "generator": {
+      "name": "srtool",
+      "version": "0.18.3"
+    },
+    "src": "git",
+    "version": "0.1.0",
+    "git": {
+      "commit": "48004f09eaa1ca17a14d2e5bb0ec32409f7aa9a4",
+      "tag": "",
+      "branch": "stable2509"
+    },
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "pkg": "people-westend-runtime",
+    "profile": "production"
+  },
+  "context": {
+    "package": "people-westend-runtime",
+    "runtime_dir": "cumulus/parachains/runtimes/people/people-westend",
+    "docker": {
+      "image": "paritytech/srtool",
+      "tag": "1.88.0"
+    },
+    "profile": "production"
+  },
+  "runtimes": {
+    "compact": {
+      "tmsp": "2025-09-09T15:04:39Z",
+      "size": "5955048",
+      "prop": "0x4d83cfad806e49234315e0ea4a15f612caa1e999df57720314cf37ebc25f7ea7",
+      "authorize_upgrade_prop": "0xd1a119358d2cb63957cecc5914f173436d72d0551dd38c2e0ba2046d4a9c12b3",
+      "blake2_256": "0xc985f3b4f7f8aa1c8790cd71be1b3046ab9e8bf5b338e984930626417e574923",
+      "ipfs": "QmaiNQGS1p3qo1iQk9kbvsCUhmyEyCnFjFfUVVh16FFqhS",
+      "sha256": "0xd924fd9d5cecfbcfd5c9a558d2f2d6bfb4689354bf94485672b5caf5a7c6059e",
+      "wasm": "cumulus/parachains/runtimes/people/people-westend/target/srtool/production/wbuild/people-westend-runtime/people_westend_runtime.compact.wasm",
+      "subwasm": {
+        "size": 5955048,
+        "compression": {
+          "size_compressed": 5955048,
+          "size_decompressed": 5955048,
+          "compressed": false
+        },
+        "reserved_meta": [
+          109,
+          101,
+          116,
+          97
+        ],
+        "reserved_meta_valid": true,
+        "metadata_version": 14,
+        "core_version": {
+          "specName": "people-westend",
+          "implName": "people-westend",
+          "authoringVersion": 1,
+          "specVersion": 1020000,
+          "implVersion": 0,
+          "apis": [
+            [
+              "0xdd718d5cc53262d4",
+              1
+            ],
+            [
+              "0x04e70521a0d3d2f8",
+              1
+            ],
+            [
+              "0xd7bdd8a272ca0d65",
+              2
+            ],
+            [
+              "0xdf6acb689907609b",
+              5
+            ],
+            [
+              "0x37e397fc7c91f5e4",
+              2
+            ],
+            [
+              "0x40fe3ad401f8959a",
+              6
+            ],
+            [
+              "0xd2bc9897eed08f15",
+              3
+            ],
+            [
+              "0xf78b278be53f454c",
+              2
+            ],
+            [
+              "0xab3c0572291feb8b",
+              1
+            ],
+            [
+              "0xbc9d89904f5b923f",
+              1
+            ],
+            [
+              "0x37c8bb1350a9a2a8",
+              4
+            ],
+            [
+              "0xf3ff14d5ab527059",
+              3
+            ],
+            [
+              "0x6ff52ee858e6c5bd",
+              1
+            ],
+            [
+              "0x91b1c8b16328eb92",
+              2
+            ],
+            [
+              "0x9ffb505aa738d69c",
+              1
+            ],
+            [
+              "0x2609be83ac4468dc",
+              1
+            ],
+            [
+              "0x12c8e3d4d7e06de0",
+              1
+            ],
+            [
+              "0xea93e3f16f3d6962",
+              3
+            ],
+            [
+              "0x695c80446b8b3d4e",
+              1
+            ],
+            [
+              "0xfbc577b9d747efd6",
+              1
+            ],
+            [
+              "0xa2ddb6a58477bf63",
+              1
+            ],
+            [
+              "0xbe9fb0c91a8046cf",
+              1
+            ]
+          ],
+          "transactionVersion": 2,
+          "stateVersion": 1
+        },
+        "proposal_hash": "0x4d83cfad806e49234315e0ea4a15f612caa1e999df57720314cf37ebc25f7ea7",
+        "parachain_authorize_upgrade_hash": "0xd1a119358d2cb63957cecc5914f173436d72d0551dd38c2e0ba2046d4a9c12b3",
+        "ipfs_hash": "QmaiNQGS1p3qo1iQk9kbvsCUhmyEyCnFjFfUVVh16FFqhS",
+        "blake2_256": "0xc985f3b4f7f8aa1c8790cd71be1b3046ab9e8bf5b338e984930626417e574923"
+      }
+    },
+    "compressed": {
+      "tmsp": "2025-09-09T15:00:19Z",
+      "size": "1473255",
+      "prop": "0xacb62e69865c055fff9186a7f7e617054f0b7cd19dca5af3fb664b37ce8439f8",
+      "authorize_upgrade_prop": "0x53aba0fa0e44b9d44fdcf475ec7fc04dab030ac13520e769fb8183c82453e76c",
+      "blake2_256": "0x7d5da5899951e5a845e94ee9ee626a732ec237c56f2194ff711fdae76799093a",
+      "ipfs": "QmYEYheB1MHTT5xaFku7DvVt11TvmGsTpCbqxLTPgcStoY",
+      "sha256": "0x7e0e47ce24548f94a4ddcc8f9b79de000075983767f8e08e4b8cc55469cf443b",
+      "wasm": "cumulus/parachains/runtimes/people/people-westend/target/srtool/production/wbuild/people-westend-runtime/people_westend_runtime.compact.compressed.wasm",
+      "subwasm": {
+        "size": 1473255,
+        "compression": {
+          "size_compressed": 1473255,
+          "size_decompressed": 5955048,
+          "compressed": true
+        },
+        "reserved_meta": [
+          109,
+          101,
+          116,
+          97
+        ],
+        "reserved_meta_valid": true,
+        "metadata_version": 14,
+        "core_version": {
+          "specName": "people-westend",
+          "implName": "people-westend",
+          "authoringVersion": 1,
+          "specVersion": 1020000,
+          "implVersion": 0,
+          "apis": [
+            [
+              "0xdd718d5cc53262d4",
+              1
+            ],
+            [
+              "0x04e70521a0d3d2f8",
+              1
+            ],
+            [
+              "0xd7bdd8a272ca0d65",
+              2
+            ],
+            [
+              "0xdf6acb689907609b",
+              5
+            ],
+            [
+              "0x37e397fc7c91f5e4",
+              2
+            ],
+            [
+              "0x40fe3ad401f8959a",
+              6
+            ],
+            [
+              "0xd2bc9897eed08f15",
+              3
+            ],
+            [
+              "0xf78b278be53f454c",
+              2
+            ],
+            [
+              "0xab3c0572291feb8b",
+              1
+            ],
+            [
+              "0xbc9d89904f5b923f",
+              1
+            ],
+            [
+              "0x37c8bb1350a9a2a8",
+              4
+            ],
+            [
+              "0xf3ff14d5ab527059",
+              3
+            ],
+            [
+              "0x6ff52ee858e6c5bd",
+              1
+            ],
+            [
+              "0x91b1c8b16328eb92",
+              2
+            ],
+            [
+              "0x9ffb505aa738d69c",
+              1
+            ],
+            [
+              "0x2609be83ac4468dc",
+              1
+            ],
+            [
+              "0x12c8e3d4d7e06de0",
+              1
+            ],
+            [
+              "0xea93e3f16f3d6962",
+              3
+            ],
+            [
+              "0x695c80446b8b3d4e",
+              1
+            ],
+            [
+              "0xfbc577b9d747efd6",
+              1
+            ],
+            [
+              "0xa2ddb6a58477bf63",
+              1
+            ],
+            [
+              "0xbe9fb0c91a8046cf",
+              1
+            ]
+          ],
+          "transactionVersion": 2,
+          "stateVersion": 1
+        },
+        "proposal_hash": "0xacb62e69865c055fff9186a7f7e617054f0b7cd19dca5af3fb664b37ce8439f8",
+        "parachain_authorize_upgrade_hash": "0x53aba0fa0e44b9d44fdcf475ec7fc04dab030ac13520e769fb8183c82453e76c",
+        "ipfs_hash": "QmYEYheB1MHTT5xaFku7DvVt11TvmGsTpCbqxLTPgcStoY",
+        "blake2_256": "0x7d5da5899951e5a845e94ee9ee626a732ec237c56f2194ff711fdae76799093a"
+      }
+    }
+  }
+}

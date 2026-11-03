@@ -1,6 +1,6 @@
 [package]
 name = "ethereum-standards"
-version = "0.1.3"
+version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 description = "Interfaces for Ethereum standards"

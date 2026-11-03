@@ -121,7 +121,6 @@ pub trait AssignmentCriteria {
 		relay_vrf_story: RelayVRFStory,
 		config: &Config,
 		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
-		enable_v2_assignments: bool,
 	) -> HashMap<CoreIndex, OurAssignment>;
 
 	/// Check the assignment cert for the given relay VRF story and returns the delay tranche.
@@ -154,8 +153,6 @@ impl std::error::Error for InvalidAssignment {}
 pub enum InvalidAssignmentReason {
 	/// The validator index is out of bounds.
 	ValidatorIndexOutOfBounds,
-	/// Sample index is out of bounds.
-	SampleOutOfBounds,
 	/// Core index is out of bounds.
 	CoreIndexOutOfBounds,
 	/// Invalid assignment key.

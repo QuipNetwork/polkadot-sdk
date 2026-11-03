@@ -1,0 +1,10 @@
+title: try state hook for pallet authorship
+doc:
+- audience: Runtime Dev
+  description: |-
+    This PR introduces the try_state hook to pallet-authorship to verify a key storage invariant.
+
+    closes part of https://github.com/paritytech/polkadot-sdk/issues/239
+crates:
+- name: pallet-authorship
+  bump: minor

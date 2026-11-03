@@ -1,6 +1,6 @@
 [package]
 name = "sc-cli"
-version = "0.58.0"
+version = "0.63.0"
 authors.workspace = true
 description = "Substrate CLI interface."
 edition.workspace = true
@@ -31,31 +31,31 @@ rand = { workspace = true, default-features = true }
 regex = { workspace = true }
 quip-crypto-primitives = { workspace = true, default-features = true }
 rpassword = { workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-client-db = { default-features = false, workspace = true }
-sc-keystore = { default-features = true, workspace = true }
-sc-mixnet = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-service = { default-features = false, workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
-sc-tracing = { default-features = true, workspace = true }
-sc-transaction-pool = { default-features = true, workspace = true }
-sc-utils = { default-features = true, workspace = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-client-db = { workspace = true, default-features = false }
+sc-keystore = { workspace = true, default-features = true }
+sc-mixnet = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = false }
+sc-telemetry = { workspace = true, default-features = true }
+sc-tracing = { workspace = true, default-features = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sc-utils = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-panic-handler = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-panic-handler = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 tokio = { features = ["parking_lot", "rt-multi-thread", "signal"], workspace = true, default-features = true }
 
 [dev-dependencies]
 futures-timer = { workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 tempfile = { workspace = true }
 
 [features]

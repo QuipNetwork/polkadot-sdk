@@ -280,3 +280,102 @@ pub fn mock_event_log_v2() -> Log {
         tx_index: 0,
     }
 }
+
+pub mod exploit {
+	use super::*;
+
+	use frame_support::traits::ConstU32;
+	use hex_literal::hex;
+	use snowbridge_beacon_primitives::{Fork, ForkVersions};
+
+	type Block = frame_system::mocking::MockBlock<ExploitTest>;
+
+	frame_support::construct_runtime!(
+		pub enum ExploitTest
+		{
+			System: frame_system::{Pallet, Call, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			EthereumBeaconClient: snowbridge_pallet_ethereum_client::{Pallet, Call, Storage, Event<T>},
+			InboundQueue: inbound_queue_v2::{Pallet, Call, Storage, Event<T>},
+		}
+	);
+
+	#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
+	impl frame_system::Config for ExploitTest {
+		type AccountId = AccountId;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type AccountData = pallet_balances::AccountData<u128>;
+		type Block = Block;
+	}
+
+	#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
+	impl pallet_balances::Config for ExploitTest {
+		type Balance = Balance;
+		type ExistentialDeposit = ExistentialDeposit;
+		type AccountStore = System;
+	}
+
+	parameter_types! {
+		pub const ChainForkVersions: ForkVersions = ForkVersions {
+			genesis: Fork { version: hex!("00000000"), epoch: 0 },
+			altair: Fork { version: hex!("01000000"), epoch: 0 },
+			bellatrix: Fork { version: hex!("02000000"), epoch: 0 },
+			capella: Fork { version: hex!("03000000"), epoch: 0 },
+			deneb: Fork { version: hex!("04000000"), epoch: 0 },
+			electra: Fork { version: hex!("05000000"), epoch: 0 },
+			fulu: Fork { version: hex!("06000000"), epoch: 100_000_000 },
+		};
+	}
+
+	impl snowbridge_pallet_ethereum_client::Config for ExploitTest {
+		type RuntimeEvent = RuntimeEvent;
+		type ForkVersions = ChainForkVersions;
+		type FreeHeadersInterval = ConstU32<32>;
+		type WeightInfo = ();
+	}
+
+	impl inbound_queue_v2::Config for ExploitTest {
+		type RuntimeEvent = RuntimeEvent;
+		type Verifier = EthereumBeaconClient;
+		type GatewayAddress = GatewayAddress;
+		type MessageProcessor = (
+			DummyPrefix,
+			XcmMessageProcessor<
+				ExploitTest,
+				MockXcmSender,
+				MockXcmExecutor,
+				MessageToXcm<
+					CreateAssetCall,
+					EthereumNetwork,
+					LocalNetwork,
+					GatewayAddress,
+					InboundQueueLocation,
+					AssetHubParaId,
+					MockTokenIdConvert,
+					AccountId,
+				>,
+				MockAccountLocationConverter<AccountId>,
+				TargetLocation,
+			>,
+			DummySuffix,
+		);
+		#[cfg(feature = "runtime-benchmarks")]
+		type Helper = Test;
+		type WeightInfo = ();
+		type RewardKind = BridgeReward;
+		type DefaultRewardKind = SnowbridgeReward;
+		type RewardPayment = MockRewardLedger;
+	}
+
+	pub fn setup() {
+		System::set_block_number(1);
+	}
+
+	pub fn new_tester() -> sp_io::TestExternalities {
+		let storage =
+			frame_system::GenesisConfig::<ExploitTest>::default().build_storage().unwrap();
+		let mut ext: sp_io::TestExternalities = storage.into();
+		ext.execute_with(setup);
+		ext
+	}
+}

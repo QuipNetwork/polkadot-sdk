@@ -707,3 +707,102 @@ fn zero_enactment_delay_executes_proposal_at_next_block() {
 		assert_eq!(Balances::free_balance(42), 20);
 	});
 }
+
+#[test]
+fn cancel_queued_referendum_does_not_desync_deciding_count() {
+	ExtBuilder::default().build_and_execute(|| {
+		assert_ok!(Referenda::submit(
+			RuntimeOrigin::signed(1),
+			Box::new(RawOrigin::Root.into()),
+			set_balance_proposal_bounded(1),
+			DispatchTime::At(20),
+		));
+		assert_ok!(Referenda::submit(
+			RuntimeOrigin::signed(2),
+			Box::new(RawOrigin::Root.into()),
+			set_balance_proposal_bounded(2),
+			DispatchTime::At(20),
+		));
+		assert_ok!(Referenda::place_decision_deposit(RuntimeOrigin::signed(3), 0));
+		assert_ok!(Referenda::place_decision_deposit(RuntimeOrigin::signed(5), 1));
+
+		run_to(5);
+
+		assert_eq!(DecidingCount::<Test>::get(0u8), 1);
+		let queue = TrackQueue::<Test>::get(0u8);
+		assert!(queue.iter().any(|(idx, _)| *idx == 1), "ref 1 should be in the queue");
+
+		assert_ok!(Referenda::cancel(RuntimeOrigin::signed(4), 1));
+		assert!(matches!(
+			ReferendumInfoFor::<Test>::get(1),
+			Some(ReferendumInfo::Cancelled(_, _, _))
+		));
+
+		run_to(6);
+
+		assert_eq!(DecidingCount::<Test>::get(0u8), 1);
+
+		let stored = DecidingCount::<Test>::get(0u8);
+		let mut actual: u32 = 0;
+		for (_, info) in ReferendumInfoFor::<Test>::iter() {
+			if let ReferendumInfo::Ongoing(status) = info {
+				if status.track == 0u8 && status.deciding.is_some() {
+					actual += 1;
+				}
+			}
+		}
+		assert_eq!(
+			stored, actual,
+			"track 0: DecidingCount={} but found {} Ongoing referenda with deciding.is_some()",
+			stored, actual,
+		);
+	});
+}
+
+#[test]
+fn kill_queued_referendum_does_not_desync_deciding_count() {
+	ExtBuilder::default().build_and_execute(|| {
+		assert_ok!(Referenda::submit(
+			RuntimeOrigin::signed(1),
+			Box::new(RawOrigin::Root.into()),
+			set_balance_proposal_bounded(1),
+			DispatchTime::At(20),
+		));
+		assert_ok!(Referenda::submit(
+			RuntimeOrigin::signed(2),
+			Box::new(RawOrigin::Root.into()),
+			set_balance_proposal_bounded(2),
+			DispatchTime::At(20),
+		));
+		assert_ok!(Referenda::place_decision_deposit(RuntimeOrigin::signed(3), 0));
+		assert_ok!(Referenda::place_decision_deposit(RuntimeOrigin::signed(5), 1));
+
+		run_to(5);
+
+		assert_eq!(DecidingCount::<Test>::get(0u8), 1);
+		let queue = TrackQueue::<Test>::get(0u8);
+		assert!(queue.iter().any(|(idx, _)| *idx == 1), "ref 1 should be in the queue");
+
+		assert_ok!(Referenda::kill(RuntimeOrigin::root(), 1));
+		assert!(matches!(ReferendumInfoFor::<Test>::get(1), Some(ReferendumInfo::Killed(_))));
+
+		run_to(6);
+
+		assert_eq!(DecidingCount::<Test>::get(0u8), 1);
+
+		let stored = DecidingCount::<Test>::get(0u8);
+		let mut actual: u32 = 0;
+		for (_, info) in ReferendumInfoFor::<Test>::iter() {
+			if let ReferendumInfo::Ongoing(status) = info {
+				if status.track == 0u8 && status.deciding.is_some() {
+					actual += 1;
+				}
+			}
+		}
+		assert_eq!(
+			stored, actual,
+			"track 0: DecidingCount={} but found {} Ongoing referenda with deciding.is_some()",
+			stored, actual,
+		);
+	});
+}

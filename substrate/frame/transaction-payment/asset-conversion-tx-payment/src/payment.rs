@@ -23,8 +23,11 @@ use frame_support::{
 	defensive, ensure,
 	traits::{
 		fungibles,
-		tokens::{Balance, Fortitude, Precision, Preservation, WithdrawConsequence},
-		Defensive, OnUnbalanced, SameOrOther,
+		tokens::{
+			Balance, DepositConsequence, Fortitude, Precision, Preservation, Provenance,
+			WithdrawConsequence,
+		},
+		Defensive, OnUnbalanced,
 	},
 	unsigned::TransactionValidityError,
 };
@@ -139,6 +142,7 @@ where
 		// Quote the amount of the `asset_id` needed to pay the fee in the asset `A`.
 		let asset_fee =
 			S::quote_price_tokens_for_exact_tokens(asset_id.clone(), A::get(), fee, true)
+				.filter(|asset_fee| !asset_fee.is_zero())
 				.ok_or(InvalidTransaction::Payment)?;
 
 		// Withdraw the `asset_id` credit for the swap.
@@ -191,6 +195,7 @@ where
 
 		let asset_fee =
 			S::quote_price_tokens_for_exact_tokens(asset_id.clone(), A::get(), fee, true)
+				.filter(|asset_fee| !asset_fee.is_zero())
 				.ok_or(InvalidTransaction::Payment)?;
 
 		// Ensure we can withdraw enough `asset_id` for the swap.
@@ -211,99 +216,109 @@ where
 		asset_id: Self::AssetId,
 		already_withdrawn: Self::LiquidityInfo,
 	) -> Result<BalanceOf<T>, TransactionValidityError> {
-		let (fee_paid, initial_asset_consumed) = already_withdrawn;
+		// (fee_paid: Credit in target `A` asset, fee_asset_amount: Balance in `asset_id`
+		// consumed to obtain the target `A` asset)
+		let (fee_paid, fee_asset_amount) = already_withdrawn;
 		let refund_amount = fee_paid.peek().saturating_sub(corrected_fee);
-		let (fee_in_asset, adjusted_paid) = if refund_amount.is_zero() ||
-			F::total_balance(asset_id.clone(), who).is_zero()
-		{
-			// Nothing to refund or the account was removed be the dispatched function.
-			(initial_asset_consumed, fee_paid)
-		} else if asset_id == A::get() {
-			// The `asset_id` is the target asset, we do not need to swap.
-			let (refund, fee_paid) = fee_paid.split(refund_amount);
-			if let Err(refund) = F::resolve(who, refund) {
-				let fee_paid = fee_paid.merge(refund).map_err(|_| {
-					defensive!("`fee_paid` and `refund` are credits of the same asset.");
-					InvalidTransaction::Payment
-				})?;
-				(initial_asset_consumed, fee_paid)
-			} else {
-				(fee_paid.peek().saturating_sub(refund_amount), fee_paid)
-			}
-		} else {
-			// Check if the refund amount can be swapped back into the asset used by `who` for fee
-			// payment.
-			let refund_asset_amount = S::quote_price_exact_tokens_for_tokens(
-				A::get(),
-				asset_id.clone(),
-				refund_amount,
-				true,
-			)
-			// No refund given if it cannot be swapped back.
-			.unwrap_or(Zero::zero());
 
-			let debt = if refund_asset_amount.is_zero() {
-				fungibles::Debt::<T::AccountId, F>::zero(asset_id.clone())
-			} else {
-				// Deposit the refund before the swap to ensure it can be processed.
-				match F::deposit(asset_id.clone(), &who, refund_asset_amount, Precision::BestEffort)
-				{
-					Ok(debt) => debt,
-					// No refund given since it cannot be deposited.
-					Err(_) => fungibles::Debt::<T::AccountId, F>::zero(asset_id.clone()),
-				}
+		// nothing to refund or the account was removed by to the dispatched function.
+		if refund_amount.is_zero() || F::total_balance(asset_id.clone(), who).is_zero() {
+			let (tip, fee) = fee_paid.split(tip);
+			OU::on_unbalanceds(Some(fee).into_iter().chain(Some(tip)));
+			return Ok(fee_asset_amount);
+		}
+
+		// The `asset_id` is the target `A` asset, we do not need to swap.
+		if asset_id == A::get() {
+			let (refund, adjusted_paid) = fee_paid.split(refund_amount);
+
+			let (fee_asset_amount, adjusted_paid) = match F::resolve(who, refund) {
+				Ok(_) => (adjusted_paid.peek(), adjusted_paid),
+				Err(refund) => {
+					// cancel `refund` and include it back into `adjusted_paid`.
+					adjusted_paid.merge(refund).map_or_else(
+						|(adjusted_paid, refund)| {
+							defensive!(
+								"`adjusted_paid` and `refund` are credits of the same asset.",
+								(adjusted_paid.asset(), refund.asset(), who)
+							);
+							// drop `refund` and return `adjusted_paid` without it.
+							(fee_asset_amount, adjusted_paid)
+						},
+						|fee_paid| (fee_paid.peek(), fee_paid),
+					)
+				},
 			};
 
-			if debt.peek().is_zero() {
-				// No refund given.
-				(initial_asset_consumed, fee_paid)
-			} else {
-				let (refund, adjusted_paid) = fee_paid.split(refund_amount);
-				match S::swap_exact_tokens_for_tokens(
-					vec![A::get(), asset_id],
-					refund,
-					Some(refund_asset_amount),
-				) {
-					Ok(refund_asset) => {
-						match refund_asset.offset(debt) {
-							Ok(SameOrOther::None) => {},
-							// This arm should never be reached, as the  amount of `debt` is
-							// expected to be exactly equal to the amount of `refund_asset` credit.
-							_ => {
-								defensive!("Debt should be equal to the refund credit");
-								return Err(InvalidTransaction::Payment.into());
-							},
-						};
-						(
-							initial_asset_consumed.saturating_sub(refund_asset_amount.into()),
-							adjusted_paid,
-						)
+			// Handle the imbalance (fee and tip separately).
+			let (tip, fee) = adjusted_paid.split(tip);
+			OU::on_unbalanceds(Some(fee).into_iter().chain(Some(tip)));
+			return Ok(fee_asset_amount);
+		}
+
+		// refund is non zero and `who`'s fee `asset_id` is not the target asset.
+
+		// check if the refund amount can be swapped back into `who`'s fee `asset_id`.
+		let refund_asset_amount =
+			S::quote_price_exact_tokens_for_tokens(A::get(), asset_id.clone(), refund_amount, true)
+				// No refund given if it cannot be swapped back.
+				.unwrap_or(Zero::zero());
+
+		// `fee_paid` cannot be swapped back into `who`'s fee `asset_id` or the refund amount cannot
+		// be deposited into `who`'s fee `asset_id`, exit without refund.
+		if refund_asset_amount.is_zero() ||
+			!matches!(
+				F::can_deposit(asset_id.clone(), who, refund_asset_amount, Provenance::Extant),
+				DepositConsequence::Success
+			) {
+			let (tip, fee) = fee_paid.split(tip);
+			OU::on_unbalanceds(Some(fee).into_iter().chain(Some(tip)));
+			return Ok(fee_asset_amount);
+		}
+
+		// swap the refund amount back into `who`'s fee `asset_id`.
+
+		let (refund, adjusted_paid) = fee_paid.split(refund_amount);
+
+		let (fee_asset_amount, adjusted_paid) = match S::swap_exact_tokens_for_tokens(
+			vec![A::get(), asset_id],
+			refund,
+			Some(refund_asset_amount),
+		) {
+			Ok(refund_asset) => match F::resolve(who, refund_asset) {
+				Ok(_) => (fee_asset_amount.saturating_sub(refund_asset_amount), adjusted_paid),
+				Err(refund_asset) => {
+					defensive!(
+						"Refund resolve should pass since `can_deposit` was checked",
+						(refund_asset.asset(), refund_asset.peek(), who)
+					);
+					(fee_asset_amount, adjusted_paid)
+				},
+			},
+			// The error should not occur since swap was quoted before.
+			Err((refund, _)) => {
+				defensive!(
+					"Refund swap should pass for the quoted amount",
+					(refund.asset(), refund.peek(), refund_asset_amount, who)
+				);
+				// cancel `refund` and include it back into `adjusted_paid`.
+				adjusted_paid.merge(refund).map_or_else(
+					|(adjusted_paid, refund)| {
+						defensive!(
+							"`adjusted_paid` and `refund` are credits of the same asset.",
+							(adjusted_paid.asset(), refund.asset(), who)
+						);
+						// drop `refund` and return `adjusted_paid` without it.
+						(fee_asset_amount, adjusted_paid)
 					},
-					// The error should not occur since swap was quoted before.
-					Err((refund, _)) => {
-						defensive!("Refund swap should pass for the quoted amount");
-						match F::settle(who, debt, Preservation::Expendable) {
-							Ok(dust) => ensure!(dust.peek().is_zero(), InvalidTransaction::Payment),
-							// The error should not occur as the `debt` was just withdrawn above.
-							Err(_) => {
-								defensive!("Should settle the debt");
-								return Err(InvalidTransaction::Payment.into());
-							},
-						};
-						let adjusted_paid = adjusted_paid.merge(refund).map_err(|_| {
-							// The error should never occur since `adjusted_paid` and `refund` are
-							// credits of the same asset.
-							InvalidTransaction::Payment
-						})?;
-						(initial_asset_consumed, adjusted_paid)
-					},
-				}
-			}
+					|fee_paid| (fee_asset_amount, fee_paid),
+				)
+			},
 		};
 
 		// Handle the imbalance (fee and tip separately).
 		let (tip, fee) = adjusted_paid.split(tip);
 		OU::on_unbalanceds(Some(fee).into_iter().chain(Some(tip)));
-		Ok(fee_in_asset)
+		return Ok(fee_asset_amount);
 	}
 }

@@ -132,7 +132,7 @@ impl Tracing for CallTracer {
 		}
 	}
 
-	fn log_event(&mut self, address: H160, topics: &[H256], data: &[u8]) {
+	fn log_event(&mut self, address: H160, topics: &[H256], data: &[u8], log_index: u32) {
 		if !self.config.with_logs {
 			return;
 		}
@@ -145,6 +145,7 @@ impl Tracing for CallTracer {
 				topics: topics.to_vec(),
 				data: data.to_vec().into(),
 				position: trace.child_call_count,
+				index: log_index,
 			};
 
 			trace.logs.push(log);

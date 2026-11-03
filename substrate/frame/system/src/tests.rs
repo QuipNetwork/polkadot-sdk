@@ -235,13 +235,13 @@ fn deposit_event_should_work() {
 		System::reset_events();
 		System::initialize(&1, &[0u8; 32].into(), &Default::default());
 		System::note_finished_extrinsics();
-		System::deposit_event(SysEvent::CodeUpdated);
+		System::deposit_event(SysEvent::CodeUpdated { hash: Default::default() });
 		System::finalize();
 		assert_eq!(
 			System::events(),
 			vec![EventRecord {
 				phase: Phase::Finalization,
-				event: SysEvent::CodeUpdated.into(),
+				event: SysEvent::CodeUpdated { hash: Default::default() }.into(),
 				topics: vec![],
 			}]
 		);
@@ -584,10 +584,10 @@ fn deposit_event_topics() {
 fn event_util_functions_should_work() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		System::deposit_event(SysEvent::CodeUpdated);
+		System::deposit_event(SysEvent::CodeUpdated { hash: Default::default() });
 
-		System::assert_has_event(SysEvent::CodeUpdated.into());
-		System::assert_last_event(SysEvent::CodeUpdated.into());
+		System::assert_has_event(SysEvent::CodeUpdated { hash: Default::default() }.into());
+		System::assert_last_event(SysEvent::CodeUpdated { hash: Default::default() }.into());
 	});
 }
 
@@ -687,11 +687,12 @@ fn set_code_with_real_wasm_blob() {
 		)
 		.unwrap();
 
+		let hash = BlakeTwo256::hash(&substrate_test_runtime_client::runtime::wasm_binary_unwrap());
 		assert_eq!(
 			System::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: SysEvent::CodeUpdated.into(),
+				event: SysEvent::CodeUpdated { hash }.into(),
 				topics: vec![],
 			}],
 		);
@@ -755,7 +756,7 @@ fn set_code_via_authorization_works() {
 
 		// Can apply correct runtime
 		assert_ok!(System::apply_authorized_upgrade(RawOrigin::None.into(), runtime.to_vec()));
-		System::assert_has_event(SysEvent::CodeUpdated.into());
+		System::assert_has_event(SysEvent::CodeUpdated { hash }.into());
 		assert!(System::authorized_upgrade().is_none());
 	});
 }
@@ -996,6 +997,8 @@ fn set_code_version_3_schedules_and_applies_pending_code() {
 		let pending = storage::unhashed::get_raw(well_known_keys::PENDING_CODE)
 			.expect("Pending code should exist");
 		assert_eq!(pending, code.clone());
+		let pending_hash = BlakeTwo256::hash(&pending);
+
 		// BlocksTillUpgrade should be set to 2
 		assert_eq!(BlocksTillUpgrade::<Test>::get(), Some(2u8));
 		// Immediate code not updated
@@ -1007,7 +1010,9 @@ fn set_code_version_3_schedules_and_applies_pending_code() {
 			.iter()
 			.any(|d| *d == sp_runtime::generic::DigestItem::RuntimeEnvironmentUpdated));
 		// CodeUpdated event is emitted immediately when the upgrade is scheduled.
-		System::assert_has_event(SysEvent::CodeUpdated.into());
+		System::assert_has_event(SysEvent::CodeUpdated { hash: pending_hash }.into());
+		System::reset_events();
+
 		// First on_finalize (block N): counter goes 2 -> 1, no apply yet
 		crate::Pallet::<Test>::maybe_apply_pending_code_upgrade();
 		assert_eq!(BlocksTillUpgrade::<Test>::get(), Some(1u8));
@@ -1024,8 +1029,8 @@ fn set_code_version_3_schedules_and_applies_pending_code() {
 		assert!(storage::unhashed::get_raw(well_known_keys::PENDING_CODE).is_none());
 		// BlocksTillUpgrade should be killed
 		assert_eq!(BlocksTillUpgrade::<Test>::get(), None);
-		// CodeUpdated event should now be emitted
-		System::assert_has_event(SysEvent::CodeUpdated.into());
+		// CodeUpdated event is not emitted again
+		assert!(System::events().is_empty());
 	});
 }
 

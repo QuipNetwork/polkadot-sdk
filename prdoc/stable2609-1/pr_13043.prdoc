@@ -1,0 +1,8 @@
+title: 'Slot based: Ensure we do not build two blocks on the same relay parent'
+doc:
+- audience: Node Dev
+  description: |-
+    The collator protocol would silently drop such a block and let the parachain get stuck for some time.
+crates:
+- name: cumulus-client-consensus-aura
+  bump: patch

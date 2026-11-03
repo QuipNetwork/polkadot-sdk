@@ -258,3 +258,11 @@ pub mod pallet {
 		}
 	}
 }
+
+sp_api::decl_runtime_apis! {
+  pub trait InboundQueueV2Api
+  {
+	/// Check if a message with the given nonce has been relayed.
+	fn is_message_relayed(nonce: u64) -> bool;
+  }
+}

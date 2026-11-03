@@ -1,0 +1,9 @@
+title: 'fix(state-sync): reject empty unverified state responses'
+doc:
+- audience: Node Operator
+  description: |-
+    Reject empty state responses when proof verification is disabled, preventing
+    malformed peer data from causing a state sync panic.
+crates:
+- name: sc-network-sync
+  bump: patch

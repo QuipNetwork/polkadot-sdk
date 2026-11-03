@@ -1,0 +1,12 @@
+title: Remove deprecated new_native_or_wasm_executor
+doc:
+- audience: Node Dev
+  description: |-
+    ## Summary
+    - Remove `sc_service::new_native_or_wasm_executor`, deprecated with note \"Will be removed at end of 2024\".
+    - Callers should use `sc_service::new_wasm_executor` instead.
+
+    Part of #11561
+crates:
+- name: sc-service
+  bump: major

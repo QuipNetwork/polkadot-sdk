@@ -20,15 +20,15 @@ hex = { workspace = true, default-features = true }
 hex-literal = { workspace = true, default-features = true }
 log = { workspace = true }
 pallet-revive = { workspace = true, features = ["std"] }
-polkadot-primitives = { default-features = true, workspace = true }
+polkadot-primitives = { workspace = true, default-features = true }
 rand = { workspace = true }
 regex = { workspace = true }
+rstest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sp-core = { workspace = true }
 sp-crypto-hashing = { workspace = true }
 sp-maybe-compressed-blob = { workspace = true }
-subxt = { workspace = true, default-features = false }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["time"] }
 zombienet-orchestrator = { workspace = true }
@@ -39,7 +39,7 @@ zombie-metadata = []
 zombie-ci = []
 
 [build-dependencies]
-sc-executor = { default-features = true, workspace = true }
-sc-runtime-utilities = { default-features = true, workspace = true }
+sc-executor = { workspace = true, default-features = true }
+sc-runtime-utilities = { workspace = true, default-features = true }
 sp-io = { workspace = true }
-substrate-build-script-utils = { default-features = true, workspace = true }
+substrate-build-script-utils = { workspace = true, default-features = true }

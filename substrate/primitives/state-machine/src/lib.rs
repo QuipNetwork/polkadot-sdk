@@ -1582,10 +1582,7 @@ mod tests {
 	fn test_compact(remote_proof: StorageProof, remote_root: &sp_core::H256) -> StorageProof {
 		let compact_remote_proof =
 			remote_proof.into_compact_proof::<BlakeTwo256>(*remote_root).unwrap();
-		compact_remote_proof
-			.to_storage_proof::<BlakeTwo256>(Some(remote_root))
-			.unwrap()
-			.0
+		compact_remote_proof.to_storage_proof::<BlakeTwo256>(remote_root).unwrap().0
 	}
 
 	#[test]

@@ -32,6 +32,7 @@ mod barriers;
 mod basic;
 mod bridging;
 mod expecting;
+mod forwarder;
 mod locking;
 mod origins;
 mod pay;

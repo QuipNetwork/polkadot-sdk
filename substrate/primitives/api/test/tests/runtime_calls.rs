@@ -30,7 +30,9 @@ use sp_runtime::{
 	traits::{HashingFor, Header as HeaderT},
 	TransactionOutcome,
 };
-use sp_state_machine::{create_proof_check_backend, execution_proof_check_on_trie_backend};
+use sp_state_machine::{
+	create_proof_check_backend, execution_proof_check_on_trie_backend, OverlayedChanges,
+};
 
 use substrate_test_runtime_client::{
 	prelude::*,
@@ -275,4 +277,25 @@ fn ensure_transactional_works() {
 	assert_eq!(transaction_tester.started.load(Ordering::Relaxed), 4);
 	assert_eq!(transaction_tester.committed.load(Ordering::Relaxed), 3);
 	assert_eq!(transaction_tester.rolled_back.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn set_overlayed_changes_is_observed_by_typed_call() {
+	let system_number_key: Vec<u8> = sp_crypto_hashing::twox_128(b"System")
+		.iter()
+		.chain(sp_crypto_hashing::twox_128(b"Number").iter())
+		.copied()
+		.collect();
+
+	let client = TestClientBuilder::new().build();
+	let mut runtime_api = client.runtime_api();
+	let best_hash = client.chain_info().best_hash;
+
+	assert_eq!(runtime_api.get_block_number(best_hash).unwrap(), 0);
+
+	let mut overlayed: OverlayedChanges<HashingFor<Block>> = OverlayedChanges::default();
+	overlayed.set_storage(system_number_key, Some(42u64.encode()));
+	runtime_api.set_overlayed_changes(overlayed);
+
+	assert_eq!(runtime_api.get_block_number(best_hash).unwrap(), 42);
 }

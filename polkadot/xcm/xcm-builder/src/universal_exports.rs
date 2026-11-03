@@ -53,60 +53,6 @@ pub fn ensure_is_remote(
 /// Implementation of `SendXcm` which uses the given `ExportXcm` implementation in order to forward
 /// the message over a bridge.
 ///
-/// No effort is made to charge for any bridge fees, so this can only be used when it is known
-/// that the message sending cannot be abused in any way.
-///
-/// This is only useful when the local chain has bridging capabilities.
-#[deprecated(note = "Will be removed after July 2025; It uses hard-coded channel `0`, \
-	use `xcm_builder::LocalExporter` directly instead.")]
-pub struct UnpaidLocalExporter<Exporter, UniversalLocation>(
-	PhantomData<(Exporter, UniversalLocation)>,
-);
-impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorLocation>> SendXcm
-	for UnpaidLocalExporter<Exporter, UniversalLocation>
-{
-	type Ticket = Exporter::Ticket;
-
-	fn validate(
-		dest: &mut Option<Location>,
-		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<Exporter::Ticket> {
-		// This `clone` ensures that `dest` is not consumed in any case.
-		let d = dest.clone().ok_or(MissingArgument)?;
-		let universal_source = UniversalLocation::get();
-		let devolved = ensure_is_remote(universal_source.clone(), d).map_err(|error| {
-			tracing::debug!(target: "xcm::universal_exports", ?error, "Failed to devolve location");
-			NotApplicable
-		})?;
-		let (remote_network, remote_location) = devolved;
-		let xcm = msg.take().ok_or(MissingArgument)?;
-
-		validate_export::<Exporter>(
-			remote_network,
-			0,
-			universal_source,
-			remote_location,
-			xcm.clone(),
-		)
-		.inspect_err(|err| {
-			if let NotApplicable = err {
-				// We need to make sure that msg is not consumed in case of `NotApplicable`.
-				*msg = Some(xcm);
-			}
-		})
-	}
-
-	fn deliver(ticket: Exporter::Ticket) -> Result<XcmHash, SendError> {
-		Exporter::deliver(ticket)
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn ensure_successful_delivery(_: Option<Location>) {}
-}
-
-/// Implementation of `SendXcm` which uses the given `ExportXcm` implementation in order to forward
-/// the message over a bridge.
-///
 /// This is only useful when the local chain has bridging capabilities.
 pub struct LocalExporter<Exporter, UniversalLocation>(PhantomData<(Exporter, UniversalLocation)>);
 impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorLocation>> SendXcm

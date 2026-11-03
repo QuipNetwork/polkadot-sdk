@@ -1,0 +1,66 @@
+[package]
+name = "pallet-registrar-test"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+description = "End-to-end tests for the parachain registrar across a relay chain and a parachain."
+publish = false
+
+[lints]
+workspace = true
+
+[package.metadata.polkadot-sdk]
+exclude-from-umbrella = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-message-queue = { workspace = true, default-features = true }
+pallet-registrar-para = { workspace = true, default-features = true }
+pallet-registrar-relay = { workspace = true, default-features = true }
+pallet-xcm = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-runtime-common = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+registrar-primitives = { workspace = true, default-features = true }
+scale-info = { workspace = true, default-features = true, features = ["derive"] }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
+
+[dev-dependencies]
+sp-tracing = { workspace = true, default-features = true }
+
+[features]
+default = []
+runtime-benchmarks = [
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-message-queue/runtime-benchmarks",
+	"pallet-registrar-para/runtime-benchmarks",
+	"pallet-registrar-relay/runtime-benchmarks",
+	"pallet-xcm/runtime-benchmarks",
+	"polkadot-parachain-primitives/runtime-benchmarks",
+	"polkadot-primitives/runtime-benchmarks",
+	"polkadot-runtime-common/runtime-benchmarks",
+	"polkadot-runtime-parachains/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+	"xcm-executor/runtime-benchmarks",
+	"xcm/runtime-benchmarks",
+]

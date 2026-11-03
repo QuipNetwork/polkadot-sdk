@@ -21,16 +21,16 @@ harness = false
 [dependencies]
 codec = { workspace = true, default-features = true }
 rustversion = { workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
+sc-block-builder = { workspace = true, default-features = true }
 scale-info = { features = ["derive"], workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-externalities = { default-features = true, workspace = true }
-sp-metadata-ir = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-metadata-ir = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 trybuild = { workspace = true }
 
@@ -38,7 +38,8 @@ trybuild = { workspace = true }
 criterion = { workspace = true, default-features = true }
 futures = { workspace = true }
 log = { workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
 static_assertions = { workspace = true, default-features = true }
 
 [features]

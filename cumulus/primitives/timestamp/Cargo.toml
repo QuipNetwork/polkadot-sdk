@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-primitives-timestamp"
-version = "0.25.0"
+version = "0.28.0"
 authors.workspace = true
 edition.workspace = true
 description = "Provides timestamp related functionality for parachains."
@@ -12,9 +12,12 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-cumulus-primitives-core = { workspace = true }
+# Substrate
 sp-inherents = { workspace = true }
 sp-timestamp = { workspace = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true }
 
 [features]
 default = ["std"]

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-tx-pause"
-version = "27.0.0"
+version = "31.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -21,9 +21,9 @@ frame = { workspace = true, features = ["runtime"] }
 scale-info = { features = ["derive"], workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-proxy = { default-features = true, workspace = true }
-pallet-utility = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-proxy = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

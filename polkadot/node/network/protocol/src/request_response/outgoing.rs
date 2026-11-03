@@ -24,7 +24,7 @@ use sc_network_types::PeerId;
 
 use polkadot_primitives::AuthorityDiscoveryId;
 
-use super::{v1, v2, IsRequest, Protocol};
+use super::{v1, v2, v3, IsRequest, Protocol};
 
 /// All requests that can be sent to the network bridge via `NetworkBridgeTxMessage::SendRequest`.
 #[derive(Debug)]
@@ -45,6 +45,10 @@ pub enum Requests {
 	/// Fetch a collation from a collator which previously announced it.
 	/// Compared to V1 it requires specifying which candidate is requested by its hash.
 	CollationFetchingV2(OutgoingRequest<v2::CollationFetchingRequest>),
+	/// Fetch a collation from a collator which previously announced it.
+	/// Compared to V2, the collation is keyed by the output head data hash rather
+	/// than candidate hash, and the response always carries parent head data.
+	CollationFetchingV3(OutgoingRequest<v3::CollationFetchingRequest>),
 }
 
 impl Requests {
@@ -60,6 +64,7 @@ impl Requests {
 			Self::ChunkFetching(r) => r.encode_request(),
 			Self::CollationFetchingV1(r) => r.encode_request(),
 			Self::CollationFetchingV2(r) => r.encode_request(),
+			Self::CollationFetchingV3(r) => r.encode_request(),
 			Self::PoVFetchingV1(r) => r.encode_request(),
 			Self::AvailableDataFetchingV1(r) => r.encode_request(),
 			Self::DisputeSendingV1(r) => r.encode_request(),

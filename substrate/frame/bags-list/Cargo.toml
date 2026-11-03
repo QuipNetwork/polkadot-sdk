@@ -1,6 +1,6 @@
 [package]
 name = "pallet-bags-list"
-version = "45.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -17,29 +17,35 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 # parity
 codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
+# primitives
+sp-runtime = { workspace = true }
+
+# FRAME
 frame-election-provider-support = { workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-sp-runtime = { workspace = true }
 
 # third party
 aquamarine = { workspace = true }
 docify = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
 log = { workspace = true }
+
+# Optional imports for benchmarking
+frame-benchmarking = { optional = true, workspace = true }
 pallet-balances = { optional = true, workspace = true }
 sp-core = { optional = true, workspace = true }
 sp-io = { optional = true, workspace = true }
 sp-tracing = { optional = true, workspace = true }
 
 [dev-dependencies]
-frame-benchmarking = { default-features = true, workspace = true }
-frame-election-provider-support = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+frame-benchmarking = { workspace = true, default-features = true }
+frame-election-provider-support = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-utils = { workspace = true }
 
 [features]

@@ -96,6 +96,7 @@ impl NotificationProtocolConfig {
 			set_config.reserved_nodes.iter().map(|address| address.peer_id).collect(),
 			Arc::clone(&connected_peers),
 			peerstore_handle,
+			metrics.clone(),
 		);
 
 		// create `litep2p` notification protocol configuration for the protocol

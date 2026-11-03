@@ -1,0 +1,10 @@
+title: 'WAH: wire pallet-recovery benchmarks'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Wired `pallet-recovery` into the asset-hub-westend benchmark list.
+    Fixed the benchmark setup: `finish_attempt` / `cancel_attempt` advance `frame_system`'s block number, which does not move `RelaychainDataProvider`, causing `NotYetInheritable` / `NotYetCancelable`.
+    Under `runtime-benchmarks`, use `frame_system` as the `BlockNumberProvider` so the time-delay guards can be satisfied.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch

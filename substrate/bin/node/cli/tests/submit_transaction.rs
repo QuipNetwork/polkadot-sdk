@@ -17,20 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Decode;
-use frame_system::offchain::{SendSignedTransaction, Signer, SubmitTransaction};
+use frame_system::offchain::{
+	CreateAuthorizedTransaction, SendSignedTransaction, Signer, SubmitTransaction,
+};
 use kitchensink_runtime::{Executive, ExistentialDeposit, Indices, Runtime, UncheckedExtrinsic};
 use polkadot_sdk::*;
 use sp_application_crypto::AppCrypto;
 use sp_core::offchain::{testing::TestTransactionPoolExt, TransactionPoolExt};
 use sp_keyring::sr25519::Keyring::Alice;
 use sp_keystore::{testing::MemoryKeystore, Keystore, KeystoreExt};
-use sp_runtime::generic;
 
 pub mod common;
 use self::common::*;
 
 #[test]
-fn should_submit_unsigned_transaction() {
+fn should_submit_authorized_transaction() {
 	let mut t = new_test_ext(compact_code_unwrap());
 	let (pool, state) = TestTransactionPoolExt::new();
 	t.register_extension(TransactionPoolExt::new(pool));
@@ -46,7 +47,9 @@ fn should_submit_unsigned_transaction() {
 		};
 
 		let call = pallet_im_online::Call::heartbeat { heartbeat: heartbeat_data, signature };
-		let xt = generic::UncheckedExtrinsic::new_bare(call.into()).into();
+		let xt = <Runtime as CreateAuthorizedTransaction<
+			pallet_im_online::Call<Runtime>,
+		>>::create_authorized_transaction(call.into());
 		SubmitTransaction::<Runtime, pallet_im_online::Call<Runtime>>::submit_transaction(xt)
 			.unwrap();
 

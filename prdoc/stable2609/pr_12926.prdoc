@@ -1,0 +1,10 @@
+title: 'fix(bridges): avoid arithmetic overflow in `calc_relayers_rewards`'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `calc_relayers_rewards` counted messages as `end - begin + 1`,
+    which overflows when the range covers the whole nonce space.
+    Use the existing saturating_len() helper, and saturating_add for the running total.
+crates:
+- name: bp-messages
+  bump: patch

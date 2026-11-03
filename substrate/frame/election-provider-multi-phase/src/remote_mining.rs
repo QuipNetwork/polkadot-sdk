@@ -145,8 +145,8 @@ impl<T: MinerConfig> HackyGetSnapshot<T> {
 		UntypedSnapshotOf<T>: Decode,
 	{
 		let key = [
-			sp_core::hashing::twox_128(b"ElectionProviderMultiPhase"),
-			sp_core::hashing::twox_128(b"Snapshot"),
+			sp_crypto_hashing::twox_128(b"ElectionProviderMultiPhase"),
+			sp_crypto_hashing::twox_128(b"Snapshot"),
 		]
 		.concat();
 		frame_support::storage::unhashed::get::<UntypedSnapshotOf<T>>(&key).unwrap()
@@ -154,8 +154,8 @@ impl<T: MinerConfig> HackyGetSnapshot<T> {
 
 	fn desired_targets() -> u32 {
 		let key = [
-			sp_core::hashing::twox_128(b"ElectionProviderMultiPhase"),
-			sp_core::hashing::twox_128(b"DesiredTargets"),
+			sp_crypto_hashing::twox_128(b"ElectionProviderMultiPhase"),
+			sp_crypto_hashing::twox_128(b"DesiredTargets"),
 		]
 		.concat();
 		frame_support::storage::unhashed::get::<u32>(&key).unwrap()

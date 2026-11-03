@@ -14,75 +14,16 @@ publish = false
 workspace = true
 
 [dependencies]
-binary-merkle-tree = { workspace = true }
 bitvec = { features = ["alloc"], workspace = true }
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-election-provider-support = { workspace = true }
-frame-executive = { workspace = true }
-frame-metadata-hash-extension = { workspace = true }
-frame-support = { features = ["experimental", "tuples-96"], workspace = true }
-frame-system = { workspace = true }
-frame-system-benchmarking = { optional = true, workspace = true }
-frame-system-rpc-runtime-api = { workspace = true }
-frame-try-runtime = { optional = true, workspace = true }
-hex-literal = { workspace = true, default-features = true }
 log = { workspace = true }
-pallet-asset-rate = { workspace = true }
-pallet-authority-discovery = { workspace = true }
-pallet-authorship = { workspace = true }
-pallet-babe = { workspace = true }
-pallet-bags-list = { workspace = true }
-pallet-balances = { workspace = true }
-pallet-beefy = { workspace = true }
-pallet-beefy-mmr = { workspace = true }
-pallet-conviction-voting = { workspace = true }
-pallet-election-provider-multi-phase = { workspace = true }
-pallet-election-provider-support-benchmarking = { optional = true, workspace = true }
-pallet-fast-unstake = { workspace = true }
-pallet-grandpa = { workspace = true }
-pallet-identity = { workspace = true }
-pallet-indices = { workspace = true }
-pallet-message-queue = { workspace = true }
-pallet-migrations = { workspace = true }
-pallet-mmr = { workspace = true }
-pallet-multisig = { workspace = true }
-pallet-offences = { workspace = true }
-pallet-offences-benchmarking = { optional = true, workspace = true }
-pallet-parameters = { workspace = true }
-pallet-preimage = { workspace = true }
-pallet-proxy = { workspace = true }
-pallet-recovery = { workspace = true }
-pallet-referenda = { workspace = true }
-pallet-root-offences = { workspace = true }
-pallet-root-testing = { workspace = true }
-pallet-scheduler = { workspace = true }
-pallet-session = { workspace = true }
-pallet-session-benchmarking = { optional = true, workspace = true }
-pallet-staking = { workspace = true }
-pallet-staking-async-ah-client = { workspace = true }
-pallet-staking-async-preset-store = { workspace = true }
-pallet-staking-async-rc-client = { workspace = true, features = ["xcm-sender"] }
-pallet-staking-async-rc-runtime-constants = { workspace = true }
-pallet-sudo = { workspace = true }
-pallet-timestamp = { workspace = true }
-pallet-transaction-payment = { workspace = true }
-pallet-transaction-payment-rpc-runtime-api = { workspace = true }
-pallet-treasury = { workspace = true }
-pallet-utility = { workspace = true }
-pallet-vesting = { workspace = true }
-pallet-whitelist = { workspace = true }
-pallet-xcm = { workspace = true }
-pallet-xcm-benchmarks = { optional = true, workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-primitives = { workspace = true }
-polkadot-runtime-common = { workspace = true }
-polkadot-runtime-parachains = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { workspace = true }
 serde_derive = { optional = true, workspace = true }
 serde_json = { features = ["alloc"], workspace = true }
 smallvec = { workspace = true, default-features = true }
+
+binary-merkle-tree = { workspace = true }
 sp-api = { workspace = true }
 sp-application-crypto = { workspace = true }
 sp-arithmetic = { workspace = true }
@@ -105,6 +46,70 @@ sp-staking = { workspace = true }
 sp-storage = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
+
+frame-election-provider-support = { workspace = true }
+frame-executive = { workspace = true }
+frame-metadata-hash-extension = { workspace = true }
+frame-support = { features = ["experimental", "tuples-96"], workspace = true }
+frame-system = { workspace = true }
+frame-system-rpc-runtime-api = { workspace = true }
+pallet-asset-rate = { workspace = true }
+pallet-authority-discovery = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-babe = { workspace = true }
+pallet-bags-list = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-beefy = { workspace = true }
+pallet-beefy-mmr = { workspace = true }
+pallet-conviction-voting = { workspace = true }
+pallet-election-provider-multi-phase = { workspace = true }
+pallet-fast-unstake = { workspace = true }
+pallet-grandpa = { workspace = true }
+pallet-identity = { workspace = true }
+pallet-indices = { workspace = true }
+pallet-message-queue = { workspace = true }
+pallet-migrations = { workspace = true }
+pallet-mmr = { workspace = true }
+pallet-multisig = { workspace = true }
+pallet-offences = { workspace = true }
+pallet-parameters = { workspace = true }
+pallet-preimage = { workspace = true }
+pallet-proxy = { workspace = true }
+pallet-recovery = { workspace = true }
+pallet-referenda = { workspace = true }
+pallet-root-offences = { workspace = true }
+pallet-root-testing = { workspace = true }
+pallet-scheduler = { workspace = true }
+pallet-session = { workspace = true }
+pallet-staking = { workspace = true }
+pallet-staking-async-ah-client = { workspace = true }
+pallet-staking-async-preset-store = { workspace = true }
+pallet-staking-async-rc-client = { workspace = true, features = ["xcm-sender"] }
+pallet-staking-async-rc-runtime-constants = { workspace = true }
+pallet-sudo = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-transaction-payment = { workspace = true }
+pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+pallet-treasury = { workspace = true }
+pallet-utility = { workspace = true }
+pallet-vesting = { workspace = true }
+pallet-whitelist = { workspace = true }
+pallet-xcm = { workspace = true }
+pallet-xcm-benchmarks = { optional = true, workspace = true }
+
+frame-benchmarking = { optional = true, workspace = true }
+frame-system-benchmarking = { optional = true, workspace = true }
+frame-try-runtime = { optional = true, workspace = true }
+hex-literal = { workspace = true, default-features = true }
+pallet-election-provider-support-benchmarking = { optional = true, workspace = true }
+pallet-offences-benchmarking = { optional = true, workspace = true }
+pallet-session-benchmarking = { optional = true, workspace = true }
+
+polkadot-parachain-primitives = { workspace = true }
+polkadot-primitives = { workspace = true }
+polkadot-runtime-common = { workspace = true }
+polkadot-runtime-parachains = { workspace = true }
+
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
@@ -112,15 +117,15 @@ xcm-runtime-apis = { workspace = true }
 
 [dev-dependencies]
 approx = { workspace = true }
-remote-externalities = { default-features = true, workspace = true }
+remote-externalities = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { workspace = true, default-features = false }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true }
 tiny-keccak = { features = ["keccak"], workspace = true }
 tokio = { features = ["macros"], workspace = true, default-features = true }
 
 [build-dependencies]
-substrate-wasm-builder = { default-features = true, workspace = true }
+substrate-wasm-builder = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

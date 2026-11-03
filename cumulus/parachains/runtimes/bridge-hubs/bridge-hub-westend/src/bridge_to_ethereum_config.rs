@@ -17,14 +17,18 @@
 use crate::{
 	bridge_common_config::BridgeReward,
 	xcm_config,
-	xcm_config::{RelayNetwork, RootLocation, TreasuryAccount, UniversalLocation, XcmConfig},
+	xcm_config::{AccumulateAccount, RelayNetwork, RootLocation, UniversalLocation, XcmConfig},
 	Balances, BridgeRelayers, EthereumBeaconClient, EthereumInboundQueue, EthereumInboundQueueV2,
 	EthereumOutboundQueue, EthereumOutboundQueueV2, EthereumSystem, EthereumSystemV2, MessageQueue,
 	Runtime, RuntimeEvent, TransactionByteFee,
 };
 use bp_asset_hub_westend::CreateForeignAssetDeposit;
 use bridge_hub_common::AggregateMessageOrigin;
-use frame_support::{parameter_types, traits::Contains, weights::ConstantMultiplier};
+use frame_support::{
+	parameter_types,
+	traits::{Contains, Equals, EverythingBut},
+	weights::ConstantMultiplier,
+};
 use frame_system::EnsureRootWithSuccess;
 use hex_literal::hex;
 use pallet_xcm::EnsureXcm;
@@ -46,6 +50,7 @@ use sp_runtime::{
 use testnet_parachains_constants::westend::{
 	currency::*,
 	fee::WeightToFee,
+	locations::AssetHubLocation,
 	snowbridge::{
 		AssetHubParaId, EthereumLocation, EthereumNetwork, FRONTEND_PALLET_INDEX,
 		INBOUND_QUEUE_PALLET_INDEX_V1, INBOUND_QUEUE_PALLET_INDEX_V2,
@@ -72,6 +77,7 @@ pub type SnowbridgeExporterV2 = EthereumBlobExporterV2<
 	EthereumOutboundQueueV2,
 	EthereumSystemV2,
 	AssetHubParaId,
+	EverythingBut<Equals<AssetHubLocation>>,
 >;
 
 // Ethereum Bridge
@@ -293,7 +299,7 @@ impl snowbridge_pallet_system::Config for Runtime {
 	type OutboundQueue = EthereumOutboundQueue;
 	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
 	type AgentIdOf = snowbridge_core::AgentIdOf;
-	type TreasuryAccount = TreasuryAccount;
+	type TreasuryAccount = AccumulateAccount;
 	type Token = Balances;
 	type WeightInfo = crate::weights::snowbridge_pallet_system::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
@@ -462,37 +468,5 @@ mod tests {
 			INBOUND_QUEUE_PALLET_INDEX_V2,
 			<EthereumInboundQueueV2 as frame_support::traits::PalletInfoAccess>::index() as u8
 		);
-	}
-}
-
-pub(crate) mod migrations {
-	use frame_support::pallet_prelude::*;
-	use snowbridge_core::TokenId;
-
-	#[frame_support::storage_alias]
-	pub type OldNativeToForeignId<T: snowbridge_pallet_system::Config> = StorageMap<
-		snowbridge_pallet_system::Pallet<T>,
-		Blake2_128Concat,
-		xcm::v4::Location,
-		TokenId,
-		OptionQuery,
-	>;
-
-	/// One shot migration for NetworkId::Westend to NetworkId::ByGenesis(WESTEND_GENESIS_HASH)
-	pub struct MigrationForXcmV5<T: snowbridge_pallet_system::Config>(core::marker::PhantomData<T>);
-	impl<T: snowbridge_pallet_system::Config> frame_support::traits::OnRuntimeUpgrade
-		for MigrationForXcmV5<T>
-	{
-		fn on_runtime_upgrade() -> Weight {
-			let mut weight = T::DbWeight::get().reads(1);
-
-			let translate_westend = |pre: xcm::v4::Location| -> Option<xcm::v5::Location> {
-				weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
-				Some(xcm::v5::Location::try_from(pre).expect("valid location"))
-			};
-			snowbridge_pallet_system::ForeignToNativeId::<T>::translate_values(translate_westend);
-
-			weight
-		}
 	}
 }

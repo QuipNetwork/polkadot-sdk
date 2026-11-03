@@ -1,0 +1,31 @@
+title: Extract and refactor the Bitswap service
+doc:
+- audience: Node Dev
+  description: |-
+    Moves the Bitswap client and server from `sc-network` into the new
+    `sc-network-bitswap` crate. The new actor exposes a streaming `BitswapHandle` and
+    centralizes CID deduplication, peer selection, retries, response handling, and
+    backpressure. Storage-chain sync and node service wiring now use this handle.
+
+    The backend-specific Bitswap shims and local protobuf plumbing are removed. Bitswap
+    is now supported through Litep2p only; starting a node with `--ipfs-server` and a
+    different network backend returns an error.
+crates:
+- name: sc-network-bitswap
+  bump: patch
+- name: sc-network
+  bump: major
+- name: sc-service
+  bump: major
+  validate: false
+- name: sc-storage-chain-sync
+  bump: major
+- name: cumulus-client-service
+  bump: major
+  validate: false
+- name: polkadot-service
+  bump: patch
+- name: polkadot-omni-node-lib
+  bump: major
+- name: polkadot-sdk
+  bump: minor

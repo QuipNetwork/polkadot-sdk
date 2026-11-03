@@ -19,7 +19,7 @@
 use polkavm::{CallError, Caller, Reg};
 use sc_executor_common::{
 	error::{Error, WasmError},
-	wasm_runtime::{AllocationStats, WasmInstance, WasmModule},
+	wasm_runtime::{AllocationStats, HeapAllocStrategy, WasmInstance, WasmModule},
 };
 use sp_runtime_interface::unpack_ptr_and_len;
 use sp_wasm_interface::{
@@ -33,7 +33,10 @@ pub struct InstancePre(polkavm::InstancePre<(), String>);
 pub struct Instance(polkavm::Instance<(), String>);
 
 impl WasmModule for InstancePre {
-	fn new_instance(&self) -> Result<Box<dyn WasmInstance>, Error> {
+	fn new_instance(
+		&self,
+		_heap_alloc_strategy: HeapAllocStrategy,
+	) -> Result<Box<dyn WasmInstance>, Error> {
 		Ok(Box::new(Instance(self.0.instantiate()?)))
 	}
 }
@@ -134,7 +137,7 @@ struct Context<'r, 'a>(&'r mut polkavm::Caller<'a, ()>);
 
 impl<'r, 'a> FunctionContext for Context<'r, 'a> {
 	fn read_memory_into(
-		&self,
+		&mut self,
 		address: Pointer<u8>,
 		dest: &mut [u8],
 	) -> sp_wasm_interface::Result<()> {

@@ -1,0 +1,28 @@
+title: 'feat(webrtc): add experimental WebRTC transport to litep2p backend'
+doc:
+- audience: Node Dev
+  description: |-
+    # Description
+
+    Add webrtc-direct support to the litep2p backend
+
+    - webrtc-direct support gated behind a new `--experimental-webrtc` CLI flag.
+    - WebRTC `listen_addr` entries are skipped with a warning unless enabled.
+    - Persist the DTLS certificate to `<net_config_path>/webrtc_certificate` so the node keeps a stable identity across restarts. Fall back to an ephemeral cert otherwise.
+    - update network type to support `WebRTCDirect`
+
+    ## Integration
+
+    No behavioral change unless --experimental-webrtc is explicitly enabled.
+
+    ## Review Notes
+
+    This PR adds experimental webrtc-direct transport support to the litep2p network backend. It is fully opt-in: nothing changes for existing nodes unless the operator explicitly passes --experimental-webrtc and supplies a webrtc-direct listen address. Default backend (litep2p) behavior, the libp2p backend, and all existing transports are untouched.
+
+crates:
+- name: sc-cli
+  bump: major
+- name: sc-network
+  bump: major
+- name: sc-network-types
+  bump: major

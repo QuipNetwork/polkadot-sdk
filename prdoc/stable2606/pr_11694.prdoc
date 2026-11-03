@@ -1,0 +1,18 @@
+title: Make pallet_xcm_bridge_hub_router exporter configurable for paid/unpaid
+doc:
+- audience: Runtime Dev
+  description: |-
+    Add `type Exporter: SendXcm` to the pallet's Config trait so runtimes can choose between `SovereignPaidRemoteExporter` (paid) and `UnpaidRemoteExporter` (unpaid) bridging. Provide convenience type aliases `PaidRemoteExporter` and `UnpaidRemoteExporterAdapter`.
+    Asset Hub runtimes are configured to now use `UnpaidRemoteExporter` to reduce deployment complexity
+    (no more need to manage/top-up AH sov account on BH).
+crates:
+- name: pallet-xcm-bridge-hub-router
+  bump: major
+- name: pallet-xcm-bridge-hub
+  bump: patch
+- name: asset-hub-rococo-runtime
+  bump: none
+- name: asset-hub-westend-runtime
+  bump: none
+- name: bridge-hub-rococo-runtime
+  bump: none

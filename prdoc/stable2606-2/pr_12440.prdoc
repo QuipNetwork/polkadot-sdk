@@ -1,0 +1,11 @@
+title: 'Fix for `rust-lld` regression'
+doc:
+  - audience: Runtime Dev
+    description: |-
+      Adapts the `#[runtime_interface]` macro to a `rust-lld` regression observed since Rust
+      1.96.0, which requires the Wasm module that external functions are imported from to be
+      specified explicitly. The generated `extern "C"` blocks now carry
+      `#[link(wasm_import_module = "env")]` when compiling for `wasm32`.
+crates:
+  - name: sp-runtime-interface-proc-macro
+    bump: patch

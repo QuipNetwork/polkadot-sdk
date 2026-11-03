@@ -21,8 +21,7 @@ use cumulus_client_consensus_aura::collators::lookahead::{self as aura, Params a
 use cumulus_client_consensus_common::ParachainBlockImport as TParachainBlockImport;
 use cumulus_client_service::{
 	build_network, build_relay_chain_interface, prepare_node_config, start_relay_chain_tasks,
-	BuildNetworkParams, CollatorSybilResistance, DARecoveryProfile, ParachainHostFunctions,
-	StartRelayChainTasksParams,
+	BuildNetworkParams, DARecoveryProfile, ParachainHostFunctions, StartRelayChainTasksParams,
 };
 #[docify::export(cumulus_primitives)]
 use cumulus_primitives_core::{
@@ -196,12 +195,7 @@ fn start_consensus(
 		prometheus_registry,
 		telemetry.clone(),
 	);
-	let collator_service = CollatorService::new(
-		client.clone(),
-		Arc::new(task_manager.spawn_handle()),
-		announce_block,
-		client.clone(),
-	);
+	let collator_service = CollatorService::new(client.clone(), announce_block, client.clone());
 
 	let params = AuraParams {
 		create_inherent_data_providers: move |_, ()| async move { Ok(()) },
@@ -286,7 +280,7 @@ pub async fn start_parachain_node(
 
 	// NOTE: because we use Aura here explicitly, we can use `CollatorSybilResistance::Resistant`
 	// when starting the network.
-	let (network, system_rpc_tx, tx_handler_controller, sync_service) =
+	let (network, system_rpc_tx, tx_handler_controller, sync_service, _bitswap_handle) =
 		build_network(BuildNetworkParams {
 			parachain_config: &parachain_config,
 			net_config,
@@ -297,13 +291,13 @@ pub async fn start_parachain_node(
 			spawn_essential_handle: task_manager.spawn_essential_handle(),
 			relay_chain_interface: relay_chain_interface.clone(),
 			import_queue: params.import_queue,
-			sybil_resistance_level: CollatorSybilResistance::Resistant, // because of Aura
 			metrics: sc_network::NetworkWorker::<Block, Hash>::register_notification_metrics(
 				parachain_config.prometheus_config.as_ref().map(|config| &config.registry),
 			),
+			gap_sync_body_policy: None,
 		})
 		.await?;
-	let collator_peer_id = network.local_peer_id();
+	let collator_peer_id = relay_chain_network.local_peer_id();
 
 	if parachain_config.offchain_worker.enabled {
 		use futures::FutureExt;

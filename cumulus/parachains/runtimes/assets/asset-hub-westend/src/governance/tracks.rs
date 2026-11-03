@@ -63,12 +63,17 @@ const SUP_MEDIUM_SPENDER: Curve =
 	Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
 const APP_BIG_SPENDER: Curve = Curve::make_linear(28, 28, percent(50), percent(100));
 const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
+const APP_MONETARY_GUARD: Curve =
+	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
+// NOTE: Support floor at 0% for testing purposes.
+const SUP_MONETARY_GUARD: Curve =
+	Curve::make_reciprocal(1, 28, percent(20), percent(0), percent(50));
 const APP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
 const SUP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(1, 28, percent(20), percent(5), percent(50));
 
-const TRACKS_DATA: [pallet_referenda::Track<u16, Balance, BlockNumber>; 15] = [
+const TRACKS_DATA: [pallet_referenda::Track<u16, Balance, BlockNumber>; 16] = [
 	pallet_referenda::Track {
 		id: 0,
 		info: pallet_referenda::TrackInfo {
@@ -179,6 +184,21 @@ const TRACKS_DATA: [pallet_referenda::Track<u16, Balance, BlockNumber>; 15] = [
 			min_enactment_period: 3 * MINUTES,
 			min_approval: APP_AUCTION_ADMIN,
 			min_support: SUP_AUCTION_ADMIN,
+		},
+	},
+	pallet_referenda::Track {
+		id: 16,
+		info: pallet_referenda::TrackInfo {
+			name: s("monetary_guard"),
+			max_deciding: 3,
+			// NOTE: Low for testing purposes.
+			decision_deposit: 500 * UNITS,
+			prepare_period: 20 * MINUTES,
+			decision_period: 20 * MINUTES,
+			confirm_period: 4 * MINUTES,
+			min_enactment_period: 1 * MINUTES,
+			min_approval: APP_MONETARY_GUARD,
+			min_support: SUP_MONETARY_GUARD,
 		},
 	},
 	pallet_referenda::Track {
@@ -307,6 +327,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				origins::Origin::FellowshipAdmin => Ok(13),
 				origins::Origin::GeneralAdmin => Ok(14),
 				origins::Origin::AuctionAdmin => Ok(15),
+				origins::Origin::MonetaryGuard => Ok(16),
 				// Referendum admins
 				origins::Origin::ReferendumCanceller => Ok(20),
 				origins::Origin::ReferendumKiller => Ok(21),

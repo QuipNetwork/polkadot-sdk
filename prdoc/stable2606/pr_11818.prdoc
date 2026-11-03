@@ -1,0 +1,17 @@
+title: Add pallet-pgas-allowance with ChargePGAS transaction extension
+doc:
+  - audience: Runtime Dev
+    description: |
+      - Introduces `pallet-pgas-allowance` providing a new `ChargePGAS<T, S>` transaction
+        extension that wraps an inner fee extension `S`.
+      - When a signed transaction dispatches a call matching `Config::CallFilter` and the
+        signer holds enough PGAS (a trusted asset on Asset Hub), the fee is withdrawn as
+        a `fungibles::Credit`. In `post_dispatch` the `actual_fee`
+        portion is dropped and burned and the unused remainder refunded to the payer.
+      - A `PGASFeePaid { who, actual_fee }` event is emitted when the fee is paid in PGAS.
+      - Wires the extension into `asset-hub-westend`.
+crates:
+  - name: asset-hub-westend-runtime
+    bump: minor
+  - name: pallet-pgas-allowance
+    bump: minor

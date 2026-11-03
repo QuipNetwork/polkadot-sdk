@@ -1,0 +1,15 @@
+title: 'statement-store: remove unused `Proof::OnChain` variant'
+
+doc:
+  - audience: Node Dev
+    description: |
+      Removes the `Proof::OnChain` variant from `sp_statement_store::Proof` because it
+      was unused.
+
+crates:
+  - name: sp-statement-store
+    bump: major
+  - name: sc-statement-store
+    bump: minor
+  - name: pallet-statement
+    bump: minor

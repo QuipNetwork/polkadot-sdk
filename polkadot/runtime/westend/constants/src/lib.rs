@@ -125,6 +125,38 @@ pub mod system_parachain {
 	/// All system parachains of Westend.
 	pub type SystemParachains = IsChildSystemParachain<ParaId>;
 
+	/// DAP constants.
+	pub mod dap {
+		use frame_support::parameter_types;
+		use sp_runtime::traits::AccountIdConversion;
+		use xcm::latest::{InteriorLocation, Junction};
+
+		parameter_types! {
+			/// The interior location of the DAP staging account on AssetHub.
+			pub DapStagingLocation: InteriorLocation = Junction::AccountId32 {
+				network: None,
+				id: sp_dap::DAP_PALLET_ID
+				.into_sub_account_truncating(sp_dap::DAP_STAGING_ACCOUNT_ID),
+			}
+			.into();
+		}
+	}
+
+	/// Accumulate-and-forward constants.
+	pub mod accumulate_forward {
+		use frame_support::{parameter_types, PalletId};
+		use polkadot_primitives::{Balance, BlockNumber};
+
+		parameter_types! {
+			/// The pallet ID used to derive the accumulation account.
+			pub const AccumulateForwardPalletId: PalletId = PalletId(*b"acf/dott");
+			/// How often the accumulation account forwards to the destination.
+			pub const ForwardPeriod: BlockNumber = super::super::time::HOURS;
+			/// Minimum balance required to trigger a forward.
+			pub const MinForwardAmount: Balance = 10 * super::super::currency::UNITS;
+		}
+	}
+
 	/// Coretime constants
 	pub mod coretime {
 		/// Coretime timeslice period in blocks
@@ -149,9 +181,6 @@ pub mod xcm {
 		const ROOT_INDEX: u32 = 0;
 		// The bodies corresponding to the Polkadot OpenGov Origins.
 		pub const FELLOWSHIP_ADMIN_INDEX: u32 = 1;
-		#[deprecated = "Will be removed after August 2024; Use `xcm::latest::BodyId::Treasury` \
-			instead"]
-		pub const TREASURER_INDEX: u32 = 2;
 	}
 }
 

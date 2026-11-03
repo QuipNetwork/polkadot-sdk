@@ -1,0 +1,63 @@
+title: Add V3 scheduling validation for parachains
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Adds V3 scheduling validation with `SchedulingV3Enabled` config and `MaxClaimQueueOffset`
+      to parachain-system pallet. Parachains must enable V3 explicitly after all collators are updated.
+      Do not enable it unless instructed to, otherwise, your chain will stall.
+
+  - audience: Node Dev
+    description: |
+      Collators now build V3 scheduling proofs and respect runtime-configured `MaxClaimQueueOffset`.
+      Backwards compatible: falls back to default offset of 1 if runtime doesn't implement the API.
+
+crates:
+  - name: cumulus-pallet-parachain-system
+    bump: major
+  - name: cumulus-primitives-core
+    bump: major
+  - name: cumulus-client-consensus-common
+    bump: major
+  - name: cumulus-client-consensus-aura
+    bump: major
+  - name: cumulus-client-collator
+    bump: major
+  - name: cumulus-client-pov-recovery
+    bump: patch
+  - name: cumulus-client-network
+    bump: patch
+  - name: cumulus-relay-chain-inprocess-interface
+    bump: minor
+  - name: cumulus-relay-chain-interface
+    bump: minor
+  - name: cumulus-relay-chain-rpc-interface
+    bump: minor
+  - name: polkadot-omni-node-lib
+    bump: patch
+  - name: cumulus-pallet-aura-ext
+    bump: patch
+  - name: frame-benchmarking-cli
+    bump: patch
+  - name: cumulus-pallet-xcmp-queue
+    bump: patch
+  - name: asset-hub-rococo-runtime
+    bump: minor
+  - name: asset-hub-westend-runtime
+    bump: minor
+  - name: bridge-hub-rococo-runtime
+    bump: minor
+  - name: bridge-hub-westend-runtime
+    bump: minor
+  - name: collectives-westend-runtime
+    bump: minor
+  - name: coretime-westend-runtime
+    bump: minor
+  - name: people-westend-runtime
+    bump: minor
+  - name: penpal-runtime
+    bump: minor
+  - name: glutton-westend-runtime
+    bump: minor
+  - name: yet-another-parachain-runtime
+    bump: minor

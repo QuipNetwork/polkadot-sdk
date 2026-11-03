@@ -28,8 +28,8 @@ use polkadot_parachain_primitives::primitives::{
 };
 use polkadot_primitives::{
 	ApprovalVotingParams, AsyncBackingParams, Balance, ExecutorParamError, ExecutorParams,
-	NodeFeatures, SessionIndex, LEGACY_MIN_BACKING_VOTES, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
-	ON_DEMAND_MAX_QUEUE_MAX_SIZE,
+	NodeFeatures, SessionIndex, LEGACY_MIN_BACKING_VOTES, MAX_COALESCE_APPROVALS, MAX_CODE_SIZE,
+	MAX_HEAD_DATA_SIZE, ON_DEMAND_MAX_QUEUE_MAX_SIZE,
 };
 use sp_runtime::{traits::Zero, Perbill, Percent};
 
@@ -316,6 +316,9 @@ pub enum InconsistentError<BlockNumber> {
 	MaxHeadDataSizeExceedHardLimit { max_head_data_size: u32 },
 	/// `max_pov_size` exceeds the hard limit of `POV_SIZE_HARD_LIMIT`.
 	MaxPovSizeExceedHardLimit { max_pov_size: u32 },
+	/// `approval_voting_params.max_approval_coalesce_count` exceeds the hard limit of
+	/// `MAX_COALESCE_APPROVALS`.
+	MaxApprovalCoalesceCountExceedHardLimit { max_approval_coalesce_count: u32 },
 	/// `minimum_validation_upgrade_delay` is less than `paras_availability_period`.
 	MinimumValidationUpgradeDelayLessThanChainAvailabilityPeriod {
 		minimum_validation_upgrade_delay: BlockNumber,
@@ -383,6 +386,14 @@ where
 
 		if self.max_pov_size > POV_SIZE_HARD_LIMIT {
 			return Err(MaxPovSizeExceedHardLimit { max_pov_size: self.max_pov_size });
+		}
+
+		if self.approval_voting_params.max_approval_coalesce_count > MAX_COALESCE_APPROVALS {
+			return Err(MaxApprovalCoalesceCountExceedHardLimit {
+				max_approval_coalesce_count: self
+					.approval_voting_params
+					.max_approval_coalesce_count,
+			});
 		}
 
 		if self.minimum_validation_upgrade_delay <= self.scheduler_params.paras_availability_period

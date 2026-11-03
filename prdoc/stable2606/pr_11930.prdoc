@@ -1,0 +1,16 @@
+title: 'pallet-staking-async: Rotate era reward pots through a fixed-size pool'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Era reward pot accounts are now drawn from a fixed pool of `POT_POOL_SIZE = 200`
+    accounts, indexed by `era % POT_POOL_SIZE`, instead of one fresh account per era.
+    This ensure we only use a fixed size of pot accounts for the lifetime of the 
+    chain rather than growing per era.
+
+    An `integrity_test` enforces `POT_POOL_SIZE > HistoryDepth` so a slot is only
+    reused after its previous era has been pruned.
+crates:
+- name: pallet-staking-async
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: minor

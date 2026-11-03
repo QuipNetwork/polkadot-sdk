@@ -1,6 +1,6 @@
 [package]
 name = "pallet-conviction-voting"
-version = "46.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -27,8 +27,8 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -37,8 +37,10 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"pallet-balances/std",
 	"scale-info/std",
 	"serde",
+	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 ]

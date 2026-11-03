@@ -37,8 +37,8 @@ use sc_executor_common::{
 	},
 };
 use sp_core::traits::{CallContext, CodeExecutor, Externalities, RuntimeCode};
-use sp_version::{GetNativeVersion, NativeVersion, RuntimeVersion};
-use sp_wasm_interface::{ExtendedHostFunctions, HostFunctions};
+use sp_version::RuntimeVersion;
+use sp_wasm_interface::HostFunctions;
 
 /// Set up the externalities and safe calling environment to execute runtime calls.
 ///
@@ -61,21 +61,6 @@ where
 			}
 		})
 	})
-}
-
-/// Delegate for dispatching a CodeExecutor call.
-///
-/// By dispatching we mean that we execute a runtime function specified by it's name.
-pub trait NativeExecutionDispatch: Send + Sync {
-	/// Host functions for custom runtime interfaces that should be callable from within the runtime
-	/// besides the default Substrate runtime interfaces.
-	type ExtendHostFunctions: HostFunctions;
-
-	/// Dispatch a method in the runtime.
-	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>>;
-
-	/// Provide native runtime version.
-	fn native_version() -> NativeVersion;
 }
 
 fn unwrap_heap_pages(pages: Option<HeapAllocStrategy>) -> HeapAllocStrategy {
@@ -433,8 +418,9 @@ where
 		)
 		.map_err(|e| format!("Failed to create module: {}", e))?;
 
-		let instance =
-			module.new_instance().map_err(|e| format!("Failed to create instance: {}", e))?;
+		let instance = module
+			.new_instance(self.default_onchain_heap_alloc_strategy)
+			.map_err(|e| format!("Failed to create instance: {}", e))?;
 
 		let mut instance = AssertUnwindSafe(instance);
 		let mut ext = AssertUnwindSafe(ext);
@@ -519,7 +505,8 @@ where
 
 		let heap_alloc_strategy = match context {
 			CallContext::Offchain => self.default_offchain_heap_alloc_strategy,
-			CallContext::Onchain => on_chain_heap_alloc_strategy,
+			CallContext::Onchain { import: false } => on_chain_heap_alloc_strategy,
+			CallContext::Onchain { import: true } => on_chain_heap_alloc_strategy.double(),
 		};
 
 		let result = self.with_instance(
@@ -564,200 +551,11 @@ where
 	}
 }
 
-/// A generic `CodeExecutor` implementation that uses a delegate to determine wasm code equivalence
-/// and dispatch to native code when possible, falling back on `WasmExecutor` when not.
-#[deprecated(
-	note = "Native execution will be deprecated, please replace with `WasmExecutor`. Will be removed at end of 2024."
-)]
-pub struct NativeElseWasmExecutor<D: NativeExecutionDispatch> {
-	/// Native runtime version info.
-	native_version: NativeVersion,
-	/// Fallback wasm executor.
-	wasm:
-		WasmExecutor<ExtendedHostFunctions<sp_io::SubstrateHostFunctions, D::ExtendHostFunctions>>,
-
-	use_native: bool,
-}
-
-#[allow(deprecated)]
-impl<D: NativeExecutionDispatch> NativeElseWasmExecutor<D> {
-	/// Create new instance.
-	///
-	/// # Parameters
-	///
-	/// `fallback_method` - Method used to execute fallback Wasm code.
-	///
-	/// `default_heap_pages` - Number of 64KB pages to allocate for Wasm execution. Internally this
-	/// will be mapped as [`HeapAllocStrategy::Static`] where `default_heap_pages` represent the
-	/// static number of heap pages to allocate. Defaults to `DEFAULT_HEAP_ALLOC_STRATEGY` if `None`
-	/// is provided.
-	///
-	/// `max_runtime_instances` - The number of runtime instances to keep in memory ready for reuse.
-	///
-	/// `runtime_cache_size` - The capacity of runtime cache.
-	#[deprecated(note = "use `Self::new_with_wasm_executor` method instead of it")]
-	pub fn new(
-		fallback_method: WasmExecutionMethod,
-		default_heap_pages: Option<u64>,
-		max_runtime_instances: usize,
-		runtime_cache_size: u8,
-	) -> Self {
-		let heap_pages = default_heap_pages.map_or(DEFAULT_HEAP_ALLOC_STRATEGY, |h| {
-			HeapAllocStrategy::Static { extra_pages: h as _ }
-		});
-		let wasm = WasmExecutor::builder()
-			.with_execution_method(fallback_method)
-			.with_onchain_heap_alloc_strategy(heap_pages)
-			.with_offchain_heap_alloc_strategy(heap_pages)
-			.with_max_runtime_instances(max_runtime_instances)
-			.with_runtime_cache_size(runtime_cache_size)
-			.build();
-
-		NativeElseWasmExecutor { native_version: D::native_version(), wasm, use_native: true }
-	}
-
-	/// Create a new instance using the given [`WasmExecutor`].
-	pub fn new_with_wasm_executor(
-		executor: WasmExecutor<
-			ExtendedHostFunctions<sp_io::SubstrateHostFunctions, D::ExtendHostFunctions>,
-		>,
-	) -> Self {
-		Self { native_version: D::native_version(), wasm: executor, use_native: true }
-	}
-
-	/// Disable to use native runtime when possible just behave like `WasmExecutor`.
-	///
-	/// Default to enabled.
-	pub fn disable_use_native(&mut self) {
-		self.use_native = false;
-	}
-
-	/// Ignore missing function imports if set true.
-	#[deprecated(note = "use `Self::new_with_wasm_executor` method instead of it")]
-	pub fn allow_missing_host_functions(&mut self, allow_missing_host_functions: bool) {
-		self.wasm.allow_missing_host_functions = allow_missing_host_functions
-	}
-}
-
-#[allow(deprecated)]
-impl<D: NativeExecutionDispatch> RuntimeVersionOf for NativeElseWasmExecutor<D> {
-	fn runtime_version(
-		&self,
-		ext: &mut dyn Externalities,
-		runtime_code: &RuntimeCode,
-	) -> Result<RuntimeVersion> {
-		self.wasm.runtime_version(ext, runtime_code)
-	}
-}
-
-#[allow(deprecated)]
-impl<D: NativeExecutionDispatch> GetNativeVersion for NativeElseWasmExecutor<D> {
-	fn native_version(&self) -> &NativeVersion {
-		&self.native_version
-	}
-}
-
-#[allow(deprecated)]
-impl<D: NativeExecutionDispatch + 'static> CodeExecutor for NativeElseWasmExecutor<D> {
-	type Error = Error;
-
-	fn call(
-		&self,
-		ext: &mut dyn Externalities,
-		runtime_code: &RuntimeCode,
-		method: &str,
-		data: &[u8],
-		context: CallContext,
-	) -> (Result<Vec<u8>>, bool) {
-		let use_native = self.use_native;
-
-		tracing::trace!(
-			target: "executor",
-			function = %method,
-			"Executing function",
-		);
-
-		let on_chain_heap_alloc_strategy = if self.wasm.ignore_onchain_heap_pages {
-			self.wasm.default_onchain_heap_alloc_strategy
-		} else {
-			runtime_code
-				.heap_pages
-				.map(|h| HeapAllocStrategy::Static { extra_pages: h as _ })
-				.unwrap_or_else(|| self.wasm.default_onchain_heap_alloc_strategy)
-		};
-
-		let heap_alloc_strategy = match context {
-			CallContext::Offchain => self.wasm.default_offchain_heap_alloc_strategy,
-			CallContext::Onchain => on_chain_heap_alloc_strategy,
-		};
-
-		let mut used_native = false;
-		let result = self.wasm.with_instance(
-			runtime_code,
-			ext,
-			heap_alloc_strategy,
-			|_, mut instance, on_chain_version, mut ext| {
-				let on_chain_version =
-					on_chain_version.ok_or_else(|| Error::ApiError("Unknown version".into()))?;
-
-				let can_call_with =
-					on_chain_version.can_call_with(&self.native_version.runtime_version);
-
-				if use_native && can_call_with {
-					tracing::trace!(
-						target: "executor",
-						native = %self.native_version.runtime_version,
-						chain = %on_chain_version,
-						"Request for native execution succeeded",
-					);
-
-					used_native = true;
-					Ok(with_externalities_safe(&mut **ext, move || D::dispatch(method, data))?
-						.ok_or_else(|| Error::MethodNotFound(method.to_owned())))
-				} else {
-					if !can_call_with {
-						tracing::trace!(
-							target: "executor",
-							native = %self.native_version.runtime_version,
-							chain = %on_chain_version,
-							"Request for native execution failed",
-						);
-					}
-
-					with_externalities_safe(&mut **ext, move || instance.call_export(method, data))
-				}
-			},
-		);
-		(result, used_native)
-	}
-}
-
-#[allow(deprecated)]
-impl<D: NativeExecutionDispatch> Clone for NativeElseWasmExecutor<D> {
-	fn clone(&self) -> Self {
-		NativeElseWasmExecutor {
-			native_version: D::native_version(),
-			wasm: self.wasm.clone(),
-			use_native: self.use_native,
-		}
-	}
-}
-
-#[allow(deprecated)]
-impl<D: NativeExecutionDispatch> sp_core::traits::ReadRuntimeVersion for NativeElseWasmExecutor<D> {
-	fn read_runtime_version(
-		&self,
-		wasm_code: &[u8],
-		ext: &mut dyn Externalities,
-	) -> std::result::Result<Vec<u8>, String> {
-		self.wasm.read_runtime_version(wasm_code, ext)
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use sp_runtime_interface::{pass_by::PassFatPointerAndRead, runtime_interface};
+	use sp_wasm_interface::ExtendedHostFunctions;
 
 	#[runtime_interface]
 	trait MyInterface {
@@ -766,26 +564,14 @@ mod tests {
 		}
 	}
 
-	pub struct MyExecutorDispatch;
-
-	impl NativeExecutionDispatch for MyExecutorDispatch {
-		type ExtendHostFunctions = (my_interface::HostFunctions, my_interface::HostFunctions);
-
-		fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-			substrate_test_runtime::api::dispatch(method, data)
-		}
-
-		fn native_version() -> NativeVersion {
-			substrate_test_runtime::native_version()
-		}
-	}
-
 	#[test]
-	#[allow(deprecated)]
-	fn native_executor_registers_custom_interface() {
-		let executor = NativeElseWasmExecutor::<MyExecutorDispatch>::new_with_wasm_executor(
-			WasmExecutor::builder().build(),
-		);
+	fn wasm_executor_registers_custom_interface() {
+		type Hosts = ExtendedHostFunctions<
+			sp_io::SubstrateHostFunctions,
+			(my_interface::HostFunctions, my_interface::HostFunctions),
+		>;
+
+		let executor = WasmExecutor::<Hosts>::builder().build();
 
 		fn extract_host_functions<H>(
 			_: &WasmExecutor<H>,
@@ -798,7 +584,7 @@ mod tests {
 
 		my_interface::HostFunctions::host_functions().iter().for_each(|function| {
 			assert_eq!(
-				extract_host_functions(&executor.wasm).iter().filter(|f| f == &function).count(),
+				extract_host_functions(&executor).iter().filter(|f| f == &function).count(),
 				2
 			);
 		});

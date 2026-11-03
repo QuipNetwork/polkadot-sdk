@@ -151,6 +151,7 @@ impl cumulus_pallet_parachain_system::Config for Test {
 	type CheckAssociatedRelayNumber = AnyRelayNumber;
 	type ConsensusHook = ExpectParentIncluded;
 	type RelayParentOffset = ConstU32<0>;
+	type SchedulingSignatureVerifier = ();
 }
 
 fn set_ancestors() {
@@ -520,4 +521,284 @@ fn block_executor_does_not_influence_proof_size_recordings() {
 	ext.execute_with_recorder(recorder, || {
 		BlockExecutor::<Test, TestExecutive>::execute_verified_block(block);
 	});
+}
+
+// =============================================================================
+// AuraSchedulingVerifier tests
+// =============================================================================
+
+mod scheduling_verifier_tests {
+	use super::*;
+	use crate::signature_verifier::AuraSchedulingVerifier;
+	use codec::Encode;
+	use cumulus_primitives_core::{
+		relay_chain::{ApprovedPeerId, Hash as RelayHash, Slot},
+		SchedulingInfoPayload, SignedSchedulingInfo, VerifySchedulingSignature,
+	};
+	use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
+
+	const PARA_SLOT_DURATION_MS: u64 = 6_000;
+	const RELAY_SLOT_DURATION_MS: u64 = 6_000;
+
+	// Ed25519Test is a minimal mock runtime for the ed25519 smoke test only.
+	// All other tests use the top-level `Test` runtime (sr25519).
+
+	type Ed25519Block = frame_system::mocking::MockBlock<Ed25519Test>;
+
+	frame_support::construct_runtime!(
+		pub enum Ed25519Test {
+			System: frame_system,
+			Timestamp: pallet_timestamp,
+			Aura: pallet_aura,
+			AuraExt: crate,
+		}
+	);
+
+	#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
+	impl frame_system::Config for Ed25519Test {
+		type Block = Ed25519Block;
+		type RuntimeEvent = ();
+	}
+
+	impl crate::Config for Ed25519Test {}
+
+	impl pallet_aura::Config for Ed25519Test {
+		type AuthorityId = sp_consensus_aura::ed25519::AuthorityId;
+		type MaxAuthorities = ConstU32<100_000>;
+		type DisabledValidators = ();
+		type AllowMultipleBlocksPerSlot = ConstBool<true>;
+		type SlotDuration = TestSlotDuration;
+	}
+
+	impl pallet_timestamp::Config for Ed25519Test {
+		type Moment = u64;
+		type OnTimestampSet = ();
+		type MinimumPeriod = ();
+		type WeightInfo = ();
+	}
+
+	// -------------------------------------------------------------------------
+	// Shared test helpers (crypto-agnostic).
+	// -------------------------------------------------------------------------
+
+	/// Build a payload for verifier tests. The verifier signs/checks over the whole encoded
+	/// payload but does not inspect `internal_scheduling_parent`, so a default ISP is fine.
+	fn make_payload() -> SchedulingInfoPayload {
+		SchedulingInfoPayload::new(
+			cumulus_primitives_core::CoreSelector(0),
+			0,
+			ApprovedPeerId::default(),
+			RelayHash::default(),
+		)
+	}
+
+	/// Para slot derived as `relay_slot * 6000ms / para_slot_duration` (matches the
+	/// verifier's arithmetic). With equal slot durations this is the identity.
+	fn para_slot_from_relay(relay_slot: u64, para_slot_duration: u64) -> u64 {
+		relay_slot.saturating_mul(RELAY_SLOT_DURATION_MS) / para_slot_duration
+	}
+
+	type Sr25519Id = sp_consensus_aura::sr25519::AuthorityId;
+	type Ed25519Id = sp_consensus_aura::ed25519::AuthorityId;
+
+	fn set_authorities<T>(authorities: Vec<<T as pallet_aura::Config>::AuthorityId>)
+	where
+		T: crate::Config,
+	{
+		let bounded: BoundedVec<_, <T as pallet_aura::Config>::MaxAuthorities> =
+			authorities.try_into().expect("test fixture stays under MaxAuthorities; qed");
+		pallet_aura::Authorities::<T>::put(bounded.clone());
+		Authorities::<T>::put(bounded);
+	}
+
+	// -------------------------------------------------------------------------
+	// sr25519 tests (default crypto scheme).
+	// -------------------------------------------------------------------------
+
+	#[rstest]
+	#[case::eligible_author_signs(true)]
+	#[case::non_eligible_author_signs(false)]
+	fn single_authority_verifier(#[case] eligible_signer: bool) {
+		// Single-authority fixture (Alice). The eligible-author signature passes; any
+		// other signer is rejected.
+		TestSlotDuration::set_slot_duration(PARA_SLOT_DURATION_MS);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			set_authorities::<Test>(vec![Sr25519Id::from(Sr25519Keyring::Alice.public())]);
+			let payload = make_payload();
+			let signer = if eligible_signer { Sr25519Keyring::Alice } else { Sr25519Keyring::Bob };
+			let signed =
+				SignedSchedulingInfo { signature: signer.sign(&payload.encode()).0, payload };
+			assert_eq!(
+				AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(7)),
+				eligible_signer
+			);
+		});
+	}
+
+	#[test]
+	fn tampered_payload_is_rejected() {
+		// Sign one payload, verify against a different one — verification must fail.
+		TestSlotDuration::set_slot_duration(PARA_SLOT_DURATION_MS);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			set_authorities::<Test>(vec![Sr25519Id::from(Sr25519Keyring::Alice.public())]);
+			let original = make_payload();
+			let signature = Sr25519Keyring::Alice.sign(&original.encode()).0;
+			let tampered = SchedulingInfoPayload::new(
+				cumulus_primitives_core::CoreSelector(99),
+				0,
+				ApprovedPeerId::default(),
+				RelayHash::default(),
+			);
+			let signed = SignedSchedulingInfo { signature, payload: tampered };
+			assert!(!AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(7)));
+		});
+	}
+
+	#[rstest]
+	#[case::eligible_index_signs(3, true)]
+	#[case::non_eligible_index_signs(0, false)]
+	fn multi_authority_verifier_picks_index(#[case] signer_idx: usize, #[case] expected: bool) {
+		// Fixture: authorities = [Alice, Bob, Charlie, Dave], relay slot 7, 6s para slots.
+		// Para slot = 7, 7 mod 4 = 3 → only authorities[3] (Dave) is eligible.
+		TestSlotDuration::set_slot_duration(PARA_SLOT_DURATION_MS);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			let keys = [
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+			];
+			set_authorities::<Test>(keys.iter().map(|k| Sr25519Id::from(k.public())).collect());
+
+			let relay_slot = 7u64;
+			let para_slot = para_slot_from_relay(relay_slot, PARA_SLOT_DURATION_MS);
+			assert_eq!(
+				(para_slot % keys.len() as u64) as usize,
+				3,
+				"test fixture: para_slot=7 mod 4 == 3"
+			);
+
+			let payload = make_payload();
+			let signed = SignedSchedulingInfo {
+				signature: keys[signer_idx].sign(&payload.encode()).0,
+				payload,
+			};
+			assert_eq!(
+				AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(relay_slot)),
+				expected
+			);
+		});
+	}
+
+	/// Exercises the relay→para slot conversion with a 4:1 ratio (24 s para slots, 6 s relay
+	/// slots). relay_slot 28 → para_slot = 28 * 6000 / 24000 = 7 → 7 mod 4 = 3 → Dave
+	/// (index 3) is the only eligible author.
+	#[rstest]
+	#[case::eligible_index_signs(3, true)]
+	#[case::non_eligible_index_signs(0, false)]
+	fn multi_authority_verifier_24s_para_slots(#[case] signer_idx: usize, #[case] expected: bool) {
+		// Para slot duration is 4× the relay slot duration, so the conversion ratio is
+		// non-identity. This catches any accidental identity short-circuit in the verifier.
+		const PARA_24S: u64 = 24_000;
+		TestSlotDuration::set_slot_duration(PARA_24S);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			let keys = [
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+			];
+			set_authorities::<Test>(keys.iter().map(|k| Sr25519Id::from(k.public())).collect());
+
+			let relay_slot = 28u64;
+			let para_slot = para_slot_from_relay(relay_slot, PARA_24S);
+			assert_eq!(para_slot, 7, "28 * 6000 / 24000 == 7");
+			assert_eq!(
+				(para_slot % keys.len() as u64) as usize,
+				3,
+				"test fixture: para_slot=7 mod 4 == 3 (Dave)"
+			);
+
+			let payload = make_payload();
+			let signed = SignedSchedulingInfo {
+				signature: keys[signer_idx].sign(&payload.encode()).0,
+				payload,
+			};
+			assert_eq!(
+				AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(relay_slot)),
+				expected
+			);
+		});
+	}
+
+	#[test]
+	fn empty_authority_set_is_rejected() {
+		// `Authorities::<T>` empty means no eligible author exists; verification fails
+		// closed rather than panicking on `para_slot % 0`.
+		TestSlotDuration::set_slot_duration(PARA_SLOT_DURATION_MS);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			set_authorities::<Test>(Vec::<Sr25519Id>::new());
+			let payload = make_payload();
+			let signed = SignedSchedulingInfo {
+				signature: Sr25519Keyring::Alice.sign(&payload.encode()).0,
+				payload,
+			};
+			assert!(!AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(7)));
+		});
+	}
+
+	#[test]
+	fn zero_para_slot_duration_is_rejected() {
+		// A misconfigured pallet-aura returning `slot_duration() == 0` would otherwise
+		// divide-by-zero; the verifier must reject up front.
+		TestSlotDuration::set_slot_duration(0);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			set_authorities::<Test>(vec![Sr25519Id::from(Sr25519Keyring::Alice.public())]);
+			let payload = make_payload();
+			let signed = SignedSchedulingInfo {
+				signature: Sr25519Keyring::Alice.sign(&payload.encode()).0,
+				payload,
+			};
+			assert!(!AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(7)));
+		});
+	}
+
+	#[test]
+	fn relay_slot_overflow_is_rejected() {
+		// `relay_slot * RELAY_CHAIN_SLOT_DURATION_MILLIS` must overflow on adversarial
+		// input. `u64::MAX * 6000` overflows; `checked_mul` returns `None` and the
+		// verifier rejects rather than silently saturating to a wrong author index.
+		TestSlotDuration::set_slot_duration(PARA_SLOT_DURATION_MS);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			set_authorities::<Test>(vec![Sr25519Id::from(Sr25519Keyring::Alice.public())]);
+			let payload = make_payload();
+			let signed = SignedSchedulingInfo {
+				signature: Sr25519Keyring::Alice.sign(&payload.encode()).0,
+				payload,
+			};
+			assert!(!AuraSchedulingVerifier::<Test>::verify(&signed, Slot::from(u64::MAX)));
+		});
+	}
+
+	// -------------------------------------------------------------------------
+	// ed25519 smoke test — confirms the ed25519 code path through the verifier.
+	// -------------------------------------------------------------------------
+
+	#[test]
+	fn ed25519_smoke_eligible_author_verifies() {
+		// Exercises AuraSchedulingVerifier against Ed25519Test (ed25519 AuthorityId).
+		// Uses the same happy-path scenario as single_authority_verifier: Alice is the
+		// sole authority at relay slot 7 and signs the matching payload — must pass.
+		TestSlotDuration::set_slot_duration(PARA_SLOT_DURATION_MS);
+		sp_io::TestExternalities::new_empty().execute_with(|| {
+			set_authorities::<Ed25519Test>(vec![Ed25519Id::from(Ed25519Keyring::Alice.public())]);
+
+			let payload = make_payload();
+			let signed = SignedSchedulingInfo {
+				signature: Ed25519Keyring::Alice.sign(&payload.encode()).0,
+				payload,
+			};
+			assert!(AuraSchedulingVerifier::<Ed25519Test>::verify(&signed, Slot::from(7)));
+		});
+	}
 }

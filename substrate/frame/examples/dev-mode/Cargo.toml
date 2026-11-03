@@ -1,6 +1,6 @@
 [package]
 name = "pallet-dev-mode"
-version = "28.0.0"
+version = "32.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "MIT-0"
@@ -26,7 +26,7 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-sp-core = { workspace = true, default-features = false }
+sp-core = { workspace = true }
 
 [features]
 default = ["std"]

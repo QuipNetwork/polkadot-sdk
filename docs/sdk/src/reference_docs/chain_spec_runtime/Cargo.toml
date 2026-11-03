@@ -1,7 +1,7 @@
 [package]
 name = "chain-spec-guide-runtime"
 description = "A minimal runtime for chain spec guide"
-version = "0.1.0"
+version = "0.0.0"
 license = "MIT-0"
 authors.workspace = true
 homepage.workspace = true
@@ -12,11 +12,15 @@ publish = false
 [dependencies]
 codec = { workspace = true }
 docify = { workspace = true }
-frame = { features = ["experimental", "runtime"], workspace = true }
 frame-support = { workspace = true }
 scale-info = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# this is a frame-based runtime, thus importing `frame` with runtime feature enabled.
+frame = { features = ["experimental", "runtime"], workspace = true }
+
+# genesis builder that allows us to interact with runtime genesis config
 sp-application-crypto = { features = ["serde"], workspace = true }
 sp-core = { workspace = true }
 sp-genesis-builder = { workspace = true }
@@ -25,7 +29,7 @@ sp-runtime = { features = ["serde"], workspace = true }
 
 [dev-dependencies]
 cmd_lib = { workspace = true }
-sc-chain-spec = { default-features = true, workspace = true }
+sc-chain-spec = { workspace = true, default-features = true }
 
 [build-dependencies]
 substrate-wasm-builder = { optional = true, workspace = true, default-features = true }

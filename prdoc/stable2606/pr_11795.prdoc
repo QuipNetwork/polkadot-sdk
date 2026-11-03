@@ -1,0 +1,11 @@
+title: "Harden asset-conversion quote functions against zero amounts"
+doc:
+- audience: Runtime Dev
+  description: |-
+    Hardens `quote_price_exact_tokens_for_tokens` and `quote_price_tokens_for_exact_tokens` in
+    `pallet-asset-conversion` to return `None` for zero input amounts and when integer rounding
+    produces a zero output. Previously, zero inputs could propagate through the AMM math and
+    zero outputs from small-input rounding were returned as `Some(0)`.
+crates:
+- name: pallet-asset-conversion
+  bump: patch

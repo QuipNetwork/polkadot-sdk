@@ -46,7 +46,8 @@ fn set_minimum_active_stake_lower_bond_works() {
 	// lower non-zero active stake below `MinNominatorBond` is the minimum active stake if
 	// it is selected as part of the npos voters.
 	ExtBuilder::default().has_stakers(true).nominate(true).build_and_execute(|| {
-		assert_eq!(MinNominatorBond::<Test>::get(), 1);
+		// default `ExtBuilder` sets `MinNominatorBond = ED + 1 = 2`.
+		assert_eq!(MinNominatorBond::<Test>::get(), 2);
 		assert_eq!(<Test as Config>::VoterList::count(), 4);
 
 		assert_ok!(Staking::bond(RuntimeOrigin::signed(4), 5, RewardDestination::Staked,));

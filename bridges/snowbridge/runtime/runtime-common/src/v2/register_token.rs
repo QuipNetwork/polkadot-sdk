@@ -17,6 +17,7 @@ use xcm::prelude::Location;
 pub struct ForeignAssetOwner<IsForeign, AssetInspect, AccountId, LocationToAccountId, L = Location>(
 	core::marker::PhantomData<(IsForeign, AssetInspect, AccountId, LocationToAccountId, L)>,
 );
+
 impl<
 		IsForeign: ContainsPair<L, L>,
 		AssetInspect: frame_support::traits::fungibles::roles::Inspect<AccountId>,
@@ -41,9 +42,10 @@ where
 			return Err(origin);
 		}
 		let asset_location: Location = asset_location.clone().into();
-		let owner = AssetInspect::owner(asset_location.into());
+		let owner = AssetInspect::owner(asset_location.into()).ok_or_else(|| origin.clone())?;
 		let location: Location = origin_location.clone().into();
-		let from = LocationToAccountId::convert_location(&location);
+		let from =
+			LocationToAccountId::convert_location(&location).ok_or_else(|| origin.clone())?;
 		if from != owner {
 			return Err(origin);
 		}
@@ -64,6 +66,7 @@ where
 pub struct LocalAssetOwner<MatchAssetId, AssetInspect, AccountId, AssetId, L = Location>(
 	core::marker::PhantomData<(MatchAssetId, AssetInspect, AccountId, AssetId, L)>,
 );
+
 impl<
 		MatchAssetId: MaybeEquivalence<L, AssetId>,
 		AssetInspect: frame_support::traits::fungibles::roles::Inspect<AccountId>,
@@ -84,8 +87,8 @@ where
 		asset_location: &L,
 	) -> Result<Self::Success, RuntimeOrigin> {
 		let who = ensure_signed(origin.clone()).map_err(|_| origin.clone())?;
-		let asset_id = MatchAssetId::convert(asset_location).ok_or(origin.clone())?;
-		let owner = AssetInspect::owner(asset_id.into()).ok_or(origin.clone())?;
+		let asset_id = MatchAssetId::convert(asset_location).ok_or_else(|| origin.clone())?;
+		let owner = AssetInspect::owner(asset_id.into()).ok_or_else(|| origin.clone())?;
 		if who != owner {
 			return Err(origin);
 		}

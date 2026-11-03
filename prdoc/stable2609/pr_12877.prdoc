@@ -1,0 +1,24 @@
+title: '[EPMB] bound the tx-fee refund of a signed submission'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The winner of the signed phase is paid `RewardBase` plus the transaction fees their submission cost them, tracked in `SubmissionMetadata::fee`.
+
+    Two changes:
+
+    - A new `signed::Config::MaxFeeRefund` caps the refundable portion, both for the winner and for an invulnerable clearing a discarded submission.
+    - Storing a page that is already stored no longer accrues a fee, matching what the refund is meant to cover.
+
+    Runtimes should set `MaxFeeRefund` to `signed::FullSubmissionFee<Runtime, TransactionPayment>`, which prices one `register` plus `Pages` `submit_page` calls at the maximum encoded page size.
+
+    `FullSubmissionFee` needs the fee of a call it cannot afford to build, so `frame_support` gains `EstimateFee`, a sibling of `EstimateCallFee` that takes an encoded length and a `DispatchInfo` instead of a call, implemented by `pallet-transaction-payment`.
+crates:
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: pallet-election-provider-multi-block
+  bump: major
+  validate: false
+- name: frame-support
+  bump: minor
+- name: pallet-transaction-payment
+  bump: minor

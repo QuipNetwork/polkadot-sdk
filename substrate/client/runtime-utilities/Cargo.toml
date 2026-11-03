@@ -1,7 +1,7 @@
 [package]
 description = "Substrate client utilities for frame runtime functions calls."
 name = "sc-runtime-utilities"
-version = "0.8.0"
+version = "0.11.0"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 authors.workspace = true
 edition.workspace = true
@@ -17,18 +17,19 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true, default-features = true }
-sc-executor = { default-features = true, workspace = true }
-sc-executor-common = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-wasm-interface = { default-features = true, workspace = true }
+
+sc-executor = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-wasm-interface = { workspace = true, default-features = true }
 
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cumulus-primitives-proof-size-hostfunction = { default-features = true, workspace = true }
-cumulus-test-runtime = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true, default-features = true }
+cumulus-test-runtime = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 subxt = { workspace = true, features = ["native"] }

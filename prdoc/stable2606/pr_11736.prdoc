@@ -1,0 +1,24 @@
+title: 'Asset Hub Westend: Add MonetaryGuard governance track for PSM emergency actions'
+doc:
+- audience: Runtime User
+  description: |-
+    Adds a new MonetaryGuard governance track to Asset Hub Westend for fast PSM
+    circuit breaker activation in case of a depeg or exploit.
+- audience: Runtime Dev
+  description: |-
+    Adds a `MonetaryGuard` custom origin and governance track (ID 16) to Asset Hub
+    Westend for PSM emergency actions.
+
+    Changes:
+    - Adds `MonetaryGuard` origin to `pallet_custom_origins`
+    - Adds `monetary_guard` track with fast confirm/enactment periods
+    - Updates `EnsurePsmManager` origin mapping:
+      - Root -> Full (all PSM operations)
+      - MonetaryGuard -> Emergency (circuit breaker only)
+
+    Track parameters are relaxed for testnet purposes (low deposit, short periods,
+    0% support floor). Production values will differ.
+
+crates:
+- name: asset-hub-westend-runtime
+  bump: major

@@ -1,0 +1,21 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Raise MAX_CODE_SIZE governance ceiling to 5 MiB'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Raises `polkadot_primitives::MAX_CODE_SIZE` from 3 MiB to 5 MiB. Governance can now
+      set `HostConfiguration.max_code_size` up to 5 MiB; 
+
+      Adds tests for previously untested rejection paths against the on-chain
+      `max_code_size`: `inclusion::verify_backed_candidate`,
+      `inclusion::check_validation_outputs_for_runtime_api`, `paras::schedule_code_upgrade_external`,
+      and `paras_inherent` sanitization.
+
+crates:
+  - name: polkadot-primitives
+    bump: patch
+  - name: polkadot-runtime-parachains
+    bump: patch

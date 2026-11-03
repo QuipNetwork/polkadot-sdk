@@ -47,85 +47,57 @@ doc:
 crates:
   - name: polkadot-primitives
     bump: major
-    validate: false
   - name: polkadot-primitives-test-helpers
     bump: major
-    validate: false
   - name: polkadot-node-core-backing
     bump: major
-    validate: false
   - name: polkadot-node-core-candidate-validation
     bump: major
-    validate: false
   - name: polkadot-node-core-pvf
     bump: patch
-    validate: false
   - name: polkadot-node-core-pvf-common
     bump: major
-    validate: false
   - name: polkadot-node-core-prospective-parachains
     bump: major
-    validate: false
   - name: polkadot-node-core-dispute-coordinator
     bump: minor
-    validate: false
   - name: polkadot-node-core-provisioner
     bump: patch
-    validate: false
   - name: polkadot-collator-protocol
     bump: major
-    validate: false
   - name: polkadot-statement-distribution
     bump: major
-    validate: false
   - name: polkadot-dispute-distribution
     bump: major
-    validate: false
   - name: polkadot-node-primitives
     bump: major
-    validate: false
   - name: polkadot-node-collation-generation
     bump: patch
-    validate: false
   - name: polkadot-runtime-parachains
     bump: major
-    validate: false
   - name: polkadot-node-subsystem-types
     bump: major
-    validate: false
   - name: polkadot-node-subsystem-util
     bump: major
-    validate: false
   - name: polkadot-node-core-approval-voting
     bump: major
-    validate: false
   - name: polkadot-node-core-runtime-api
     bump: major
-    validate: false
   - name: rococo-runtime
     bump: major
-    validate: false
   - name: westend-runtime
     bump: major
-    validate: false
   - name: polkadot-test-runtime
     bump: major
-    validate: false
   - name: pallet-staking-async-rc-runtime
     bump: major
-    validate: false
   - name: cumulus-relay-chain-minimal-node
     bump: major
-    validate: false
   - name: cumulus-relay-chain-rpc-interface
     bump: major
-    validate: false
   - name: polkadot-node-network-protocol
     bump: major
-    validate: false
   - name: polkadot-subsystem-bench
     bump: patch
-    validate: false
   - name: polkadot-test-malus
     bump: patch
-    validate: false

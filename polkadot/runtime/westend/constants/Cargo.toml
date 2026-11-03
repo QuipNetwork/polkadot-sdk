@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime-constants"
-version = "26.0.0"
+version = "35.0.0"
 description = "Constants used throughout the Westend network."
 authors.workspace = true
 edition.workspace = true
@@ -15,13 +15,16 @@ exclude-from-umbrella = true
 workspace = true
 
 [dependencies]
+smallvec = { workspace = true, default-features = true }
+
 frame-support = { workspace = true }
 polkadot-primitives = { workspace = true }
 polkadot-runtime-common = { workspace = true }
-smallvec = { workspace = true, default-features = true }
 sp-core = { workspace = true }
+sp-dap = { workspace = true }
 sp-runtime = { workspace = true }
 sp-weights = { workspace = true }
+
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 
@@ -32,6 +35,7 @@ std = [
 	"polkadot-primitives/std",
 	"polkadot-runtime-common/std",
 	"sp-core/std",
+	"sp-dap/std",
 	"sp-runtime/std",
 	"sp-weights/std",
 	"xcm-builder/std",

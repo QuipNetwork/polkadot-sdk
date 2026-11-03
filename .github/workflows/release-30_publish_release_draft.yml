@@ -58,6 +58,8 @@ on:
 jobs:
   check-synchronization:
     uses: paritytech-release/sync-workflows/.github/workflows/check-synchronization.yml@main
+    with:
+      concurrency_suffix: publish-release-draft
     secrets:
       fork_writer_app_key: ${{ secrets.UPSTREAM_CONTENT_SYNC_APP_KEY }}
 
@@ -97,7 +99,7 @@ jobs:
 
       - name: Generate content write token for the release automation
         id: generate_write_token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         with:
             app-id: ${{ vars.POLKADOT_SDK_RELEASE_RW_APP_ID }}
             private-key: ${{ secrets.POLKADOT_SDK_RELEASE_RW_APP_KEY }}
@@ -119,6 +121,7 @@ jobs:
           URL=https://github.com/chevdor/tera-cli/releases/download/v0.4.0/tera-cli_linux_amd64.deb
           wget $URL -O tera.deb
           sudo dpkg -i tera.deb
+          python3 -m pip install --user pyyaml
 
       - name: Prepare draft
         id: draft
@@ -141,43 +144,92 @@ jobs:
 
           export RUSTC_STABLE=$(grep -oP '(?<=-)[0-9]+\.[0-9]+\.[0-9]+(?=-)' .github/env)
 
-          export REF1=$(get_latest_release_tag)
           if [[ -z "$RELEASE_TAG" ]]; then
             export REF2="${GH_REF_NAME}"
-            echo "REF2: ${REF2}"
           else
             export REF2="$RELEASE_TAG"
-            echo "REF2: ${REF2}"
           fi
+          echo "REF2: ${REF2}"
           echo "REL_TAG=$REF2" >> $GITHUB_ENV
+
+          # Previous tag on the release timeline of the tag being drafted — NOT the
+          # repo-wide "latest release", which belongs to a newer line when patching
+          # an older stable release and would bake a wrong baseline into the
+          # CHANGELOG.md/changelog.json assets.
+          release_key() { # polkadot-stableYYMM[-N] -> sortable number
+            local t="${1#polkadot-}"; t="${t#stable}"; local n=0
+            if [[ "$t" == *-* ]]; then n="${t#*-}"; t="${t%%-*}"; fi
+            echo $(( 10#$t * 1000 + 10#$n ))
+          }
+          target_key=$(release_key "${REF2%-rc*}")
+          export REF1=$(gh api --paginate repos/paritytech/polkadot-sdk/releases --jq '.[].tag_name' \
+            | { grep -E '^polkadot-stable[0-9]{4}(-[0-9]+)?$' || true; } \
+            | while read -r tag; do
+                key=$(release_key "$tag")
+                if (( key < target_key )); then echo "$key $tag"; fi
+              done | sort -n | tail -1 | cut -d' ' -f2)
+          if [[ -z "$REF1" ]]; then
+            export REF1=$(get_latest_release_tag)
+          fi
+          echo "REF1: ${REF1}"
           export VERSION=$(echo "$REF2" | sed -E 's/.*(stable[0-9]{4}(-[0-9]+)?).*$/\1/')
           echo "Version: $VERSION"
 
-          if [[ ${NO_RUNTIMES} == "true"  || ${CRATES_ONLY} == "true" ]]; then
-            export STABLE_VERSION=$(sed -E 's/.*(stable[0-9]{4}).*$/\1/' <<< "$VERSION")
-            export NODE_VERSION=v$(get_polkadot_node_version_from_code)
-          fi
+          export STABLE_VERSION=$(sed -E 's/.*(stable[0-9]{4}).*$/\1/' <<< "$VERSION")
+          export NODE_VERSION=v$(get_polkadot_node_version_from_code)
+          export GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
           ./scripts/release/build-changelogs.sh
 
       - name: Archive artifact context.json
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-notes-context
           path: |
             scripts/release/context.json
+            scripts/release/RELEASE_DRAFT.md
+            scripts/release/CHANGELOG.md
+            scripts/release/changelog.json
             **/*-srtool-digest.json
 
       - name: Create draft release
         id: create-release
         env:
           GITHUB_TOKEN: ${{ steps.generate_write_token.outputs.token }}
+          RELEASE_NOTES: ${{ github.workspace }}/scripts/release/RELEASE_DRAFT.md
         run: |
+          # GitHub caps the release body at 125000 characters. If the generated
+          # notes exceed that, `gh release create` fails with a 422 and the whole
+          # release (including the artifacts attached by the downstream jobs) is
+          # never published. Instead of failing, fall back to a short placeholder
+          # body so the draft is created and the artifacts still get attached; the
+          # full notes remain available via the `release-notes-context` artifact.
+          MAX_BODY_LENGTH=125000
+          NOTES_FILE="$RELEASE_NOTES"
+          BODY_LENGTH=$(wc -m < "$NOTES_FILE")
+
+          if [[ "$BODY_LENGTH" -gt "$MAX_BODY_LENGTH" ]]; then
+            echo "::warning::Release notes are ${BODY_LENGTH} characters, exceeding the GitHub limit of ${MAX_BODY_LENGTH}. Publishing the draft with a placeholder body; artifacts will still be attached and the full notes are available in the 'release-notes-context' artifact."
+            NOTES_FILE="${{ github.workspace }}/scripts/release/RELEASE_DRAFT_FALLBACK.md"
+            printf '%s\n' \
+              "The auto-generated release notes exceeded GitHub's maximum release body size (${MAX_BODY_LENGTH} characters) and were omitted from this draft." \
+              "" \
+              "The full release notes are available in the \`release-notes-context\` artifact of the release workflow run and should be added to this draft manually." \
+              > "$NOTES_FILE"
+          fi
+
           gh release create ${{ env.REL_TAG }} \
             --repo paritytech/polkadot-sdk \
             --draft \
             --title "Polkadot ${{ env.REL_TAG }}" \
-            --notes-file ${{ github.workspace}}/scripts/release/RELEASE_DRAFT.md
+            --notes-file "$NOTES_FILE"
+
+          # Attach the complete changelog and its machine-readable form as
+          # release assets; the release body only carries a condensed version.
+          gh release upload ${{ env.REL_TAG }} \
+            --repo paritytech/polkadot-sdk \
+            "${{ github.workspace }}/scripts/release/CHANGELOG.md" \
+            "${{ github.workspace }}/scripts/release/changelog.json"
 
   publish-runtimes:
     if: ${{ inputs.crates_only == false && inputs.no_runtimes == false }}
@@ -192,18 +244,17 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-
       - name: Generate content write token for the release automation
         id: generate_write_token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         with:
             app-id: ${{ vars.POLKADOT_SDK_RELEASE_RW_APP_ID }}
             private-key: ${{ secrets.POLKADOT_SDK_RELEASE_RW_APP_KEY }}
             owner: paritytech
             repositories: polkadot-sdk
 
+      # The build run's per-runtime artifacts carry both the compressed wasm and
+      # the srtool digest, so this is the only download this job needs.
       - name: Download runtimes
         env:
           GITHUB_TOKEN: ${{ steps.generate_write_token.outputs.token }}
@@ -216,7 +267,7 @@ jobs:
       - name: Get runtime info
         env:
           CHAIN: ${{ matrix.chain }}
-          JSON: ${{ github.workspace}}/release-notes-context/runtimes/${{ matrix.chain }}-runtime/${{ matrix.chain }}-srtool-digest.json
+          JSON: ${{ github.workspace }}/runtimes/${{ matrix.chain }}-runtime/${{ matrix.chain }}-srtool-digest.json
         run: |
           cd "${GITHUB_WORKSPACE}/runtimes"
           >>$GITHUB_ENV echo ASSET=$(find "${CHAIN}-runtime" -name '*.compact.compressed.wasm')
@@ -276,7 +327,7 @@ jobs:
 
       - name: Generate content write token for the release automation
         id: generate_write_token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         with:
             app-id: ${{ vars.POLKADOT_SDK_RELEASE_RW_APP_ID }}
             private-key: ${{ secrets.POLKADOT_SDK_RELEASE_RW_APP_KEY }}

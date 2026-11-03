@@ -147,6 +147,25 @@ mod benchmarks {
 	}
 
 	#[benchmark]
+	fn remove_registrar(r: Linear<1, { T::MaxRegistrars::get() }>) -> Result<(), BenchmarkError> {
+		add_registrars::<T>(r)?;
+		ensure!(Registrars::<T>::get().len() as u32 == r, "Registrars not set up correctly.");
+		let origin =
+			T::RegistrarOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+		// Remove the last registrar
+		let index = r - 1;
+
+		#[extrinsic_call]
+		_(origin as T::RuntimeOrigin, index);
+
+		ensure!(
+			Registrars::<T>::get().get(index as usize).map_or(false, Option::is_none),
+			"Registrar not removed.",
+		);
+		Ok(())
+	}
+
+	#[benchmark]
 	fn set_identity(r: Linear<1, { T::MaxRegistrars::get() }>) -> Result<(), BenchmarkError> {
 		add_registrars::<T>(r)?;
 

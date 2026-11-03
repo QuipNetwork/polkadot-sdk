@@ -15,4 +15,3 @@ doc:
 crates:
 - name: pallet-revive-eth-rpc
   bump: major
-  validate: false

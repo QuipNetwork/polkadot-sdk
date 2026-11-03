@@ -104,6 +104,7 @@ impl pallet_assets::Config for Test {
 	type Extra = ();
 	type RemoveItemsLimit = ConstU32<10>;
 	type CallbackHandle = ();
+	type AssetIdAllocator = ();
 	type Currency = Balances;
 	type Holder = ();
 	type Freezer = AssetsFreezer;

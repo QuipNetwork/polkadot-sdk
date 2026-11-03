@@ -1,0 +1,8 @@
+title: emulated integration tests cleanup
+doc:
+- audience: Runtime Dev
+  description: This PR mostly consists of minor refactoring like introducing/centralize
+    some helpers and replacing some inlined functions with these helpers.
+crates:
+- name: emulated-integration-tests-common
+  bump: major

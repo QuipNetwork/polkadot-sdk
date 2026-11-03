@@ -1,0 +1,18 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: "statement-store: read allowance on best hash"
+
+doc:
+  - audience: Node Dev
+    description: |
+      Use the best block hash instead of the finalized hash when checking statement
+      allowances during statement submission. This makes the store more responsive to
+      recent allowance changes. Allowance enforcement during eviction still uses the
+      finalized hash to ensure correctness. A statement accepted against best-block
+      state may later be evicted if that block does not get finalized, which is an
+      acceptable tradeoff.
+
+crates:
+  - name: sc-statement-store
+    bump: patch

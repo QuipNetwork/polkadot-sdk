@@ -1,0 +1,19 @@
+title: '[pallet-assets-precompiles] saturate permit/approval allowance'
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\n`approve()` / `permit()` previously reverted with `\"\
+    Balance conversion failed\"` on `call.value > Balance::MAX` \u2014 including `type(uint256).max`,\
+    \ the universal \"infinite allowance\" idiom hard-coded by MetaMask, Uniswap,\
+    \ and every mainstream DEX router. The U256 \u2192 Balance conversion now saturates\
+    \ at `Balance::MAX`. `transfer` / `transferFrom` keep the existing revert-on-overflow\
+    \ behavior \u2014 they move exact amounts, so silently clamping would produce\
+    \ partial transfers the caller never asked for. The emitted `Approval` event still\
+    \ carries the raw `call.value`, matching the ERC-20 / OpenZeppelin convention.\n\
+    \n## Non-goals\n\nNo `transferFrom` sentinel branch \u2014 saturated allowances\
+    \ decrement on every spend; on a `u128` runtime `Balance::MAX` is large enough\
+    \ to be operationally indistinguishable from infinite. No `allowance()` readback\
+    \ lift \u2014 returns the stored value as-is.\n\n## Test plan\n\n- [x] `cargo\
+    \ test -p pallet-assets-precompiles`"
+crates:
+- name: pallet-assets-precompiles
+  bump: minor

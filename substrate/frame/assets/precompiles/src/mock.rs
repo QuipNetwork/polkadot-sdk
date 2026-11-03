@@ -56,12 +56,16 @@ type Block = frame_system::mocking::MockBlock<Test>;
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Test {
 	type Block = Block;
-	type AccountData = pallet_balances::AccountData<u64>;
+	type AccountData = pallet_balances::AccountData<u128>;
 }
 
 #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig as pallet_balances::DefaultConfig)]
 impl pallet_balances::Config for Test {
+	type Balance = u128;
 	type AccountStore = System;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
+	type FreezeIdentifier = RuntimeFreezeReason;
+	type MaxFreezes = frame_support::traits::VariantCountOf<RuntimeFreezeReason>;
 }
 
 parameter_types! {
@@ -77,6 +81,7 @@ impl pallet_timestamp::Config for Test {
 
 #[derive_impl(pallet_assets::config_preludes::TestDefaultConfig as pallet_assets::DefaultConfig)]
 impl pallet_assets::Config for Test {
+	type Balance = u128;
 	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<u64>>;
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
 	type Currency = Balances;
@@ -102,7 +107,7 @@ impl permit::pallet::Config for Test {
 #[derive_impl(pallet_revive::config_preludes::TestDefaultConfig)]
 impl pallet_revive::Config for Test {
 	type AddressMapper = pallet_revive::TestAccountMapper<Self>;
-	type Balance = u64;
+	type Balance = u128;
 	type Currency = Balances;
 	type Precompiles =
 		(ERC20<Self, InlineIdConfig<0x0120>>, ERC20<Self, ForeignIdConfig<0x0220, Self>>);
@@ -124,6 +129,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	.build_storage()
 	.unwrap();
 	let mut ext: sp_io::TestExternalities = t.into();
+	ext.register_extension(sp_keystore::KeystoreExt::new(
+		sp_keystore::testing::MemoryKeystore::new(),
+	));
 	ext.execute_with(|| {
 		System::set_block_number(1);
 		// Set a reasonable timestamp for tests (e.g., 2024-01-01 00:00:00 UTC = 1704067200)

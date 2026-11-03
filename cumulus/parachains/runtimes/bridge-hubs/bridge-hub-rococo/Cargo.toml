@@ -1,6 +1,6 @@
 [package]
 name = "bridge-hub-rococo-runtime"
-version = "0.26.0"
+version = "0.39.0"
 authors.workspace = true
 edition.workspace = true
 description = "Rococo's BridgeHub parachain runtime"
@@ -15,31 +15,14 @@ workspace = true
 substrate-wasm-builder = { optional = true, workspace = true, default-features = true }
 
 [dependencies]
-bp-asset-hub-rococo = { workspace = true }
-bp-asset-hub-westend = { workspace = true }
-bp-bridge-hub-rococo = { workspace = true }
-bp-bridge-hub-westend = { workspace = true }
-bp-header-chain = { workspace = true }
-bp-messages = { workspace = true }
-bp-parachains = { workspace = true }
-bp-polkadot-bulletin = { workspace = true }
-bp-polkadot-core = { workspace = true }
-bp-relayers = { workspace = true }
-bp-runtime = { workspace = true }
-bp-westend = { workspace = true }
-bp-xcm-bridge-hub-router = { workspace = true }
-bridge-hub-common = { workspace = true }
-bridge-runtime-common = { workspace = true }
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-aura-ext = { workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-session-benchmarking = { workspace = true }
-cumulus-pallet-weight-reclaim = { workspace = true }
-cumulus-pallet-xcm = { workspace = true }
-cumulus-pallet-xcmp-queue = { features = ["bridging"], workspace = true }
-cumulus-primitives-aura = { workspace = true }
-cumulus-primitives-core = { workspace = true }
-cumulus-primitives-utility = { workspace = true }
+hex-literal = { workspace = true, default-features = true }
+scale-info = { features = ["derive"], workspace = true }
+serde = { optional = true, features = ["derive"], workspace = true, default-features = true }
+serde_json = { features = ["alloc"], workspace = true }
+tracing = { workspace = true }
+
+# Substrate
 frame-benchmarking = { optional = true, workspace = true }
 frame-executive = { workspace = true }
 frame-metadata-hash-extension = { workspace = true }
@@ -48,15 +31,9 @@ frame-system = { workspace = true }
 frame-system-benchmarking = { optional = true, workspace = true }
 frame-system-rpc-runtime-api = { workspace = true }
 frame-try-runtime = { optional = true, workspace = true }
-hex-literal = { workspace = true, default-features = true }
 pallet-aura = { workspace = true }
 pallet-authorship = { workspace = true }
 pallet-balances = { workspace = true }
-pallet-bridge-grandpa = { workspace = true }
-pallet-bridge-messages = { workspace = true }
-pallet-bridge-parachains = { workspace = true }
-pallet-bridge-relayers = { workspace = true }
-pallet-collator-selection = { workspace = true }
 pallet-message-queue = { workspace = true }
 pallet-multisig = { workspace = true }
 pallet-session = { workspace = true }
@@ -64,29 +41,6 @@ pallet-timestamp = { workspace = true }
 pallet-transaction-payment = { workspace = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-utility = { workspace = true }
-pallet-xcm = { workspace = true }
-pallet-xcm-benchmarks = { optional = true, workspace = true }
-pallet-xcm-bridge-hub = { workspace = true }
-parachain-info = { workspace = true }
-parachains-common = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-runtime-common = { workspace = true }
-rococo-runtime-constants = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-serde = { optional = true, features = ["derive"], workspace = true, default-features = true }
-serde_json = { features = ["alloc"], workspace = true }
-snowbridge-beacon-primitives = { workspace = true }
-snowbridge-core = { workspace = true }
-snowbridge-inbound-queue-primitives = { workspace = true }
-snowbridge-merkle-tree = { workspace = true }
-snowbridge-outbound-queue-primitives = { workspace = true }
-snowbridge-outbound-queue-runtime-api = { workspace = true }
-snowbridge-pallet-ethereum-client = { workspace = true }
-snowbridge-pallet-inbound-queue = { workspace = true }
-snowbridge-pallet-inbound-queue-fixtures = { workspace = true }
-snowbridge-pallet-outbound-queue = { workspace = true }
-snowbridge-pallet-system = { workspace = true }
-snowbridge-system-runtime-api = { workspace = true }
 sp-api = { workspace = true }
 sp-block-builder = { workspace = true }
 sp-consensus-aura = { workspace = true }
@@ -102,19 +56,75 @@ sp-std = { workspace = true }
 sp-storage = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
-testnet-parachains-constants = { features = ["rococo"], workspace = true }
-tracing = { workspace = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
+pallet-xcm-benchmarks = { optional = true, workspace = true }
+polkadot-parachain-primitives = { workspace = true }
+polkadot-runtime-common = { workspace = true }
+rococo-runtime-constants = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
 xcm-runtime-apis = { workspace = true }
 
+# Cumulus
+cumulus-pallet-aura-ext = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-session-benchmarking = { workspace = true }
+cumulus-pallet-weight-reclaim = { workspace = true }
+cumulus-pallet-xcm = { workspace = true }
+cumulus-pallet-xcmp-queue = { features = ["bridging"], workspace = true }
+cumulus-primitives-aura = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+cumulus-primitives-utility = { workspace = true }
+pallet-collator-selection = { workspace = true }
+parachain-info = { workspace = true }
+parachains-common = { workspace = true }
+testnet-parachains-constants = { features = ["rococo"], workspace = true }
+
+# Bridges
+bp-asset-hub-rococo = { workspace = true }
+bp-asset-hub-westend = { workspace = true }
+bp-bridge-hub-rococo = { workspace = true }
+bp-bridge-hub-westend = { workspace = true }
+bp-header-chain = { workspace = true }
+bp-messages = { workspace = true }
+bp-parachains = { workspace = true }
+bp-polkadot-core = { workspace = true }
+bp-relayers = { workspace = true }
+bp-runtime = { workspace = true }
+bp-westend = { workspace = true }
+bp-xcm-bridge-hub-router = { workspace = true }
+bridge-runtime-common = { workspace = true }
+pallet-bridge-grandpa = { workspace = true }
+pallet-bridge-messages = { workspace = true }
+pallet-bridge-parachains = { workspace = true }
+pallet-bridge-relayers = { workspace = true }
+pallet-xcm-bridge-hub = { workspace = true }
+
+# Ethereum Bridge (Snowbridge)
+snowbridge-beacon-primitives = { workspace = true }
+snowbridge-core = { workspace = true }
+snowbridge-inbound-queue-primitives = { workspace = true }
+snowbridge-merkle-tree = { workspace = true }
+snowbridge-outbound-queue-primitives = { workspace = true }
+snowbridge-outbound-queue-runtime-api = { workspace = true }
+snowbridge-pallet-ethereum-client = { workspace = true }
+snowbridge-pallet-inbound-queue = { workspace = true }
+snowbridge-pallet-inbound-queue-fixtures = { workspace = true }
+snowbridge-pallet-outbound-queue = { workspace = true }
+snowbridge-pallet-system = { workspace = true }
+snowbridge-system-runtime-api = { workspace = true }
+
+bridge-hub-common = { workspace = true }
+
 [dev-dependencies]
-bridge-hub-test-utils = { default-features = true, workspace = true }
-bridge-runtime-common = { features = ["integrity-test"], default-features = true, workspace = true }
-pallet-bridge-relayers = { features = ["integrity-test"], workspace = true, default-features = false }
-parachains-runtimes-test-utils = { default-features = true, workspace = true }
-snowbridge-runtime-test-common = { default-features = true, workspace = true }
+bridge-hub-test-utils = { workspace = true, default-features = true }
+bridge-runtime-common = { features = ["integrity-test"], workspace = true, default-features = true }
+pallet-bridge-relayers = { features = ["integrity-test"], workspace = true }
+parachains-runtimes-test-utils = { workspace = true, default-features = true }
+snowbridge-runtime-test-common = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -126,7 +136,6 @@ std = [
 	"bp-header-chain/std",
 	"bp-messages/std",
 	"bp-parachains/std",
-	"bp-polkadot-bulletin/std",
 	"bp-polkadot-core/std",
 	"bp-relayers/std",
 	"bp-runtime/std",
@@ -242,6 +251,7 @@ runtime-benchmarks = [
 	"pallet-xcm-bridge-hub/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"parachains-common/runtime-benchmarks",
+	"parachains-runtimes-test-utils/runtime-benchmarks",
 	"polkadot-parachain-primitives/runtime-benchmarks",
 	"polkadot-runtime-common/runtime-benchmarks",
 	"snowbridge-core/runtime-benchmarks",
@@ -259,6 +269,7 @@ runtime-benchmarks = [
 	"xcm/runtime-benchmarks",
 ]
 try-runtime = [
+	"bridge-hub-test-utils/try-runtime",
 	"cumulus-pallet-aura-ext/try-runtime",
 	"cumulus-pallet-parachain-system/try-runtime",
 	"cumulus-pallet-weight-reclaim/try-runtime",
@@ -286,6 +297,7 @@ try-runtime = [
 	"pallet-xcm/try-runtime",
 	"parachain-info/try-runtime",
 	"parachains-common/try-runtime",
+	"parachains-runtimes-test-utils/try-runtime",
 	"polkadot-runtime-common/try-runtime",
 	"snowbridge-inbound-queue-primitives/try-runtime",
 	"snowbridge-pallet-ethereum-client/try-runtime",

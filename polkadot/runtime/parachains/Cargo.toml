@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-parachains"
-version = "25.0.0"
+version = "30.0.0"
 description = "Relay Chain runtime code responsible for Parachains."
 authors.workspace = true
 edition.workspace = true
@@ -15,31 +15,11 @@ workspace = true
 bitflags = { workspace = true }
 bitvec = { features = ["alloc"], workspace = true }
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-election-provider-support = { workspace = true, optional = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 impl-trait-for-tuples = { workspace = true }
 log = { workspace = true }
-pallet-authority-discovery = { workspace = true }
-pallet-authorship = { workspace = true }
-pallet-babe = { workspace = true }
-pallet-balances = { workspace = true }
-pallet-broker = { workspace = true }
-pallet-message-queue = { workspace = true }
-pallet-mmr = { workspace = true, optional = true }
-pallet-session = { workspace = true }
-pallet-session-benchmarking = { workspace = true, optional = true }
-pallet-staking = { workspace = true }
-pallet-timestamp = { workspace = true }
-polkadot-core-primitives = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-primitives = { workspace = true }
-polkadot-runtime-metrics = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { features = ["alloc", "derive"], workspace = true }
+
 sp-api = { workspace = true }
 sp-application-crypto = { optional = true, workspace = true }
 sp-arithmetic = { workspace = true }
@@ -52,23 +32,49 @@ sp-session = { workspace = true }
 sp-staking = { features = ["serde"], workspace = true }
 sp-std = { workspace = true, optional = true }
 sp-tracing = { optional = true, workspace = true }
-static_assertions = { optional = true, workspace = true, default-features = true }
+
+frame-benchmarking = { optional = true, workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+pallet-authority-discovery = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-babe = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-broker = { workspace = true }
+pallet-message-queue = { workspace = true }
+pallet-mmr = { workspace = true, optional = true }
+pallet-session = { workspace = true }
+pallet-session-benchmarking = { workspace = true, optional = true }
+pallet-staking = { workspace = true }
+pallet-timestamp = { workspace = true }
+
+# only used in benchmarking
+frame-election-provider-support = { workspace = true, optional = true }
+
+polkadot-primitives = { workspace = true }
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
+
+polkadot-core-primitives = { workspace = true }
+polkadot-parachain-primitives = { workspace = true }
+polkadot-runtime-metrics = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+static_assertions = { optional = true, workspace = true, default-features = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
 frame-support-test = { workspace = true }
 hex-literal = { workspace = true, default-features = true }
-polkadot-primitives = { features = ["test"], workspace = true, default-features = false }
+polkadot-primitives = { workspace = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
-sc-keystore = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 thousands = { workspace = true }
 
 [features]

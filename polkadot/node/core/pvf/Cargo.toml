@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-core-pvf"
 description = "Polkadot crate that implements the PVF validation host. Responsible for coordinating preparation and execution of PVFs."
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,7 +20,7 @@ always-assert = { workspace = true }
 array-bytes = { workspace = true, default-features = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 is_executable = { optional = true, workspace = true }
 pin-project = { workspace = true }
 rand = { workspace = true, default-features = true }
@@ -31,27 +31,29 @@ thiserror = { workspace = true }
 tokio = { features = ["fs", "process"], workspace = true, default-features = true }
 
 codec = { features = ["derive"], workspace = true }
-polkadot-node-core-pvf-common = { default-features = true, workspace = true }
+
+polkadot-node-core-pvf-common = { workspace = true, default-features = true }
+polkadot-node-metrics = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
 polkadot-node-core-pvf-execute-worker = { optional = true, workspace = true, default-features = true }
 polkadot-node-core-pvf-prepare-worker = { optional = true, workspace = true, default-features = true }
-polkadot-node-metrics = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
 sc-tracing = { workspace = true }
-sp-core = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
 sp-maybe-compressed-blob = { optional = true, workspace = true, default-features = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
 criterion = { features = ["async_tokio", "cargo_bench_support"], workspace = true }
 
-polkadot-node-core-pvf-common = { features = ["test-utils"], default-features = true, workspace = true }
+polkadot-node-core-pvf-common = { features = ["test-utils"], workspace = true, default-features = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
 polkadot-primitives-test-helpers = { workspace = true }
 # For benches and integration tests, depend on ourselves with the test-utils feature.
-polkadot-node-core-pvf = { features = ["test-utils"], default-features = true, workspace = true }
+polkadot-node-core-pvf = { features = ["test-utils"], workspace = true, default-features = true }
 rococo-runtime = { workspace = true }
 
 test-parachain-adder = { workspace = true }
@@ -61,7 +63,7 @@ test-parachain-halt = { workspace = true }
 libc = { workspace = true }
 procfs = { workspace = true }
 rusty-fork = { workspace = true, default-features = true }
-sc-sysinfo = { default-features = true, workspace = true }
+sc-sysinfo = { workspace = true, default-features = true }
 
 [features]
 ci-only-tests = []

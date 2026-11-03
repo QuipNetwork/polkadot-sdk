@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-primitives-proof-size-hostfunction"
-version = "0.17.0"
+version = "0.21.0"
 authors.workspace = true
 edition.workspace = true
 description = "Hostfunction exposing storage proof size to the runtime."
@@ -17,9 +17,9 @@ sp-runtime-interface = { workspace = true }
 sp-trie = { workspace = true }
 
 [dev-dependencies]
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

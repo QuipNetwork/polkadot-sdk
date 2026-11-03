@@ -1,0 +1,16 @@
+title: 'statement gossip: remove the per-peer known-statement cache'
+doc:
+- audience: Node Operator
+  description: |-
+    The statement gossip protocol kept an LRU cache of up to 4 Mi statement hashes
+    (~320 MiB) per connected peer, which a peer could fill just by sending statements.
+    Propagation now remembers, for one tick, the peers each statement was received
+    from and skips them when sending, using no per-peer memory. A peer may receive a
+    duplicate statement around an initial sync, a follow-up will remove these duplicates.
+- audience: Node Dev
+  description: |-
+    `MAX_KNOWN_STATEMENTS` is removed from `sc_network_statement::config`, and
+    `Peer::new_for_testing` loses its known-statements parameter.
+crates:
+- name: sc-network-statement
+  bump: major

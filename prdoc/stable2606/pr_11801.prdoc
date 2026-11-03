@@ -1,0 +1,16 @@
+title: 'eth-rpc: skip receipt extraction for finalized blocks already processed as
+  best'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ### Motivation
+    Both the best and finalized block subscriptions extract receipts independently, so every block is processed twice. This skips redundant extraction on the finalized path when the block was already handled by the best block subscription.
+
+    ### Summary
+    - Skip redundant receipt extraction on finalized blocks already processed by the best block subscription
+    - Read logs from DB for skipped blocks only when log subscribers exist
+    - Refactor: extract process_block helper, parse_log_row shared function, advance_sync_head
+    - Add unit tests for get_processed_eth_block_hash and logs_by_block_number
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

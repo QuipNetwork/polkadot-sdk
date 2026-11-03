@@ -16,6 +16,10 @@
 
 //! Pallet to handle parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
+//!
+//! Registration is either local, with the deposit reserved here, or driven by a remote control
+//! plane that holds the deposit itself — see the [`registrar_primitives::ParachainRegistrar`]
+//! impl.
 
 pub mod migration;
 
@@ -27,7 +31,7 @@ use frame_support::{
 	pallet_prelude::Weight,
 	traits::{Currency, Get, ReservableCurrency},
 };
-use frame_system::{self, ensure_root, ensure_signed};
+use frame_system::{self, ensure_root, ensure_signed, pallet_prelude::BlockNumberFor};
 use polkadot_primitives::{
 	HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID, MIN_CODE_SIZE,
 };
@@ -43,7 +47,7 @@ pub use pallet::*;
 use polkadot_runtime_parachains::paras::{OnNewHead, ParaKind};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{CheckedSub, Saturating},
+	traits::{CheckedSub, Saturating, Zero},
 	Debug,
 };
 
@@ -566,6 +570,47 @@ impl<T: Config> Registrar for Pallet<T> {
 	}
 }
 
+/// Exposes this pallet's registry to a remote registration control plane.
+///
+/// Registration can be driven by another pallet — typically on another trusted chain — that
+/// owns the manager relationship and holds the deposit. This impl is the seam: it does the
+/// registry work and nothing else, so where the deposit lives and how the request arrived
+/// are outside this pallet's concern.
+///
+/// The trait is stated in plain `u32`/`Vec<u8>` so its definition carries no dependency on
+/// Polkadot's parachain primitives; conversion to [`ParaId`], [`HeadData`] and [`ValidationCode`]
+/// happens here.
+impl<T: Config> registrar_primitives::ParachainRegistrar for Pallet<T> {
+	type AccountId = T::AccountId;
+
+	fn check_onboarding(head_len: u32, code_len: u32) -> Result<(), ()> {
+		let config = configuration::ActiveConfig::<T>::get();
+		Self::validate_onboarding_sizes(&config, head_len as usize, code_len as usize)
+			.map_err(|_| ())
+	}
+
+	fn is_registered(para_id: u32) -> bool {
+		let id = ParaId::from(para_id);
+		Paras::<T>::contains_key(id) || paras::Pallet::<T>::lifecycle(id).is_some()
+	}
+
+	fn register(
+		manager: T::AccountId,
+		para_id: u32,
+		genesis_head: Vec<u8>,
+		validation_code: Vec<u8>,
+	) -> DispatchResult {
+		Self::do_register(
+			manager,
+			Some(BalanceOf::<T>::zero()),
+			ParaId::from(para_id),
+			HeadData(genesis_head),
+			ValidationCode(validation_code),
+			false,
+		)
+	}
+}
+
 impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
 	/// If the origin is the `para` owner, the `para` must be unlocked.
@@ -684,12 +729,7 @@ impl<T: Config> Pallet<T> {
 		para_kind: ParaKind,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::ActiveConfig::<T>::get();
-		ensure!(validation_code.0.len() >= MIN_CODE_SIZE as usize, Error::<T>::InvalidCode);
-		ensure!(validation_code.0.len() <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
-		ensure!(
-			genesis_head.0.len() <= config.max_head_data_size as usize,
-			Error::<T>::HeadDataTooLarge
-		);
+		Self::validate_onboarding_sizes(&config, genesis_head.0.len(), validation_code.0.len())?;
 
 		let per_byte_fee = T::DataDepositPerByte::get();
 		let deposit = T::ParaDeposit::get()
@@ -697,6 +737,18 @@ impl<T: Config> Pallet<T> {
 			.saturating_add(per_byte_fee.saturating_mul(config.max_code_size.into()));
 
 		Ok((ParaGenesisArgs { genesis_head, validation_code, para_kind }, deposit))
+	}
+
+	/// Check onboarding head and code sizes against the given configuration.
+	fn validate_onboarding_sizes(
+		config: &configuration::HostConfiguration<BlockNumberFor<T>>,
+		head_len: usize,
+		code_len: usize,
+	) -> DispatchResult {
+		ensure!(code_len >= MIN_CODE_SIZE as usize, Error::<T>::InvalidCode);
+		ensure!(code_len <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
+		ensure!(head_len <= config.max_head_data_size as usize, Error::<T>::HeadDataTooLarge);
+		Ok(())
 	}
 
 	/// Swap a lease holding parachain and parathread (on-demand parachain), which involves

@@ -30,8 +30,8 @@ use tracing::{debug, trace};
 /// happen and may only happen when the node is doing a full sync.
 const SKIP_MAINTENANCE_THRESHOLD: u16 = 20;
 
-/// Helper struct for keeping track of the current state of processed new best
-/// block and finalized events. The main purpose of keeping track of this state
+/// Helper struct for keeping track of the current state of processed block and
+/// finalized events. The main purpose of keeping track of this state
 /// is to figure out which phases (enactment / finalization) of transaction pool
 /// maintenance are needed.
 ///
@@ -43,8 +43,8 @@ const SKIP_MAINTENANCE_THRESHOLD: u16 = 20;
 ///  \
 ///   B2-C2-D2-E2
 ///
-/// the list presents scenarios and expected behavior for sequence of `NewBestBlock` (`nbb`)
-/// and `Finalized` (`f`) events. true/false means if enactiment is required:
+/// the list presents scenarios and expected behavior for sequence of `NewBestBlock` or `NewBlock`
+/// (`nbb`) and `Finalized` (`f`) events. true/false means if enactiment is required:
 ///
 /// - `nbb(C1)`, `f(C1)` -> false (enactment was already performed in `nbb(C1))`
 /// - `f(C1)`, `nbb(C1)` -> false (enactment was already performed in `f(C1))`
@@ -59,7 +59,7 @@ pub struct EnactmentState<Block>
 where
 	Block: BlockT,
 {
-	recent_best_block: Block::Hash,
+	recent_processed_block: Block::Hash,
 	recent_finalized_block: Block::Hash,
 }
 
@@ -79,8 +79,8 @@ where
 	Block: BlockT,
 {
 	/// Returns a new `EnactmentState` initialized with the given parameters.
-	pub fn new(recent_best_block: Block::Hash, recent_finalized_block: Block::Hash) -> Self {
-		EnactmentState { recent_best_block, recent_finalized_block }
+	pub fn new(recent_processed_block: Block::Hash, recent_finalized_block: Block::Hash) -> Self {
+		EnactmentState { recent_processed_block, recent_finalized_block }
 	}
 
 	/// Returns the recently finalized block.
@@ -106,7 +106,7 @@ where
 
 		// do not proceed with txpool maintain if block distance is too high
 		let skip_maintenance =
-			match (hash_to_number(new_hash), hash_to_number(self.recent_best_block)) {
+			match (hash_to_number(new_hash), hash_to_number(self.recent_processed_block)) {
 				(Ok(Some(new)), Ok(Some(current))) => {
 					new.saturating_sub(current) > SKIP_MAINTENANCE_THRESHOLD.into()
 				},
@@ -125,23 +125,23 @@ where
 			return Ok(EnactmentAction::Skip);
 		}
 
-		// compute actual tree route from best_block to notified block, and use
+		// compute actual tree route from recent_processed_block to notified block, and use
 		// it instead of tree_route provided with event
-		let tree_route = tree_route(self.recent_best_block, new_hash)?;
+		let tree_route = tree_route(self.recent_processed_block, new_hash)?;
 		trace!(
 			target: LOG_TARGET,
 			?new_hash,
 			?finalized,
 			common_block = ?tree_route.common_block(),
 			last_block = ?tree_route.last(),
-			best_block = ?self.recent_best_block,
+			recent_processed_block = ?self.recent_processed_block,
 			finalized_block = ?self.recent_finalized_block,
 			"resolve hash"
 		);
 
 		// check if recently finalized block is on retracted path. this could be
 		// happening if we first received a finalization event and then a new
-		// best event for some old stale best head.
+		// block event for some old stale head.
 		if tree_route.retracted().iter().any(|x| x.hash == self.recent_finalized_block) {
 			trace!(
 				target: LOG_TARGET,
@@ -155,19 +155,19 @@ where
 		if finalized {
 			self.recent_finalized_block = new_hash;
 
-			// if there are no enacted blocks in best_block -> hash tree_route,
+			// if there are no enacted blocks in recent_processed_block -> hash tree_route,
 			// it means that block being finalized was already enacted (this
-			// case also covers best_block == new_hash), recent_best_block
+			// case also covers recent_processed_block == new_hash), recent_processed_block
 			// remains valid.
 			if tree_route.enacted().is_empty() {
-				trace!(target: LOG_TARGET, "handle_enactment: no newly enacted blocks since recent best block");
+				trace!(target: LOG_TARGET, "handle_enactment: no newly enacted blocks since recent processed block");
 				return Ok(EnactmentAction::HandleFinalization);
 			}
 
-			// otherwise enacted finalized block becomes best block...
+			// otherwise enacted finalized block becomes the recent processed block...
 		}
 
-		self.recent_best_block = new_hash;
+		self.recent_processed_block = new_hash;
 
 		Ok(EnactmentAction::HandleEnactment(tree_route))
 	}
@@ -176,12 +176,14 @@ where
 	/// fallback when tree_route cannot be computed.
 	pub fn force_update(&mut self, event: &ChainEvent<Block>) {
 		match event {
-			ChainEvent::NewBestBlock { hash, .. } => self.recent_best_block = *hash,
+			ChainEvent::NewBlock { hash } | ChainEvent::NewBestBlock { hash, .. } => {
+				self.recent_processed_block = *hash
+			},
 			ChainEvent::Finalized { hash, .. } => self.recent_finalized_block = *hash,
 		};
 		trace!(
 			target: LOG_TARGET,
-			recent_best_block = ?self.recent_best_block,
+			recent_processed_block = ?self.recent_processed_block,
 			recent_finalized_block = ?self.recent_finalized_block,
 			"forced update"
 		);
@@ -460,6 +462,19 @@ mod enactment_state_tests {
 			.unwrap()
 	}
 
+	fn trigger_new_block(
+		state: &mut EnactmentState<Block>,
+		acted_on: HashAndNumber<Block>,
+	) -> EnactmentAction<Block> {
+		state
+			.update(
+				&ChainEvent::NewBlock { hash: acted_on.hash },
+				&tree_route,
+				&block_hash_to_block_number,
+			)
+			.unwrap()
+	}
+
 	fn trigger_finalized(
 		state: &mut EnactmentState<Block>,
 		from: HashAndNumber<Block>,
@@ -488,7 +503,7 @@ mod enactment_state_tests {
 		expected_best_block: HashAndNumber<Block>,
 		expected_finalized_block: HashAndNumber<Block>,
 	) {
-		assert_eq!(es.recent_best_block, expected_best_block.hash);
+		assert_eq!(es.recent_processed_block, expected_best_block.hash);
 		assert_eq!(es.recent_finalized_block, expected_finalized_block.hash);
 	}
 
@@ -550,6 +565,30 @@ mod enactment_state_tests {
 		let result = trigger_finalized(&mut es, d2(), e2());
 		assert!(matches!(result, EnactmentAction::HandleFinalization));
 		assert_es_eq(&es, e2(), e2());
+	}
+
+	#[test]
+	fn test_enactment_new_block_is_handled_like_new_best() {
+		sp_tracing::try_init_simple();
+		let mut es = EnactmentState::new(a().hash, a().hash);
+
+		//   B1-C1-D1-E1
+		//  /
+		// A
+		//  \
+		//   B2-C2-D2-E2
+
+		let result = trigger_new_block(&mut es, d1());
+		assert!(matches!(result, EnactmentAction::HandleEnactment { .. }));
+		assert_es_eq(&es, d1(), a());
+
+		let result = trigger_new_block(&mut es, d2());
+		assert!(matches!(result, EnactmentAction::HandleEnactment { .. }));
+		assert_es_eq(&es, d2(), a());
+
+		let result = trigger_new_best_block(&mut es, d2(), e2());
+		assert!(matches!(result, EnactmentAction::HandleEnactment { .. }));
+		assert_es_eq(&es, e2(), a());
 	}
 
 	#[test]

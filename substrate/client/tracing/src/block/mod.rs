@@ -63,6 +63,20 @@ pub trait TracingExecuteBlock<Block: BlockT>: Send + Sync {
 	/// The execution should be done sync on the same thread, because the caller will register
 	/// special tracing collectors.
 	fn execute_block(&self, orig_hash: Block::Hash, block: Block) -> sp_blockchain::Result<()>;
+
+	/// Run `method` re-enacting `block` at its parent state, with a proof-size recorder registered
+	/// and `block`'s stored recording replayed when available; returns the SCALE-encoded result.
+	/// `call_data` is the complete SCALE-encoded argument list, passed through verbatim.
+	///
+	/// The default implementation errors: nodes that do not record proof size do not need it.
+	fn call_recorded(
+		&self,
+		_block: Block::Hash,
+		_method: &str,
+		_call_data: &[u8],
+	) -> sp_blockchain::Result<Vec<u8>> {
+		Err(sp_blockchain::Error::Application(Box::new(CallRecordedUnsupported)))
+	}
 }
 
 /// Default implementation of [`ExecuteBlock`].
@@ -95,6 +109,12 @@ where
 
 /// Tracing Block Result type alias
 pub type TraceBlockResult<T> = Result<T, Error>;
+
+/// Typed marker returned by the default [`TracingExecuteBlock::call_recorded`], letting callers
+/// recognise "this node has no proof-recording hook" by downcast and map it to their own error.
+#[derive(Debug, thiserror::Error)]
+#[error("Recorded runtime calls are not supported by this node")]
+pub struct CallRecordedUnsupported;
 
 /// Tracing Block error
 #[derive(Debug, thiserror::Error)]
@@ -244,12 +264,7 @@ where
 		}
 	}
 
-	/// Execute block, record all spans and events belonging to `Self::targets`
-	/// and filter out events which do not have keys starting with one of the
-	/// prefixes in `Self::storage_keys`.
-	pub fn trace_block(&self) -> TraceBlockResult<TraceBlockResponse> {
-		tracing::debug!(target: "state_tracing", "Tracing block: {}", self.block);
-		// Prepare the block
+	fn prepared_block(&self) -> TraceBlockResult<Block> {
 		let mut header = self
 			.client
 			.header(self.block)
@@ -261,11 +276,18 @@ where
 			.map_err(Error::InvalidBlockId)?
 			.ok_or_else(|| Error::MissingBlockComponent("Extrinsics not found".to_string()))?;
 		tracing::debug!(target: "state_tracing", "Found {} extrinsics", extrinsics.len());
-		let parent_hash = *header.parent_hash();
-		// Remove all `Seal`s as they are added by the consensus engines after building the block.
-		// On import they are normally removed by the consensus engine.
+
 		header.digest_mut().logs.retain(|d| d.as_seal().is_none());
-		let block = Block::new(header, extrinsics);
+		Ok(Block::new(header, extrinsics))
+	}
+
+	/// Execute block, record all spans and events belonging to `Self::targets`
+	/// and filter out events which do not have keys starting with one of the
+	/// prefixes in `Self::storage_keys`.
+	pub fn trace_block(&self) -> TraceBlockResult<TraceBlockResponse> {
+		tracing::debug!(target: "state_tracing", "Tracing block: {}", self.block);
+		let block = self.prepared_block()?;
+		let parent_hash = *block.header().parent_hash();
 
 		let targets = if let Some(t) = &self.targets { t } else { DEFAULT_TARGETS };
 		let block_subscriber = BlockSubscriber::new(targets);

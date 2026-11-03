@@ -254,7 +254,7 @@ where
 			api.register_extension(e);
 		});
 
-		api.set_call_context(CallContext::Onchain);
+		api.set_call_context(CallContext::Onchain { import: false });
 
 		let core_version = api
 			.api_version::<dyn Core<Block>>(parent_hash)?
@@ -371,7 +371,7 @@ where
 		size + self.api.proof_recorder().map_or(0, |pr| pr.estimate_encoded_size())
 	}
 
-	/// Returns the [`ProofRecorder`] set for the block building.
+	/// Returns the [`ProofRecorder`] used by the block builder.
 	pub fn proof_recorder(&self) -> Option<ProofRecorder<Block>> {
 		self.api.proof_recorder()
 	}

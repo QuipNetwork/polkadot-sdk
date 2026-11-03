@@ -18,7 +18,7 @@ use super::{transaction_extension::DynamicMaxBlockWeight, *};
 use crate::{self as parachain_system, MessagingStateSnapshot, PreviousCoreCount};
 use codec::Compact;
 use cumulus_primitives_core::{
-	BundleInfo, ClaimQueueOffset, CoreInfo, CoreSelector, CumulusDigestItem,
+	BlockBundleInfo, ClaimQueueOffset, CoreInfo, CoreSelector, CumulusDigestItem,
 };
 use frame_support::{
 	construct_runtime, derive_impl,
@@ -194,6 +194,7 @@ pub mod test_pallet {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> sp_runtime::traits::ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -238,6 +239,7 @@ impl crate::Config for Runtime {
 	type WeightInfo = ();
 	type ConsensusHook = crate::ExpectParentIncluded;
 	type RelayParentOffset = ();
+	type SchedulingSignatureVerifier = ();
 }
 
 impl test_pallet::Config for Runtime {}
@@ -300,6 +302,7 @@ pub mod only_operational_runtime {
 		type WeightInfo = ();
 		type ConsensusHook = crate::ExpectParentIncluded;
 		type RelayParentOffset = ();
+		type SchedulingSignatureVerifier = ();
 	}
 
 	impl super::test_pallet::Config for RuntimeOnlyOperational {}
@@ -339,7 +342,7 @@ pub type ExecutiveOnlyOperational = frame_executive::Executive<
 pub struct TestExtBuilder {
 	num_cores: Option<u16>,
 	bundle_index: Option<u8>,
-	bundle_maybe_last: bool,
+	bundle_is_last: bool,
 	previous_core_count: Option<u16>,
 }
 
@@ -350,7 +353,7 @@ impl Default for TestExtBuilder {
 		Self {
 			num_cores: None,
 			bundle_index: None,
-			bundle_maybe_last: false,
+			bundle_is_last: false,
 			previous_core_count: None,
 		}
 	}
@@ -405,8 +408,8 @@ impl TestExtBuilder {
 			// Add bundle info if specified
 			if let Some(bundle_index) = self.bundle_index {
 				let bundle_info =
-					BundleInfo { index: bundle_index, maybe_last: self.bundle_maybe_last };
-				let digest = CumulusDigestItem::BundleInfo(bundle_info).to_digest_item();
+					BlockBundleInfo { index: bundle_index, is_last: self.bundle_is_last };
+				let digest = CumulusDigestItem::BlockBundleInfo(bundle_info).to_digest_item();
 				frame_system::Pallet::<Runtime>::deposit_log(digest);
 			}
 

@@ -330,16 +330,28 @@ fn expand_env(def: &EnvDef) -> TokenStream2 {
 	let docs = expand_func_doc(def);
 	let all_syscalls = expand_func_list(def);
 	let lookup_syscall = expand_func_lookup(def);
+	let all_trace_ops = expand_trace_op_list(def);
+	let lookup_trace_op = expand_trace_op_lookup(def);
 
 	quote! {
-		/// Returns the list of all syscalls.
+		/// Returns the list of all syscalls that contracts can import.
 		pub fn list_syscalls() -> &'static [&'static [u8]] {
 			#all_syscalls
 		}
 
-		/// Return the index of a syscall in the `all_syscalls()` list.
+		/// Return the index of a syscall in the `list_syscalls()` list.
 		pub fn lookup_syscall_index(name: &'static str) -> Option<u8> {
 			#lookup_syscall
+		}
+
+		/// Returns the list of all trace operations (real syscalls + synthetic trace steps).
+		pub fn list_trace_ops() -> &'static [&'static [u8]] {
+			#all_trace_ops
+		}
+
+		/// Return the index of a trace operation in the `list_trace_ops()` list.
+		pub fn lookup_trace_op_index(name: &'static str) -> Option<u8> {
+			#lookup_trace_op
 		}
 
 		impl<'a, E: Ext, M: PolkaVmInstance<E::T>> Runtime<'a, E, M> {
@@ -444,11 +456,18 @@ fn expand_functions(def: &EnvDef) -> TokenStream2 {
 	});
 
 	quote! {
-		// Write gas from  polkavm into pallet-revive before entering the host function.
-		self.ext
+		crate::tracing::if_tracing(|tracer| {
+			tracer.enter_ecall(crate::tracing::PVM_FUEL_NAME, &[], self)
+		});
+
+		let __sync_result__ = self.ext
 			.frame_meter_mut()
 			.sync_from_executor(memory.gas())
-			.map_err(TrapReason::from)?;
+			.map_err(TrapReason::from);
+
+		crate::tracing::if_tracing(|tracer| tracer.exit_step(self, None));
+
+		__sync_result__?;
 
 		// This is the overhead to call an empty syscall that always needs to be charged.
 		self.charge_gas(crate::vm::RuntimeCosts::HostFn).map_err(TrapReason::from)?;
@@ -553,10 +572,47 @@ fn expand_func_lookup(def: &EnvDef) -> TokenStream2 {
 			#name_str => Some(#idx as u8)
 		}
 	});
+	quote! {
+		match name {
+			#( #arms, )*
+			_ => None,
+		}
+	}
+}
+
+fn expand_trace_op_list(def: &EnvDef) -> TokenStream2 {
+	let syscalls = def.host_funcs.iter().map(|f| {
+		let name = Literal::byte_string(f.name.as_bytes());
+		quote! {
+			#name.as_slice()
+		}
+	});
+	let len = syscalls.clone().count() + 1;
+
+	quote! {
+		{
+			static OPS: [&[u8]; #len] = [
+				#(#syscalls,)*
+				crate::tracing::PVM_FUEL_NAME.as_bytes(),
+			];
+			OPS.as_slice()
+		}
+	}
+}
+
+fn expand_trace_op_lookup(def: &EnvDef) -> TokenStream2 {
+	let arms = def.host_funcs.iter().enumerate().map(|(idx, f)| {
+		let name_str = &f.name;
+		quote! {
+			#name_str => Some(#idx as u8)
+		}
+	});
+	let pvm_fuel_idx = def.host_funcs.len();
 
 	quote! {
 		match name {
 			#( #arms, )*
+			crate::tracing::PVM_FUEL_NAME => Some(#pvm_fuel_idx as u8),
 			_ => None,
 		}
 	}

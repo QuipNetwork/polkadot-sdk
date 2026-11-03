@@ -26,6 +26,7 @@ mod snowbridge_common;
 // mod snowbridge_v2_inbound;
 mod snowbridge_edge_case;
 mod snowbridge_v2_inbound;
+mod snowbridge_v2_inbound_edge_case;
 mod snowbridge_v2_inbound_to_rococo;
 mod snowbridge_v2_outbound;
 mod snowbridge_v2_outbound_edge_case;
@@ -198,8 +199,6 @@ pub(crate) fn assert_bridge_hub_westend_message_accepted(expected_processed: boo
 			assert_expected_events!(
 				BridgeHubWestend,
 				vec![
-					// pay for bridge fees
-					RuntimeEvent::Balances(pallet_balances::Event::Withdraw { .. }) => {},
 					// message exported
 					RuntimeEvent::BridgeRococoMessages(
 						pallet_bridge_messages::Event::MessageAccepted { .. }

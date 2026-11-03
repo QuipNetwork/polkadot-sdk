@@ -25,6 +25,7 @@ on:
           - polkadot-omni-node
           - polkadot-parachain
           - chain-spec-builder
+          - eth-rpc
 
       registry:
         description: Container registry
@@ -102,6 +103,8 @@ env:
 jobs:
   check-synchronization:
     uses: paritytech-release/sync-workflows/.github/workflows/check-synchronization.yml@main
+    with:
+      concurrency_suffix: publish-docker-${{ inputs.binary }}
     secrets:
       fork_writer_app_key: ${{ secrets.UPSTREAM_CONTENT_SYNC_APP_KEY }}
 
@@ -137,11 +140,11 @@ jobs:
 
     steps:
       - name: Checkout sources
-        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.image_type == 'rc' }}
+        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.binary == 'eth-rpc' || inputs.image_type == 'rc' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Fetch rc artifacts or release artifacts from s3 based on version
-        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.image_type == 'rc' }}
+        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.binary == 'eth-rpc' || inputs.image_type == 'rc' }}
         env:
           VERSION: ${{ needs.validate-inputs.outputs.stable_tag }}
         run: |
@@ -157,8 +160,8 @@ jobs:
           fi
 
       - name: Upload artifacts
-        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.image_type == 'rc' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.binary == 'eth-rpc' || inputs.image_type == 'rc' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-artifacts-${{ env.BINARY }}
           path: release-artifacts/x86_64-unknown-linux-gnu/${{ env.BINARY }}/**/*
@@ -173,14 +176,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download artifacts
-        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.image_type == 'rc' }}
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.binary == 'eth-rpc' || inputs.image_type == 'rc' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-artifacts-${{ env.BINARY }}
           path: release-artifacts
 
       - name: Check sha256 ${{ env.BINARY }}
-        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.image_type == 'rc' }}
+        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.binary == 'eth-rpc' || inputs.image_type == 'rc' }}
         working-directory: release-artifacts
         run: |
           . ../.github/scripts/common/lib.sh
@@ -189,7 +192,7 @@ jobs:
           check_sha256 $BINARY && echo "OK" || echo "ERR"
 
       - name: Check GPG ${{ env.BINARY }}
-        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.image_type == 'rc' }}
+        if: ${{ inputs.binary == 'polkadot-omni-node' || inputs.binary == 'polkadot-parachain' || inputs.binary == 'chain-spec-builder' || inputs.binary == 'eth-rpc' || inputs.image_type == 'rc' }}
         working-directory: release-artifacts
         run: |
           . ../.github/scripts/common/lib.sh
@@ -286,16 +289,32 @@ jobs:
           echo "Building container for $BINARY"
           ./docker/scripts/build-injected.sh
 
+      - name: Build Injected Container image for eth-rpc
+        if: ${{ env.BINARY == 'eth-rpc' }}
+        shell: bash
+        env:
+          ARTIFACTS_FOLDER: release-artifacts
+          IMAGE_NAME: ${{ env.BINARY }}
+          OWNER: ${{ env.DOCKER_OWNER }}
+          DOCKERFILE: docker/dockerfiles/eth-rpc/eth-rpc_injected.Dockerfile
+          TAGS: ${{ join(steps.fetch_rc_refs.outputs.*, ',') || join(steps.fetch_release_refs.outputs.*, ',') }}
+          VERSION: ${{ needs.validate-inputs.outputs.version }}
+          SKIP_IMAGE_VALIDATION: "true"
+        run: |
+          ls -al
+          echo "Building container for $BINARY"
+          ./docker/scripts/build-injected.sh
+
       - name: Login to Dockerhub to publish polkadot
         if: ${{ env.BINARY == 'polkadot' }}
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.POLKADOT_DOCKERHUB_USERNAME }}
           password: ${{ secrets.POLKADOT_DOCKERHUB_TOKEN }}
 
-      - name: Login to Dockerhub to publish polkadot-omni-node/polkadot-parachain/chain-spec-builder
-        if: ${{ env.BINARY == 'polkadot-omni-node' || env.BINARY == 'polkadot-parachain' || env.BINARY == 'chain-spec-builder' }}
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+      - name: Login to Dockerhub to publish polkadot-omni-node/polkadot-parachain/chain-spec-builder/eth-rpc
+        if: ${{ env.BINARY == 'polkadot-omni-node' || env.BINARY == 'polkadot-parachain' || env.BINARY == 'chain-spec-builder' || env.BINARY == 'eth-rpc' }}
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.CUMULUS_DOCKERHUB_USERNAME }}
           password: ${{ secrets.CUMULUS_DOCKERHUB_TOKEN }}

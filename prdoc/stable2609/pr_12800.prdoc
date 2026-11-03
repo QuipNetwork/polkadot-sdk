@@ -1,0 +1,58 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Registrar: reserve and register paras from a system parachain'
+
+doc:
+  - audience: Runtime Dev
+    description: |-
+      Fills in the two registrar pallets and their shared wire types, so a system parachain can
+      hand out para ids, hold the deposits, and drive registration on the relay chain over XCM.
+      Deposits only ever live on the parachain; the relay chain takes nothing.
+
+      Pushing a multi-megabyte validation code through an XCM `Transact` would be wasteful, so
+      registration is split in two and only the code hash and length cross the bridge:
+
+      1. `pallet-registrar-para::reserve` allocates the next free para id and holds `ParaDeposit`.
+      2. `pallet-registrar-para::register` holds a deposit for the head data and the declared code
+         length, and asks the relay chain to accept the registration.
+      3. `pallet-registrar-relay::authorize_code` validates the request against the relay chain's
+         live configuration and parks it. Only callable by a trusted XCM origin (e.g. the Coretime
+         chain). A request it will not act on is rejected and reported rather than failed, so the
+         parachain never sits on a stuck deposit.
+      4. `pallet-registrar-relay::apply_authorized_code` takes the blob itself. It is unsigned,
+         pays no fee and authorizes itself through `#[pallet::authorize]`: the pending entry
+         already pins down the exact bytes that will be accepted and the manager has already paid
+         for them, so anybody may submit it. A matching blob onboards the para and reports the
+         outcome back.
+      5. `pallet-registrar-para::receive` applies the verdict, keeping the deposit held or
+         releasing it.
+
+      Nothing on the relay chain times an authorization out: no per-block sweep runs there, and
+      missing the deadline is the manager's problem rather than every block's. If the code never
+      arrives, `pallet-registrar-para::cancel_registration` ends the registration and the manager
+      pays for the round trip. It does not release the deposit on its own either: the relay chain
+      is asked to drop the authorization and only its answer frees the funds, which is what stops a
+      cancellation from refunding a para that did get registered while its verdict was lost.
+
+      `registrar-primitives` carries the versioned wire types and depends on neither FRAME nor XCM,
+      so one version of the format serves Westend, Kusama and Polkadot and neither pallet has to
+      depend on the other. The `SendToRelay`/`SendToPara` traits keep XCM out of both pallets: what
+      a message means is the pallet's business, how it travels is the runtime's.
+
+      `paras_registrar` gains `do_register_without_deposit` and an implementation of the relay
+      pallet's `ParachainRegistrar` trait. Head data and code are still validated against the live
+      configuration and the para still goes through the usual onboarding and PVF pre-check; only
+      the deposit is skipped.
+
+      Neither pallet is wired into a production runtime yet.
+
+crates:
+  - name: registrar-primitives
+    bump: major
+  - name: pallet-registrar-para
+    bump: major
+  - name: pallet-registrar-relay
+    bump: major
+  - name: polkadot-runtime-common
+    bump: minor

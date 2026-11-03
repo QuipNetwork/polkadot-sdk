@@ -1,6 +1,6 @@
 [package]
 name = "pallet-nomination-pools-benchmarking"
-version = "44.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -18,6 +18,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 # parity
 codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
+# FRAME
 frame-benchmarking = { workspace = true }
 frame-election-provider-support = { workspace = true }
 frame-support = { workspace = true }
@@ -25,18 +28,18 @@ frame-system = { workspace = true }
 pallet-bags-list = { workspace = true }
 pallet-delegated-staking = { workspace = true }
 pallet-nomination-pools = { workspace = true }
-pallet-staking = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
+pallet-staking-async = { workspace = true }
+
+# Substrate Primitives
 sp-runtime = { workspace = true }
 sp-runtime-interface = { workspace = true }
 sp-staking = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { workspace = true, default-features = false }
-pallet-staking-reward-curve = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+pallet-balances = { workspace = true }
+pallet-staking-async-rc-client = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -50,8 +53,10 @@ std = [
 	"pallet-balances/std",
 	"pallet-delegated-staking/std",
 	"pallet-nomination-pools/std",
-	"pallet-staking/std",
+	"pallet-staking-async/std",
 	"scale-info/std",
+	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime-interface/std",
 	"sp-runtime/std",
 	"sp-staking/std",
@@ -65,8 +70,8 @@ runtime-benchmarks = [
 	"pallet-balances/runtime-benchmarks",
 	"pallet-delegated-staking/runtime-benchmarks",
 	"pallet-nomination-pools/runtime-benchmarks",
-	"pallet-staking/runtime-benchmarks",
-	"pallet-timestamp/runtime-benchmarks",
+	"pallet-staking-async-rc-client/runtime-benchmarks",
+	"pallet-staking-async/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"sp-staking/runtime-benchmarks",
 ]

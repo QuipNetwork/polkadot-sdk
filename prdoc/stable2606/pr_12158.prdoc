@@ -1,0 +1,42 @@
+title: Remove deprecated sp_core hashing re-export
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes the deprecated re-export of `sp-crypto-hashing` from `sp-core`. Hashing
+      helpers (`keccak_256`, `blake2_256`, `twox_*`, etc.) are no longer available at
+      the `sp_core` crate root or via `sp_core::hashing`.
+
+      Use `sp_crypto_hashing` directly. Types such as `H160`, `H256`, and `U256` remain
+      on `sp_core`. `polkadot-sdk-frame::hashing` continues to expose the same helpers,
+      now sourced from `sp_crypto_hashing` rather than `sp_core`.
+
+crates:
+  - name: sp-core
+    bump: patch
+  - name: polkadot-sdk-frame
+    bump: minor
+  - name: pallet-revive
+    bump: minor
+  - name: pallet-revive-eth-rpc
+    bump: patch
+  - name: pallet-election-provider-multi-phase
+    bump: minor
+  - name: pallet-staking-async
+    bump: minor
+  - name: pallet-migrations
+    bump: minor
+  - name: pallet-people
+    bump: minor
+  - name: snowbridge-inbound-queue-primitives
+    bump: minor
+  - name: snowbridge-test-utils
+    bump: minor
+  - name: frame-benchmarking-cli
+    bump: minor
+  - name: sc-network-statement
+    bump: patch
+  - name: xcm-simulator-example
+    bump: minor
+  - name: sc-hop
+    bump: minor

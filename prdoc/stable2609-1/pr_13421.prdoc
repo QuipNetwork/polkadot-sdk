@@ -1,0 +1,10 @@
+title: 'frame-support: make `#[stored]` work in crates without a direct `derive-where` dependency'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `#[frame_support::stored]` passes `crate = frame_support::derive_where` to `derive_where`, so
+    the code it generates uses the `frame-support` re-export and compiles in crates that do not
+    depend on `derive-where` directly.
+crates:
+- name: frame-support-procedural
+  bump: patch

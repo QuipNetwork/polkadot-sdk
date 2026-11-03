@@ -39,8 +39,6 @@ extern crate alloc;
 use alloc::fmt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "std")]
-use std::collections::HashSet;
 
 #[doc(hidden)]
 pub use alloc::borrow::Cow;
@@ -752,55 +750,6 @@ impl RuntimeVersion {
 	}
 }
 
-/// The version of the native runtime.
-///
-/// In contrast to the bare [`RuntimeVersion`] this also carries a list of `spec_version`s of
-/// runtimes this native runtime can be used to author blocks for.
-#[derive(Debug)]
-#[cfg(feature = "std")]
-pub struct NativeVersion {
-	/// Basic runtime version info.
-	pub runtime_version: RuntimeVersion,
-	/// Authoring runtimes (`spec_version`s) that this native runtime supports.
-	pub can_author_with: HashSet<u32>,
-}
-
-#[cfg(feature = "std")]
-impl NativeVersion {
-	/// Check if this version matches other version for authoring blocks.
-	///
-	/// # Return
-	///
-	/// - Returns `Ok(())` when authoring is supported.
-	/// - Returns `Err(_)` with a detailed error when authoring is not supported.
-	pub fn can_author_with(&self, other: &RuntimeVersion) -> Result<(), String> {
-		if self.runtime_version.spec_name != other.spec_name {
-			Err(format!(
-				"`spec_name` does not match `{}` vs `{}`",
-				self.runtime_version.spec_name, other.spec_name,
-			))
-		} else if self.runtime_version.authoring_version != other.authoring_version &&
-			!self.can_author_with.contains(&other.authoring_version)
-		{
-			Err(format!(
-				"`authoring_version` does not match `{version}` vs `{other_version}` and \
-				`can_author_with` not contains `{other_version}`",
-				version = self.runtime_version.authoring_version,
-				other_version = other.authoring_version,
-			))
-		} else {
-			Ok(())
-		}
-	}
-}
-
-#[cfg(feature = "std")]
-/// Returns the version of the native runtime.
-pub trait GetNativeVersion {
-	/// Returns the version of the native runtime.
-	fn native_version(&self) -> &NativeVersion;
-}
-
 /// Something that can provide the runtime version at a given block.
 #[cfg(feature = "std")]
 pub trait GetRuntimeVersionAt<Block: BlockT> {
@@ -822,13 +771,6 @@ impl<T: GetRuntimeVersionAt<Block>, Block: BlockT> GetRuntimeVersionAt<Block>
 		call_context: CallContext,
 	) -> Result<RuntimeVersion, String> {
 		(&**self).runtime_version(at, call_context)
-	}
-}
-
-#[cfg(feature = "std")]
-impl<T: GetNativeVersion> GetNativeVersion for std::sync::Arc<T> {
-	fn native_version(&self) -> &NativeVersion {
-		(&**self).native_version()
 	}
 }
 

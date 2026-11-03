@@ -84,6 +84,11 @@ pub use cumulus_client_cli;
 #[cfg(feature = "cumulus-client-collator")]
 pub use cumulus_client_collator;
 
+/// Parachain collator authority discovery — keeps collators connected via reserved peers on
+/// the block-announce protocol.
+#[cfg(feature = "cumulus-client-collator-discovery")]
+pub use cumulus_client_collator_discovery;
+
 /// AURA consensus algorithm for parachains.
 #[cfg(feature = "cumulus-client-consensus-aura")]
 pub use cumulus_client_consensus_aura;
@@ -109,6 +114,14 @@ pub use cumulus_client_parachain_inherent;
 #[cfg(feature = "cumulus-client-pov-recovery")]
 pub use cumulus_client_pov_recovery;
 
+/// Storage proof size recording utilities.
+#[cfg(feature = "cumulus-client-proof-size-recording")]
+pub use cumulus_client_proof_size_recording;
+
+/// Per-block proof store for unincluded segment resubmission.
+#[cfg(feature = "cumulus-client-resubmission-store")]
+pub use cumulus_client_resubmission_store;
+
 /// Common functions used to assemble the components of a parachain node.
 #[cfg(feature = "cumulus-client-service")]
 pub use cumulus_client_service;
@@ -116,10 +129,6 @@ pub use cumulus_client_service;
 /// AURA consensus extension pallet for parachains.
 #[cfg(feature = "cumulus-pallet-aura-ext")]
 pub use cumulus_pallet_aura_ext;
-
-/// Migrates messages from the old DMP queue pallet.
-#[cfg(feature = "cumulus-pallet-dmp-queue")]
-pub use cumulus_pallet_dmp_queue;
 
 /// Base pallet for cumulus-based parachains.
 #[cfg(feature = "cumulus-pallet-parachain-system")]
@@ -219,6 +228,10 @@ pub use ethereum_standards;
 #[cfg(feature = "fork-tree")]
 pub use fork_tree;
 
+/// Primitives for Polkadot Coretime.
+#[cfg(feature = "fp-coretime")]
+pub use fp_coretime;
+
 /// Macro for benchmarking a FRAME runtime.
 #[cfg(feature = "frame-benchmarking")]
 pub use frame_benchmarking;
@@ -296,6 +309,10 @@ pub use mmr_gadget;
 #[cfg(feature = "mmr-rpc")]
 pub use mmr_rpc;
 
+/// FRAME pallet for periodic accumulation and forwarding of native token funds.
+#[cfg(feature = "pallet-accumulate-and-forward")]
+pub use pallet_accumulate_and_forward;
+
 /// The Alliance pallet provides a collective for standard-setting industry collaboration.
 #[cfg(feature = "pallet-alliance")]
 pub use pallet_alliance;
@@ -307,6 +324,10 @@ pub use pallet_asset_conversion;
 /// FRAME asset conversion pallet's operations suite.
 #[cfg(feature = "pallet-asset-conversion-ops")]
 pub use pallet_asset_conversion_ops;
+
+/// Provides precompiles for `pallet-asset-conversion`.
+#[cfg(feature = "pallet-asset-conversion-precompiles")]
+pub use pallet_asset_conversion_precompiles;
 
 /// Pallet to manage transaction payments in assets by converting them to native assets.
 #[cfg(feature = "pallet-asset-conversion-tx-payment")]
@@ -446,10 +467,6 @@ pub use pallet_core_fellowship;
 /// FRAME pallet for Dynamic Allocation Pool (DAP).
 #[cfg(feature = "pallet-dap")]
 pub use pallet_dap;
-
-/// FRAME pallet for DAP Satellite - collects funds for periodic transfer to DAP on AssetHub.
-#[cfg(feature = "pallet-dap-satellite")]
-pub use pallet_dap_satellite;
 
 /// FRAME delegated staking pallet.
 #[cfg(feature = "pallet-delegated-staking")]
@@ -591,6 +608,10 @@ pub use pallet_offences;
 #[cfg(feature = "pallet-offences-benchmarking")]
 pub use pallet_offences_benchmarking;
 
+/// Sale of on-demand Coretime from the Coretime chain.
+#[cfg(feature = "pallet-on-demand-para")]
+pub use pallet_on_demand_para;
+
 /// FRAME oracle pallet for off-chain data.
 #[cfg(feature = "pallet-oracle")]
 pub use pallet_oracle;
@@ -615,6 +636,10 @@ pub use pallet_parameters;
 #[cfg(feature = "pallet-people")]
 pub use pallet_people;
 
+/// Transaction extension that pays transaction fees with a gas allowance asset.
+#[cfg(feature = "pallet-pgas-allowance")]
+pub use pallet_pgas_allowance;
+
 /// FRAME pallet for storing preimages of hashes.
 #[cfg(feature = "pallet-preimage")]
 pub use pallet_preimage;
@@ -622,6 +647,10 @@ pub use pallet_preimage;
 /// FRAME proxying pallet.
 #[cfg(feature = "pallet-proxy")]
 pub use pallet_proxy;
+
+/// FRAME pallet for the Peg Stability Module.
+#[cfg(feature = "pallet-psm")]
+pub use pallet_psm;
 
 /// Ranked collective system: Members of a set of account IDs can make their collective
 /// feelings known through dispatched calls from one of two specialized origins.
@@ -648,6 +677,11 @@ pub use pallet_revive;
 #[cfg(feature = "pallet-revive-proc-macro")]
 pub use pallet_revive_proc_macro;
 
+/// Wire types used by pallet-revive which have higher stability guarantees than internal
+/// pallet-revive types.
+#[cfg(feature = "pallet-revive-types")]
+pub use pallet_revive_types;
+
 /// Exposes all the host functions that a contract can import.
 #[cfg(feature = "pallet-revive-uapi")]
 pub use pallet_revive_uapi;
@@ -671,10 +705,6 @@ pub use pallet_salary;
 /// FRAME Scheduler pallet.
 #[cfg(feature = "pallet-scheduler")]
 pub use pallet_scheduler;
-
-/// FRAME pallet for scored pools.
-#[cfg(feature = "pallet-scored-pool")]
-pub use pallet_scored_pool;
 
 /// FRAME sessions pallet.
 #[cfg(feature = "pallet-session")]
@@ -759,10 +789,6 @@ pub use pallet_transaction_payment_rpc;
 #[cfg(feature = "pallet-transaction-payment-rpc-runtime-api")]
 pub use pallet_transaction_payment_rpc_runtime_api;
 
-/// Storage chain pallet.
-#[cfg(feature = "pallet-transaction-storage")]
-pub use pallet_transaction_storage;
-
 /// FRAME pallet to manage treasury.
 #[cfg(feature = "pallet-treasury")]
 pub use pallet_treasury;
@@ -786,6 +812,10 @@ pub use pallet_verify_signature;
 /// FRAME pallet for manage vesting.
 #[cfg(feature = "pallet-vesting")]
 pub use pallet_vesting;
+
+/// Vesting precompile exposing pallet-vesting to EVM contracts via pallet-revive.
+#[cfg(feature = "pallet-vesting-precompiles")]
+pub use pallet_vesting_precompiles;
 
 /// FRAME pallet for whitelisting calls, and dispatching from a specific origin.
 #[cfg(feature = "pallet-whitelist")]
@@ -873,6 +903,10 @@ pub use polkadot_gossip_support;
 /// The Network Bridge Subsystem — protocol multiplexer for Polkadot.
 #[cfg(feature = "polkadot-network-bridge")]
 pub use polkadot_network_bridge;
+
+/// Clock abstraction shared by Polkadot node subsystems.
+#[cfg(feature = "polkadot-node-clock")]
+pub use polkadot_node_clock;
 
 /// Collator-side subsystem that handles incoming candidate submissions from the parachain.
 #[cfg(feature = "polkadot-node-collation-generation")]
@@ -1126,6 +1160,10 @@ pub use sc_executor_polkavm;
 #[cfg(feature = "sc-executor-wasmtime")]
 pub use sc_executor_wasmtime;
 
+/// Hand-Off Protocol (HOP) ephemeral data pool service.
+#[cfg(feature = "sc-hop")]
+pub use sc_hop;
+
 /// Substrate informant.
 #[cfg(feature = "sc-informant")]
 pub use sc_informant;
@@ -1141,6 +1179,10 @@ pub use sc_mixnet;
 /// Substrate network protocol.
 #[cfg(feature = "sc-network")]
 pub use sc_network;
+
+/// Substrate Bitswap client/server service.
+#[cfg(feature = "sc-network-bitswap")]
+pub use sc_network_bitswap;
 
 /// Substrate network common.
 #[cfg(feature = "sc-network-common")]
@@ -1211,6 +1253,10 @@ pub use sc_state_db;
 #[cfg(feature = "sc-statement-store")]
 pub use sc_statement_store;
 
+/// Substrate storage-chain bitswap peer rotation and indexed transaction fetching service.
+#[cfg(feature = "sc-storage-chain-sync")]
+pub use sc_storage_chain_sync;
+
 /// Storage monitor service for substrate.
 #[cfg(feature = "sc-storage-monitor")]
 pub use sc_storage_monitor;
@@ -1246,6 +1292,10 @@ pub use sc_transaction_pool_api;
 /// I/O for Substrate runtimes.
 #[cfg(feature = "sc-utils")]
 pub use sc_utils;
+
+/// Host-side PolkaVM backend driving the sp-virtualization host functions.
+#[cfg(feature = "sc-virtualization")]
+pub use sc_virtualization;
 
 /// Helper crate for generating slot ranges for the Polkadot runtime.
 #[cfg(feature = "slot-range-helper")]
@@ -1332,6 +1382,10 @@ pub use sp_crypto_hashing;
 #[cfg(feature = "sp-crypto-hashing-proc-macro")]
 pub use sp_crypto_hashing_proc_macro;
 
+/// Primitives for the Dynamic Allocation Pool (DAP).
+#[cfg(feature = "sp-dap")]
+pub use sp_dap;
+
 /// Substrate database trait.
 #[cfg(feature = "sp-database")]
 pub use sp_database;
@@ -1347,6 +1401,10 @@ pub use sp_externalities;
 /// Substrate RuntimeGenesisConfig builder API.
 #[cfg(feature = "sp-genesis-builder")]
 pub use sp_genesis_builder;
+
+/// HOP (Hand-Off Protocol) primitives and runtime API.
+#[cfg(feature = "sp-hop")]
+pub use sp_hop;
 
 /// Provides types and traits for creating and checking inherents.
 #[cfg(feature = "sp-inherents")]
@@ -1463,6 +1521,14 @@ pub use sp_version;
 /// Macro for defining a runtime version.
 #[cfg(feature = "sp-version-proc-macro")]
 pub use sp_version_proc_macro;
+
+/// Spawn a new polkavm instance from within the runtime/pvf.
+#[cfg(feature = "sp-virtualization")]
+pub use sp_virtualization;
+
+/// A PolkaVM program that is used by the `sp-virtualization` tests.
+#[cfg(feature = "sp-virtualization-test-fixture")]
+pub use sp_virtualization_test_fixture;
 
 /// Types and traits for interfacing between the host and the wasm runtime.
 #[cfg(feature = "sp-wasm-interface")]

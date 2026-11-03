@@ -1,0 +1,9 @@
+title: 'revive: Skip redundant eth_block_hash RPC call in block subscription'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Skip a redundant eth_block_hash RPC call during block subscription by reusing the block hash
+    already available in the subscription context. Adds extra logging for receipt extraction.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

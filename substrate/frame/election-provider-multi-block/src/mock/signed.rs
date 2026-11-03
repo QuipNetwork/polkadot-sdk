@@ -15,17 +15,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::{Balance, Balances, Pages, Runtime, RuntimeEvent, SignedPallet, System};
+use super::{AccountId, Balance, Balances, Pages, Runtime, RuntimeEvent, SignedPallet, System};
 use crate::{
 	mock::*,
-	signed::{self as signed_pallet, Event as SignedEvent, Submissions},
+	signed::{self as signed_pallet, ActivePot, Event as SignedEvent, Submissions},
 	unsigned::miner::MinerConfig,
 	verifier::{self, AsynchronousVerifier, SolutionDataProvider, VerificationResult, Verifier},
 	Event, PadSolutionPages, PagedRawSolution, Pagify, Phase, SolutionOf,
 };
 use frame_election_provider_support::PageIndex;
 use frame_support::{
-	assert_ok, dispatch::PostDispatchInfo, parameter_types, traits::EstimateCallFee,
+	assert_ok,
+	dispatch::{DispatchInfo, PostDispatchInfo},
+	parameter_types,
+	traits::{
+		fungible::{Balanced, Credit},
+		EstimateCallFee, EstimateFee, OnUnbalanced,
+	},
 };
 use sp_npos_elections::ElectionScore;
 use sp_runtime::{traits::Zero, Perbill};
@@ -65,6 +71,11 @@ impl EstimateCallFee<signed_pallet::Call<Runtime>, Balance> for FixedCallFee {
 		1
 	}
 }
+impl EstimateFee<Balance> for FixedCallFee {
+	fn estimate_fee(_: u32, _: &DispatchInfo) -> Balance {
+		1
+	}
+}
 
 parameter_types! {
 	pub static SignedDepositBase: Balance = 5;
@@ -75,6 +86,19 @@ parameter_types! {
 	pub static SignedPhaseSwitch: SignedSwitch = SignedSwitch::Real;
 	pub static BailoutGraceRatio: Perbill = Perbill::from_percent(20);
 	pub static EjectGraceRatio: Perbill = Perbill::from_percent(20);
+	pub static SignedRewardSource: Option<AccountId> = None;
+	pub static SignedSlashTarget: Option<AccountId> = None;
+}
+
+/// Routes slashed deposits to [`SignedSlashTarget`] if set, otherwise drops (burns) them.
+pub struct MockSlash;
+impl OnUnbalanced<Credit<AccountId, Balances>> for MockSlash {
+	fn on_unbalanced(credit: Credit<AccountId, Balances>) {
+		if let Some(target) = SignedSlashTarget::get() {
+			let _ = Balances::resolve(&target, credit).map_err(|c| drop(c));
+		}
+		// else: `credit` is dropped here.
+	}
 }
 
 impl crate::signed::Config for Runtime {
@@ -83,10 +107,13 @@ impl crate::signed::Config for Runtime {
 	type DepositPerPage = SignedDepositPerPage;
 	type InvulnerableDeposit = InvulnerableDeposit;
 	type EstimateCallFee = FixedCallFee;
+	type MaxFeeRefund = crate::signed::FullSubmissionFee<Runtime, FixedCallFee>;
 	type MaxSubmissions = SignedMaxSubmissions;
 	type RewardBase = SignedRewardBase;
 	type BailoutGraceRatio = BailoutGraceRatio;
 	type EjectGraceRatio = EjectGraceRatio;
+	type Slash = MockSlash;
+	type RewardSource = ActivePot<SignedRewardSource>;
 	type WeightInfo = ();
 }
 

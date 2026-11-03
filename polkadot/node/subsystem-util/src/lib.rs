@@ -31,7 +31,7 @@ pub use overseer::{
 };
 use polkadot_node_subsystem::{
 	errors::{RuntimeApiError, SubsystemError},
-	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
+	messages::{ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	overseer, SubsystemSender,
 };
 
@@ -42,9 +42,11 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::{
 	async_backing::{BackingState, Constraints},
-	slashing, AsyncBackingParams, AuthorityDiscoveryId, CandidateEvent, CandidateHash,
-	CommittedCandidateReceiptV2 as CommittedCandidateReceipt, CoreIndex, CoreState, EncodeAs,
-	ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, NodeFeatures,
+	slashing,
+	vstaging::RelayParentInfo,
+	ApprovalVotingParams, AsyncBackingParams, AuthorityDiscoveryId, BlockNumber, CandidateEvent,
+	CandidateHash, CommittedCandidateReceiptV2 as CommittedCandidateReceipt, CoreIndex, CoreState,
+	EncodeAs, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, NodeFeatures,
 	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
 	SessionInfo, Signed, SigningContext, ValidationCode, ValidationCodeHash, ValidatorId,
 	ValidatorIndex, ValidatorSignature,
@@ -156,7 +158,7 @@ impl TryFrom<crate::runtime::Error> for Error {
 		match e {
 			Error::RuntimeRequestCanceled(e) => Ok(Self::Oneshot(e)),
 			Error::RuntimeRequest(e) => Ok(Self::RuntimeApi(e)),
-			Error::NoSuchSession(_) | Error::NoExecutorParams(_) => Err(()),
+			Error::NoSuchSession(_) => Err(()),
 		}
 	}
 }
@@ -317,6 +319,7 @@ specialize_requests! {
 	fn request_backing_constraints(para_id: ParaId) -> Option<Constraints>; BackingConstraints;
 	fn request_min_backing_votes(session_index: SessionIndex) -> u32; MinimumBackingVotes;
 	fn request_node_features(session_index: SessionIndex) -> NodeFeatures; NodeFeatures;
+	fn request_approval_voting_params(session_index: SessionIndex) -> ApprovalVotingParams; ApprovalVotingParams;
 	fn request_para_ids(session_index: SessionIndex) -> Vec<ParaId>; ParaIds;
 
 }
@@ -382,6 +385,70 @@ pub async fn check_relay_parent_session(
 		Err(_) => CheckRelayParentSessionResult::RuntimeError(
 			"AncestorRelayParentInfo request cancelled".into(),
 		),
+	}
+}
+
+/// Fetch relay parent info for a block, including the block being queried at.
+///
+/// Works for all blocks within the `max_relay_parent_session_age` window,
+/// including the self-query case (`query_at == relay_parent`). For ancestors,
+/// uses the `ancestor_relay_parent_info` runtime API. For self, constructs the
+/// answer from the block header and session check.
+///
+/// Requires both `RuntimeApiMessage` and `ChainApiMessage` senders.
+pub async fn fetch_relay_parent_info<Sender>(
+	sender: &mut Sender,
+	query_at: Hash,
+	session_index: SessionIndex,
+	relay_parent: Hash,
+) -> Result<Option<RelayParentInfo<Hash, BlockNumber>>, runtime::Error>
+where
+	Sender: SubsystemSender<RuntimeApiMessage> + SubsystemSender<ChainApiMessage>,
+{
+	if query_at == relay_parent {
+		// Self-query: the ancestor runtime API can't answer (a block is not in
+		// its own AllowedRelayParents). Verify session and construct from header.
+
+		return get_scheduling_parent_info(sender, session_index, relay_parent).await;
+	}
+
+	// Ancestor query: use the runtime API.
+	match request_from_runtime(query_at, sender, |tx| {
+		RuntimeApiRequest::AncestorRelayParentInfo(session_index, relay_parent, tx)
+	})
+	.await
+	.await?
+	{
+		Ok(info) => Ok(info),
+		Err(RuntimeApiError::NotSupported { .. }) => {
+			// The runtime API is not existent, this means the v3 descriptor node feature was not
+			// enabled. Fallback to querying the chain API.
+			get_scheduling_parent_info(sender, session_index, relay_parent).await
+		},
+		Err(err) => Err(runtime::Error::RuntimeRequest(err)),
+	}
+}
+
+async fn get_scheduling_parent_info<Sender>(
+	sender: &mut Sender,
+	session_index: SessionIndex,
+	hash: Hash,
+) -> Result<Option<RelayParentInfo<Hash, BlockNumber>>, runtime::Error>
+where
+	Sender: SubsystemSender<RuntimeApiMessage> + SubsystemSender<ChainApiMessage>,
+{
+	let session_ok = request_session_index_for_child(hash, sender).await.await?? == session_index;
+	if !session_ok {
+		return Ok(None);
+	}
+
+	let (tx, rx) = oneshot::channel();
+	sender.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
+	match rx.await? {
+		Ok(Some(header)) => {
+			Ok(Some(RelayParentInfo { number: header.number, state_root: header.state_root }))
+		},
+		_ => Ok(None),
 	}
 }
 

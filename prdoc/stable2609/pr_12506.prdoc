@@ -1,0 +1,21 @@
+title: 'grandpa: fix panic when a change block is finalized concurrently during justification import'
+
+doc:
+- audience: [Node Dev, Node Operator]
+  description: |-
+    Fixes a node panic (`returns Ok when no authority set change should be enacted; qed;`)
+    that could occur while importing a justification for a block enacting an authority set
+    change.
+
+    `GrandpaBlockImport::import_justification` verified the justification against the current
+    authority set and then enacted the change via `environment::finalize_block` under two
+    separate acquisitions of the authority-set lock. If another finalizer (the voter acting on
+    a gossiped commit, or a justification imported via sync) finalized the same block in the
+    window between the verification and the enactment, `finalize_block` short-circuited on its
+    "already finalized" guard and returned `Ok(())` while the caller still expected the change
+    to be enacted, tripping the assertion. The window was widened by anything delaying block
+    import relative to finality, making it most likely at session-rotation blocks.
+
+crates:
+- name: sc-consensus-grandpa
+  bump: minor

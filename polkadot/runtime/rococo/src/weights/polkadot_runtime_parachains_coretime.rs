@@ -120,4 +120,9 @@ impl<T: frame_system::Config> polkadot_runtime_parachains::coretime::WeightInfo 
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
+	/// To be measured
+	fn queue_on_demand_batch(_s: u32) -> Weight {
+		// just a dummy placeholder copied from above
+		Weight::from_parts(10_300_000, 0)
+	}
 }

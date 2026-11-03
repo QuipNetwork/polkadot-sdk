@@ -1,0 +1,8 @@
+title: 'Polkadot: Increase block size limit on the node side'
+doc:
+- audience: Node Dev
+  description: |-
+    This pull request increases the block size limit allowed while building a block. This block size limit is checked on the node side. The ultimate authority about the actual block size limit is the runtime.
+crates:
+- name: polkadot-service
+  bump: patch

@@ -30,14 +30,14 @@
 extern crate alloc;
 
 use alloc::{collections::btree_map::BTreeMap, vec, vec::Vec};
-use codec::{Decode, DecodeLimit, Encode};
+use codec::{Decode, Encode};
 use core::cmp;
 use cumulus_primitives_core::{
 	relay_chain::{self, UMPSignal, UMP_SEPARATOR},
-	AbridgedHostConfiguration, ChannelInfo, ChannelStatus, CollationInfo, CumulusDigestItem,
-	GetChannelInfo, ListChannelInfos, MessageSendError, OutboundHrmpMessage, ParaId,
-	PersistedValidationData, UpwardMessage, UpwardMessageSender, XcmpMessageHandler,
-	XcmpMessageSource,
+	AbridgedHostConfiguration, ChannelInfo, ChannelStatus, CollationInfo, CoreInfo,
+	CumulusDigestItem, GetChannelInfo, ListChannelInfos, MessageSendError, OutboundHrmpMessage,
+	ParaId, PersistedValidationData, UpwardMessage, UpwardMessageSender, VerifySchedulingSignature,
+	XcmpMessageHandler, XcmpMessageSource,
 };
 use cumulus_primitives_parachain_inherent::{v0, MessageQueueChain, ParachainInherentData};
 use frame_support::{
@@ -59,7 +59,7 @@ use sp_runtime::{
 	traits::{BlockNumberProvider, Hash},
 	Debug, FixedU128, SaturatedConversion,
 };
-use xcm::{latest::XcmHash, VersionedLocation, VersionedXcm, MAX_XCM_DECODE_DEPTH};
+use xcm::{latest::XcmHash, VersionedLocation, VersionedXcm};
 use xcm_builder::InspectMessageQueues;
 
 mod benchmarking;
@@ -125,6 +125,8 @@ pub struct PoVMessages {
 	pub ump_msg_count: u32,
 	/// Cumulative count of HRMP outbound messages sent in this PoV.
 	pub hrmp_outbound_count: u32,
+	/// Recipients already used for HRMP outbound messages in this PoV.
+	pub hrmp_outbound_recipients: Vec<ParaId>,
 }
 
 /// Something that can check the associated relay block number.
@@ -199,6 +201,22 @@ pub mod ump_constants {
 	/// starts getting exponentially more expensive.
 	/// `2` means the price starts to increase when queue is half full.
 	pub const THRESHOLD_FACTOR: u32 = 2;
+}
+
+const V3_CLAIM_QUEUE_LOOKAHEAD: u8 = 2;
+const V2_CLAIM_QUEUE_LOOKAHEAD: u8 = 1;
+
+/// The largest `claim_queue_offset` a candidate may declare.
+///
+/// With V3 the collator reads the claim queue at the scheduling parent, which is the fresh tip, so
+/// the bound is just the V3 lookahead. Without V3 it reads at the relay parent, which sits
+/// `relay_parent_offset` blocks behind the tip, so the bound grows by that much.
+fn max_allowed_claim_queue_offset(v3_enabled: bool, relay_parent_offset: u8) -> u8 {
+	if v3_enabled {
+		V3_CLAIM_QUEUE_LOOKAHEAD
+	} else {
+		V2_CLAIM_QUEUE_LOOKAHEAD.saturating_add(relay_parent_offset)
+	}
 }
 
 #[frame_support::pallet]
@@ -280,6 +298,35 @@ pub mod pallet {
 		///
 		/// If set to 0, this config has no impact.
 		type RelayParentOffset: Get<u32>;
+
+		/// Verifier for V3 scheduling proofs.
+		///
+		/// Reports whether V3 scheduling validation is enabled and supplies the
+		/// verification logic for the proof itself. Use `()` to keep V3 scheduling
+		/// disabled.
+		///
+		/// When enabled, this changes how building on older relay parents is enforced:
+		/// - The old `relay_parent_descendants` validation in the inherent is disabled
+		/// - V3 scheduling validation is used instead, with the header chain provided via PVF
+		///   parameters
+		///
+		/// # Migration Guide
+		///
+		/// v3 scheduling is work in progress, and for the moment this should be left as
+		/// `()`. If V3 is wrongfully enabled, the parachain will stall.
+		///
+		/// Before enabling this:
+		/// 1. Ensure all collators are updated to a version that supports V3 candidates
+		/// 2. Ensure the relay chain has `CandidateReceiptV3` node feature enabled
+		/// 3. Swap the verifier for one whose `V3_SCHEDULING_ENABLED` const is `true`, via a
+		///    runtime upgrade.
+		///
+		/// Once enabled, collators will:
+		/// - Stop providing `relay_parent_descendants` in the inherent (empty vec)
+		/// - Provide the header chain via V3 extension in PVF parameters
+		///
+		/// The `RelayParentOffset` config continues to define the header chain length.
+		type SchedulingSignatureVerifier: cumulus_primitives_core::VerifySchedulingSignature;
 	}
 
 	#[pallet::hooks]
@@ -337,7 +384,7 @@ pub mod pallet {
 					.map_or(0, |ci| ci.selector.0);
 
 			let current_bundle_index =
-				CumulusDigestItem::find_bundle_info(&frame_system::Pallet::<T>::digest())
+				CumulusDigestItem::find_block_bundle_info(&frame_system::Pallet::<T>::digest())
 					.map_or(0, |bi| bi.index);
 
 			let mut pov_tracker = PoVMessagesTracker::<T>::get()
@@ -408,22 +455,18 @@ pub mod pallet {
 
 				pov_tracker.ump_msg_count = pov_tracker.ump_msg_count.saturating_add(num);
 
-				if let Some(core_info) =
-					CumulusDigestItem::find_core_info(&frame_system::Pallet::<T>::digest())
-				{
-					PendingUpwardSignals::<T>::append(
-						UMPSignal::SelectCore(core_info.selector, core_info.claim_queue_offset)
-							.encode(),
-					);
+				let digest = frame_system::Pallet::<T>::digest();
 
-					PreviousCoreCount::<T>::put(core_info.number_of_cores);
-				} else {
-					// Without the digest, we assume that it is `1`.
-					PreviousCoreCount::<T>::put(Compact(1u16));
+				let core_info = CumulusDigestItem::find_core_info(&digest);
+				PreviousCoreCount::<T>::put(
+					core_info.as_ref().map_or(Compact(1u16), |ci| ci.number_of_cores),
+				);
+
+				// Only send UMP signals on the last block of a PoV.
+				// For single-block PoVs (no BlockBundleInfo), always send signals.
+				if CumulusDigestItem::is_last_block_in_core(&digest).unwrap_or(true) {
+					Self::send_ump_signals(core_info);
 				}
-
-				// Send the pending UMP signals.
-				Self::send_ump_signals();
 
 				// If the total size of the pending messages is less than the threshold,
 				// we decrease the fee factor, since the queue is less congested.
@@ -459,12 +502,17 @@ pub mod pallet {
 			// Note: this internally calls the `GetChannelInfo` implementation for this
 			// pallet, which draws on the `RelevantMessagingState`. That in turn has
 			// been adjusted above to reflect the correct limits in all channels.
-			let outbound_messages =
-				T::OutboundXcmpMessageSource::take_outbound_messages(maximum_channels)
-					.into_iter()
-					.map(|(recipient, data)| OutboundHrmpMessage { recipient, data })
-					.collect::<Vec<_>>();
+			let outbound_messages = T::OutboundXcmpMessageSource::take_outbound_messages(
+				maximum_channels,
+				&pov_tracker.hrmp_outbound_recipients,
+			)
+			.into_iter()
+			.map(|(recipient, data)| OutboundHrmpMessage { recipient, data })
+			.collect::<Vec<_>>();
 
+			pov_tracker
+				.hrmp_outbound_recipients
+				.extend(outbound_messages.iter().map(|m| m.recipient));
 			pov_tracker.hrmp_outbound_count =
 				pov_tracker.hrmp_outbound_count.saturating_add(outbound_messages.len() as u32);
 			PoVMessagesTracker::<T>::put(pov_tracker);
@@ -595,16 +643,20 @@ pub mod pallet {
 			// Always try to read `UpgradeGoAhead` in `on_finalize`.
 			weight += T::DbWeight::get().reads(1);
 
-			// We need to ensure that `CoreInfo` digest exists only once.
+			// Ensure `CoreInfo` digest exists only once and validate claim_queue_offset.
 			match CumulusDigestItem::core_info_exists_at_max_once(
 				&frame_system::Pallet::<T>::digest(),
 			) {
 				CoreInfoExistsAtMaxOnce::Once(core_info) => {
-					assert_eq!(
+					let max_allowed_offset = max_allowed_claim_queue_offset(
+						T::SchedulingSignatureVerifier::V3_SCHEDULING_ENABLED,
+						T::RelayParentOffset::get().saturated_into::<u8>(),
+					);
+					assert!(
+						core_info.claim_queue_offset.0 <= max_allowed_offset,
+						"claim_queue_offset {} exceeds maximum allowed {}",
 						core_info.claim_queue_offset.0,
-						T::RelayParentOffset::get() as u8,
-						"Only {} is supported as valid claim queue offset",
-						T::RelayParentOffset::get()
+						max_allowed_offset,
 					);
 				},
 				CoreInfoExistsAtMaxOnce::NotFound => {},
@@ -672,9 +724,14 @@ pub mod pallet {
 			)
 			.expect("Invalid relay chain state proof");
 
+			// Relay parent offset validation:
+			// When V3 scheduling is disabled: validate relay_parent_descendants (old mechanism)
+			// When V3 scheduling is enabled: skip this validation, V3 scheduling validation
+			// happens in validate_block with header chain from PVF params
 			let expected_rp_descendants_num = T::RelayParentOffset::get();
+			let v3_enabled = T::SchedulingSignatureVerifier::V3_SCHEDULING_ENABLED;
 
-			if expected_rp_descendants_num > 0 {
+			if expected_rp_descendants_num > 0 && !v3_enabled {
 				if let Err(err) = descendant_validation::verify_relay_parent_descendants(
 					&relay_state_proof,
 					relay_parent_descendants,
@@ -768,10 +825,9 @@ pub mod pallet {
 
 			<T::OnSystemEvent as OnSystemEvent>::on_validation_data(&vfp);
 
-			if let Some(collator_peer_id) = collator_peer_id {
-				PendingUpwardSignals::<T>::append(
-					UMPSignal::ApprovedPeer(collator_peer_id).encode(),
-				);
+			match collator_peer_id {
+				Some(peer_id) => PendingApprovedPeer::<T>::put(peer_id),
+				None => PendingApprovedPeer::<T>::kill(),
 			}
 
 			total_weight.saturating_accrue(Self::enqueue_inbound_downward_messages(
@@ -1018,6 +1074,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type PendingUpwardSignals<T: Config> = StorageValue<_, Vec<UpwardMessage>, ValueQuery>;
 
+	/// The approved peer id to be sent as a UMP signal on the last block of the PoV.
+	#[pallet::storage]
+	pub type PendingApprovedPeer<T: Config> =
+		StorageValue<_, relay_chain::ApprovedPeerId, OptionQuery>;
+
 	/// The factor to multiply the base delivery fee by for UMP.
 	#[pallet::storage]
 	pub type UpwardDeliveryFeeFactor<T: Config> =
@@ -1114,6 +1175,18 @@ impl<T: Config> Pallet<T> {
 	pub fn unincluded_segment_size_after(included_hash: T::Hash) -> u32 {
 		let segment = UnincludedSegment::<T>::get();
 		crate::unincluded_segment::size_after_included(included_hash, &segment)
+	}
+
+	/// Returns the configured maximum claim queue offset.
+	///
+	/// This is used by the [cumulus_primitives_core::RelayParentOffsetApi::max_claim_queue_offset]
+	/// runtime API to expose the value to collators.
+	pub fn max_claim_queue_offset() -> u8 {
+		if !T::SchedulingSignatureVerifier::V3_SCHEDULING_ENABLED {
+			return V2_CLAIM_QUEUE_LOOKAHEAD;
+		}
+
+		V3_CLAIM_QUEUE_LOOKAHEAD
 	}
 }
 
@@ -1660,8 +1733,19 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Send the pending ump signals
-	fn send_ump_signals() {
-		let ump_signals = PendingUpwardSignals::<T>::take();
+	fn send_ump_signals(core_info: Option<CoreInfo>) {
+		let mut ump_signals = PendingUpwardSignals::<T>::take();
+
+		if let Some(core_info) = core_info {
+			ump_signals.push(
+				UMPSignal::SelectCore(core_info.selector, core_info.claim_queue_offset).encode(),
+			);
+		}
+
+		if let Some(approved_peer) = PendingApprovedPeer::<T>::take() {
+			ump_signals.push(UMPSignal::ApprovedPeer(approved_peer).encode());
+		}
+
 		if !ump_signals.is_empty() {
 			UpwardMessages::<T>::append(UMP_SEPARATOR);
 			ump_signals.into_iter().for_each(|s| UpwardMessages::<T>::append(s));
@@ -1865,11 +1949,8 @@ impl<T: Config> InspectMessageQueues for Pallet<T> {
 		let messages: Vec<VersionedXcm<()>> = PendingUpwardMessages::<T>::get()
 			.iter()
 			.map(|encoded_message| {
-				VersionedXcm::<()>::decode_all_with_depth_limit(
-					MAX_XCM_DECODE_DEPTH,
-					&mut &encoded_message[..],
-				)
-				.unwrap()
+				VersionedXcm::<()>::decode_all_with_mem_and_depth_limit(&mut &encoded_message[..])
+					.unwrap()
 			})
 			.collect();
 
@@ -1960,10 +2041,6 @@ pub trait RelaychainStateProvider {
 /// When validation data is not available (e.g. within `on_initialize`), it will fallback to use
 /// [`Pallet::last_relay_block_number()`].
 ///
-/// **NOTE**: This has been deprecated, please use [`RelaychainDataProvider`]
-#[deprecated = "Use `RelaychainDataProvider` instead"]
-pub type RelaychainBlockNumberProvider<T> = RelaychainDataProvider<T>;
-
 /// Implements [`BlockNumberProvider`] and [`RelaychainStateProvider`] that returns relevant relay
 /// data fetched from validation data.
 ///

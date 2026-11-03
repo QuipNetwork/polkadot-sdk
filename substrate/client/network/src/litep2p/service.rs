@@ -219,7 +219,7 @@ pub struct Litep2pNetworkService {
 
 impl Litep2pNetworkService {
 	/// Create new [`Litep2pNetworkService`].
-	pub fn new(
+	pub(crate) fn new(
 		local_peer_id: litep2p::PeerId,
 		keypair: Keypair,
 		cmd_tx: TracingUnboundedSender<NetworkServiceCommand>,

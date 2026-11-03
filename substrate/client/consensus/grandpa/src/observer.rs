@@ -124,7 +124,7 @@ where
 			// commit is valid, finalize the block it targets
 			match environment::finalize_block(
 				client.clone(),
-				&authority_set,
+				authority_set.inner(),
 				None,
 				finalized_hash,
 				finalized_number,

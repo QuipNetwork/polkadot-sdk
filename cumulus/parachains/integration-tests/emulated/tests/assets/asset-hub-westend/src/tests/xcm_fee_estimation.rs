@@ -15,10 +15,8 @@
 
 //! Tests to ensure correct XCM fee estimation for cross-chain asset transfers.
 
-use crate::{create_pool_with_wnd_on, imports::*};
-
-use emulated_integration_tests_common::test_can_estimate_and_pay_exact_fees;
-use frame_support::dispatch::RawOrigin;
+use crate::{assets_balance_on, imports::*};
+use frame_support::{dispatch::RawOrigin, traits::fungible};
 use xcm_runtime_apis::{
 	dry_run::runtime_decl_for_dry_run_api::DryRunApiV2,
 	fees::runtime_decl_for_xcm_payment_api::XcmPaymentApiV2,
@@ -82,7 +80,7 @@ fn sender_assertions(test: ParaToParaThroughAHTest) {
 	assert_expected_events!(
 		PenpalA,
 		vec![
-			RuntimeEvent::ForeignAssets(
+			RuntimeEvent::Assets(
 				pallet_assets::Event::Withdrawn { asset_id, who, amount }
 			) => {
 				asset_id: *asset_id == Location::new(1, []),
@@ -103,7 +101,9 @@ fn hop_assertions(test: ParaToParaThroughAHTest) {
 			RuntimeEvent::Balances(
 				pallet_balances::Event::Withdraw { amount, .. }
 			) => {
-				amount: *amount >= test.args.amount * 90/100,
+				// Depends on: XCM execution fees + delivery fees + liquidity pool
+				// swap overhead at the destination.
+				amount: *amount >= test.args.amount * 80/100,
 			},
 		]
 	);
@@ -116,7 +116,7 @@ fn receiver_assertions(test: ParaToParaThroughAHTest) {
 	assert_expected_events!(
 		PenpalB,
 		vec![
-			RuntimeEvent::ForeignAssets(
+			RuntimeEvent::Assets(
 				pallet_assets::Event::Deposited { asset_id, who, .. }
 			) => {
 				asset_id: *asset_id == Location::new(1, []),
@@ -165,7 +165,7 @@ fn multi_hop_works() {
 	let sender = PenpalASender::get();
 	let amount_to_send = 1_000_000_000_000;
 	let asset_owner = PenpalAssetOwner::get();
-	let assets: Assets = (Parent, amount_to_send).into();
+	let relay_native_assets: Assets = (Parent, amount_to_send).into();
 	let relay_native_asset_location = Location::parent();
 	let sender_as_seen_by_ah = AssetHubWestend::sibling_location_of(PenpalA::para_id());
 	let sov_of_sender_on_ah =
@@ -192,7 +192,7 @@ fn multi_hop_works() {
 			destination,
 			beneficiary_id.clone(),
 			amount_to_send,
-			assets,
+			relay_native_assets,
 			None,
 			0,
 		),
@@ -219,7 +219,7 @@ fn multi_hop_works() {
 			.unwrap();
 		assert_eq!(messages_to_query.len(), 1);
 		remote_message = messages_to_query[0].clone();
-		let asset_id_for_delivery_fees = VersionedAssetId::from(Location::parent());
+		let asset_id_for_delivery_fees = VersionedAssetId::from(Location::here());
 		let delivery_fees = Runtime::query_delivery_fees(
 			destination_to_query.clone(),
 			remote_message.clone(),
@@ -239,11 +239,9 @@ fn multi_hop_works() {
 
 		// First we get the execution fees.
 		let weight = Runtime::query_xcm_weight(remote_message.clone()).unwrap();
-		intermediate_execution_fees = Runtime::query_weight_to_asset_fee(
-			weight,
-			VersionedAssetId::from(AssetId(Location::new(1, []))),
-		)
-		.unwrap();
+		intermediate_execution_fees =
+			Runtime::query_weight_to_asset_fee(weight, VersionedAssetId::from(Location::parent()))
+				.unwrap();
 
 		// We have to do this to turn `VersionedXcm<()>` into `VersionedXcm<RuntimeCall>`.
 		let xcm_program = VersionedXcm::from(Xcm::<RuntimeCall>::from(
@@ -276,17 +274,6 @@ fn multi_hop_works() {
 		intermediate_delivery_fees_amount = get_amount_from_versioned_assets(delivery_fees);
 	});
 
-	// Get the final execution fees in the destination.
-	let mut final_execution_fees = 0;
-	<PenpalB as TestExt>::execute_with(|| {
-		type Runtime = <PenpalA as Chain>::Runtime;
-
-		let weight = Runtime::query_xcm_weight(intermediate_remote_message.clone()).unwrap();
-		final_execution_fees =
-			Runtime::query_weight_to_asset_fee(weight, VersionedAssetId::from(Location::parent()))
-				.unwrap();
-	});
-
 	// Dry-running is done.
 	PenpalA::reset_ext();
 	AssetHubWestend::reset_ext();
@@ -299,16 +286,37 @@ fn multi_hop_works() {
 		sender.clone(),
 		amount_to_send * 2,
 	);
+
+	// Get the final execution fees at the destination.
+	//
+	// Note: We need to do this after resetting the externalities to get an accurate value here.
+	// This is because the dry-run on Asset Hub does affect the liquidity pool distribution on
+	// PenpalB which affects the assets amount we have to pay.
+	// See side-effects: https://github.com/paritytech/polkadot-sdk/issues/11486.
+	let mut final_execution_fees = 0;
+	<PenpalB as TestExt>::execute_with(|| {
+		type Runtime = <PenpalB as Chain>::Runtime;
+
+		let weight = Runtime::query_xcm_weight(intermediate_remote_message.clone()).unwrap();
+		final_execution_fees =
+			Runtime::query_weight_to_asset_fee(weight, VersionedAssetId::from(Location::parent()))
+				.unwrap();
+	});
+
 	AssetHubWestend::fund_accounts(vec![(sov_of_sender_on_ah, amount_to_send * 2)]);
 
 	// Actually run the extrinsic.
-	let sender_assets_before = PenpalA::execute_with(|| {
-		type ForeignAssets = <PenpalA as PenpalAPallet>::ForeignAssets;
-		<ForeignAssets as Inspect<_>>::balance(relay_native_asset_location.clone(), &sender)
+	let sender_assets_before =
+		assets_balance_on!(PenpalA, relay_native_asset_location.clone(), &sender);
+	let sender_balance_before = PenpalA::execute_with(|| {
+		type Balances = <PenpalA as PenpalAPallet>::Balances;
+		<Balances as fungible::Inspect<_>>::balance(&sender)
 	});
-	let receiver_assets_before = PenpalB::execute_with(|| {
-		type ForeignAssets = <PenpalB as PenpalBPallet>::ForeignAssets;
-		<ForeignAssets as Inspect<_>>::balance(relay_native_asset_location.clone(), &beneficiary_id)
+	let receiver_assets_before =
+		assets_balance_on!(PenpalB, relay_native_asset_location.clone(), &beneficiary_id);
+	let receiver_balance_before = PenpalB::execute_with(|| {
+		type Balances = <PenpalB as PenpalBPallet>::Balances;
+		<Balances as fungible::Inspect<_>>::balance(&beneficiary_id)
 	});
 
 	test.set_assertion::<PenpalA>(sender_assertions);
@@ -318,22 +326,29 @@ fn multi_hop_works() {
 	test.set_call(call);
 	test.assert();
 
-	let sender_assets_after = PenpalA::execute_with(|| {
-		type ForeignAssets = <PenpalA as PenpalAPallet>::ForeignAssets;
-		<ForeignAssets as Inspect<_>>::balance(relay_native_asset_location.clone(), &sender)
+	let sender_assets_after =
+		assets_balance_on!(PenpalA, relay_native_asset_location.clone(), &sender);
+	let sender_balance_after = PenpalA::execute_with(|| {
+		type Balances = <PenpalA as PenpalAPallet>::Balances;
+		<Balances as fungible::Inspect<_>>::balance(&sender)
 	});
-	let receiver_assets_after = PenpalB::execute_with(|| {
-		type ForeignAssets = <PenpalB as PenpalBPallet>::ForeignAssets;
-		<ForeignAssets as Inspect<_>>::balance(relay_native_asset_location, &beneficiary_id)
+	let receiver_assets_after =
+		assets_balance_on!(PenpalB, relay_native_asset_location, &beneficiary_id);
+	let receiver_balance_after = PenpalB::execute_with(|| {
+		type Balances = <PenpalB as PenpalBPallet>::Balances;
+		<Balances as fungible::Inspect<_>>::balance(&beneficiary_id)
 	});
 
 	// We know the exact fees on every hop.
+	assert_eq!(sender_assets_after, sender_assets_before - amount_to_send);
 	assert_eq!(
-		sender_assets_after,
-		sender_assets_before - amount_to_send - delivery_fees_amount /* This is charged directly
-		                                                              * from the sender's
-		                                                              * account. */
+		sender_balance_after,
+		// This is charged directly from the sender's account.
+		sender_balance_before - delivery_fees_amount
 	);
+
+	// Receiver native balance is unchanged; received funds in relay asset, and paid in relay asset.
+	assert_eq!(receiver_balance_after, receiver_balance_before);
 	assert_eq!(
 		receiver_assets_after,
 		receiver_assets_before + amount_to_send -
@@ -395,10 +410,9 @@ fn usdt_fee_estimation_in_usdt_works() {
 
 	// Create a liquidity pool between WND (relay token) and USDT on AssetHub
 	// This is needed for the asset conversion in fee estimation
-	create_pool_with_wnd_on!(
+	create_pool_with_relay_native_on!(
 		AssetHubWestend,
 		usdt_location_on_ah.clone(),
-		false,
 		AssetHubWestendSender::get(),
 		1_000_000_000_000, // 1 WND
 		2_000_000          // 2 USDT (1:2 ratio)
@@ -406,10 +420,9 @@ fn usdt_fee_estimation_in_usdt_works() {
 
 	// Create a liquidity pool between WND and USDT on PenpalA as well
 	// This is needed for PenpalA to perform asset conversion for fee estimation
-	create_pool_with_wnd_on!(
+	create_foreign_pool_with_native_on!(
 		PenpalA,
 		usdt_location_on_penpal.clone(),
-		true,
 		PenpalAssetOwner::get(),
 		1_000_000_000_000, // 1 WND
 		2_000_000          // 2 USDT (1:2 ratio)

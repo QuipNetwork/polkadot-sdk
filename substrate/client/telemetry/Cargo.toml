@@ -1,6 +1,6 @@
 [package]
 name = "sc-telemetry"
-version = "30.0.1"
+version = "34.0.0"
 authors.workspace = true
 description = "Telemetry utils"
 edition.workspace = true
@@ -24,7 +24,7 @@ log = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
 pin-project = { workspace = true }
 rand = { workspace = true, default-features = true }
-sc-utils = { default-features = true, workspace = true }
+sc-utils = { workspace = true, default-features = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
 thiserror = { workspace = true }

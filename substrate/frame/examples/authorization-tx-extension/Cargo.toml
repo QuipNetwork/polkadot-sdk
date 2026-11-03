@@ -18,18 +18,20 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { workspace = true }
 docify = { workspace = true }
+log = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { features = ["experimental"], workspace = true }
 frame-system = { workspace = true }
-log = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
+
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-verify-signature = { workspace = true, default-features = false }
-sp-core = { workspace = true, default-features = false }
-sp-keyring = { default-features = true, workspace = true }
+pallet-verify-signature = { workspace = true }
+sp-core = { workspace = true }
+sp-keyring = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

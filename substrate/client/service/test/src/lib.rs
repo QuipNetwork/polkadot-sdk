@@ -39,7 +39,7 @@ use sc_service::{
 use sc_transaction_pool_api::TransactionPool;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
-use std::{iter, net::Ipv4Addr, pin::Pin, sync::Arc, task::Context, time::Duration};
+use std::{iter, net::Ipv4Addr, pin::Pin, sync::Arc, task::Context, thread, time::Duration};
 use tempfile::TempDir;
 use tokio::{runtime::Runtime, time};
 
@@ -364,6 +364,30 @@ fn tempdir_with_prefix(prefix: &str) -> TempDir {
 		.expect("Error creating test dir")
 }
 
+/// Removes `temp`'s directory, retrying on failure.
+///
+/// A node's storage backend (e.g. RocksDB) runs background compaction/WAL threads outside the
+/// tokio runtime, so they can still hold file handles open for a beat after `TestNet`'s `Drop`
+/// (which tears down the runtime) has already returned. Retrying absorbs that race instead of
+/// failing the test on it.
+fn close_tempdir_retrying(temp: TempDir) {
+	const MAX_ATTEMPTS: u32 = 10;
+	const RETRY_DELAY: Duration = Duration::from_millis(200);
+
+	for attempt in 1..=MAX_ATTEMPTS {
+		match std::fs::remove_dir_all(temp.path()) {
+			Ok(()) => return,
+			Err(err) if attempt < MAX_ATTEMPTS => {
+				debug!(
+					"Removing temp dir failed (attempt {attempt}/{MAX_ATTEMPTS}), retrying: {err}"
+				);
+				thread::sleep(RETRY_DELAY);
+			},
+			Err(err) => panic!("Error removing temp dir after {MAX_ATTEMPTS} attempts: {err}"),
+		}
+	}
+}
+
 pub fn connectivity<E, Fb, F>(spec: GenericChainSpec<E>, full_builder: Fb)
 where
 	E: ChainSpecExtension + Clone + 'static + Send + Sync,
@@ -402,7 +426,7 @@ where
 			});
 		};
 
-		temp.close().expect("Error removing temp dir");
+		close_tempdir_retrying(temp);
 	}
 	{
 		let temp = tempdir_with_prefix("substrate-connectivity-test");
@@ -436,7 +460,7 @@ where
 				connected == expected_full_connections
 			});
 		}
-		temp.close().expect("Error removing temp dir");
+		close_tempdir_retrying(temp);
 	}
 }
 

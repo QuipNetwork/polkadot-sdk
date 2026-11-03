@@ -1,0 +1,13 @@
+title: 'eth-rpc: Bulk INSERT/DELETE and commit per-block writes atomically'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ### Summary
+
+    - Query SQLite's max variable limit at startup and use it to chunk bulk INSERTs and DELETEs, avoiding bind-parameter overflows
+    - Replace per-row individual inserts with batched bulk inserts
+    - Commit transaction hashes, logs, and block mapping in a single SQLite transaction per block, same for deletes
+    - Use `INSERT OR REPLACE` for logs (previously plain INSERT) to match transaction_hashes and prevent UNIQUE constraint failures if the EXISTS dedup guard is bypassed
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

@@ -594,7 +594,9 @@ pub mod pallet {
 			if let Some((_, last_alarm)) = status.alarm {
 				let _ = T::Scheduler::cancel(last_alarm);
 			}
-			Self::note_one_fewer_deciding(status.track);
+			if status.deciding.is_some() {
+				Self::note_one_fewer_deciding(status.track);
+			}
 			Self::deposit_event(Event::<T, I>::Cancelled { index, tally: status.tally });
 			let info = ReferendumInfo::Cancelled(
 				T::BlockNumberProvider::current_block_number(),
@@ -619,7 +621,9 @@ pub mod pallet {
 			if let Some((_, last_alarm)) = status.alarm {
 				let _ = T::Scheduler::cancel(last_alarm);
 			}
-			Self::note_one_fewer_deciding(status.track);
+			if status.deciding.is_some() {
+				Self::note_one_fewer_deciding(status.track);
+			}
 			Self::deposit_event(Event::<T, I>::Killed { index, tally: status.tally });
 			Self::slash_deposit(Some(status.submission_deposit.clone()));
 			Self::slash_deposit(status.decision_deposit.clone());

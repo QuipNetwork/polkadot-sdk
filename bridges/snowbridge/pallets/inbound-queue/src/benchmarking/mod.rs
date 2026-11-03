@@ -19,18 +19,14 @@ mod benchmarks {
 
 		let sovereign_account = sibling_sovereign_account::<T>(1000u32.into());
 
-		let minimum_balance = T::Token::minimum_balance();
+		let working_capital = 3_000_000_000_000u128
+			.try_into()
+			.unwrap_or_else(|_| panic!("unable to cast benchmark working capital"));
 
-		// So that the receiving account exists
-		assert_ok!(T::Token::mint_into(&caller, minimum_balance));
-		// Fund the sovereign account (parachain sovereign account) so it can transfer a reward
-		// fee to the caller account
-		assert_ok!(T::Token::mint_into(
-			&sovereign_account,
-			3_000_000_000_000u128
-				.try_into()
-				.unwrap_or_else(|_| panic!("unable to cast sovereign account balance")),
-		));
+		// Fund the relayer so it can front the AssetHub execution fee.
+		assert_ok!(T::Token::mint_into(&caller, working_capital));
+		// Fund the sovereign account so it can reimburse the caller.
+		assert_ok!(T::Token::mint_into(&sovereign_account, working_capital));
 
 		#[block]
 		{

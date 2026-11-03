@@ -1,0 +1,16 @@
+title: Remove deprecated EnsureOneOf type alias
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes deprecated `frame_support::EnsureOneOf`, which was an alias for
+      `EitherOfDiverse`. Use `EitherOfDiverse` directly.
+
+      ```diff
+      - use frame_support::traits::EnsureOneOf;
+      + use frame_support::traits::EitherOfDiverse;
+      ```
+
+crates:
+  - name: frame-support
+    bump: major

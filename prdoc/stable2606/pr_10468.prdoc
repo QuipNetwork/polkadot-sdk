@@ -1,0 +1,28 @@
+title: Publish indexed transactions with BLAKE2b hashes to IPFS DHT
+doc:
+- audience: [Node Dev, Node Operator]
+  description: Add `--ipfs-bootnodes` flag for specifying IPFS bootnodes. If passed
+    along with `--ipfs-server`, the node will register as a content provider in IPFS
+    DHT of indexed transactions with BLAKE2b hashes of the last two weeks (or pruning
+    depth if smaller).
+crates:
+- name: sc-network
+  bump: major
+- name: sc-network-types
+  bump: minor
+- name: cumulus-client-pov-recovery
+  bump: minor
+- name: sc-client-api
+  bump: major
+- name: sc-client-db
+  bump: minor
+- name: sc-rpc-spec-v2
+  bump: patch
+- name: sc-service
+  bump: major
+- name: sp-blockchain
+  bump: minor
+- name: cumulus-relay-chain-minimal-node
+  bump: patch
+- name: sc-cli
+  bump: major

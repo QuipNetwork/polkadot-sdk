@@ -1,6 +1,6 @@
 [package]
 name = "pallet-aura"
-version = "45.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -27,8 +27,8 @@ sp-consensus-aura = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-sp-core = { workspace = true, default-features = false }
-sp-io = { default-features = true, workspace = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -42,6 +42,7 @@ std = [
 	"sp-application-crypto/std",
 	"sp-consensus-aura/std",
 	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 try-runtime = [

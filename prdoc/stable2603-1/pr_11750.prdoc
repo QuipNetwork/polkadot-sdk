@@ -1,0 +1,11 @@
+title: Post 2603 cleanup
+doc:
+- audience: Runtime Dev
+  description: |-
+    - **make clone of AssetsInHolding available for std**
+    - **Make pallet assets try-state check more lenient**
+crates:
+- name: staging-xcm-executor
+  bump: minor
+- name: pallet-assets
+  bump: patch

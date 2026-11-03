@@ -381,6 +381,157 @@ fn amount_of_registrars_is_limited() {
 }
 
 #[test]
+fn removing_registrar_should_work() {
+	new_test_ext().execute_with(|| {
+		let [_, _, three, _, _, _, _, _] = accounts();
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), three.clone()));
+		assert_eq!(Registrars::<Test>::get().len(), 1);
+
+		assert_ok!(Identity::remove_registrar(RuntimeOrigin::root(), 0));
+
+		// The slot is tombstoned rather than removed: the vec keeps its length.
+		assert_eq!(Registrars::<Test>::get(), vec![None]);
+		System::assert_last_event(tests::RuntimeEvent::Identity(Event::RegistrarRemoved {
+			registrar_index: 0,
+		}));
+	});
+}
+
+#[test]
+fn removing_registrar_bad_origin() {
+	new_test_ext().execute_with(|| {
+		let [one, _, three, _, _, _, _, _] = accounts();
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), three));
+		// Only `RegistrarOrigin` (Root in the mock) may remove a registrar.
+		assert_noop!(Identity::remove_registrar(RuntimeOrigin::signed(one), 0), BadOrigin);
+		assert_eq!(Registrars::<Test>::get().len(), 1);
+	});
+}
+
+#[test]
+fn removing_registrar_invalid_index() {
+	new_test_ext().execute_with(|| {
+		let [_, _, three, _, _, _, _, _] = accounts();
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), three));
+
+		// Out-of-range index.
+		assert_noop!(
+			Identity::remove_registrar(RuntimeOrigin::root(), 100),
+			Error::<Test>::InvalidIndex
+		);
+
+		// Removing an already-tombstoned slot fails with `EmptyIndex` (the index is in range but
+		// the slot is empty), matching `request_judgement`'s use of `EmptyIndex` for a `None` slot.
+		assert_ok!(Identity::remove_registrar(RuntimeOrigin::root(), 0));
+		assert_noop!(
+			Identity::remove_registrar(RuntimeOrigin::root(), 0),
+			Error::<Test>::EmptyIndex
+		);
+	});
+}
+
+#[test]
+fn removing_registrar_keeps_indices_stable() {
+	new_test_ext().execute_with(|| {
+		let [one, two, three, _, ten, _, _, _] = accounts();
+		// Three registrars at indices 0, 1, 2.
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), one.clone()));
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), two.clone()));
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), three.clone()));
+
+		// `ten` registers an identity and registrar #2 judges it.
+		assert_ok!(Identity::set_identity(
+			RuntimeOrigin::signed(ten.clone()),
+			Box::new(infoof_ten())
+		));
+		let identity_hash = BlakeTwo256::hash_of(&infoof_ten());
+		assert_ok!(Identity::provide_judgement(
+			RuntimeOrigin::signed(three.clone()),
+			2,
+			ten.clone(),
+			Judgement::Reasonable,
+			identity_hash
+		));
+		assert_eq!(
+			IdentityOf::<Test>::get(ten.clone()).unwrap().judgements,
+			vec![(2, Judgement::Reasonable)]
+		);
+
+		// Remove the middle registrar.
+		assert_ok!(Identity::remove_registrar(RuntimeOrigin::root(), 1));
+
+		// Indices 0 and 2 are untouched; only index 1 is tombstoned.
+		let registrars = Registrars::<Test>::get();
+		assert_eq!(registrars.len(), 3);
+		assert_eq!(registrars[0].as_ref().map(|r| &r.account), Some(&one));
+		assert_eq!(registrars[1], None);
+		assert_eq!(registrars[2].as_ref().map(|r| &r.account), Some(&three));
+
+		// The judgement recorded under index 2 still resolves to registrar #2.
+		assert_eq!(
+			IdentityOf::<Test>::get(ten).unwrap().judgements,
+			vec![(2, Judgement::Reasonable)]
+		);
+		// Registrars at the surviving indices can still act.
+		assert_ok!(Identity::set_fee(RuntimeOrigin::signed(one), 0, 10));
+		assert_ok!(Identity::set_fee(RuntimeOrigin::signed(three), 2, 10));
+	});
+}
+
+#[test]
+fn removed_registrar_cannot_act() {
+	new_test_ext().execute_with(|| {
+		let [one, _, three, _, ten, _, _, _] = accounts();
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), three.clone()));
+		assert_ok!(Identity::set_identity(
+			RuntimeOrigin::signed(ten.clone()),
+			Box::new(infoof_ten())
+		));
+		assert_ok!(Identity::remove_registrar(RuntimeOrigin::root(), 0));
+
+		// The compromised registrar can no longer touch its (now empty) slot.
+		assert_noop!(
+			Identity::set_fee(RuntimeOrigin::signed(three.clone()), 0, 10),
+			Error::<Test>::InvalidIndex
+		);
+		assert_noop!(
+			Identity::set_account_id(RuntimeOrigin::signed(three.clone()), 0, one),
+			Error::<Test>::InvalidIndex
+		);
+		let identity_hash = BlakeTwo256::hash_of(&infoof_ten());
+		assert_noop!(
+			Identity::provide_judgement(
+				RuntimeOrigin::signed(three),
+				0,
+				ten,
+				Judgement::Erroneous,
+				identity_hash
+			),
+			Error::<Test>::InvalidIndex
+		);
+	});
+}
+
+#[test]
+fn add_registrar_after_removal_appends_not_reuses() {
+	new_test_ext().execute_with(|| {
+		let [one, two, _, _, _, _, _, _] = accounts();
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), one));
+		assert_ok!(Identity::remove_registrar(RuntimeOrigin::root(), 0));
+
+		// Adding a new registrar appends at index 1; the tombstoned index 0 is not reused.
+		assert_ok!(Identity::add_registrar(RuntimeOrigin::root(), two.clone()));
+		System::assert_last_event(tests::RuntimeEvent::Identity(Event::RegistrarAdded {
+			registrar_index: 1,
+		}));
+		let registrars = Registrars::<Test>::get();
+		assert_eq!(registrars.len(), 2);
+		assert_eq!(registrars[0], None);
+		assert_eq!(registrars[1].as_ref().map(|r| &r.account), Some(&two));
+	});
+}
+
+#[test]
 fn registration_should_work() {
 	new_test_ext().execute_with(|| {
 		let [_, _, three, _, ten, _, _, _] = accounts();

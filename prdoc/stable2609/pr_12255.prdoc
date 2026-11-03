@@ -1,0 +1,34 @@
+title: Collator protocol — honor the scheduling lookahead, not a claim-queue/ancestry length
+
+doc:
+- audience: Node Dev
+  description: |-
+    Both validator sides of the collator protocol derived the claim-queue window length from a
+    value that is only a *lower bound* on the runtime scheduling lookahead, and so truncated the
+    tail of the claim queue — silently dropping advertisement positions that are in fact
+    fetchable. Each side used a different bound, and each falls short in a different situation:
+
+    * Experimental (`validator_side_experimental`) used the allowed-ancestry path length. This is
+      below the lookahead near genesis, and for the first `lookahead - 1` blocks after a
+      **session change**, where the implicit view clamps ancestry at the session boundary (the
+      relay chain cannot back candidates from a previous session).
+    * Legacy (`validator_side`, `is_slot_available`) used the claim-queue length. The runtime
+      returns a claim queue shorter than the lookahead when it cannot predict an assignment for
+      every position — principally an **under-scheduled on-demand core**, where fewer orders are
+      queued than there are positions to fill, and more generally any core left unscheduled at
+      some position within the lookahead.
+
+    In those windows, advertisements landing on the tail claim-queue positions — reachable from
+    the scheduling parents on the path, including the leaf itself — were rejected, reducing
+    collation throughput.
+
+    Fix: fetch the scheduling lookahead from the runtime (`SchedulingLookahead`) per active leaf
+    and use it as the window bound in both validator sides. The per-leaf claim queues and the
+    lookahead are now carried together in a shared `LeafClaimQueues` type, fetched in one place
+    so the lookahead can never again be inferred from a length.
+
+    No public API changes; behavior change is confined to the collator-protocol validator sides.
+
+crates:
+- name: polkadot-collator-protocol
+  bump: patch

@@ -34,21 +34,19 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::overseer;
 use polkadot_node_subsystem_util::{runtime::RuntimeInfo, ControlledValidatorIndices};
 use polkadot_primitives::{
-	CandidateHash, CandidateReceiptV2 as CandidateReceipt, DisputeStatement, ExecutorParams, Hash,
-	IndexedVec, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	CandidateReceiptV2 as CandidateReceipt, CoalescedApprovalCandidateHashes, DisputeStatement,
+	Hash, IndexedVec, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 
 use crate::LOG_TARGET;
 
 /// (Session) environment of a candidate.
 pub struct CandidateEnvironment<'a> {
-	/// The session the candidate appeared in.
-	session_index: SessionIndex,
+	/// The scheduling session the candidate appeared in.
+	scheduling_session: SessionIndex,
 	/// Session for above index.
 	session: &'a SessionInfo,
-	/// Executor parameters for the session.
-	executor_params: &'a ExecutorParams,
 	/// Validator indices controlled by this node.
 	controlled_indices: HashSet<ValidatorIndex>,
 	/// Indices of on-chain disabled validators at the `scheduling_parent` combined
@@ -64,7 +62,7 @@ impl<'a> CandidateEnvironment<'a> {
 	pub async fn new<Context>(
 		ctx: &mut Context,
 		runtime_info: &'a mut RuntimeInfo,
-		session_index: SessionIndex,
+		scheduling_session: SessionIndex,
 		scheduling_parent: Hash,
 		disabled_offchain: impl IntoIterator<Item = ValidatorIndex>,
 		controlled_indices: &mut ControlledValidatorIndices,
@@ -83,13 +81,11 @@ impl<'a> CandidateEnvironment<'a> {
 		// Using the scheduling parent here is fine, because we warm the cache on active leaves
 		// update, thus this call will succeed even if the scheduling parent's state is not
 		// available.
-		let (session, executor_params) = match runtime_info
-			.get_session_info_by_index(ctx.sender(), scheduling_parent, session_index)
+		let session = match runtime_info
+			.get_session_info_by_index(ctx.sender(), scheduling_parent, scheduling_session)
 			.await
 		{
-			Ok(extended_session_info) => {
-				(&extended_session_info.session_info, &extended_session_info.executor_params)
-			},
+			Ok(extended_session_info) => &extended_session_info.session_info,
 			Err(_) => return None,
 		};
 
@@ -112,10 +108,10 @@ impl<'a> CandidateEnvironment<'a> {
 		};
 
 		let controlled_indices = controlled_indices
-			.get(session_index, &session.validators)
+			.get(scheduling_session, &session.validators)
 			.map_or(HashSet::new(), |index| HashSet::from([index]));
 
-		Some(Self { session_index, session, executor_params, controlled_indices, disabled_indices })
+		Some(Self { scheduling_session, session, controlled_indices, disabled_indices })
 	}
 
 	/// Validators in the candidate's session.
@@ -128,14 +124,9 @@ impl<'a> CandidateEnvironment<'a> {
 		&self.session
 	}
 
-	/// Executor parameters for the candidate's session
-	pub fn executor_params(&self) -> &ExecutorParams {
-		&self.executor_params
-	}
-
-	/// Retrieve `SessionIndex` for this environment.
-	pub fn session_index(&self) -> SessionIndex {
-		self.session_index
+	/// Retrieve the scheduling `SessionIndex` for this environment.
+	pub fn scheduling_session(&self) -> SessionIndex {
+		self.scheduling_session
 	}
 
 	/// Indices controlled by this node.
@@ -323,7 +314,7 @@ impl CandidateVoteState<CandidateVotes> {
 				gum::error!(
 					target: LOG_TARGET,
 					?val_index,
-					session= ?env.session_index,
+					session= ?env.scheduling_session,
 					claimed_key = ?statement.validator_public(),
 					"Validator index doesn't match claimed key",
 				);
@@ -334,18 +325,18 @@ impl CandidateVoteState<CandidateVotes> {
 				gum::error!(
 					target: LOG_TARGET,
 					?val_index,
-					session= ?env.session_index,
+					session= ?env.scheduling_session,
 					given_candidate_hash = ?statement.candidate_hash(),
 					?expected_candidate_hash,
 					"Vote is for unexpected candidate!",
 				);
 				continue;
 			}
-			if statement.session_index() != env.session_index() {
+			if statement.session_index() != env.scheduling_session() {
 				gum::error!(
 					target: LOG_TARGET,
 					?val_index,
-					session= ?env.session_index,
+					session= ?env.scheduling_session,
 					given_candidate_hash = ?statement.candidate_hash(),
 					?expected_candidate_hash,
 					"Vote is for unexpected session!",
@@ -571,7 +562,10 @@ impl ImportResult {
 	pub fn import_approval_votes(
 		self,
 		env: &CandidateEnvironment,
-		approval_votes: HashMap<ValidatorIndex, (Vec<CandidateHash>, ValidatorSignature)>,
+		approval_votes: HashMap<
+			ValidatorIndex,
+			(CoalescedApprovalCandidateHashes, ValidatorSignature),
+		>,
 		now: Timestamp,
 	) -> Self {
 		let Self {
@@ -588,13 +582,32 @@ impl ImportResult {
 		for (index, (candidate_hashes, sig)) in approval_votes.into_iter() {
 			debug_assert!(
 				{
-					let pub_key = &env.session_info().validators.get(index).expect("indices are validated by approval-voting subsystem; qed");
-					let session_index = env.session_index();
-					candidate_hashes.contains(&votes.candidate_receipt.hash()) && DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidate_hashes.clone()))
-						.check_signature(pub_key, *candidate_hashes.first().expect("Valid votes have at least one candidate; qed"), session_index, &sig)
+					let pub_key = &env
+						.session_info()
+						.validators
+						.get(index)
+						.expect("indices are validated by approval-voting subsystem; qed");
+					let session_index = env.scheduling_session();
+					candidate_hashes.contains(&votes.candidate_receipt.hash()) &&
+						DisputeStatement::Valid(
+							ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(
+								candidate_hashes.clone(),
+							),
+						)
+						.check_signature(
+							pub_key,
+							*candidate_hashes
+								.first()
+								.expect("Valid votes have at least one candidate; qed"),
+							session_index,
+							&sig,
+						)
 						.is_ok()
 				},
-				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
+				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}",
+				env.scheduling_session(),
+				votes.candidate_receipt.hash(),
+				index
 			);
 			if votes.valid.insert_vote(
 				index,

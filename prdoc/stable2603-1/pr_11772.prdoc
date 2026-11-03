@@ -1,0 +1,35 @@
+title: Prospective parachains support for older relay parents
+
+doc:
+  - audience: [Node Dev, Runtime Dev]
+    description: |
+      Decouples a candidate's relay parent from its scheduling parent in the prospective-parachains
+      subsystem, enabling V3 descriptors whose relay parent may be much older than the scheduling
+      parent (potentially spanning multiple sessions, bounded by
+      `HostConfiguration.max_relay_parent_session_age`).
+
+      Additionally:
+      - fixes a bug when handling v3 candidates in statement distribution, which was wrongly comparing
+      the session index of the candidate with the scheduling session.
+      - `backing_constraints` runtime API computes a more up to date `min_relay_parent_number`, which is the maximum
+      between the oldest allowed RP based on the HostConfiguration and the relay parent of the most recently backed candidate
+      of the para.
+      - assumes the ParachainHost runtime API is at least v13 (`BackingConstraints`). The
+      `ParaBackingState` fallback in prospective-parachains has been removed; against a runtime
+      with a lower version the subsystem will fail to process active leaves.
+
+crates:
+  - name: polkadot-node-core-prospective-parachains
+    bump: minor
+  - name: polkadot-collator-protocol
+    bump: minor
+  - name: polkadot-statement-distribution
+    bump: patch
+  - name: polkadot-node-subsystem-types
+    bump: major
+  - name: polkadot-node-subsystem-util
+    bump: major
+  - name: polkadot-primitives-test-helpers
+    bump: minor
+  - name: polkadot-runtime-parachains
+    bump: patch

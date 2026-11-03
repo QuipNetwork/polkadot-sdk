@@ -1,0 +1,14 @@
+title: 'YAP runtime: tune elastic scaling parameters and add local-run README'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Update the YAP testing runtime:
+
+      - Support 12 cores / 500ms blocks 
+      - Add README with build/run instructions for the local omni-node setup.
+      - Bumps `spec_version` to `1_003_002`.
+
+crates:
+  - name: yet-another-parachain-runtime
+    bump: patch

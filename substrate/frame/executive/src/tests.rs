@@ -145,6 +145,7 @@ mod custom {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -267,6 +268,7 @@ mod custom2 {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -493,7 +495,7 @@ impl OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 		sp_io::storage::set(TEST_KEY, "custom_upgrade".as_bytes());
 		sp_io::storage::set(TEST_KEY_2, "try_runtime_upgrade_works".as_bytes());
 		sp_io::storage::set(CUSTOM_ON_RUNTIME_KEY, &true.encode());
-		System::deposit_event(frame_system::Event::CodeUpdated);
+		System::deposit_event(frame_system::Event::CodeUpdated { hash: H256::repeat_byte(123) });
 
 		assert_eq!(0, System::last_runtime_upgrade_spec_version());
 
@@ -1034,7 +1036,9 @@ fn event_from_runtime_upgrade_is_included() {
 		System::set_block_number(1);
 
 		Executive::initialize_block(&Header::new_from_number(2));
-		System::assert_last_event(frame_system::Event::<Runtime>::CodeUpdated.into());
+		System::assert_last_event(
+			frame_system::Event::<Runtime>::CodeUpdated { hash: H256::repeat_byte(123) }.into(),
+		);
 	});
 }
 

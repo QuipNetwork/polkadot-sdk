@@ -17,6 +17,8 @@
 
 extern crate alloc;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 pub mod impls;
 pub mod message_queue;
 pub mod pay;

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{create_pool_with_wnd_on, imports::*};
+use crate::imports::*;
 
 /// Relay Chain should be able to execute `Transact` instructions in System Parachain
 /// when `OriginKind::Superuser`.
@@ -156,10 +156,9 @@ fn send_xcm_from_para_to_asset_hub_paying_fee_with_sufficient_asset() {
 		ASSET_HUB_WESTEND_ED * 10000000000,
 	)]);
 
-	create_pool_with_wnd_on!(
+	create_pool_with_relay_native_on!(
 		AssetHubWestend,
 		asset_location,
-		false,
 		para_sovereign_account.clone(),
 		9_000_000_000_000_000,
 		9_000_000_000_000

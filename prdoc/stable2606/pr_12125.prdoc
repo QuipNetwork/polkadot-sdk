@@ -1,0 +1,40 @@
+title: 'ec-utils: handle twisted Edwards z=0 results via IntoAffineSafe instead of panicking'
+doc:
+- audience: Runtime Dev
+  description: |-
+    On incomplete twisted Edwards curves such as Bandersnatch, HWCD arithmetic
+    fed non-subgroup inputs can produce projective points with `z = 0`. These
+    have no affine representative, and arkworks' standard
+    `From<Projective> for Affine` panics on `z.inverse().unwrap()` for the
+    F-exception shapes that miss the `is_zero()` short-circuit.
+
+    The `mul_te` and `msm_te` helpers in `sp-crypto-ec-utils` previously
+    called `.into_affine()` unconditionally and would crash on such inputs.
+    They now go through a new `IntoAffineSafe` trait that returns `None` on
+    `z = 0`, and surface the degenerate case across the FFI boundary as a
+    new `Error::DegeneratePoint` (numeric code `4`) rather than substituting
+    a sentinel inside the shared helper. The wire format on the FFI boundary
+    is unchanged: still `ArkScale<TEAffine>`, no sentinel bit, no new codec.
+
+    The fallback policy is per-curve, decided in the runtime-side hook:
+
+      * **Bandersnatch** (incomplete TE form): the `HostHooks` impl catches
+        `Err(DegeneratePoint)` for both `msm_te` and `mul_projective_te` and
+        substitutes the all-zero projective point `(0, 0, 0, 0)`. This is
+        not a valid curve point: it has no affine representative (`z = 0`)
+        and any downstream validity or `is_in_correct_subgroup_*` check on
+        the result rejects it rather than silently accepting an
+        identity-like value. The Bandersnatch `mul_projective_te` hook also
+        short-circuits locally with the same all-zero projective fallback
+        when handed a `z = 0` projective *input* that can't be serialized
+        for the host at all.
+      * **Other TE curves** (e.g. `ed_on_bls12_377`, which is complete by
+        construction so `z = 0` cannot occur on subgroup-valid arithmetic):
+        the existing `.expect(FAIL_MSG)` propagates the error as a panic,
+        which is correct since it should never fire.
+
+    Honest callers that subgroup-validate inputs upstream never reach the
+    degenerate branch in the first place.
+crates:
+- name: sp-crypto-ec-utils
+  bump: minor

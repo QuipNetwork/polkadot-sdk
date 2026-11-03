@@ -1,0 +1,8 @@
+title: 'statement-store: reduce sync burst interval'
+doc:
+- audience: Node Dev
+  description: |-
+    Reduces `INITIAL_SYNC_BURST_INTERVAL` from 100 ms to 10 ms. With many light clients connected, this interval determines how quickly a light client syncs and observes statements of interest. Other flows are unaffected because the polling branch is already at the end of a `select!` biased toward higher-priority work.
+crates:
+- name: sc-network-statement
+  bump: patch

@@ -302,8 +302,9 @@
 //! ```
 //!
 //! For scalability, a bound is maintained on the number of unbonding sub pools (see
-//! [`TotalUnbondingPools`]). An unbonding pool is removed once its older than `current_era -
-//! TotalUnbondingPools`. An unbonding pool is merged into the unbonded pool with
+//! [`Config::MaxUnbondingPools`]). An unbonding pool is removed (merged into the unbonded pool)
+//! once it is older than `active_era - (MaxUnbondingPools - bonding_duration)`. An
+//! unbonding pool is merged into the unbonded pool with
 //!
 //! ```text
 //! unbounded_pool.balance = unbounded_pool.balance + unbonding_pool.balance;
@@ -312,10 +313,10 @@
 //!
 //! This scheme "averages" out the points value in the unbonded pool.
 //!
-//! Once a members `unbonding_era` is older than `current_era -
+//! Once a members `unbonding_era` is older than `active_era -
 //! [sp_staking::StakingInterface::bonding_duration]`, it can can cash it's points out of the
-//! corresponding unbonding pool. If it's `unbonding_era` is older than `current_era -
-//! TotalUnbondingPools`, it can cash it's points from the unbonded pool.
+//! corresponding unbonding pool. If it's `unbonding_era` is older than the effective
+//! post-unbonding window, it can cash it's points from the unbonded pool.
 //!
 //! **Relevant extrinsics:**
 //!
@@ -572,8 +573,8 @@ impl<T: Config> PoolMember<T> {
 	/// Total balance of the member, both active and unbonding.
 	/// Doesn't mutate state.
 	///
-	/// Worst case, iterates over [`TotalUnbondingPools`] member unbonding pools to calculate member
-	/// balance.
+	/// Worst case, iterates over [`Config::MaxUnbondingPools`] member unbonding pools to
+	/// calculate member balance.
 	pub fn total_balance(&self) -> BalanceOf<T> {
 		let pool = match BondedPool::<T>::get(self.pool_id) {
 			Some(pool) => pool,
@@ -666,13 +667,13 @@ impl<T: Config> PoolMember<T> {
 	/// Infallible, noop if no unbonding eras exist.
 	fn withdraw_unlocked(
 		&mut self,
-		current_era: EraIndex,
+		active_era: EraIndex,
 	) -> BoundedBTreeMap<EraIndex, BalanceOf<T>, T::MaxUnbonding> {
 		// NOTE: if only drain-filter was stable..
 		let mut removed_points =
 			BoundedBTreeMap::<EraIndex, BalanceOf<T>, T::MaxUnbonding>::default();
 		self.unbonding_eras.retain(|e, p| {
-			if *e > current_era {
+			if *e > active_era {
 				true
 			} else {
 				removed_points
@@ -1273,8 +1274,14 @@ impl<T: Config> BondedPool<T> {
 				)
 			},
 			(false, true) => {
-				// the depositor can simply not be unbonded permissionlessly, period.
-				return Err(Error::<T>::DoesNotHavePermission.into());
+				// Permissionless depositor unbond is only allowed for a full unbond, and only when
+				// destroying with the depositor as sole remaining member. `is_full_unbond` is
+				// already guaranteed by the outer `ensure!` above.
+				debug_assert!(is_full_unbond);
+				ensure!(
+					self.is_destroying_and_only_depositor(target_member.active_points()),
+					Error::<T>::DoesNotHavePermission
+				);
 			},
 		};
 
@@ -1587,10 +1594,10 @@ impl<T: Config> UnbondPool<T> {
 pub struct SubPools<T: Config> {
 	/// A general, era agnostic pool of funds that have fully unbonded. The pools
 	/// of `Self::with_era` will lazily be merged into into this pool if they are
-	/// older then `current_era - TotalUnbondingPools`.
+	/// older than the effective post-unbonding window (see `SubPools::maybe_merge_pools`).
 	pub no_era: UnbondPool<T>,
 	/// Map of era in which a pool becomes unbonded in => unbond pools.
-	pub with_era: BoundedBTreeMap<EraIndex, UnbondPool<T>, TotalUnbondingPools<T>>,
+	pub with_era: BoundedBTreeMap<EraIndex, UnbondPool<T>, T::MaxUnbondingPools>,
 }
 
 impl<T: Config> SubPools<T> {
@@ -1598,12 +1605,12 @@ impl<T: Config> SubPools<T> {
 	///
 	/// This is often used whilst getting the sub-pool from storage, thus it consumes and returns
 	/// `Self` for ergonomic purposes.
-	fn maybe_merge_pools(mut self, current_era: EraIndex) -> Self {
-		// Ex: if `TotalUnbondingPools` is 5 and current era is 10, we only want to retain pools
-		// 6..=10. Note that in the first few eras where `checked_sub` is `None`, we don't remove
-		// anything.
-		if let Some(newest_era_to_remove) =
-			current_era.checked_sub(T::PostUnbondingPoolsWindow::get())
+	fn maybe_merge_pools(mut self, active_era: EraIndex) -> Self {
+		// Retain `with_era` pools for ~`MaxUnbondingPools` eras after unlock.
+		// E.g., if window is 2 and active era is 10, retain pools 9..=10.
+		let effective_post_unbonding_window =
+			T::MaxUnbondingPools::get().saturating_sub(T::StakeAdapter::bonding_duration());
+		if let Some(newest_era_to_remove) = active_era.checked_sub(effective_post_unbonding_window)
 		{
 			self.with_era.retain(|k, v| {
 				if *k > newest_era_to_remove {
@@ -1629,20 +1636,6 @@ impl<T: Config> SubPools<T> {
 				.values()
 				.fold(BalanceOf::<T>::zero(), |acc, pool| acc.saturating_add(pool.balance)),
 		)
-	}
-}
-
-/// The maximum amount of eras an unbonding pool can exist prior to being merged with the
-/// `no_era` pool. This is guaranteed to at least be equal to the staking `UnbondingDuration`. For
-/// improved UX [`Config::PostUnbondingPoolsWindow`] should be configured to a non-zero value.
-pub struct TotalUnbondingPools<T: Config>(PhantomData<T>);
-
-impl<T: Config> Get<u32> for TotalUnbondingPools<T> {
-	fn get() -> u32 {
-		// NOTE: this may be dangerous in the scenario bonding_duration gets decreased because
-		// we would no longer be able to decode `BoundedBTreeMap::<EraIndex, UnbondPool<T>,
-		// TotalUnbondingPools<T>>`, which uses `TotalUnbondingPools` as the bound
-		T::StakeAdapter::bonding_duration() + T::PostUnbondingPoolsWindow::get()
 	}
 }
 
@@ -1726,12 +1719,14 @@ pub mod pallet {
 		/// Note: Switching to a new [`StakeStrategy`] might require a migration of the storage.
 		type StakeAdapter: StakeStrategy<AccountId = Self::AccountId, Balance = BalanceOf<Self>>;
 
-		/// The amount of eras a `SubPools::with_era` pool can exist before it gets merged into the
-		/// `SubPools::no_era` pool. In other words, this is the amount of eras a member will be
-		/// able to withdraw from an unbonding pool which is guaranteed to have the correct ratio of
-		/// points to balance; once the `with_era` pool is merged into the `no_era` pool, the ratio
-		/// can become skewed due to some slashed ratio getting merged in at some point.
-		type PostUnbondingPoolsWindow: Get<u32>;
+		/// The maximum number of distinct era-keyed unbonding sub-pools ([`SubPools::with_era`])
+		/// that may exist at once. This is also the basis for how long each sub-pool is kept on
+		/// its own (correct) points-to-balance ratio: a sub-pool is merged into the era-agnostic
+		/// [`SubPools::no_era`] pool only after `MaxUnbondingPools - bonding_duration` eras
+		/// have passed since its unlock era (see `SubPools::maybe_merge_pools`). Once merged
+		/// the ratio can become skewed due to some slashed ratio getting merged in at some point.
+		#[pallet::constant]
+		type MaxUnbondingPools: Get<u32>;
 
 		/// The maximum length, in bytes, that a pools metadata maybe.
 		type MaxMetadataLen: Get<u32>;
@@ -3018,6 +3013,19 @@ pub mod pallet {
 
 			ensure!(bonded_pool.can_manage_commission(&who), Error::<T>::DoesNotHavePermission);
 
+			let mut reward_pool = RewardPools::<T>::get(pool_id)
+				.defensive_ok_or::<Error<T>>(DefensiveError::RewardPoolNotFound.into())?;
+			// IMPORTANT: snapshot rewards accrued at the current commission before `try_update_max`
+			// can force-lower it. Otherwise rewards accrued since the last snapshot would be
+			// re-rated at the new (lower) rate and the differential credited to members instead
+			// of the commission payee. Mirrors the ordering in `set_commission`.
+			reward_pool.update_records(
+				pool_id,
+				bonded_pool.points,
+				bonded_pool.commission.current(),
+			)?;
+			RewardPools::insert(pool_id, reward_pool);
+
 			bonded_pool.commission.try_update_max(pool_id, max_commission)?;
 			bonded_pool.put();
 
@@ -3260,7 +3268,7 @@ pub mod pallet {
 				"Minimum points to balance ratio must be greater than 0"
 			);
 			assert!(
-				T::StakeAdapter::bonding_duration() < TotalUnbondingPools::<T>::get(),
+				T::StakeAdapter::bonding_duration() < T::MaxUnbondingPools::get(),
 				"There must be more unbonding pools then the bonding duration /
 				so a slash can be applied to relevant unbonding pools. (We assume /
 				the bonding duration > slash deffer duration.",
@@ -4008,7 +4016,13 @@ impl<T: Config> Pallet<T> {
 		})?;
 
 		let mut expected_tvl: BalanceOf<T> = Default::default();
+		let mut depositor_undermin: Vec<(PoolId, T::AccountId)> = Vec::new();
+		let mut depositor_undermin_total: u32 = 0;
+		let mut total_pools: u32 = 0;
+		const MAX_EXAMPLES: usize = 10;
+
 		BondedPools::<T>::iter().try_for_each(|(id, inner)| -> Result<(), TryRuntimeError> {
+			total_pools += 1;
 			let bonded_pool = BondedPool { id, inner };
 			ensure!(
 				pools_members.get(&id).copied().unwrap_or_default() ==
@@ -4026,8 +4040,12 @@ impl<T: Config> Pallet<T> {
 				.is_destroying_and_only_depositor(depositor.active_points()) ||
 				depositor.active_points() >= MinCreateBond::<T>::get();
 			if !depositor_has_enough_stake {
+				depositor_undermin_total += 1;
+				if depositor_undermin.len() < MAX_EXAMPLES {
+					depositor_undermin.push((id, bonded_pool.roles.depositor.clone()));
+				}
 				log!(
-					warn,
+					trace,
 					"pool {:?} has depositor {:?} with insufficient stake {:?}, minimum required is {:?}",
 					id,
 					bonded_pool.roles.depositor,
@@ -4045,6 +4063,17 @@ impl<T: Config> Pallet<T> {
 
 			Ok(())
 		})?;
+
+		if depositor_undermin_total > 0 {
+			log!(
+				warn,
+				"{}/{} pools have depositor with insufficient stake, minimum required is {:?}. Examples: {:?}",
+				depositor_undermin_total,
+				total_pools,
+				MinCreateBond::<T>::get(),
+				depositor_undermin,
+			);
+		}
 
 		ensure!(
 			MaxPoolMembers::<T>::get().map_or(true, |max| all_members <= max),
@@ -4108,8 +4137,13 @@ impl<T: Config> Pallet<T> {
 		debug_assertions
 	))]
 	pub fn check_ed_imbalance() -> Result<u32, DispatchError> {
-		let mut needs_adjust = 0;
+		let mut needs_adjust: u32 = 0;
+		let mut total_pools: u32 = 0;
+		let mut ed_examples: Vec<PoolId> = Vec::new();
+		const MAX_EXAMPLES: usize = 10;
+
 		BondedPools::<T>::iter_keys().for_each(|id| {
+			total_pools += 1;
 			let reward_acc = Self::generate_reward_account(id);
 			let frozen_balance =
 				T::Currency::balance_frozen(&FreezeReason::PoolMinBalance.into(), &reward_acc);
@@ -4117,8 +4151,11 @@ impl<T: Config> Pallet<T> {
 			let expected_frozen_balance = T::Currency::minimum_balance();
 			if frozen_balance != expected_frozen_balance {
 				needs_adjust += 1;
+				if ed_examples.len() < MAX_EXAMPLES {
+					ed_examples.push(id);
+				}
 				log!(
-					warn,
+					trace,
 					"pool {:?} has incorrect ED frozen that can result from change in ED. Expected  = {:?},  Actual = {:?}. Use `adjust_pool_deposit` to fix it",
 					id,
 					expected_frozen_balance,
@@ -4126,6 +4163,17 @@ impl<T: Config> Pallet<T> {
 				);
 			}
 		});
+
+		if needs_adjust > 0 {
+			log!(
+				warn,
+				"{}/{} pools have incorrect ED frozen (expected {:?}). Use `adjust_pool_deposit` to fix. Examples: {:?}",
+				needs_adjust,
+				total_pools,
+				T::Currency::minimum_balance(),
+				ed_examples,
+			);
+		}
 
 		Ok(needs_adjust)
 	}

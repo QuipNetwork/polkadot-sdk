@@ -124,7 +124,7 @@ async fn precompile_pvf_smoke_test() -> Result<(), anyhow::Error> {
 
 	// Wait for parachain to  produce blocks
 	log::info!("Waiting for parachain {} to be registered and produce blocks", PARA_ID);
-	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 5..21)]).await?;
+	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 5..21)], []).await?;
 	log::info!("Parachain {} is producing blocks", PARA_ID);
 
 	// Check Dave didn't prepare PVF

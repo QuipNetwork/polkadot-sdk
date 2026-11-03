@@ -109,7 +109,7 @@ impl PartsOf57600 {
 /// for a particular core.
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
-pub(super) struct Schedule<N> {
+pub struct Schedule<N> {
 	/// Original assignments.
 	assignments: Vec<(CoreAssignment, PartsOf57600)>,
 	/// When do our assignments become invalid, if at all?
@@ -128,7 +128,7 @@ pub(super) struct Schedule<N> {
 impl<N> Schedule<N> {
 	/// Creates a new Schedule (for tests).
 	#[cfg(test)]
-	pub(super) fn new(
+	pub fn new(
 		assignments: Vec<(CoreAssignment, PartsOf57600)>,
 		end_hint: Option<N>,
 		next_schedule: Option<N>,
@@ -137,14 +137,13 @@ impl<N> Schedule<N> {
 	}
 
 	/// Accessor for assignments (needed by tests).
-	#[cfg(test)]
-	pub(super) fn assignments(&self) -> &[(CoreAssignment, PartsOf57600)] {
+	pub fn assignments(&self) -> &[(CoreAssignment, PartsOf57600)] {
 		&self.assignments
 	}
 
 	/// Accessor for end_hint (needed by tests).
 	#[cfg(test)]
-	pub(super) fn end_hint(&self) -> Option<N>
+	pub fn end_hint(&self) -> Option<N>
 	where
 		N: Copy,
 	{
@@ -166,7 +165,7 @@ impl<N> Schedule<N> {
 /// of the currently active work as well.
 #[derive(Encode, Decode, TypeInfo, Default)]
 #[cfg_attr(test, derive(PartialEq, Debug, Clone))]
-pub(super) struct CoreDescriptor<N> {
+pub struct CoreDescriptor<N> {
 	/// Meta data about the queued schedules for this core.
 	queue: Option<QueueDescriptor<N>>,
 	/// Currently performed work.
@@ -191,12 +190,12 @@ impl<N: PartialOrd> CoreDescriptor<N> {
 	}
 
 	/// Accessor for queue (needed by migrations, tests, and try-runtime).
-	pub(super) fn queue(&self) -> Option<&QueueDescriptor<N>> {
+	pub fn queue(&self) -> Option<&QueueDescriptor<N>> {
 		self.queue.as_ref()
 	}
 
 	/// Accessor for current_work (needed by migrations, tests, and try-runtime).
-	pub(super) fn current_work(&self) -> Option<&WorkState<N>> {
+	pub fn current_work(&self) -> Option<&WorkState<N>> {
 		self.current_work.as_ref()
 	}
 }

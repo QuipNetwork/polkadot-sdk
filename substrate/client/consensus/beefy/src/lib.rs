@@ -427,8 +427,7 @@ where
 			header = wait_for_parent_header(blockchain, header, HEADER_SYNC_DELAY).await?;
 		};
 
-		aux_schema::write_current_version(backend.as_ref())?;
-		aux_schema::write_voter_state(backend.as_ref(), &state)?;
+		aux_schema::write_current_version_and_voter_state(backend.as_ref(), &state)?;
 		Ok(state)
 	}
 
@@ -443,7 +442,7 @@ where
 		is_authority: bool,
 	) -> Result<PersistedState<B, AuthorityId>, Error> {
 		// Initialize voter state from AUX DB if compatible.
-		if let Some(mut state) = crate::aux_schema::load_persistent(backend.as_ref())?
+		if let Some(mut state) = crate::aux_schema::load_and_migrate_persistent(backend.as_ref())?
 			// Verify state pallet genesis matches runtime.
 			.filter(|state| state.pallet_genesis() == beefy_genesis)
 		{

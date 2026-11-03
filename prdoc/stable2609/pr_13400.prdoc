@@ -1,0 +1,57 @@
+title: 'pallet-revive: benchmark some EVM arithmetic op-codes'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `pallet-revive` now charges the EVM `DIV`, `SDIV`, `MOD`, `SMOD`, `ADDMOD` and `MULMOD`
+    op-codes from their own benchmarks. This change also regenerates all `pallet-revive` weights,
+    so the charges of the other EVM op-codes, PVM instructions and host functions change too.
+
+    `pallet_revive::WeightInfo` has 22 new methods, each taking the number of op-codes executed:
+
+    - `evm_pop_opcode`
+    - `evm_div_opcode`
+    - `evm_div_opcode_one_limb_variant`
+    - `evm_div_opcode_mixed_variant`
+    - `evm_div_opcode_fixed_knuth_variant`
+    - `evm_sdiv_opcode`
+    - `evm_sdiv_opcode_one_limb_variant`
+    - `evm_sdiv_opcode_mixed_variant`
+    - `evm_sdiv_opcode_fixed_knuth_variant`
+    - `evm_mod_opcode`
+    - `evm_mod_opcode_one_limb_variant`
+    - `evm_mod_opcode_mixed_variant`
+    - `evm_mod_opcode_fixed_knuth_variant`
+    - `evm_smod_opcode`
+    - `evm_smod_opcode_one_limb_variant`
+    - `evm_smod_opcode_mixed_variant`
+    - `evm_smod_opcode_fixed_knuth_variant`
+    - `evm_addmod_opcode`
+    - `evm_addmod_opcode_one_limb_variant`
+    - `evm_addmod_opcode_mixed_variant`
+    - `evm_addmod_opcode_fixed_knuth_variant`
+    - `evm_mulmod_opcode`
+
+    The arithmetic op-codes are benchmarked in pairs with a `POP`. `DIV`, `SDIV`, `MOD`, `SMOD` and
+    `ADDMOD` each have four benchmarks with different operands, and their charge is the largest of
+    the four slopes minus the slope of `evm_pop_opcode`. The charge of `MULMOD` is the slope of
+    `evm_mulmod_opcode` minus the slope of `evm_pop_opcode`. `POP` itself is charged like the other
+    EVM op-codes, not from `evm_pop_opcode`.
+
+    Runtimes that use `pallet_revive::weights::SubstrateWeight` or `()` need no changes. Runtimes
+    with their own `WeightInfo` implementation stop compiling until they implement the new methods.
+- audience: Runtime User
+  description: |-
+    In EVM contracts, `DIV`, `SDIV`, `MOD`, `SMOD`, `ADDMOD` and `MULMOD` use a different amount
+    of gas than before. The regenerated weights also change the gas used by the other EVM
+    op-codes, by PVM contracts and by host functions. Results and all other behavior are
+    unchanged, and deployed contracts don't need to be redeployed.
+
+    Estimate gas with `eth_estimateGas` instead of reusing gas limits recorded before this change.
+    Contracts that pass a fixed gas amount to calls into code that runs these op-codes should check
+    that the amount is still enough.
+crates:
+- name: pallet-revive
+  bump: major
+  validate: false
+- name: asset-hub-westend-runtime
+  bump: patch

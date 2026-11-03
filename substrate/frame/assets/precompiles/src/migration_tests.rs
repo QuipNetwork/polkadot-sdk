@@ -76,25 +76,26 @@ type Block = frame_system::mocking::MockBlock<Test>;
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Test {
 	type Block = Block;
-	type AccountData = pallet_balances::AccountData<u64>;
+	type AccountData = pallet_balances::AccountData<u128>;
 }
 
 #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig as pallet_balances::DefaultConfig)]
 impl pallet_balances::Config for Test {
+	type Balance = u128;
 	type AccountStore = System;
 }
 
 parameter_types! {
-	pub const AssetDeposit: u64 = 1;
-	pub const AssetAccountDeposit: u64 = 1;
-	pub const ApprovalDeposit: u64 = 1;
-	pub const MetadataDepositBase: u64 = 1;
-	pub const MetadataDepositPerByte: u64 = 1;
+	pub const AssetDeposit: u128 = 1;
+	pub const AssetAccountDeposit: u128 = 1;
+	pub const ApprovalDeposit: u128 = 1;
+	pub const MetadataDepositBase: u128 = 1;
+	pub const MetadataDepositPerByte: u128 = 1;
 }
 
 impl pallet_assets::Config<ForeignAssetsInstance> for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type Balance = u64;
+	type Balance = u128;
 	type AssetId = Location;
 	type AssetIdParameter = Location;
 	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<u64>>;
@@ -111,6 +112,7 @@ impl pallet_assets::Config<ForeignAssetsInstance> for Test {
 	type WeightInfo = ();
 	type RemoveItemsLimit = frame_support::traits::ConstU32<1000>;
 	type CallbackHandle = ();
+	type AssetIdAllocator = ();
 	type ReserveData = ();
 	type Holder = ();
 	#[cfg(feature = "runtime-benchmarks")]
@@ -337,8 +339,8 @@ fn migration_respects_weight_limits() {
 		let mut steps = 0u32;
 
 		// Use a weight that allows processing ~2 assets per step
-		// The default WeightInfo for () returns ~390M ref_time per step
-		let limited_weight = Weight::from_parts(800_000_000, 0);
+		// The default WeightInfo for () returns ~423M ref_time and ~6360 proof_size per step
+		let limited_weight = Weight::from_parts(900_000_000, 10_000);
 
 		loop {
 			let mut meter = WeightMeter::with_limit(limited_weight);

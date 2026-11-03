@@ -1,6 +1,6 @@
 [package]
 name = "sc-sysinfo"
-version = "47.0.0"
+version = "51.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -24,12 +24,12 @@ log = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
 rand_pcg = { workspace = true }
 regex = { workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
+sc-telemetry = { workspace = true, default-features = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [dev-dependencies]
-sp-runtime = { default-features = true, workspace = true }
+sp-runtime = { workspace = true, default-features = true }

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-asset-conversion-ops"
-version = "0.14.0"
+version = "0.19.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -28,8 +28,8 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-assets = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
+pallet-assets = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
 primitive-types = { features = ["codec", "num-traits", "scale-info"], workspace = true }
 
 [features]
@@ -41,6 +41,8 @@ std = [
 	"frame-system/std",
 	"log/std",
 	"pallet-asset-conversion/std",
+	"pallet-assets/std",
+	"pallet-balances/std",
 	"primitive-types/std",
 	"scale-info/std",
 	"sp-arithmetic/std",

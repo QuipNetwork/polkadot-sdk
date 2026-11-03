@@ -16,7 +16,9 @@
 
 use super::*;
 use assert_matches::assert_matches;
-use polkadot_node_subsystem_util::inclusion_emulator::InboundHrmpLimitations;
+use polkadot_node_subsystem_util::inclusion_emulator::{
+	InboundHrmpLimitations, RelayChainBlockInfo,
+};
 use polkadot_primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptorV2, CoreIndex, HeadData, Id as ParaId,
 	MutateDescriptorV2,
@@ -50,20 +52,23 @@ fn make_constraints(
 	}
 }
 
-// Helper to create both RelayChainScope and Scope, mimicking the old Scope::with_ancestors
+// Helper to create both SchedulingScope and Scope.
 fn make_scope(
 	relay_parent: RelayChainBlockInfo,
 	base_constraints: Constraints,
 	pending_availability: Vec<PendingAvailability>,
 	max_backable_len: usize,
 	ancestors: Vec<RelayChainBlockInfo>,
-) -> (RelayChainScope, Scope) {
-	let relay_chain_scope =
-		RelayChainScope::with_ancestors(relay_parent.clone(), ancestors).unwrap();
+) -> (SchedulingScope, Scope) {
+	let scheduling_scope = SchedulingScope::new(
+		(relay_parent.hash, relay_parent.number),
+		ancestors.iter().map(|a| (a.hash, a.number)),
+	)
+	.unwrap();
 
 	let scope = Scope::new(base_constraints, pending_availability, max_backable_len);
 
-	(relay_chain_scope, scope)
+	(scheduling_scope, scope)
 }
 
 struct CandidateBuilder {
@@ -131,6 +136,7 @@ impl CandidateBuilder {
 				self.relay_parent,
 				CoreIndex(0),
 				1,
+				1,
 				persisted_validation_data.hash(),
 				Hash::repeat_byte(1),
 				Hash::repeat_byte(42),
@@ -171,120 +177,54 @@ impl CandidateBuilder {
 }
 
 fn populate_chain_from_previous_storage(
-	relay_chain_scope: &RelayChainScope,
+	scheduling_scope: &SchedulingScope,
 	scope: &Scope,
 	storage: &CandidateStorage,
 ) -> FragmentChain {
 	let mut chain =
-		FragmentChain::init(relay_chain_scope, scope.clone(), CandidateStorage::default());
+		FragmentChain::init(scheduling_scope, scope.clone(), CandidateStorage::default());
 	let mut prev_chain = chain.clone();
 	prev_chain.unconnected = storage.clone();
 
-	chain.populate_from_previous(relay_chain_scope, &prev_chain);
+	chain.populate_from_previous(scheduling_scope, &prev_chain);
 	chain
 }
 
 #[test]
 fn scope_rejects_ancestors_that_skip_blocks() {
-	let relay_parent = RelayChainBlockInfo {
-		number: 10,
-		hash: Hash::repeat_byte(10),
-		storage_root: Hash::repeat_byte(69),
-	};
-
-	let ancestors = vec![RelayChainBlockInfo {
-		number: 8,
-		hash: Hash::repeat_byte(8),
-		storage_root: Hash::repeat_byte(69),
-	}];
-
 	assert_matches!(
-		RelayChainScope::with_ancestors(relay_parent, ancestors),
+		SchedulingScope::new((Hash::repeat_byte(10), 10), vec![(Hash::repeat_byte(8), 8)],),
 		Err(UnexpectedAncestor { number: 8, prev: 10 })
 	);
 }
 
 #[test]
 fn scope_rejects_ancestor_for_0_block() {
-	let relay_parent = RelayChainBlockInfo {
-		number: 0,
-		hash: Hash::repeat_byte(0),
-		storage_root: Hash::repeat_byte(69),
-	};
-
-	let ancestors = vec![RelayChainBlockInfo {
-		number: 99999,
-		hash: Hash::repeat_byte(99),
-		storage_root: Hash::repeat_byte(69),
-	}];
-
 	assert_matches!(
-		RelayChainScope::with_ancestors(relay_parent, ancestors),
+		SchedulingScope::new((Hash::repeat_byte(0), 0), vec![(Hash::repeat_byte(99), 99999)],),
 		Err(UnexpectedAncestor { number: 99999, prev: 0 })
 	);
 }
 
 #[test]
 fn scope_takes_all_ancestors() {
-	let relay_parent = RelayChainBlockInfo {
-		number: 5,
-		hash: Hash::repeat_byte(0),
-		storage_root: Hash::repeat_byte(69),
-	};
+	let scheduling_scope = SchedulingScope::new(
+		(Hash::repeat_byte(0), 5),
+		vec![(Hash::repeat_byte(4), 4), (Hash::repeat_byte(3), 3), (Hash::repeat_byte(2), 2)],
+	)
+	.unwrap();
 
-	let ancestors = vec![
-		RelayChainBlockInfo {
-			number: 4,
-			hash: Hash::repeat_byte(4),
-			storage_root: Hash::repeat_byte(69),
-		},
-		RelayChainBlockInfo {
-			number: 3,
-			hash: Hash::repeat_byte(3),
-			storage_root: Hash::repeat_byte(69),
-		},
-		RelayChainBlockInfo {
-			number: 2,
-			hash: Hash::repeat_byte(2),
-			storage_root: Hash::repeat_byte(69),
-		},
-	];
-
-	let relay_chain_scope = RelayChainScope::with_ancestors(relay_parent, ancestors).unwrap();
-
-	// Should include all provided ancestors
-	assert_eq!(relay_chain_scope.ancestors.len(), 3);
-	assert_eq!(relay_chain_scope.ancestors_by_hash.len(), 3);
+	// Should include all provided ancestors + the scheduling parent itself.
+	assert_eq!(scheduling_scope.scheduling_parents.len(), 4);
 }
 
 #[test]
 fn scope_rejects_unordered_ancestors() {
-	let relay_parent = RelayChainBlockInfo {
-		number: 5,
-		hash: Hash::repeat_byte(0),
-		storage_root: Hash::repeat_byte(69),
-	};
-
-	let ancestors = vec![
-		RelayChainBlockInfo {
-			number: 4,
-			hash: Hash::repeat_byte(4),
-			storage_root: Hash::repeat_byte(69),
-		},
-		RelayChainBlockInfo {
-			number: 2,
-			hash: Hash::repeat_byte(2),
-			storage_root: Hash::repeat_byte(69),
-		},
-		RelayChainBlockInfo {
-			number: 3,
-			hash: Hash::repeat_byte(3),
-			storage_root: Hash::repeat_byte(69),
-		},
-	];
-
 	assert_matches!(
-		RelayChainScope::with_ancestors(relay_parent, ancestors),
+		SchedulingScope::new(
+			(Hash::repeat_byte(0), 5),
+			vec![(Hash::repeat_byte(4), 4), (Hash::repeat_byte(2), 2), (Hash::repeat_byte(3), 3),],
+		),
 		Err(UnexpectedAncestor { number: 2, prev: 4 })
 	);
 }
@@ -550,7 +490,7 @@ fn test_populate_and_check_potential() {
 				assert_eq!(chain.unconnected_len(), 0);
 				assert_matches!(
 					chain.can_add_candidate_as_potential(&relay_chain_scope, &candidate_a_entry),
-					Err(Error::SchedulingParentNotInScope(_, _))
+					Err(Error::SchedulingParentNotInScope(_))
 				);
 				// However, if taken independently, both B and C still have potential, since we
 				// don't know that A doesn't.
@@ -682,10 +622,10 @@ fn test_populate_and_check_potential() {
 		}
 	}
 
-	// Relay parents out of scope
+	// Scheduling parents out of scope
 	{
-		// Candidate A has relay parent out of scope. Candidates B and C will also be deleted since
-		// they form a chain with A.
+		// Candidate A has scheduling parent out of scope (for V1/V2, scheduling_parent ==
+		// relay_parent). Candidates B and C will also be deleted since they form a chain with A.
 		let ancestors_without_x = vec![relay_parent_y_info.clone()];
 		let (relay_chain_scope, scope) = make_scope(
 			relay_parent_z_info.clone(),
@@ -700,7 +640,7 @@ fn test_populate_and_check_potential() {
 
 		assert_matches!(
 			chain.can_add_candidate_as_potential(&relay_chain_scope, &candidate_a_entry),
-			Err(Error::SchedulingParentNotInScope(_, _))
+			Err(Error::SchedulingParentNotInScope(_))
 		);
 		// However, if taken independently, both B and C still have potential, since we
 		// don't know that A doesn't.
@@ -711,8 +651,8 @@ fn test_populate_and_check_potential() {
 			.can_add_candidate_as_potential(&relay_chain_scope, &candidate_c_entry)
 			.is_ok());
 
-		// Candidates A and B have relay parents out of scope. Candidate C will also be deleted
-		// since it forms a chain with A and B.
+		// Candidates A and B have scheduling parents out of scope. Candidate C will also be
+		// deleted since it forms a chain with A and B.
 		let (relay_chain_scope, scope) =
 			make_scope(relay_parent_z_info.clone(), base_constraints.clone(), vec![], 5, vec![]);
 		let chain = populate_chain_from_previous_storage(&relay_chain_scope, &scope, &storage);
@@ -722,11 +662,11 @@ fn test_populate_and_check_potential() {
 
 		assert_matches!(
 			chain.can_add_candidate_as_potential(&relay_chain_scope, &candidate_a_entry),
-			Err(Error::SchedulingParentNotInScope(_, _))
+			Err(Error::SchedulingParentNotInScope(_))
 		);
 		assert_matches!(
 			chain.can_add_candidate_as_potential(&relay_chain_scope, &candidate_b_entry),
-			Err(Error::SchedulingParentNotInScope(_, _))
+			Err(Error::SchedulingParentNotInScope(_))
 		);
 		// However, if taken independently, C still has potential, since we
 		// don't know that A and B don't
@@ -1746,7 +1686,7 @@ fn test_v3_scheduling_parent_validation() {
 		// Should fail - scheduling_parent is not in scope
 		assert_matches!(
 			chain.can_add_candidate_as_potential(&relay_chain_scope, &candidate_entry),
-			Err(Error::SchedulingParentNotInScope(hash, _)) if hash == out_of_scope_parent
+			Err(Error::SchedulingParentNotInScope(hash)) if hash == out_of_scope_parent
 		);
 	}
 
@@ -1781,4 +1721,195 @@ fn test_v3_scheduling_parent_validation() {
 		// The candidate should be in the chain
 		assert_eq!(chain.candidate_hashes(), vec![candidate_hash]);
 	}
+}
+
+#[test]
+fn test_relay_parent_not_in_scheduling_scope_but_valid() {
+	// Core new behavior: relay parent is NOT in the scheduling scope but has a valid
+	// min_relay_parent_number. The candidate should be accepted.
+	let para_id = ParaId::from(5u32);
+
+	// Scheduling scope only contains blocks 8, 9, 10.
+	let scheduling_parent_info =
+		RelayChainBlockInfo { number: 10, hash: Hash::repeat_byte(10), storage_root: Hash::zero() };
+	let ancestor_9 =
+		RelayChainBlockInfo { number: 9, hash: Hash::repeat_byte(9), storage_root: Hash::zero() };
+	let ancestor_8 =
+		RelayChainBlockInfo { number: 8, hash: Hash::repeat_byte(8), storage_root: Hash::zero() };
+
+	// Relay parent is block 5 — outside the scheduling scope but above min_relay_parent_number.
+	let old_relay_parent = Hash::repeat_byte(5);
+
+	// min_relay_parent_number = 3, so relay parent at block 5 is valid.
+	let base_constraints = make_constraints(3, vec![5], vec![0x0a].into());
+
+	let (scheduling_scope, scope) = make_scope(
+		scheduling_parent_info.clone(),
+		base_constraints,
+		vec![],
+		5,
+		vec![ancestor_9.clone(), ancestor_8.clone()],
+	);
+
+	// Candidate with relay_parent=block5 (out of scheduling scope), scheduling_parent=block9 (in
+	// scope).
+	let (pvd, candidate) = CandidateBuilder::new(para_id, old_relay_parent)
+		.relay_parent_number(5)
+		.scheduling_parent(ancestor_9.hash)
+		.parent_head(vec![0x0a].into())
+		.para_head(vec![0x0b].into())
+		.hrmp_watermark(5)
+		.build();
+	let candidate_hash = candidate.hash();
+	let candidate_entry =
+		CandidateEntry::new(candidate_hash, candidate, pvd, CandidateState::Backed).unwrap();
+
+	// The relay parent is not in scheduling scope, but the scheduling parent is, and the relay
+	// parent number is >= min_relay_parent_number. Should be accepted.
+	let chain = FragmentChain::init(&scheduling_scope, scope.clone(), CandidateStorage::default());
+	assert!(chain
+		.can_add_candidate_as_potential(&scheduling_scope, &candidate_entry)
+		.is_ok());
+
+	// Also verify it gets into the chain when populated.
+	let mut storage = CandidateStorage::default();
+	storage.add_candidate_entry(candidate_entry).unwrap();
+	let chain = populate_chain_from_previous_storage(&scheduling_scope, &scope, &storage);
+	assert_eq!(chain.candidate_hashes(), vec![candidate_hash]);
+}
+
+#[test]
+fn test_relay_parent_below_min_relay_parent_number_rejected() {
+	// Relay parent is out of scheduling scope AND below min_relay_parent_number.
+	let para_id = ParaId::from(5u32);
+
+	let scheduling_parent_info =
+		RelayChainBlockInfo { number: 10, hash: Hash::repeat_byte(10), storage_root: Hash::zero() };
+	let ancestor_9 =
+		RelayChainBlockInfo { number: 9, hash: Hash::repeat_byte(9), storage_root: Hash::zero() };
+
+	let old_relay_parent = Hash::repeat_byte(2);
+
+	// min_relay_parent_number = 5, relay parent at block 2 is too old.
+	let base_constraints = make_constraints(5, vec![2], vec![0x0a].into());
+
+	let (scheduling_scope, scope) =
+		make_scope(scheduling_parent_info, base_constraints, vec![], 5, vec![ancestor_9.clone()]);
+
+	let (pvd, candidate) = CandidateBuilder::new(para_id, old_relay_parent)
+		.relay_parent_number(2)
+		.scheduling_parent(ancestor_9.hash)
+		.parent_head(vec![0x0a].into())
+		.para_head(vec![0x0b].into())
+		.hrmp_watermark(2)
+		.build();
+	let candidate_hash = candidate.hash();
+	let candidate_entry =
+		CandidateEntry::new(candidate_hash, candidate, pvd, CandidateState::Backed).unwrap();
+
+	let chain = FragmentChain::init(&scheduling_scope, scope, CandidateStorage::default());
+	assert_matches!(
+		chain.can_add_candidate_as_potential(&scheduling_scope, &candidate_entry),
+		Err(Error::RelayParentNotInScope(hash)) if hash == old_relay_parent
+	);
+}
+
+#[test]
+fn known_output_heads_unions_chain_and_unconnected() {
+	let mut storage = CandidateStorage::default();
+
+	let para_id = ParaId::from(5u32);
+	let relay_parent_x = Hash::repeat_byte(1);
+	let relay_parent_y = Hash::repeat_byte(2);
+	let relay_parent_z = Hash::repeat_byte(3);
+	let relay_parent_x_info =
+		RelayChainBlockInfo { number: 0, hash: relay_parent_x, storage_root: Hash::zero() };
+	let relay_parent_y_info =
+		RelayChainBlockInfo { number: 1, hash: relay_parent_y, storage_root: Hash::zero() };
+	let relay_parent_z_info =
+		RelayChainBlockInfo { number: 2, hash: relay_parent_z, storage_root: Hash::zero() };
+	// Ancestors must be in reverse order.
+	let ancestors = vec![relay_parent_y_info.clone(), relay_parent_x_info.clone()];
+
+	let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+	// A -> B -> C, chained by head data: A outputs 0x0b, B outputs 0x0c, C outputs 0x0d.
+	let (pvd_a, candidate_a) = CandidateBuilder::new(para_id, relay_parent_x_info.hash)
+		.relay_parent_number(relay_parent_x_info.number)
+		.parent_head(vec![0x0a].into())
+		.para_head(vec![0x0b].into())
+		.hrmp_watermark(relay_parent_x_info.number)
+		.build();
+	let candidate_a_hash = candidate_a.hash();
+	storage
+		.add_candidate_entry(
+			CandidateEntry::new(candidate_a_hash, candidate_a, pvd_a, CandidateState::Backed)
+				.unwrap(),
+		)
+		.unwrap();
+
+	let (pvd_b, candidate_b) = CandidateBuilder::new(para_id, relay_parent_y_info.hash)
+		.relay_parent_number(relay_parent_y_info.number)
+		.parent_head(vec![0x0b].into())
+		.para_head(vec![0x0c].into())
+		.hrmp_watermark(relay_parent_y_info.number)
+		.build();
+	let candidate_b_hash = candidate_b.hash();
+	storage
+		.add_candidate_entry(
+			CandidateEntry::new(candidate_b_hash, candidate_b, pvd_b, CandidateState::Backed)
+				.unwrap(),
+		)
+		.unwrap();
+
+	let (pvd_c, candidate_c) = CandidateBuilder::new(para_id, relay_parent_z_info.hash)
+		.relay_parent_number(relay_parent_z_info.number)
+		.parent_head(vec![0x0c].into())
+		.para_head(vec![0x0d].into())
+		.hrmp_watermark(relay_parent_z_info.number)
+		.build();
+	let candidate_c_hash = candidate_c.hash();
+	storage
+		.add_candidate_entry(
+			CandidateEntry::new(candidate_c_hash, candidate_c, pvd_c, CandidateState::Backed)
+				.unwrap(),
+		)
+		.unwrap();
+
+	// Depth 1: A becomes a connected chain member (chain.by_output_head); B and C are retained
+	// as unconnected potential candidates (unconnected.by_output_head).
+	let (scheduling_scope, scope) =
+		make_scope(relay_parent_z_info.clone(), base_constraints, vec![], 1, ancestors);
+	let chain = populate_chain_from_previous_storage(&scheduling_scope, &scope, &storage);
+
+	// Precondition guard: the split really is connected={A}, unconnected={B,C}.
+	assert_eq!(chain.candidate_hashes(), vec![candidate_a_hash]);
+	assert_eq!(
+		chain.unconnected().map(|c| c.candidate_hash).collect::<HashSet<_>>(),
+		[candidate_b_hash, candidate_c_hash].into_iter().collect()
+	);
+
+	// known_output_heads() unions both indices: A's head from the chain, B+C's from unconnected.
+	let head_a = HeadData::from(vec![0x0b]).hash(); // candidate A's output head
+	let head_b = HeadData::from(vec![0x0c]).hash(); // candidate B's output head
+	let head_c = HeadData::from(vec![0x0d]).hash(); // candidate C's output head
+	let base_head = HeadData::from(vec![0x0a]).hash();
+	assert_eq!(
+		chain.known_output_heads(),
+		[base_head, head_a, head_b, head_c].into_iter().collect::<HashSet<_>>()
+	);
+}
+
+#[test]
+fn known_output_heads_is_base_head_when_no_candidates() {
+	let relay_parent_info =
+		RelayChainBlockInfo { number: 0, hash: Hash::repeat_byte(1), storage_root: Hash::zero() };
+	let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+	let (scheduling_scope, scope) =
+		make_scope(relay_parent_info, base_constraints, vec![], 5, vec![]);
+
+	let chain = FragmentChain::init(&scheduling_scope, scope, CandidateStorage::default());
+
+	let base_head = HeadData::from(vec![0x0a]).hash();
+	assert_eq!(chain.known_output_heads(), [base_head].into_iter().collect::<HashSet<_>>());
 }

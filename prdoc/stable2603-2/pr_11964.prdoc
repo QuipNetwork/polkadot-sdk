@@ -1,0 +1,7 @@
+title: Fix recursive XCM decoding
+doc:
+- audience: Runtime Dev
+  description: "Fix XCM recursive decoding"
+crates:
+- name: staging-xcm
+  bump: patch

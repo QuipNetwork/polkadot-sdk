@@ -471,7 +471,7 @@ impl Contains<AccountId> for RestrictMock {
 }
 
 parameter_types! {
-	pub static PostUnbondingPoolsWindow: u32 = 2;
+	pub static MaxUnbondingPools: u32 = 5;
 	pub static MaxMetadataLen: u32 = 2;
 	pub static CheckLevel: u8 = 255;
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
@@ -490,7 +490,7 @@ impl pools::Config for Runtime {
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type StakeAdapter = adapter::DelegateStake<Self, StakingMock, DelegateMock>;
-	type PostUnbondingPoolsWindow = PostUnbondingPoolsWindow;
+	type MaxUnbondingPools = MaxUnbondingPools;
 	type PalletId = PoolsPalletId;
 	type MaxMetadataLen = MaxMetadataLen;
 	type MaxUnbonding = MaxUnbonding;

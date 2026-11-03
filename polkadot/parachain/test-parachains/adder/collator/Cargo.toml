@@ -20,21 +20,23 @@ codec = { features = ["derive"], workspace = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
 log = { workspace = true, default-features = true }
-polkadot-cli = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+
+polkadot-cli = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 polkadot-service = { features = ["rococo-native"], workspace = true, default-features = true }
-sc-cli = { default-features = true, workspace = true }
-sc-service = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
 test-parachain-adder = { workspace = true }
 
+sc-cli = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+
 [dev-dependencies]
-polkadot-node-core-pvf = { features = ["test-utils"], default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
+polkadot-node-core-pvf = { features = ["test-utils"], workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
 polkadot-test-service = { workspace = true }
 
-sp-keyring = { default-features = true, workspace = true }
+sp-keyring = { workspace = true, default-features = true }
 
 tokio = { features = ["macros"], workspace = true, default-features = true }

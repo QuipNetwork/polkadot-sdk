@@ -41,7 +41,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use crate::WasmExecutionMethod;
 
 pub type TestExternalities = CoreTestExternalities<BlakeTwo256>;
-type HostFunctions = sp_io::SubstrateHostFunctions;
+type HostFunctions = (sp_io::SubstrateHostFunctions, sp_virtualization::HostFunctions);
 
 /// Simple macro that runs a given method as test with the available wasm execution methods.
 #[macro_export]
@@ -461,10 +461,10 @@ fn mk_test_runtime(
 
 test_wasm_execution!(returns_mutable_static);
 fn returns_mutable_static(wasm_method: WasmExecutionMethod) {
-	let runtime =
-		mk_test_runtime(wasm_method, HeapAllocStrategy::Dynamic { maximum_pages: Some(1024) });
+	let heap_alloc_strategy = HeapAllocStrategy::Dynamic { maximum_pages: Some(1024) };
+	let runtime = mk_test_runtime(wasm_method, heap_alloc_strategy);
 
-	let mut instance = runtime.new_instance().unwrap();
+	let mut instance = runtime.new_instance(heap_alloc_strategy).unwrap();
 	let res = instance.call_export("returns_mutable_static", &[0]).unwrap();
 	assert_eq!(33, u64::decode(&mut &res[..]).unwrap());
 
@@ -477,10 +477,10 @@ fn returns_mutable_static(wasm_method: WasmExecutionMethod) {
 
 test_wasm_execution!(returns_mutable_static_bss);
 fn returns_mutable_static_bss(wasm_method: WasmExecutionMethod) {
-	let runtime =
-		mk_test_runtime(wasm_method, HeapAllocStrategy::Dynamic { maximum_pages: Some(1024) });
+	let heap_alloc_strategy = HeapAllocStrategy::Dynamic { maximum_pages: Some(1024) };
+	let runtime = mk_test_runtime(wasm_method, heap_alloc_strategy);
 
-	let mut instance = runtime.new_instance().unwrap();
+	let mut instance = runtime.new_instance(heap_alloc_strategy).unwrap();
 	let res = instance.call_export("returns_mutable_static_bss", &[0]).unwrap();
 	assert_eq!(1, u64::decode(&mut &res[..]).unwrap());
 
@@ -505,11 +505,9 @@ fn restoration_of_globals(wasm_method: WasmExecutionMethod) {
 	// to our allocator algorithm there are inefficiencies.
 	const REQUIRED_MEMORY_PAGES: u32 = 32;
 
-	let runtime = mk_test_runtime(
-		wasm_method,
-		HeapAllocStrategy::Static { extra_pages: REQUIRED_MEMORY_PAGES },
-	);
-	let mut instance = runtime.new_instance().unwrap();
+	let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: REQUIRED_MEMORY_PAGES };
+	let runtime = mk_test_runtime(wasm_method, heap_alloc_strategy);
+	let mut instance = runtime.new_instance(heap_alloc_strategy).unwrap();
 
 	// On the first invocation we allocate approx. 768KB (75%) of stack and then trap.
 	let res = instance.call_export("allocates_huge_stack_array", &true.encode());
@@ -608,9 +606,10 @@ fn wasm_tracing_should_work(wasm_method: WasmExecutionMethod) {
 
 test_wasm_execution!(allocate_two_gigabyte);
 fn allocate_two_gigabyte(wasm_method: WasmExecutionMethod) {
-	let runtime = mk_test_runtime(wasm_method, HeapAllocStrategy::Dynamic { maximum_pages: None });
+	let heap_alloc_strategy = HeapAllocStrategy::Dynamic { maximum_pages: None };
+	let runtime = mk_test_runtime(wasm_method, heap_alloc_strategy);
 
-	let mut instance = runtime.new_instance().unwrap();
+	let mut instance = runtime.new_instance(heap_alloc_strategy).unwrap();
 	let res = instance.call_export("allocate_two_gigabyte", &[0]).unwrap();
 	assert_eq!(10 * 1024 * 1024 * 205, u32::decode(&mut &res[..]).unwrap());
 }
@@ -684,7 +683,9 @@ fn memory_is_cleared_between_invocations(wasm_method: WasmExecutionMethod) {
 	)
 	.unwrap();
 
-	let mut instance = runtime.new_instance().unwrap();
+	let mut instance = runtime
+		.new_instance(HeapAllocStrategy::Dynamic { maximum_pages: Some(1024) })
+		.unwrap();
 	let res = instance.call_export("returns_no_bss_mutable_static", &[0]).unwrap();
 	assert_eq!(1, u64::decode(&mut &res[..]).unwrap());
 
@@ -801,4 +802,97 @@ fn return_overflow(wasm_method: WasmExecutionMethod) {
 		},
 		error => panic!("unexpected error: {:?}", error),
 	}
+}
+
+test_wasm_execution!(test_virtualization);
+fn test_virtualization(wasm_method: WasmExecutionMethod) {
+	let mut ext = TestExternalities::default();
+	ext.register_extension(sp_virtualization::VirtManagerExt::new(
+		sc_virtualization::VirtManager::default(),
+	));
+	let mut ext = ext.ext();
+	let fixture = sp_virtualization_test_fixture::binary().encode();
+
+	call_in_wasm("test_virtualization", fixture.as_ref(), wasm_method, &mut ext).unwrap();
+}
+
+test_wasm_execution!(different_heap_strategy_per_instance);
+fn different_heap_strategy_per_instance(wasm_method: WasmExecutionMethod) {
+	// Strategy with enough memory for a 1 MiB allocation.
+	let large_strategy = HeapAllocStrategy::Static { extra_pages: 1024 };
+	// Strategy with only 512 KiB — too small for a 1 MiB allocation.
+	let small_strategy = HeapAllocStrategy::Static { extra_pages: 8 };
+	let alloc_size = 1048576u32;
+
+	let runtime = mk_test_runtime(wasm_method, large_strategy);
+
+	// First call with large strategy — should succeed.
+	let mut instance = runtime.new_instance(large_strategy).unwrap();
+	let res = instance.call_export("test_allocate_vec", &alloc_size.encode());
+	assert!(res.is_ok(), "Large strategy should allow 1 MiB allocation");
+
+	// Second call with small strategy on the same module — should fail because
+	// the memory limit is now too small, even though the module is the same.
+	let mut instance = runtime.new_instance(small_strategy).unwrap();
+	let res = instance.call_export("test_allocate_vec", &alloc_size.encode());
+	assert!(res.is_err(), "Small strategy should reject 1 MiB allocation");
+}
+
+test_wasm_execution!(import_doubles_heap_strategy);
+fn import_doubles_heap_strategy(wasm_method: WasmExecutionMethod) {
+	use sp_core::traits::{CallContext, CodeExecutor, FetchRuntimeCode, RuntimeCode};
+
+	// Use 32 extra pages (~2 MiB). Doubled for import = 64 pages (~4 MiB).
+	let heap_pages = 32u64;
+
+	let executor = crate::WasmExecutor::<HostFunctions>::builder()
+		.with_execution_method(wasm_method)
+		.with_onchain_heap_alloc_strategy(HeapAllocStrategy::Static {
+			extra_pages: heap_pages as u32,
+		})
+		.with_allow_missing_host_functions(true)
+		.build();
+
+	let wasm = wasm_binary_unwrap();
+
+	struct CodeFetcher<'a>(&'a [u8]);
+	impl<'a> FetchRuntimeCode for CodeFetcher<'a> {
+		fn fetch_runtime_code(&self) -> Option<std::borrow::Cow<'_, [u8]>> {
+			Some(self.0.into())
+		}
+	}
+
+	let code_fetcher = CodeFetcher(wasm);
+	let runtime_code = RuntimeCode {
+		code_fetcher: &code_fetcher,
+		heap_pages: Some(heap_pages),
+		hash: blake2_256(wasm).to_vec(),
+	};
+
+	// Allocation of ~3 MiB: too large for 32 extra pages (~2 MiB heap),
+	// but fits in 64 extra pages (~4 MiB heap, doubled for import).
+	let alloc_size = 3 * 1024 * 1024u32;
+
+	let mut ext = TestExternalities::default();
+
+	// Call with import: false — uses base strategy (16 pages). Should fail.
+	let (result, _) = executor.call(
+		&mut ext.ext(),
+		&runtime_code,
+		"test_allocate_vec",
+		&alloc_size.encode(),
+		CallContext::Onchain { import: false },
+	);
+	assert!(result.is_err(), "Base strategy (32 pages) should reject 3 MiB allocation");
+
+	// Call with import: true — uses doubled strategy (64 pages). Should succeed.
+	// This hits the same cache entry but must apply a different strategy.
+	let (result, _) = executor.call(
+		&mut ext.ext(),
+		&runtime_code,
+		"test_allocate_vec",
+		&alloc_size.encode(),
+		CallContext::Onchain { import: true },
+	);
+	assert!(result.is_ok(), "Doubled strategy (64 pages) should allow 3 MiB allocation");
 }

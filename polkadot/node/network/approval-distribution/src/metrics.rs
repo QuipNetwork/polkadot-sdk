@@ -42,7 +42,6 @@ impl AsLabel for &AssignmentCertKindV2 {
 	fn as_label(&self) -> &str {
 		match self {
 			AssignmentCertKindV2::RelayVRFDelay { .. } => "VRF Delay",
-			AssignmentCertKindV2::RelayVRFModulo { .. } => "VRF Modulo",
 			AssignmentCertKindV2::RelayVRFModuloCompact { .. } => "VRF Modulo Compact",
 		}
 	}

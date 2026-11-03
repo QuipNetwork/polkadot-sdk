@@ -1,0 +1,16 @@
+title: 'grandpa: gossip commits to light clients in rotating groups'
+doc:
+- audience: Node Operator
+  description: |-
+    GRANDPA commit messages used to be gossiped to only 4 randomly picked light clients
+    per round. With many light clients connected to a node, their finality lag grew
+    linearly with the number of light clients.
+
+    Light clients now take turns in groups, in the order of their peer ids. Each light
+    client gets a commit at least every 5 rounds. Nodes with at most 50 light clients
+    gossip every commit to all of them. Rounds taking long no longer send commits to all
+    light clients at once.
+    Gossip towards full nodes and authorities is unchanged.
+crates:
+- name: sc-consensus-grandpa
+  bump: patch

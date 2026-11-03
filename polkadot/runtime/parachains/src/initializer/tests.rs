@@ -138,8 +138,8 @@ fn scheduled_cleanup_performed() {
 		// Apply session 2 in the future
 		Initializer::apply_new_session(2, vec![], vec![]);
 
-		assert!(Dmp::dmq_contents(a).is_empty());
-		assert!(Dmp::dmq_contents(b).is_empty());
-		assert!(!Dmp::dmq_contents(c).is_empty());
+		assert!(Dmp::dmq_contents_do_not_call_in_consensus(a).is_empty());
+		assert!(Dmp::dmq_contents_do_not_call_in_consensus(b).is_empty());
+		assert!(!Dmp::dmq_contents_do_not_call_in_consensus(c).is_empty());
 	});
 }

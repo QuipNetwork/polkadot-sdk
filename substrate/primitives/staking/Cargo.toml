@@ -1,6 +1,6 @@
 [package]
 name = "sp-staking"
-version = "43.0.0"
+version = "46.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -20,6 +20,7 @@ codec = { features = ["derive"], workspace = true }
 impl-trait-for-tuples = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { features = ["alloc", "derive"], optional = true, workspace = true }
+
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 

@@ -1,0 +1,11 @@
+title: 'PSM init: skip assets with mismatched decimals instead of panicking'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Replaces the `assert!` in the PSM `InitializePsm` migration with a log and skip
+    when an asset's decimals don't match the stable asset. Panicking in a runtime
+    upgrade bricks the chain. Migrations must be infallible.
+
+crates:
+- name: pallet-psm
+  bump: patch

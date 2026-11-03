@@ -1,6 +1,6 @@
 [package]
 name = "frame-support-procedural-tools"
-version = "13.0.1"
+version = "10.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -15,7 +15,7 @@ workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-frame-support-procedural-tools-derive = { default-features = true, workspace = true }
+frame-support-procedural-tools-derive = { workspace = true, default-features = true }
 proc-macro-crate = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }

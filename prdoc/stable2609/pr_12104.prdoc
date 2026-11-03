@@ -1,0 +1,32 @@
+title: 'pallet-revive: per-transaction cold/hot storage access pricing'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ### Summary
+    EIP-2929-style cold/hot(warm) pricing for persistent storage access in pallet-revive. The first non-reverted access to a `(contract, slot)` pair within a transaction is billed "cold" (higher weight); any later access to the same slot is "hot" (cheaper).
+
+    ### Description
+    #### Covered operations
+    Cold/hot pricing applies to persistent storage:
+    - the EVM `SLOAD` / `SSTORE` opcodes,
+    - the PVM storage host functions,
+    - the storage precompile (`containsStorage` warms the slot like an `SLOAD`).
+
+    #### Access list and rollback
+    Hot/cold state is tracked by a new per-transaction access list, whose layout mirrors `TransientStorage`: a current-state set plus a journal and per-frame checkpoints.
+    - Nested frames open a checkpoint, so a reverted frame drops the slots it warmed; the top-level frame is never rolled back.
+    - A cold touch that journals inside a nested frame also pre-pays a small rollback weight, to cover the cost of a potential revert (which charges no gas).
+
+    #### Memory bound
+    The access list is capped at a fixed number of entries per transaction; once full, further new slots are billed cold without being tracked.
+    Short slots are held inline (Fix at 32 bytes, VarInline up to MAX_INLINE_KEY_LEN); longer ones (VarLong, up to STORAGE_KEY_BYTES) use a heap-allocated bounded vector.
+
+    #### Benchmarks
+    New benchmarks cover the hot storage ops (`seal_set_storage_hot`, `clear_storage_hot`, `contains_storage_hot`, `seal_get_storage_hot`, `take_storage_hot`) and the access-list overhead (`access_list_touch_cold_*`, `access_list_touch_hot_*`, `access_list_rollback_amortization`)
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: pallet-revive
+  bump: major
+- name: pallet-revive-fixtures
+  bump: patch

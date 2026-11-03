@@ -1,6 +1,6 @@
 [package]
 name = "pallet-contracts"
-version = "46.0.0"
+version = "51.0.0"
 authors.workspace = true
 edition.workspace = true
 build = "build.rs"
@@ -38,33 +38,34 @@ frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 pallet-balances = { optional = true, workspace = true }
-pallet-contracts-proc-macro = { default-features = true, workspace = true }
-pallet-contracts-uapi = { default-features = true, workspace = true }
+pallet-contracts-proc-macro = { workspace = true, default-features = true }
+pallet-contracts-uapi = { workspace = true, default-features = true }
 sp-api = { workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
+
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 
 [dev-dependencies]
 array-bytes = { workspace = true, default-features = true }
 assert_matches = { workspace = true }
-pallet-contracts-fixtures = { workspace = true, default-features = false }
+pallet-contracts-fixtures = { workspace = true }
 pretty_assertions = { workspace = true }
 wat = { workspace = true }
 
 # Polkadot Dependencies
-xcm-builder = { default-features = true, workspace = true }
+xcm-builder = { workspace = true, default-features = true }
 
 # Substrate Dependencies
-pallet-balances = { default-features = true, workspace = true }
-pallet-insecure-randomness-collective-flip = { default-features = true, workspace = true }
-pallet-proxy = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-pallet-utility = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-insecure-randomness-collective-flip = { workspace = true, default-features = true }
+pallet-proxy = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -76,12 +77,17 @@ std = [
 	"frame-system/std",
 	"log/std",
 	"pallet-balances?/std",
+	"pallet-insecure-randomness-collective-flip/std",
+	"pallet-proxy/std",
+	"pallet-timestamp/std",
+	"pallet-utility/std",
 	"rand?/std",
 	"scale-info/std",
 	"serde",
 	"sp-api/std",
 	"sp-core/std",
 	"sp-io/std",
+	"sp-keystore/std",
 	"sp-runtime/std",
 	"wasm-instrument?/std",
 	"wasmi/std",

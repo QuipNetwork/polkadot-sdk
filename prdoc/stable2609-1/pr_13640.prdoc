@@ -1,0 +1,12 @@
+title: 'snowbridge: restore unchecked sync committee key parsing'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Restore unchecked deserialization for authenticated Ethereum sync committee public keys.
+    Repeating the G1 subgroup check for all 512 keys makes committee-update calls exceed the
+    synchronous Bridge Hub block budget and stalls Snowbridge at committee rotation.
+crates:
+- name: snowbridge-beacon-primitives
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch

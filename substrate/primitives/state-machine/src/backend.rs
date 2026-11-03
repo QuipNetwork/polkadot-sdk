@@ -411,7 +411,7 @@ pub enum TryPendingCode {
 impl From<sp_core::traits::CallContext> for TryPendingCode {
 	fn from(context: sp_core::traits::CallContext) -> Self {
 		match context {
-			sp_core::traits::CallContext::Onchain => TryPendingCode::Yes,
+			sp_core::traits::CallContext::Onchain { .. } => TryPendingCode::Yes,
 			sp_core::traits::CallContext::Offchain => TryPendingCode::No,
 		}
 	}

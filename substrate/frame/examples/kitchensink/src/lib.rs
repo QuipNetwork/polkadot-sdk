@@ -68,7 +68,7 @@ pub mod pallet {
 	///
 	/// * the use of `#[pallet::constant]`([`frame_support::procedural`]), which places a `Get`
 	///   implementation in the metadata.
-	/// * `type RuntimeEvent`, which is mandatory if your pallet has events. See TODO.
+	/// * `type RuntimeEvent`, which is mandatory if your pallet has events. See [`Event`].
 	/// * Needless to say, because [`Config`] is bounded by [`frame_system::Config`], you can use
 	///   all the items from [`frame_system::Config`] as well, such as `AccountId`.
 	/// * `#[pallet::disable_frame_system_supertrait_check]` would remove the need for

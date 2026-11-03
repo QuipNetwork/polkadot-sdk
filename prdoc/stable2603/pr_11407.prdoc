@@ -7,13 +7,9 @@ doc:
 crates:
 - name: polkadot-omni-node-lib
   bump: major
-  validate: false
 - name: sc-statement-store
   bump: major
-  validate: false
 - name: staging-node-cli
   bump: major
-  validate: false
 - name: sp-statement-store
   bump: major
-  validate: false

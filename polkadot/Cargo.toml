@@ -2,10 +2,11 @@
 name = "polkadot"
 description = "Implementation of a `https://polkadot.com` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
+rust-version = "1.64.0"
 readme = "README.md"
 authors.workspace = true
 edition.workspace = true
-version = "31.0.0"
+version = "41.0.0"
 default-run = "polkadot"
 homepage.workspace = true
 repository.workspace = true
@@ -66,13 +67,17 @@ path = "src/bin/prepare-worker.rs"
 
 [dependencies]
 color-eyre = { workspace = true }
-polkadot-cli = { features = ["rococo-native", "westend-native"], workspace = true, default-features = true }
 polkadot-jemalloc-shim = { workspace = true }
-polkadot-node-core-pvf = { default-features = true, workspace = true }
-polkadot-node-core-pvf-common = { default-features = true, workspace = true }
-polkadot-node-core-pvf-execute-worker = { default-features = true, workspace = true }
-polkadot-node-core-pvf-prepare-worker = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
+
+# Crates in our workspace, defined as dependencies so we can pass them feature flags.
+polkadot-cli = { features = ["rococo-native", "westend-native"], workspace = true, default-features = true }
+polkadot-node-core-pvf = { workspace = true, default-features = true }
+polkadot-node-core-pvf-prepare-worker = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
+
+# Needed for worker binaries.
+polkadot-node-core-pvf-common = { workspace = true, default-features = true }
+polkadot-node-core-pvf-execute-worker = { workspace = true, default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 polkadot-jemalloc-shim = { workspace = true, features = ["jemalloc-allocator"] }
@@ -80,13 +85,13 @@ polkadot-jemalloc-shim = { workspace = true, features = ["jemalloc-allocator"] }
 [dev-dependencies]
 assert_cmd = { workspace = true }
 nix = { features = ["signal"], workspace = true }
-polkadot-core-primitives = { default-features = true, workspace = true }
-substrate-rpc-client = { default-features = true, workspace = true }
+polkadot-core-primitives = { workspace = true, default-features = true }
+substrate-rpc-client = { workspace = true, default-features = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, default-features = true }
 
 [build-dependencies]
-substrate-build-script-utils = { default-features = true, workspace = true }
+substrate-build-script-utils = { workspace = true, default-features = true }
 
 [features]
 runtime-benchmarks = ["polkadot-cli/runtime-benchmarks"]

@@ -1,0 +1,22 @@
+title: 'Cumulus v3: `find_parent()` adjustments'
+doc:
+- audience: Node Dev
+  description: |-
+    Implements the main changes discussed in https://github.com/paritytech/polkadot-sdk/issues/11624
+
+    Adjusts the `find_parent()` logic in order to also support V3 candidates
+crates:
+- name: cumulus-client-consensus-aura
+  bump: patch
+- name: cumulus-client-consensus-common
+  bump: major
+- name: cumulus-client-network
+  bump: patch
+- name: cumulus-client-pov-recovery
+  bump: patch
+- name: cumulus-relay-chain-inprocess-interface
+  bump: minor
+- name: cumulus-relay-chain-interface
+  bump: minor
+- name: cumulus-relay-chain-rpc-interface
+  bump: minor

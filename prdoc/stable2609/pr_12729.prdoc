@@ -1,0 +1,8 @@
+title: '[client] fix flaky test connectivity'
+doc:
+- audience: Runtime Dev
+  description: 'test_connectivity flakes on teardown: TestNet::drop tears down tokio
+    before the storage backend''s background threads release their files, so temp.close()
+    races a DirectoryNotEmpty. Retry fs::remove_dir_all a few times instead of failing
+    on it.'
+crates: []

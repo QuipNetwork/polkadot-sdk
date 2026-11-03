@@ -14,6 +14,12 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
+hex-literal = { workspace = true, default-features = true }
+log = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+serde_json = { features = ["alloc"], workspace = true }
+
+# Substrate
 frame-benchmarking = { optional = true, workspace = true }
 frame-election-provider-support = { workspace = true }
 frame-executive = { workspace = true }
@@ -23,8 +29,6 @@ frame-system = { workspace = true }
 frame-system-benchmarking = { optional = true, workspace = true }
 frame-system-rpc-runtime-api = { workspace = true }
 frame-try-runtime = { optional = true, workspace = true }
-hex-literal = { workspace = true, default-features = true }
-log = { workspace = true }
 pallet-asset-conversion = { workspace = true }
 pallet-asset-conversion-ops = { workspace = true }
 pallet-asset-conversion-tx-payment = { workspace = true }
@@ -66,8 +70,6 @@ pallet-uniques = { workspace = true }
 pallet-utility = { workspace = true }
 pallet-vesting = { workspace = true }
 pallet-whitelist = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-serde_json = { features = ["alloc"], workspace = true }
 sp-api = { workspace = true }
 sp-arithmetic = { workspace = true }
 sp-authority-discovery = { workspace = true }
@@ -91,10 +93,26 @@ sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
 
 # num-traits feature needed for dex integer sq root:
+primitive-types = { features = [
+	"codec",
+	"num-traits",
+	"scale-info",
+], workspace = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
+pallet-xcm-benchmarks = { optional = true, workspace = true }
+polkadot-parachain-primitives = { workspace = true }
+polkadot-primitives = { workspace = true }
+polkadot-runtime-common = { workspace = true }
+westend-runtime-constants = { workspace = true }
+xcm = { workspace = true }
+xcm-builder = { workspace = true }
+xcm-executor = { workspace = true }
+xcm-runtime-apis = { workspace = true }
+
+# Cumulus
 assets-common = { workspace = true }
-bp-asset-hub-rococo = { workspace = true }
-bp-bridge-hub-rococo = { workspace = true }
-bp-bridge-hub-westend = { workspace = true }
 cumulus-pallet-aura-ext = { workspace = true }
 cumulus-pallet-parachain-system = { workspace = true }
 cumulus-pallet-session-benchmarking = { workspace = true }
@@ -107,34 +125,25 @@ cumulus-primitives-utility = { workspace = true }
 pallet-collator-selection = { workspace = true }
 pallet-dap = { workspace = true }
 pallet-message-queue = { workspace = true }
-pallet-xcm = { workspace = true }
-pallet-xcm-benchmarks = { optional = true, workspace = true }
-pallet-xcm-bridge-hub-router = { workspace = true }
 parachain-info = { workspace = true }
 parachains-common = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-primitives = { workspace = true }
-polkadot-runtime-common = { workspace = true }
-primitive-types = { features = [
-	"codec",
-	"num-traits",
-	"scale-info",
-], workspace = true }
 testnet-parachains-constants = { features = ["westend"], workspace = true }
-westend-runtime-constants = { workspace = true }
-xcm = { workspace = true }
-xcm-builder = { workspace = true }
-xcm-executor = { workspace = true }
-xcm-runtime-apis = { workspace = true }
+
+# Bridges
+bp-asset-hub-rococo = { workspace = true }
+# bp-asset-hub-next-westend = { workspace = true }
+bp-bridge-hub-rococo = { workspace = true }
+bp-bridge-hub-westend = { workspace = true }
+pallet-xcm-bridge-hub-router = { workspace = true }
 
 [dev-dependencies]
-asset-test-utils = { default-features = true, workspace = true }
-frame-try-runtime = { default-features = true, workspace = true }
-pallet-bags-list-remote-tests = { default-features = true, workspace = true }
-parachains-runtimes-test-utils = { default-features = true, workspace = true }
-remote-externalities = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+asset-test-utils = { workspace = true, default-features = true }
+frame-try-runtime = { workspace = true, default-features = true }
+pallet-bags-list-remote-tests = { workspace = true, default-features = true }
+parachains-runtimes-test-utils = { workspace = true, default-features = true }
+remote-externalities = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 tokio = { features = ["macros"], workspace = true, default-features = true }
 
 [build-dependencies]
@@ -143,6 +152,7 @@ substrate-wasm-builder = { optional = true, workspace = true, default-features =
 [features]
 default = ["std"]
 runtime-benchmarks = [
+	"asset-test-utils/runtime-benchmarks",
 	"assets-common/runtime-benchmarks",
 	"cumulus-pallet-parachain-system/runtime-benchmarks",
 	"cumulus-pallet-session-benchmarking/runtime-benchmarks",
@@ -196,6 +206,7 @@ runtime-benchmarks = [
 	"pallet-xcm-bridge-hub-router/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"parachains-common/runtime-benchmarks",
+	"parachains-runtimes-test-utils/runtime-benchmarks",
 	"polkadot-parachain-primitives/runtime-benchmarks",
 	"polkadot-primitives/runtime-benchmarks",
 	"polkadot-runtime-common/runtime-benchmarks",
@@ -263,6 +274,7 @@ try-runtime = [
 	"pallet-xcm/try-runtime",
 	"parachain-info/try-runtime",
 	"parachains-common/try-runtime",
+	"parachains-runtimes-test-utils/try-runtime",
 	"polkadot-runtime-common/try-runtime",
 	"sp-runtime/try-runtime",
 ]

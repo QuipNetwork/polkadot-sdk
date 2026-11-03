@@ -1,6 +1,6 @@
 [package]
 name = "pallet-nomination-pools"
-version = "44.0.0"
+version = "48.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -17,20 +17,24 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 # parity
 codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
+# FRAME
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 log = { workspace = true }
-pallet-balances = { optional = true, workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
+
+# Optional: use for testing and/or fuzzing
+pallet-balances = { optional = true, workspace = true }
 sp-tracing = { optional = true, workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

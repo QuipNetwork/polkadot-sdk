@@ -1,6 +1,6 @@
 [package]
 name = "sc-authority-discovery"
-version = "0.56.0"
+version = "0.61.0"
 authors.workspace = true
 edition.workspace = true
 build = "build.rs"
@@ -24,30 +24,30 @@ futures-timer = { workspace = true }
 ip_network = { workspace = true }
 linked_hash_set = { workspace = true }
 log = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
 prost = { workspace = true }
 rand = { workspace = true, default-features = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sc-service = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-authority-discovery = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sc-service.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sp-api = { workspace = true, default-features = true }
+sp-authority-discovery = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tokio.workspace = true
 
 [dev-dependencies]
-hex = { workspace = true }
+hex.workspace = true
 quickcheck = { workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
-tempfile = { workspace = true }
+tempfile.workspace = true
 
 [build-dependencies]
 prost-build = { workspace = true }

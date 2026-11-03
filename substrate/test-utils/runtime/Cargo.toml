@@ -36,7 +36,7 @@ sp-consensus-babe = { features = ["serde"], workspace = true }
 sp-consensus-grandpa = { features = ["serde"], workspace = true }
 sp-core = { features = ["serde"], workspace = true }
 sp-crypto-hashing = { workspace = true }
-sp-debug-derive = { default-features = false, workspace = true }
+sp-debug-derive = { workspace = true, default-features = false }
 sp-externalities = { workspace = true }
 sp-genesis-builder = { workspace = true }
 sp-inherents = { workspace = true }
@@ -61,13 +61,13 @@ tracing = { workspace = true, default-features = false }
 [dev-dependencies]
 futures = { workspace = true }
 pretty_assertions = { workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
-sc-chain-spec = { default-features = true, workspace = true }
-sc-executor = { default-features = true, workspace = true }
-sc-executor-common = { default-features = true, workspace = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-chain-spec = { workspace = true, default-features = true }
+sc-executor = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
 serde = { features = ["alloc", "derive"], workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 
 [build-dependencies]
@@ -89,6 +89,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-timestamp/std",
 	"pallet-utility/std",
+	"sc-executor/std",
 	"sc-service",
 	"scale-info/std",
 	"serde/std",
@@ -112,6 +113,7 @@ std = [
 	"sp-session/std",
 	"sp-state-machine/std",
 	"sp-statement-store/std",
+	"sp-tracing/std",
 	"sp-transaction-pool/std",
 	"sp-trie/std",
 	"sp-version/std",

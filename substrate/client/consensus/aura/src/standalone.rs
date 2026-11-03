@@ -63,7 +63,7 @@ where
 	C::Api: AuraApi<B, A>,
 {
 	let mut runtime_api = client.runtime_api();
-	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain);
+	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain { import: false });
 	runtime_api.slot_duration(block_hash).map_err(|err| err.into())
 }
 
@@ -228,7 +228,7 @@ where
 		},
 	}
 
-	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain);
+	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain { import: false });
 	runtime_api
 		.authorities(parent_hash)
 		.ok()
@@ -247,7 +247,7 @@ where
 	C::Api: AuraApi<B, A>,
 {
 	let mut runtime_api = client.runtime_api();
-	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain);
+	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain { import: false });
 	runtime_api
 		.authorities(parent_hash)
 		.ok()

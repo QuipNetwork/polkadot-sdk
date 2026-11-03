@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-client-collator"
-version = "0.29.0"
+version = "0.36.0"
 authors.workspace = true
 edition.workspace = true
 description = "Common node-side functionality and glue code to collate parachain blocks."
@@ -13,34 +13,40 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true, default-features = true }
-cumulus-client-consensus-common = { default-features = true, workspace = true }
-cumulus-client-network = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
 futures = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
 tracing = { workspace = true, default-features = true }
+
+# Substrate
+sc-client-api = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+# Polkadot
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
+# Cumulus
+cumulus-client-consensus-common = { workspace = true, default-features = true }
+cumulus-client-network = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }
 
 # Substrate
-sp-maybe-compressed-blob = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 # Polkadot
 polkadot-node-subsystem-test-helpers = { workspace = true }
 
 # Cumulus
 cumulus-test-client = { workspace = true }
-cumulus-test-relay-sproof-builder = { default-features = true, workspace = true }
+cumulus-test-relay-sproof-builder = { workspace = true, default-features = true }
 cumulus-test-runtime = { workspace = true }

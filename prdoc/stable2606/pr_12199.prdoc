@@ -1,0 +1,8 @@
+title: 'pallet-staking-async: gate reap_stash and withdraw_unbonded kill by existential deposit'
+doc:
+- audience: Runtime Dev
+  description: "Gated `reap_stash` strictly by ED and not by `min(MinValidatorBond,\
+    \ MinNominatorBond).max(ED)`. Apply the same fix for `withdraw_unbonded` to kill stash if ledger.active < ED.\r\n"
+crates:
+- name: pallet-staking-async
+  bump: patch

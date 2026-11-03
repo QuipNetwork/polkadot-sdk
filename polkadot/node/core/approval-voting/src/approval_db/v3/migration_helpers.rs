@@ -24,7 +24,7 @@ use crate::{
 	},
 	backend::{Backend, V2ReadBackend},
 };
-use polkadot_node_primitives::approval::v1::AssignmentCertKind;
+use polkadot_node_primitives::approval::v2::AssignmentCertKindV2;
 use polkadot_node_subsystem_util::database::Database;
 use sp_application_crypto::sp_core::H256;
 use std::{collections::HashSet, sync::Arc};
@@ -84,7 +84,7 @@ pub fn v2_to_latest(db: Arc<dyn Database>, config: Config) -> Result<()> {
 
 // Checks if the migration doesn't leave the DB in an unsane state.
 // This function is to be used in tests.
-pub fn v1_to_latest_sanity_check(
+pub fn migration_sanity_check(
 	db: Arc<dyn Database>,
 	config: Config,
 	expected_candidates: HashSet<CandidateHash>,
@@ -150,7 +150,9 @@ where
 		);
 
 		let dummy_assignment = crate::approval_db::v2::OurAssignment {
-			cert: dummy_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }).into(),
+			cert: dummy_assignment_cert(AssignmentCertKindV2::RelayVRFDelay {
+				core_index: CoreIndex(0),
+			}),
 			tranche: 0,
 			validator_index: ValidatorIndex(0),
 			triggered: false,

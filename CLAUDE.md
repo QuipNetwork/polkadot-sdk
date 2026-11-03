@@ -86,6 +86,7 @@ Located in `polkadot/xcm/`. XCM is the messaging format for cross-chain communic
 - `polkadot/node/` - Polkadot validator node subsystems
 - `cumulus/pallets/parachain-system/` - Core parachain runtime support
 - `cumulus/parachains/runtimes/` - System parachain runtimes (Asset Hub, Bridge Hub, etc.)
+- `substrate/client/statement-store/` - Statement store (off-chain signed-statement gossip store);
 
 ## Code Style
 
@@ -101,6 +102,11 @@ Located in `polkadot/xcm/`. XCM is the messaging format for cross-chain communic
 3. Use `/cmd fmt` to format code
 4. Use `/cmd bench` for weight generation
 5. Tag PRs with at least one `T*` label indicating the component changed
+
+**A branch has exactly one prdoc.** Every change made on the branch — including follow-up
+work added later — must be folded into that branch's own `prdoc/pr_<NUMBER>.prdoc`. Never
+create an additional prdoc file for follow-up work, and never touch a prdoc belonging to
+another PR: those describe other people's changes.
 
 ## Running Local Networks
 

@@ -1,6 +1,6 @@
 [package]
 name = "asset-hub-westend-emulated-chain"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,15 +11,22 @@ publish = false
 workspace = true
 
 [dependencies]
-asset-hub-westend-runtime = { default-features = true, workspace = true }
-bp-bridge-hub-westend = { workspace = true }
-cumulus-primitives-core = { workspace = true }
-emulated-integration-tests-common = { workspace = true }
+# Substrate
 frame-support = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
 sp-core = { workspace = true }
 sp-keyring = { workspace = true }
+
+# Cumulus
+asset-hub-westend-runtime = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true }
+emulated-integration-tests-common = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
 testnet-parachains-constants = { features = ["westend"], workspace = true, default-features = true }
-westend-emulated-chain = { default-features = true, workspace = true }
+westend-emulated-chain = { workspace = true, default-features = true }
+
+# Polkadot
 xcm = { workspace = true }
-xcm-builder = { default-features = true, workspace = true }
+xcm-builder = { workspace = true, default-features = true }
+
+# Bridges
+bp-bridge-hub-westend = { workspace = true }

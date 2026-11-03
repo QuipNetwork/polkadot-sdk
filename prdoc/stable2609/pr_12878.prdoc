@@ -1,0 +1,24 @@
+title: 'statement gossip: bound outbound sends with a per-peer outbox'
+doc:
+- audience: Node Operator
+  description: |-
+    The statement gossip protocol encoded every propagation chunk for every peer
+    up front, holding an unbounded number of encoded payloads for up to ten
+    seconds each when peers read slowly. Propagation now queues hashes to a
+    per-peer outbox (at most 64 Ki hashes, 2 MiB, oldest dropped first and
+    counted by the `outbox_full` reason of
+    `substrate_sync_statement_undelivered_total`), keeps at most one chunk per
+    peer in flight, and encodes statements from the store only when the peer's
+    send slot is free. Initial-sync chunks share the propagation fetch path and
+    now also skip statements the receiving peer itself sent us. Initial-sync
+    and propagation chunks together are capped at 16 MiB in flight, observable
+    via the new `substrate_sync_propagation_in_flight_bytes` gauge next to the
+    existing initial-sync one.
+- audience: Node Dev
+  description: |-
+    `MAX_INITIAL_SYNC_IN_FLIGHT_BYTES` in `sc_network_statement::config` is
+    renamed to `MAX_SEND_IN_FLIGHT_BYTES` and now covers propagation and
+    initial-sync chunks together. `MAX_PROPAGATION_OUTBOX_LEN` is added.
+crates:
+- name: sc-network-statement
+  bump: major

@@ -1,16 +1,14 @@
 zombienet-polkadot-coretime-revenue:8944
-zombienet-polkadot-elastic-scaling-slot-based-12cores:8945
 zombienet-polkadot-disputes-slashing:8946
 zombienet-polkadot-functional-spam-statement-distribution-requests:8947
-zombienet-polkadot-misc-0001-parachains-paritydb:8951
+zombienet-polkadot-functional-spam-statement-distribution-requests-experimental-collator-protocol:8947
 zombienet-polkadot-functional-duplicate-collations:8950
+zombienet-polkadot-functional-duplicate-collations-experimental-collator-protocol:8950
 zombienet-substrate-0002-validators-warp-sync:8871
-zombienet-cumulus-0009-elastic_scaling_pov_recovery:8986
 zombienet-cumulus-0010-elastic_scaling_multiple_block_per_slot:8999
 zombienet-polkadot-functional-0014-chunk-fetching-network-compatibility:9980
-# disabled until zombienet support penpal (https://github.com/paritytech/zombienet-sdk/issues/480)
-zombienet-polkadot-shared-core-idle-parachain:10653
-zombienet-polkadot-functional-async-backing-6-seconds-rate:10653
-zombienet-polkadot-elastic-scaling-doesnt-break-parachains:10653
-zombienet-polkadot-smoke-0005-precompile-pvf-smoke:10653
-zombienet-polkadot-smoke-0004-coretime-smoke-test:10653
+zombienet-polkadot-collators-basic-reputation-persistence:11491
+zombienet-polkadot-scheduling-v2-and-v3-collator-with-v3-validators:12871
+zombienet-cumulus-0014-elastic_scaling_upgrade_to_3_cores:12871
+zombienet-cumulus-0021-block_bundling_runtime_upgrade:12871
+zombienet-cumulus-0027-statement_store_recovery_after_major_sync:12871

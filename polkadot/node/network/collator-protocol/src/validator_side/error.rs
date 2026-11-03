@@ -18,7 +18,7 @@ use fatality::thiserror::Error;
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem::RuntimeApiError;
-use polkadot_node_subsystem_util::backing_implicit_view;
+use polkadot_node_subsystem_util::{backing_implicit_view, runtime};
 use polkadot_primitives::{CandidateDescriptorVersion, Hash};
 
 /// General result.
@@ -39,14 +39,14 @@ pub enum Error {
 	#[error("Response receiver for session index request cancelled")]
 	CancelledSessionIndex(oneshot::Canceled),
 
-	#[error("Response receiver for claim queue request cancelled")]
-	CancelledClaimQueue(oneshot::Canceled),
-
 	#[error("No state for the relay parent")]
 	RelayParentStateNotFound,
 
 	#[error("Error while accessing Runtime API")]
 	RuntimeApi(#[from] RuntimeApiError),
+
+	#[error("Failed to fetch the leaf claim queues / scheduling lookahead from the runtime")]
+	FetchLeafClaimQueues(runtime::Error),
 }
 
 /// An error occurred when attempting to start seconding a candidate.
@@ -69,6 +69,9 @@ pub enum SecondingError {
 
 	#[error("Candidate hash doesn't match the advertisement")]
 	CandidateHashMismatch,
+
+	#[error("Candidate's output head hash doesn't match the advertisement")]
+	OutputHeadHashMismatch,
 
 	#[error("Scheduling parent hash doesn't match the advertisement")]
 	SchedulingParentMismatch,
@@ -115,7 +118,8 @@ impl SecondingError {
 			InvalidSessionIndex(_, _) |
 			InvalidReceiptVersion(_) |
 			DescriptorVersionMismatch(_, _) |
-			ParaIdMismatch => true,
+			ParaIdMismatch |
+			OutputHeadHashMismatch => true,
 			_ => false,
 		}
 	}

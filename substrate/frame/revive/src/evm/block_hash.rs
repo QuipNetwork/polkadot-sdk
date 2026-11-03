@@ -19,6 +19,7 @@
 #![warn(missing_docs)]
 
 mod receipt;
+use pallet_revive_types::runtime_api::*;
 pub use receipt::{AccumulateReceipt, LogsBloom};
 
 mod hash_builder;
@@ -45,6 +46,12 @@ pub struct ReceiptGasInfo {
 
 	/// The effective gas price for this transaction.
 	pub effective_gas_price: U256,
+}
+
+impl From<ReceiptGasInfo> for ReceiptGasInfoV1 {
+	fn from(value: ReceiptGasInfo) -> Self {
+		Self { gas_used: value.gas_used, effective_gas_price: value.effective_gas_price }
+	}
 }
 
 impl Block {

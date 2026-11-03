@@ -22,6 +22,9 @@ use sp_core::{H160, H256, U256};
 
 environmental!(tracer: dyn Tracing + 'static);
 
+/// Synthetic syscall name used for tracing PVM interpreter fuel consumption between real syscalls.
+pub const PVM_FUEL_NAME: &str = "pvm_fuel";
+
 /// Trace the execution of the given closure.
 ///
 /// # Warning
@@ -65,6 +68,12 @@ pub trait EVMFrameTraceInfo: FrameTraceInfo {
 }
 
 /// Defines methods to trace contract interactions.
+///
+/// # Contract
+///
+/// Every [`Tracing::enter_opcode`] and [`Tracing::enter_ecall`] must be followed by exactly one
+/// [`Tracing::exit_step`], on every path including reverts and traps. Tracers pair the two to
+/// attribute a step's cost, so an unmatched call charges that step to an enclosing one.
 pub trait Tracing {
 	/// Register an address that should be traced.
 	fn watch_address(&mut self, _addr: &H160) {}
@@ -114,7 +123,7 @@ pub trait Tracing {
 	}
 
 	/// Record a log event
-	fn log_event(&mut self, _event: H160, _topics: &[H256], _data: &[u8]) {}
+	fn log_event(&mut self, _event: H160, _topics: &[H256], _data: &[u8], _log_index: u32) {}
 
 	/// Called after a contract call is executed
 	fn exit_child_span(

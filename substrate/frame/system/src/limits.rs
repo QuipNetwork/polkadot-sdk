@@ -25,6 +25,7 @@
 //! `DispatchClass`. This module contains configuration object for both resources,
 //! which should be passed to `frame_system` configuration when runtime is being set up.
 
+use alloc::{format, string::String, vec::Vec};
 use frame_support::{
 	dispatch::{DispatchClass, OneOrMany, PerDispatchClass},
 	weights::{constants, Weight},
@@ -142,7 +143,6 @@ impl BlockLengthBuilder {
 #[derive(Default, Debug)]
 pub struct ValidationErrors {
 	pub has_errors: bool,
-	#[cfg(feature = "std")]
 	pub errors: Vec<String>,
 }
 
@@ -150,7 +150,6 @@ macro_rules! error_assert {
 	($cond : expr, $err : expr, $format : expr $(, $params: expr )*$(,)*) => {
 		if !$cond {
 			$err.has_errors = true;
-			#[cfg(feature = "std")]
 			{ $err.errors.push(format!($format $(, &$params )*)); }
 		}
 	}

@@ -1,6 +1,6 @@
 [package]
 name = "sc-consensus-aura"
-version = "0.56.0"
+version = "0.60.0"
 authors.workspace = true
 description = "Aura consensus algorithm for substrate"
 edition.workspace = true
@@ -18,36 +18,36 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { workspace = true }
 codec = { workspace = true, default-features = true }
-fork-tree = { default-features = true, workspace = true }
+fork-tree = { workspace = true, default-features = true }
 futures = { workspace = true }
 log = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus = { default-features = true, workspace = true }
-sc-consensus-slots = { default-features = true, workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-block-builder = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-consensus-aura = { default-features = true, workspace = true }
-sp-consensus-slots = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-consensus-slots = { workspace = true, default-features = true }
+sc-telemetry = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-consensus-aura = { workspace = true, default-features = true }
+sp-consensus-slots = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-sc-keystore = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
 sc-network-test = { workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, default-features = true }

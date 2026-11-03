@@ -31,7 +31,6 @@ pub mod frame_system;
 pub mod frame_system_extensions;
 pub mod pallet_balances;
 pub mod pallet_bridge_grandpa;
-pub mod pallet_bridge_messages_rococo_to_rococo_bulletin;
 pub mod pallet_bridge_messages_rococo_to_westend;
 pub mod pallet_bridge_parachains;
 pub mod pallet_bridge_relayers_legacy;
@@ -69,23 +68,6 @@ impl GrandpaWeightInfoExt for pallet_bridge_grandpa::WeightInfo<crate::Runtime> 
 		// 2) may slash and deregister relayer from post_dispatch
 		// (2) includes (1), so (2) is the worst case
 		pallet_bridge_relayers_legacy::WeightInfo::<Runtime>::slash_and_deregister()
-	}
-}
-
-impl MessagesWeightInfoExt
-	for pallet_bridge_messages_rococo_to_rococo_bulletin::WeightInfo<crate::Runtime>
-{
-	fn expected_extra_storage_proof_size() -> u32 {
-		bp_polkadot_bulletin::EXTRA_STORAGE_PROOF_SIZE
-	}
-
-	fn receive_messages_proof_overhead_from_runtime() -> Weight {
-		pallet_bridge_relayers_permissionless_lanes::WeightInfo::<Runtime>::receive_messages_proof_overhead_from_runtime(
-		)
-	}
-
-	fn receive_messages_delivery_proof_overhead_from_runtime() -> Weight {
-		pallet_bridge_relayers_permissionless_lanes::WeightInfo::<Runtime>::receive_messages_delivery_proof_overhead_from_runtime()
 	}
 }
 

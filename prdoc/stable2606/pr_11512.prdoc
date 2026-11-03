@@ -1,0 +1,15 @@
+title: Vested Payout trait and implementation
+doc:
+- audience: Runtime Dev
+  description: |-
+    Introduces a new `VestedPayout` trait in `frame-support` for transferring funds with a linear
+    vesting schedule. Unlike the existing `VestedTransfer` trait, callers only specify the total
+    amount and duration, and the implementor handles per-block computation internally.
+
+    `pallet-vesting` provides the implementation. The per-block unlock rate is rounded up so that
+    vesting always completes within the specified duration, never longer.
+crates:
+- name: frame-support
+  bump: minor
+- name: pallet-vesting
+  bump: minor

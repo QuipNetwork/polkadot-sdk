@@ -1,0 +1,11 @@
+title: 'fatxpool: preserve order of same-priority transactions on re-orgs'
+doc:
+- audience: Node Dev
+  description: |-
+    On a re-org, transactions from retracted blocks are now resubmitted in execution order
+    (common ancestor → old best) instead of reverse order. This is a best-effort
+    improvement: per-account nonce ordering is always kept, but cross-account ordering is only
+    preserved when priorities are equal (otherwise priority decides).
+crates:
+- name: sc-transaction-pool
+  bump: minor

@@ -112,6 +112,9 @@
   "mixnet": {
     "mixnodes": []
   },
+  "assetConversion": {
+    "pools": []
+  },
   "nominationPools": {
     "minJoinBond": 0,
     "minCreateBond": 0,

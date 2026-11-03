@@ -1,0 +1,12 @@
+title: changes to use zombie-bite
+doc:
+- audience: Node Operator
+  description: |-
+    In order to use [zombie-bite](https://github.com/paritytech/zombie-bite) (to fork and spawn a live network with the current _state_) with the same client binaries (for testing releases), we need to allow to set this value `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` to __1__.
+
+    Thx!
+crates:
+- name: polkadot-node-core-dispute-coordinator
+  bump: patch
+- name: polkadot-node-primitives
+  bump: patch

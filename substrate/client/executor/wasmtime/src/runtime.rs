@@ -51,6 +51,10 @@ pub(crate) struct StoreData {
 	pub(crate) host_state: Option<HostState>,
 	/// This will be always set once the store is initialized.
 	pub(crate) memory: Option<Memory>,
+	/// Limits for memory growth enforced by the `StoreLimiter`.
+	pub(crate) limits: wasmtime::StoreLimits,
+	/// The effective maximum number of memory pages for the allocator to cap growth requests.
+	pub(crate) memory_max_pages: Option<u32>,
 }
 
 impl StoreData {
@@ -75,11 +79,17 @@ struct InstanceCreator {
 	engine: Engine,
 	instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
 	instance_counter: Arc<InstanceCounter>,
+	heap_alloc_strategy: HeapAllocStrategy,
 }
 
 impl InstanceCreator {
 	fn instantiate(&mut self) -> Result<InstanceWrapper> {
-		InstanceWrapper::new(&self.engine, &self.instance_pre, self.instance_counter.clone())
+		InstanceWrapper::new(
+			&self.engine,
+			&self.instance_pre,
+			self.instance_counter.clone(),
+			self.heap_alloc_strategy,
+		)
 	}
 }
 
@@ -140,12 +150,16 @@ pub struct WasmtimeRuntime {
 }
 
 impl WasmModule for WasmtimeRuntime {
-	fn new_instance(&self) -> Result<Box<dyn WasmInstance>> {
+	fn new_instance(
+		&self,
+		heap_alloc_strategy: HeapAllocStrategy,
+	) -> Result<Box<dyn WasmInstance>> {
 		let strategy = match self.instantiation_strategy {
 			InternalInstantiationStrategy::Builtin => Strategy::RecreateInstance(InstanceCreator {
 				engine: self.engine.clone(),
 				instance_pre: self.instance_pre.clone(),
 				instance_counter: self.instance_counter.clone(),
+				heap_alloc_strategy,
 			}),
 		};
 
@@ -188,6 +202,14 @@ impl WasmInstance for WasmtimeInstance {
 		let mut allocation_stats = None;
 		let result = self.call_impl(method, data, &mut allocation_stats);
 		(result, allocation_stats)
+	}
+
+	fn set_heap_alloc_strategy(&mut self, heap_alloc_strategy: HeapAllocStrategy) {
+		match &mut self.strategy {
+			Strategy::RecreateInstance(ref mut creator) => {
+				creator.heap_alloc_strategy = heap_alloc_strategy;
+			},
+		}
 	}
 }
 
@@ -273,22 +295,13 @@ fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config,
 	const WASM_PAGE_SIZE: u64 = 65536;
 
 	config.memory_init_cow(use_cow);
-	config.memory_guaranteed_dense_image_size(match semantics.heap_alloc_strategy {
-		HeapAllocStrategy::Dynamic { maximum_pages } => {
-			maximum_pages.map(|p| p as u64 * WASM_PAGE_SIZE).unwrap_or(u64::MAX)
-		},
-		HeapAllocStrategy::Static { .. } => u64::MAX,
-	});
+	// Always use the maximum possible dense image size. Per-instance `StoreLimits`
+	// enforce the actual memory cap, so the engine-level setting just needs to be
+	// large enough to never be the bottleneck.
+	config.memory_guaranteed_dense_image_size(u64::MAX);
 
 	if use_pooling {
 		const MAX_WASM_PAGES: u64 = 0x10000;
-
-		let memory_pages = match semantics.heap_alloc_strategy {
-			HeapAllocStrategy::Dynamic { maximum_pages } => {
-				maximum_pages.map(|p| p as u64).unwrap_or(MAX_WASM_PAGES)
-			},
-			HeapAllocStrategy::Static { .. } => MAX_WASM_PAGES,
-		};
 
 		let mut pooling_config = wasmtime::PoolingAllocationConfig::default();
 		pooling_config
@@ -302,7 +315,12 @@ fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config,
 			//   memory_pages: 2070
 			.max_core_instance_size(512 * 1024)
 			.table_elements(8192)
-			.max_memory_size(memory_pages as usize * WASM_PAGE_SIZE as usize)
+			// Always reserve the maximum WASM memory (4GB virtual address space per
+			// slot). This is only virtual memory (mmap with PROT_NONE), not physical
+			// RAM. The actual per-instance memory limit is enforced by `StoreLimits`
+			// set at instantiation time, which may vary between calls (e.g. doubled
+			// for block import). The pool must accommodate the largest possible limit.
+			.max_memory_size(MAX_WASM_PAGES as usize * WASM_PAGE_SIZE as usize)
 			.total_tables(MAX_INSTANCE_COUNT)
 			.total_memories(MAX_INSTANCE_COUNT)
 			// This determines how many instances of the module can be
@@ -639,7 +657,7 @@ fn prepare_blob_for_compilation(
 	// now automatically take care of creating the memory for us, and it is also necessary
 	// to enable `wasmtime`'s instance pooling. (Imported memories are ineligible for pooling.)
 	blob.convert_memory_import_into_export()?;
-	blob.setup_memory_according_to_heap_alloc_strategy(semantics.heap_alloc_strategy)?;
+	blob.clear_memory_max_limit()?;
 
 	Ok(blob)
 }

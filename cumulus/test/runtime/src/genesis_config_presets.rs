@@ -15,8 +15,7 @@
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-	AccountId, AuraConfig, AuraId, BalancesConfig, ParachainInfoConfig, RuntimeGenesisConfig,
-	SudoConfig,
+	AccountId, AuraId, BalancesConfig, ParachainInfoConfig, RuntimeGenesisConfig, SudoConfig,
 };
 use alloc::{vec, vec::Vec};
 
@@ -25,6 +24,15 @@ use frame_support::build_struct_json_patch;
 use sp_genesis_builder::PresetId;
 use sp_keyring::Sr25519Keyring;
 
+#[cfg(not(feature = "with-authority-discovery"))]
+use super::AuraConfig;
+#[cfg(feature = "with-authority-discovery")]
+use super::SessionConfig;
+
+/// Build the genesis config seeding `pallet_aura::authorities` directly.
+///
+/// This is the pre-upgrade path: no `pallet_session`, no `pallet_authority_discovery`.
+#[cfg(not(feature = "with-authority-discovery"))]
 fn cumulus_test_runtime(
 	invulnerables: Vec<AuraId>,
 	endowed_accounts: Vec<AccountId>,
@@ -37,6 +45,38 @@ fn cumulus_test_runtime(
 		sudo: SudoConfig { key: Some(Sr25519Keyring::Alice.public().into()) },
 		parachain_info: ParachainInfoConfig { parachain_id: id },
 		aura: AuraConfig { authorities: invulnerables },
+	})
+}
+
+#[cfg(feature = "with-authority-discovery")]
+fn cumulus_test_runtime(
+	invulnerables: Vec<AuraId>,
+	endowed_accounts: Vec<AccountId>,
+	id: ParaId,
+) -> serde_json::Value {
+	use super::SessionKeys;
+	use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+
+	let session_keys: Vec<(AccountId, AccountId, SessionKeys)> = invulnerables
+		.iter()
+		.map(|aura| {
+			// AuraId wraps sr25519::Public; convert to the inner type first.
+			let inner: sp_core::sr25519::Public = aura.clone().into();
+			let raw: [u8; 32] = inner.0;
+			let account: AccountId = AccountId::from(raw);
+			let aura_key: AuraId = aura.clone();
+			let ad_key: AuthorityDiscoveryId = inner.into();
+			(account.clone(), account, SessionKeys { aura: aura_key, authority_discovery: ad_key })
+		})
+		.collect();
+
+	build_struct_json_patch!(RuntimeGenesisConfig {
+		balances: BalancesConfig {
+			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 60)).collect(),
+		},
+		sudo: SudoConfig { key: Some(Sr25519Keyring::Alice.public().into()) },
+		parachain_info: ParachainInfoConfig { parachain_id: id },
+		session: SessionConfig { keys: session_keys, non_authority_keys: vec![] },
 	})
 }
 

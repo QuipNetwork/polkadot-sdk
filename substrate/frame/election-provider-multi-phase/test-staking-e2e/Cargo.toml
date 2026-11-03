@@ -21,25 +21,25 @@ log = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
 scale-info = { features = ["derive"], workspace = true, default-features = true }
 
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-npos-elections = { workspace = true, default-features = false }
-sp-runtime = { default-features = true, workspace = true }
-sp-staking = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-npos-elections = { workspace = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-staking = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
-frame-election-provider-support = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
 
-pallet-bags-list = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-delegated-staking = { default-features = true, workspace = true }
-pallet-election-provider-multi-phase = { default-features = true, workspace = true }
-pallet-nomination-pools = { default-features = true, workspace = true }
-pallet-session = { default-features = true, workspace = true }
-pallet-staking = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
+pallet-bags-list = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-delegated-staking = { workspace = true, default-features = true }
+pallet-election-provider-multi-phase = { workspace = true, default-features = true }
+pallet-nomination-pools = { workspace = true, default-features = true }
+pallet-session = { workspace = true, default-features = true }
+pallet-staking = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
 
 [features]
 try-runtime = [

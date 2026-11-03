@@ -1,0 +1,14 @@
+title: 'statement-store: add channel replacement logic tests'
+doc:
+- audience: Node Dev
+  description: |-
+    # Description
+    Implement unit tests for "Channel replacement: verify only higher-priority statements replace existing entries, corner cases of replacement logic." #11534
+
+    ## Summary
+    - `channel_replacement_only_higher_priority_succeeds` -> verifies lower/equal priority rejected with `ChannelPriorityTooLow`, higher priority replaces, one-per-channel invariant preserved
+
+    - `channel_replacement_with_size_increase_evicts_others` -> verifies that replacing a channel message with a larger one triggers  additional eviction of lowest-priority non-channel statements to satisfy size constraints
+crates:
+- name: sc-statement-store
+  bump: patch

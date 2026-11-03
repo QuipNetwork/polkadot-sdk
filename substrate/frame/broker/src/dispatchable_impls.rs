@@ -138,6 +138,7 @@ impl<T: Config> Pallet<T> {
 			ideal_cores_sold: 0,
 			cores_offered: 0,
 			cores_sold: 0,
+			sale_index: 0,
 		};
 		Self::deposit_event(Event::<T>::SalesStarted { price: end_price, core_count });
 		Self::rotate_sale(old_sale, &config, &status);
@@ -564,37 +565,40 @@ impl<T: Config> Pallet<T> {
 		let sale = SaleInfo::<T>::get().ok_or(Error::<T>::NoSales)?;
 		let mut core = core;
 
-		// Check if the core is expiring in the next bulk period; if so, we will renew it now.
+		// Check if the core is expiring in the next bulk period with the task's own workload;
+		// if so, we will renew it now.
 		//
-		// In case we renew it now, we don't need to check the workload end since we know it is
-		// eligible for renewal.
-		if PotentialRenewals::<T>::get(PotentialRenewalId { core, when: sale.region_begin })
-			.is_some()
-		{
+		// A core index can be assigned a different workload each bulk period, so the core could
+		// instead be expiring with another task's workload, which `task` must not pay to renew.
+		// In that case the `workload_end_hint` can still point to the task's own renewal record.
+		let renewable_now =
+			PotentialRenewals::<T>::get(PotentialRenewalId { core, when: sale.region_begin })
+				.map_or(false, |record| record.completion.is_complete_and_contains_task(task));
+
+		let next_renewal = if renewable_now {
 			core = Self::do_renew(sovereign_account.clone(), core)?;
+			// The next renewal is due when the period we just renewed for ends.
+			sale.region_end
 		} else if let Some(workload_end) = workload_end_hint {
-			ensure!(
+			let record =
 				PotentialRenewals::<T>::get(PotentialRenewalId { core, when: workload_end })
-					.is_some(),
-				Error::<T>::NotAllowed
+					.ok_or(Error::<T>::NotAllowed)?;
+			let workload = record.completion.complete().ok_or(Error::<T>::IncompleteAssignment)?;
+			ensure!(
+				workload.iter().any(|item| item.assignment == CoreAssignment::Task(task)),
+				Error::<T>::TaskNotInWorkload
 			);
+			workload_end
 		} else {
-			return Err(Error::<T>::NotAllowed.into());
-		}
+			return Err(Error::<T>::TaskNotInWorkload.into());
+		};
 
 		// We are sorting auto renewals by `CoreIndex`.
 		AutoRenewals::<T>::try_mutate(|renewals| {
 			let pos = renewals
 				.binary_search_by(|r: &AutoRenewalRecord| r.core.cmp(&core))
 				.unwrap_or_else(|e| e);
-			renewals.try_insert(
-				pos,
-				AutoRenewalRecord {
-					core,
-					task,
-					next_renewal: workload_end_hint.unwrap_or(sale.region_end),
-				},
-			)
+			renewals.try_insert(pos, AutoRenewalRecord { core, task, next_renewal })
 		})
 		.map_err(|_| Error::<T>::TooManyAutoRenewals)?;
 

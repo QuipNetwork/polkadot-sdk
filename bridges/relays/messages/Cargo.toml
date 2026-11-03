@@ -12,16 +12,19 @@ workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
-bp-messages = { default-features = true, workspace = true }
-finality-relay = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, default-features = true }
 num-traits = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
-relay-utils = { workspace = true }
-sp-arithmetic = { default-features = true, workspace = true }
 tokio = { features = ["macros", "rt-multi-thread", "sync", "time"], workspace = true }
 tracing = { workspace = true }
 
+# Bridge Dependencies
+bp-messages = { workspace = true, default-features = true }
+finality-relay = { workspace = true }
+relay-utils = { workspace = true }
+
+sp-arithmetic = { workspace = true, default-features = true }
+
 [dev-dependencies]
-sp-core = { workspace = true, default-features = false }
+sp-core = { workspace = true }

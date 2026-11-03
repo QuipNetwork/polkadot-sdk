@@ -1,0 +1,7 @@
+title: 'statement-store: Test flooding detection'
+doc:
+- audience: Node Dev
+  description: "Fixed a bug with double peer state cleanup. Added two zombienet integration tests that verify statement-store flooding detection"
+crates:
+- name: sc-network-statement
+  bump: patch

@@ -20,9 +20,7 @@ use crate::{
 use bridge_hub_westend_runtime::{
 	bridge_to_ethereum_config::EthereumGatewayAddress, EthereumOutboundQueueV2,
 };
-use emulated_integration_tests_common::{impls::Decode, PenpalBTeleportableAssetLocation};
 use frame_support::{assert_err_ignore_postinfo, pallet_prelude::TypeInfo};
-use rococo_westend_system_emulated_network::penpal_emulated_chain::penpal_runtime::xcm_config::LocalTeleportableToAssetHub;
 use snowbridge_core::{reward::MessageId, AssetMetadata, BasicOperatingMode};
 use snowbridge_outbound_queue_primitives::v2::{ContractCall, DeliveryReceipt};
 use snowbridge_pallet_outbound_queue_v2::Error;
@@ -714,8 +712,7 @@ fn register_token_from_penpal() {
 			},
 		],
 	);
-	let asset_location_on_penpal =
-		PenpalB::execute_with(|| PenpalLocalTeleportableToAssetHub::get());
+	let asset_location_on_penpal = PenpalB::execute_with(|| PenpalLocalPen2Asset::get());
 	let foreign_asset_at_asset_hub =
 		Location::new(1, [Junction::Parachain(PenpalB::para_id().into())])
 			.appended_with(asset_location_on_penpal)
@@ -724,7 +721,7 @@ fn register_token_from_penpal() {
 		type RuntimeOrigin = <PenpalB as Chain>::RuntimeOrigin;
 
 		let local_fee_asset_on_penpal =
-			Asset { id: AssetId(Location::parent()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_DOT) };
+			Asset { id: AssetId(Location::here()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_PAL) };
 
 		let remote_fee_asset_on_ah =
 			Asset { id: AssetId(ethereum()), fun: Fungible(REMOTE_FEE_AMOUNT_IN_ETHER) };
@@ -820,7 +817,7 @@ fn send_message_from_penpal_to_ethereum(sudo: bool) {
 	// ah
 	register_assets_on_ah();
 	create_pools_on_ah();
-	register_pal_on_ah();
+	mint_pal_on_ah();
 	register_pal_on_bh();
 	fund_on_ah();
 	// penpal
@@ -832,7 +829,7 @@ fn send_message_from_penpal_to_ethereum(sudo: bool) {
 		type RuntimeOrigin = <PenpalB as Chain>::RuntimeOrigin;
 
 		let local_fee_asset_on_penpal =
-			Asset { id: AssetId(Location::parent()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_DOT) };
+			Asset { id: AssetId(Location::here()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_PAL) };
 
 		let remote_fee_asset_on_ah =
 			Asset { id: AssetId(ethereum()), fun: Fungible(REMOTE_FEE_AMOUNT_IN_ETHER) };
@@ -840,15 +837,12 @@ fn send_message_from_penpal_to_ethereum(sudo: bool) {
 		let remote_fee_asset_on_ethereum =
 			Asset { id: AssetId(ethereum()), fun: Fungible(REMOTE_FEE_AMOUNT_IN_ETHER) };
 
-		let pna =
-			Asset { id: AssetId(LocalTeleportableToAssetHub::get()), fun: Fungible(TOKEN_AMOUNT) };
+		let pna = Asset { id: AssetId(PenpalNativeCurrency::get()), fun: Fungible(TOKEN_AMOUNT) };
 
 		let ena = Asset { id: AssetId(weth_location()), fun: Fungible(TOKEN_AMOUNT / 2) };
 
-		let transfer_asset_reanchor_on_ah = Asset {
-			id: AssetId(PenpalBTeleportableAssetLocation::get()),
-			fun: Fungible(TOKEN_AMOUNT),
-		};
+		let transfer_asset_reanchor_on_ah =
+			Asset { id: AssetId(PenpalBLocation::get()), fun: Fungible(TOKEN_AMOUNT) };
 
 		let assets = vec![
 			local_fee_asset_on_penpal.clone(),

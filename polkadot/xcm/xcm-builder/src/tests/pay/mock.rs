@@ -16,13 +16,19 @@
 
 use super::*;
 
+use codec::Decode;
+
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types,
 	traits::{AsEnsureOriginWithArg, ConstU32, Disabled, Everything, Nothing},
 };
 use frame_system::{EnsureRoot, EnsureSigned};
 use polkadot_primitives::{AccountIndex, BlakeTwo256, Signature};
-use sp_runtime::{generic, traits::MaybeEquivalence, AccountId32, BuildStorage};
+use sp_runtime::{
+	generic,
+	traits::{MaybeEquivalence, TryConvertInto},
+	AccountId32, BuildStorage,
+};
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 use xcm_simulator::ParaId;
 
@@ -118,6 +124,7 @@ impl pallet_assets::Config for Test {
 	type RemoveItemsLimit = RemoveItemsLimit;
 	type AssetIdParameter = AssetIdForAssets;
 	type CallbackHandle = ();
+	type AssetIdAllocator = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = ();
 }
@@ -189,7 +196,7 @@ pub type LocalAssetsTransactor = FungiblesAdapter<
 		AssetIdForAssets,
 		Balance,
 		FromLocationToAsset<Location, AssetIdForAssets>,
-		JustTry,
+		TryConvertInto,
 	>,
 	SovereignAccountOf,
 	AccountId,

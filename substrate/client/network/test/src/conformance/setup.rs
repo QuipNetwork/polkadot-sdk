@@ -94,7 +94,7 @@ where
 		protocol_id: ProtocolId::from("test"),
 		fork_id: None,
 		metrics_registry: None,
-		bitswap_config: None,
+		ipfs_config: None,
 		notification_metrics: NotificationMetrics::new(None),
 	})
 	.unwrap();

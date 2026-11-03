@@ -1,0 +1,66 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: Collation protocol v4 with bounded segment advertisements
+
+doc:
+  - audience: Node Dev
+    description: |
+      This PR adds collation protocol v4 (`/collation/4`). A v4 collator advertises up to
+      `MAX_SEGMENT_LEN` (32) candidates per scheduling parent and core in one `AdvertiseSegment`.
+      There is no `Declare` and no `CollationSeconded` in v4. Collations are fetched over the new
+      `/req_collation/3` protocol. v2/v3 validators get an `AdvertiseCollation` for the segment tip.
+
+      v4 is the main collation protocol for collators and for validators running
+      `--experimental-collator-protocol`, v3 and v2 are fallbacks. `PeerSetProtocolNames::new`
+      picks the newest version now. Nodes running the old validator side have to pin v3 with
+      `PeerSetProtocolNames::new_with_main_collation_version`, otherwise v4 advertisements from
+      new collators are dropped. `/req_collation/3` has to be registered with the network, the
+      receiver goes into `OverseerGenArgs::collation_req_v3_receiver`.
+
+      - `CollationGenerationMessage::SubmitCollation` is replaced by `SubmitSegment`
+        (`SubmitSegmentParams`, `SegmentCollation`), `CollatorProtocolMessage::DistributeCollation`
+        by `DistributeSegment`. Segments are write-once per (scheduling parent, core).
+      - `CollationResult::result_sender`, `CollationResult::into_inner`,
+        `CollationSecondedSignal` and `TryFrom<&CollationSecondedSignal> for BlockAnnounceData`
+        are removed.
+      - `CandidateDescriptorVersion::Unknown` is now `Unknown(u8)`.
+      - `PeerSet::get_main_version()` is removed. `Requests` and `Protocol` have a new
+        `CollationFetchingV3` variant, `CollationProtocols` has a fourth type parameter for `V4`.
+      - The lookahead collator builds one block per relay parent.
+
+  - audience: Node Operator
+    description: |
+      No action needed. Validators only negotiate v4 with `--experimental-collator-protocol`
+      (on by default on Kusama). There is no required upgrade order between validators and
+      collators.
+
+crates:
+  - name: polkadot-node-network-protocol
+    bump: major
+  - name: polkadot-collator-protocol
+    bump: major
+  - name: polkadot-node-collation-generation
+    bump: minor
+  - name: polkadot-node-primitives
+    bump: major
+  - name: polkadot-node-subsystem-types
+    bump: major
+  - name: cumulus-client-network
+    bump: major
+  - name: polkadot-primitives
+    bump: major
+  - name: polkadot-network-bridge
+    bump: patch
+  - name: polkadot-service
+    bump: major
+  - name: polkadot-primitives-test-helpers
+    bump: major
+  - name: polkadot-runtime-parachains
+    bump: patch
+  - name: cumulus-client-consensus-aura
+    bump: patch
+  - name: cumulus-relay-chain-minimal-node
+    bump: patch
+  - name: polkadot-node-core-pvf-execute-worker
+    bump: patch

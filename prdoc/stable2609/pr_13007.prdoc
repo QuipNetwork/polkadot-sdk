@@ -1,0 +1,16 @@
+title: Make statement network rate-limit tests deterministic
+
+doc:
+  - audience: Node Dev
+    description: |
+      The per-peer rate limiter in the statement network protocol now holds its token
+      bucket behind a small `TokenBucket` trait, so tests can construct it with a fake
+      clock instead of the default wall clock. The sustained rate-limit test drives that
+      fake clock forward in fixed steps rather than sleeping for five seconds, which
+      removes a source of CI flakiness and makes the test both exact and much faster.
+      Production behaviour is unchanged: the handler still uses the default clock and
+      the same quota.
+
+crates:
+- name: sc-network-statement
+  bump: patch

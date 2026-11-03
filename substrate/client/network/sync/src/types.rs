@@ -128,7 +128,12 @@ where
 /// Syncing-related events that other protocols can subscribe to.
 pub enum SyncEvent {
 	/// Peer that the syncing implementation is tracking connected.
-	PeerConnected(PeerId),
+	PeerConnected {
+		/// The peer that connected.
+		peer_id: PeerId,
+		/// The roles the peer advertised in its handshake.
+		roles: Roles,
+	},
 
 	/// Peer that the syncing implementation was tracking disconnected.
 	PeerDisconnected(PeerId),

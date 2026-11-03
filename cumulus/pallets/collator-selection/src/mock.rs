@@ -126,6 +126,7 @@ impl pallet_session::SessionHandler<u64> for TestSessionHandler {
 parameter_types! {
 	pub const Offset: u64 = 0;
 	pub const Period: u64 = 10;
+	pub static KeyDeposit: u64 = 0;
 }
 
 impl pallet_session::Config for Test {
@@ -141,7 +142,7 @@ impl pallet_session::Config for Test {
 	type DisablingStrategy = ();
 	type WeightInfo = ();
 	type Currency = Balances;
-	type KeyDeposit = ();
+	type KeyDeposit = KeyDeposit;
 }
 
 ord_parameter_types! {

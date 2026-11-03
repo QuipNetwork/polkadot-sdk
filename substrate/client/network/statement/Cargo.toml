@@ -1,7 +1,7 @@
 [package]
 description = "Substrate statement protocol"
 name = "sc-network-statement"
-version = "0.38.0"
+version = "0.43.0"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 authors.workspace = true
 edition.workspace = true
@@ -22,28 +22,31 @@ test-helpers = []
 array-bytes = { workspace = true, default-features = true }
 async-channel = { workspace = true }
 codec = { features = ["derive"], workspace = true, default-features = true }
+fastbloom = { workspace = true }
 futures = { workspace = true }
 governor = { workspace = true }
 log = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-network-common = { default-features = true, workspace = true }
-sc-network-sync = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-statement-store = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+rand = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-common = { workspace = true, default-features = true }
+sc-network-sync = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-statement-store = { workspace = true, default-features = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }
 criterion = { workspace = true, default-features = true }
-sc-keystore = { default-features = true, workspace = true }
-sc-statement-store = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
+sc-statement-store = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 tempfile = { workspace = true }
 

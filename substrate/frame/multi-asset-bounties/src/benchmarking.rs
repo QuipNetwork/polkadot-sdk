@@ -844,6 +844,30 @@ mod benchmarks {
 		Ok(())
 	}
 
+	#[benchmark]
+	fn increase_value() -> Result<(), BenchmarkError> {
+		let s = create_active_parent_bounty::<T, I>()?;
+		let caller = s.curator.clone();
+		let new_value = s.value + s.value;
+
+		// Ensure the curator can fund the (possibly larger) deposit for the new value.
+		<T as pallet_bounties::Config<I>>::Consideration::ensure_successful(&caller, new_value);
+
+		#[extrinsic_call]
+		_(RawOrigin::Signed(caller), s.parent_bounty_id, s.value);
+
+		assert_last_event::<T, I>(
+			Event::BountyValueIncreased {
+				index: s.parent_bounty_id,
+				old_value: s.value,
+				new_value,
+			}
+			.into(),
+		);
+
+		Ok(())
+	}
+
 	impl_benchmark_test_suite! {
 		Pallet,
 		crate::mock::ExtBuilder::default().build(),

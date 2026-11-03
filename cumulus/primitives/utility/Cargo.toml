@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-primitives-utility"
-version = "0.26.0"
+version = "0.35.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -13,15 +13,21 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-primitives-core = { workspace = true }
-frame-support = { workspace = true }
 log = { workspace = true }
+
+# Substrate
+frame-support = { workspace = true }
 pallet-asset-conversion = { workspace = true }
-polkadot-runtime-common = { workspace = true }
 sp-runtime = { workspace = true }
+
+# Polkadot
+polkadot-runtime-common = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true }
 
 [features]
 default = ["std"]

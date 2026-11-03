@@ -1,0 +1,22 @@
+title: 'statement-store: new api implementation'
+doc:
+- audience: Node Dev
+  description: |-
+    ## Summary
+
+    Adds the `statement_unstable_*` JSON-RPC API implementation for statement-store and wires it into the parachain node RPC stack.
+
+    ## Changes
+
+    - Add `statement_unstable_submit`, `statement_unstable_subscribe`, `statement_unstable_add_filter`, and `statement_unstable_remove_filter`
+    - Add multi-filter subscription support with replay and live statement delivery
+    - Add zombienet smoke test for the unstable RPC wiring
+crates:
+- name: polkadot-omni-node-lib
+  bump: patch
+- name: sc-rpc-spec-v2
+  bump: minor
+- name: sc-statement-store
+  bump: minor
+- name: sp-statement-store
+  bump: minor

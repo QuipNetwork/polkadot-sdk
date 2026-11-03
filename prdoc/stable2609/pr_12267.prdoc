@@ -1,0 +1,48 @@
+title: '[pallet-revive] fix double deposit charge to parent contractinfo'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # pallet-revive: fix storage deposit double-count under same-contract reentry
+
+    When a contract writes storage, reenters itself (directly or via an intermediary), and writes storage again, the pre-call write is applied to the contract's persisted `ContractInfo` twice — inflating `storage_items` / `storage_bytes` / `storage_*_deposit`. The corruption is persisted via `insert_contract` and survives across transactions; subsequent `clear_storage` operations under-refund because the inflated counters become the denominator of the pro-rata refund.
+
+    ## What goes wrong
+
+    For `X` writes `K1` → calls itself → writes `K2`:
+
+    1. `push_frame` (`exec.rs:1212-1223`) and the same-contract `cached_info` shortcut (`exec.rs:2150-2160`) clone the parent's `ContractInfo`, preview-apply the parent's pending diff to the clone, and use it as the child's view. The child persists that clone via `insert_contract` on success.
+    2. The cache-invalidation matcher (`exec.rs:1616`) then marks the parent's cache `Invalidated`. The parent's next write reloads from storage, which already contains the preview-applied `K1`.
+    3. The parent's `finalize()` (`exec.rs:1474-1478`) re-applies its still-pending `own_contribution` (which still contains `K1`) on top of the reloaded info → `K1` counted twice.
+
+    This is a regression from [#10920](https://github.com/paritytech/polkadot-sdk/pull/10920) (commit `1b9ea1c3656`, merged 2026-02-10), which introduced the preview-apply step to make pending writes visible to nested frames for refund pro-rating, but did not consume the parent's `own_contribution`. The existing #10920 regression test (`metering::tests::nested_call_storage_refund` with the `setAndCallClear` fixture) does not catch the case because the parent performs no write after the nested call returns — its cache stays `Invalidated`, the outer pop's `as_contract()` returns `None`, and the diff is never re-applied.
+
+    ## Fix
+
+    Bank the parent's pending diff at the cache-invalidation site so `finalize()` only applies writes recorded afterwards.
+
+    - `RawMeter::bank_pending_changes(contract, info)` (`metering/storage.rs`) — applies the `Alive` diff to `info` once, pushes the resulting deposit as a final `Charge` via the existing `charge_deposit` primitive, and resets `own_contribution`. Two `debug_assert!`s encode invariants: `info.is_some()` whenever the diff is non-empty (otherwise `Diff::update_contract(None)` at `storage.rs:130-134` drops the refund portion and over-charges), and `own_contribution` is `Alive` when banked (on-stack ancestors have not finalized yet, since `finalize` runs at `exec.rs:1474-1478` only at the frame's own pop).
+    - `Frame::bank_pending_changes_and_invalidate` (`exec.rs`) — bundles `load → bank → invalidate` so the meter never sees `None` info and the ordering can't be misexpressed. Called from `pop_frame` only when the matcher finds an ancestor with the popped child's `account_id`.
+
+    The `load` covers the case where an earlier same-contract reentry already invalidated the frame, or it accrued a removal-bearing diff via `charge_storage` (which does not reload the cache). Without it, banking would hit the silent `update_contract(None)` refund-drop.
+
+    No behavior change outside same-contract reentry; the matcher returns no ancestor for cross-contract pops, and the bank is a no-op when the pending diff is empty.
+
+    ## Tests (`exec/tests.rs`)
+
+    | Test | Asserts | Verified without fix |
+    |---|---|---|
+    | `same_contract_reentry_does_not_double_count_storage` | `X→X` write-reenter-write → full `ContractInfo` accounting (`storage_items == 2`, `storage_bytes == 70`, `storage_item_deposit`, `storage_byte_deposit`) | fails inflated (`storage_items == 3`, `storage_bytes == 105`) |
+    | `transitive_reentry_does_not_double_count_storage` | `X→Y→X` same shape, same full-set assertion | fails inflated (`storage_items == 3`) |
+    | `nested_clear_refund_matches_direct_clear` | Direct `(set, set, clear)` vs nested `(set, set, call-self-clear)` produce identical `ContractInfo` **and** identical origin balance after `execute_postponed_deposits` | passes (#10920 guard) |
+    | `bank_after_invalidate_loads_cache_for_refund_pro_rating` | `charge_storage(30 bytes)` between two self-reentries: the origin is charged the net deposit (`8`) after `execute_postponed_deposits`, with the removal's pro-rata refund applied | fails with `37` charged (refund dropped); also trips the new `debug_assert!` under debug-assertions |
+
+    The first two and the fourth were directly observed to fail when the corresponding fix piece is reverted; the third is a #10920 guard that passes regardless. The fourth's balance assertion catches the dropped refund in release builds too, where the `debug_assert!` is compiled out (the removal is 30 bytes rather than 1 so the pro-rata refund does not round to zero). Full `pallet-revive` lib suite: 637 passed, 0 failed.
+
+    ## Impact
+
+    **Severity: Low.** Refund only ever under-charges (inflated denominator → smaller refund). The `.min(FixedU128::from_u32(1))` clamp in `Diff::update_contract` (`metering/storage.rs:141`) prevents over-refund. `do_terminate` (`exec.rs:1761`) calls `T::Deposit::refund_all`, which reads `T::Currency::balance_on_hold` directly (`deposit_payment.rs:255`) rather than the inflated `ContractInfo` fields, so any stranded residue is recoverable on contract termination — no over-refund or theft.
+
+    **Reachability.** In EVM mode, `CALL`/`STATICCALL` default to `ReentrancyProtection::AllowReentry` for non-zero-value calls and for zero-value calls without the 2300-gas Solidity stipend (`vm/evm/instructions/contract.rs:193-203`). PVM (Wasm) defaults to `Strict`; reentry is opt-in via `CallFlags::ALLOW_REENTRY`. `pallet-revive` is configured in Asset Hub Westend at pallet index 60 (`cumulus/parachains/runtimes/assets/asset-hub-westend/src/lib.rs:1809`); deployment status on production Asset Hub runtimes is in a separate repository and not verified here.
+crates:
+- name: pallet-revive
+  bump: patch

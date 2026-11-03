@@ -1,0 +1,9 @@
+title: 'collator-protocol revamp:  Send RC PeerId with ApprovedPeer UMP signal'
+doc:
+- audience: Node Dev
+  description: |-
+    Currently the collator sends its parachain PeerId within the ApprovedPeer UMP signal, which is wrong because this peer id is not known on the relay chain.
+    As a result on CandidateIncluded event the score is bumped for the wrong PeerId and the collator remains with zero reputation no matter its honest work.
+crates:
+- name: polkadot-omni-node-lib
+  bump: patch

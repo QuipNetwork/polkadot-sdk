@@ -1,0 +1,10 @@
+title: 'fix: slot-based collator node exits immediately on startup'
+doc:
+- audience: Node Dev
+  description: |-
+    Regression from #11381: the `wait_for_aura` init wrapper was spawned as an essential task, but it
+    completes immediately after spawning the actual long-running collator tasks, causing the node to
+    shut down. Use `spawn_handle()` instead. Only affects `--authoring=slot-based` collators.
+crates:
+- name: polkadot-omni-node-lib
+  bump: patch

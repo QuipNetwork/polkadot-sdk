@@ -1,0 +1,40 @@
+title: Deprecate `ValidateUnsigned` trait and `#[pallet::validate_unsigned]` attribute.
+
+doc:
+  - audience: [Runtime Dev, Runtime User]
+    description: |
+      Deprecate the `ValidateUnsigned` trait and `#[pallet::validate_unsigned]` attribute as part of phase 2 of Extrinsic Horizon.
+
+crates:
+  - name: sp-runtime
+    bump: minor
+  - name: frame-system
+    bump: patch
+  - name: frame-support
+    bump: patch
+  - name: frame-support-procedural
+    bump: patch
+  - name: polkadot-runtime-common
+    bump: patch
+  - name: polkadot-runtime-parachains
+    bump: patch
+  - name: pallet-babe
+    bump: patch
+  - name: pallet-beefy
+    bump: patch
+  - name: pallet-election-provider-multi-phase
+    bump: patch
+  - name: pallet-election-provider-multi-block
+    bump: patch
+  - name: frame-executive
+    bump: patch
+  - name: pallet-grandpa
+    bump: patch
+  - name: pallet-im-online
+    bump: patch
+  - name: pallet-mixnet
+    bump: patch
+  - name: cumulus-pallet-parachain-system
+    bump: patch
+  - name: substrate-test-runtime
+    bump: patch

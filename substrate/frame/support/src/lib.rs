@@ -96,6 +96,7 @@ pub mod view_functions;
 pub mod weights;
 #[doc(hidden)]
 pub mod unsigned {
+	#[allow(deprecated)]
 	#[doc(hidden)]
 	pub use crate::sp_runtime::traits::ValidateUnsigned;
 	#[doc(hidden)]
@@ -189,6 +190,8 @@ impl TypeId for PalletId {
 ///    indication that it should use the pallet name as the `prefix`:
 #[doc = docify::embed!("src/tests/storage_alias.rs", storage_alias_guess)]
 pub use frame_support_procedural::storage_alias;
+
+pub use frame_support_procedural::stored;
 
 pub use frame_support_procedural::derive_impl;
 
@@ -399,6 +402,8 @@ pub use serde::{Deserialize, Serialize};
 #[doc(hidden)]
 pub use macro_magic;
 
+pub use derive_where;
+
 /// Prelude to be used for pallet testing, for ease of use.
 #[cfg(feature = "std")]
 pub mod testing_prelude {
@@ -447,8 +452,7 @@ pub mod pallet_prelude {
 	pub use sp_runtime::{
 		traits::{
 			CheckedAdd, CheckedConversion, CheckedDiv, CheckedMul, CheckedShl, CheckedShr,
-			CheckedSub, MaybeSerializeDeserialize, Member, One, ValidateResult, ValidateUnsigned,
-			Zero,
+			CheckedSub, MaybeSerializeDeserialize, Member, One, ValidateResult, Zero,
 		},
 		transaction_validity::{
 			InvalidTransaction, TransactionLongevity, TransactionPriority, TransactionSource,
@@ -458,6 +462,9 @@ pub mod pallet_prelude {
 		Debug, DispatchError, MAX_MODULE_ERROR_ENCODED_SIZE,
 	};
 	pub use sp_weights::Weight;
+
+	#[allow(deprecated)]
+	pub use sp_runtime::traits::ValidateUnsigned;
 }
 
 /// The pallet macro has 2 purposes:
@@ -1213,6 +1220,13 @@ pub mod pallet_macros {
 	/// }
 	pub use frame_support_procedural::composite_enum;
 
+	/// Deprecation Notice
+	///
+	/// The `#[pallet::validate_unsigned]` attribute has been deprecated and will be removed in
+	/// a future release. Use [`sp_runtime::traits::TransactionExtension`] instead.
+	///
+	/// For more information, see: <https://github.com/paritytech/polkadot-sdk/issues/2415>
+	/// ---
 	/// Allows the pallet to validate unsigned transactions.
 	///
 	/// Item must be defined as:
@@ -1914,34 +1928,6 @@ pub mod pallet_macros {
 	///     }
 	/// }
 	/// ```
-	///
-	/// ## Former Usage
-	///
-	/// Prior to <https://github.com/paritytech/substrate/pull/14306>, the following syntax was used.
-	/// This is deprecated and will soon be removed.
-	///
-	/// ```
-	/// #[frame_support::pallet]
-	/// pub mod pallet {
-	/// #     #[pallet::config]
-	/// #     pub trait Config: frame_system::Config {}
-	/// #     #[pallet::pallet]
-	/// #     pub struct Pallet<T>(_);
-	/// #     use frame_support::traits::GenesisBuild;
-	///     #[pallet::genesis_config]
-	///     #[derive(frame_support::DefaultNoBound)]
-	///     pub struct GenesisConfig<T: Config> {
-	/// 		foo: Vec<T::AccountId>
-	/// 	}
-	///
-	///     #[pallet::genesis_build]
-	///     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
-	///         fn build(&self) {
-	///             todo!()
-	///         }
-	///     }
-	/// }
-	/// ```
 	pub use frame_support_procedural::genesis_build;
 
 	/// Allows adding an associated type trait bounded by
@@ -2266,12 +2252,6 @@ pub mod pallet_macros {
 	/// Read more about origins at the [Origin Reference
 	/// Docs](../../polkadot_sdk_docs/reference_docs/frame_origin/index.html).
 	pub use frame_support_procedural::origin;
-}
-
-#[deprecated(note = "Will be removed after July 2023; Use `sp_runtime::traits` directly instead.")]
-pub mod error {
-	#[doc(hidden)]
-	pub use sp_runtime::traits::{BadOrigin, LookupError};
 }
 
 #[doc(inline)]

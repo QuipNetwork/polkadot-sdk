@@ -1,0 +1,9 @@
+title: Increase default light client slots
+doc:
+- audience: Node Operator
+  description: 'The default of `--in-peers-light` is raised from 100 to 500, since
+    measurements showed nodes handle far more light peers than the old default
+    allowed (#12846).'
+crates:
+- name: sc-cli
+  bump: major

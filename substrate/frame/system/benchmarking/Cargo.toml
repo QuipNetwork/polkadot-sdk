@@ -1,6 +1,6 @@
 [package]
 name = "frame-system-benchmarking"
-version = "46.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -25,9 +25,9 @@ sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-sp-externalities = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

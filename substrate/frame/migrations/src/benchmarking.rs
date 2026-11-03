@@ -22,7 +22,8 @@ use super::*;
 use core::array;
 use frame_benchmarking::{v2::*, BenchmarkError};
 use frame_system::{Pallet as System, RawOrigin};
-use sp_core::{twox_128, Get};
+use sp_core::Get;
+use sp_crypto_hashing::twox_128;
 use sp_io::{storage, KillStorageResult};
 use sp_runtime::traits::One;
 

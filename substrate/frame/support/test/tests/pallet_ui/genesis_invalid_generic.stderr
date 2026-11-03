@@ -1,13 +1,11 @@
-error: Invalid genesis builder: expected `BuildGenesisConfig` (or the deprecated `GenesisBuild<T>` or `GenesisBuild<T, I>`)
+error: Invalid genesis builder: expected `BuildGenesisConfig`
   --> tests/pallet_ui/genesis_invalid_generic.rs:36:7
    |
 36 |     impl GenesisBuild for GenesisConfig {}
    |          ^^^^^^^^^^^^
 
-error: expected `<`
-  --> tests/pallet_ui/genesis_invalid_generic.rs:18:1
+error: expected `BuildGenesisConfig`
+  --> tests/pallet_ui/genesis_invalid_generic.rs:36:7
    |
-18 | #[frame_support::pallet]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: this error originates in the attribute macro `frame_support::pallet` (in Nightly builds, run with -Z macro-backtrace for more info)
+36 |     impl GenesisBuild for GenesisConfig {}
+   |          ^^^^^^^^^^^^

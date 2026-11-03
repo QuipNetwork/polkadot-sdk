@@ -6,12 +6,12 @@
 //! with the same old version.
 
 use crate::utils::{
-	check_log_lines, check_metrics, env_or_default, initialize_network, MetricCheckSetup,
-	APPROVAL_CHECKING_FINALITY_LAG_METRIC, APPROVAL_NO_SHOWS_TOTAL_METRIC,
-	AVAILABILITY_RECOVERY_RECOVERIES_FINISHED, BLOCK_HEIGHT_FINALIZED_METRIC, COL_IMAGE_ENV,
-	DATA_RECOVERY_CHUNKS_PATTERN, DATA_RECOVERY_FROM_SYSTEMATIC_CHUNKS_COMPLETE_PATTERN,
+	assert_nodes_are_validators, check_log_lines, check_metrics, env_or_default,
+	initialize_network, MetricCheckSetup, APPROVAL_CHECKING_FINALITY_LAG_METRIC,
+	APPROVAL_NO_SHOWS_TOTAL_METRIC, AVAILABILITY_RECOVERY_RECOVERIES_FINISHED,
+	BLOCK_HEIGHT_FINALIZED_METRIC, COL_IMAGE_ENV, DATA_RECOVERY_CHUNKS_PATTERN,
+	DATA_RECOVERY_FROM_SYSTEMATIC_CHUNKS_COMPLETE_PATTERN,
 	DATA_RECOVERY_FROM_SYSTEMATIC_CHUNKS_NOT_POSSIBLE_PATTERN, INTEGRATION_IMAGE_ENV,
-	NODE_ROLES_METRIC,
 };
 use anyhow::anyhow;
 use cumulus_zombienet_sdk_helpers::assert_para_throughput;
@@ -36,19 +36,14 @@ async fn chunk_fetching_network_compatibility_test() -> Result<(), anyhow::Error
 
 	// Check authority status
 	log::info!("Checking validator node roles");
-	for validator in &validator_nodes {
-		validator
-			.wait_metric_with_timeout(NODE_ROLES_METRIC, |v| v == 4.0, 60u64)
-			.await
-			.map_err(|e| anyhow!("Validator {} role check failed: {e}", validator.name()))?;
-	}
+	assert_nodes_are_validators(&validator_nodes).await?;
 	log::info!("All validators confirmed as authorities");
 
 	// Check that all parachains produce at least 5 blocks within 1 session and 5 blocks (RC)
 	let relay_client = validator_nodes[0].wait_client().await?;
 	log::info!("Checking parachain block production (all paras registered at genesis)");
 	let para_throughput: [(ParaId, Range<u32>); 2] = PARAS.map(|id| (ParaId::from(id), 2..6));
-	assert_para_throughput(&relay_client, 5, para_throughput).await?;
+	assert_para_throughput(&relay_client, 5, para_throughput, []).await?;
 	log::info!("All parachains producing blocks");
 
 	log::info!("Ensure approval checking works.");

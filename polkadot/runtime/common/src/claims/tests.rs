@@ -403,6 +403,46 @@ fn add_claim_with_vesting_works() {
 }
 
 #[test]
+fn claim_rejects_sub_ed_vesting_claim_into_empty_account() {
+	new_test_ext().execute_with(|| {
+		// The mock's existential deposit is 1, so a value of 0 is below it. A vesting claim into an
+		// empty account whose resulting balance would be below ED must be rejected, otherwise the
+		// account would be dusted and the vesting lock placed on a dead account.
+		claims::Claims::<Test>::insert(eth(&bob()), 0);
+		claims::Vesting::<Test>::insert(eth(&bob()), (0, 0, 1));
+		assert_eq!(Balances::free_balance(&69), 0);
+		assert_noop!(
+			claims::mock::Claims::claim(
+				RuntimeOrigin::none(),
+				69,
+				sig::<Test>(&bob(), &69u64.encode(), &[][..])
+			),
+			Error::<Test>::ClaimBelowExistentialDeposit,
+		);
+		// The guard fires before `deposit_creating`, so no balance was created.
+		assert_eq!(Balances::free_balance(&69), 0);
+	});
+}
+
+#[test]
+fn claim_allows_sub_ed_vesting_claim_into_funded_account() {
+	new_test_ext().execute_with(|| {
+		// A sub-ED claim is fine if the destination already holds funds: the resulting balance
+		// stays above ED, so the account is not dusted and can carry the vesting lock.
+		let _ = <Balances as Currency<_>>::deposit_creating(&69, 100);
+		claims::Claims::<Test>::insert(eth(&bob()), 0); // claim value (0) is below ED
+		claims::Vesting::<Test>::insert(eth(&bob()), (50, 10, 1));
+		assert_ok!(claims::mock::Claims::claim(
+			RuntimeOrigin::none(),
+			69,
+			sig::<Test>(&bob(), &69u64.encode(), &[][..])
+		));
+		assert_eq!(Balances::free_balance(&69), 100); // balance unchanged
+		assert_eq!(claims::mock::Vesting::vesting_balance(&69), Some(50)); // vesting lock applied
+	});
+}
+
+#[test]
 fn add_claim_with_statement_works() {
 	new_test_ext().execute_with(|| {
 		assert_noop!(
@@ -564,6 +604,7 @@ fn real_eth_sig_works() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn validate_unsigned_works() {
 	use sp_runtime::traits::ValidateUnsigned;
 	let source = sp_runtime::transaction_validity::TransactionSource::External;

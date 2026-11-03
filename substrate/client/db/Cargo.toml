@@ -1,6 +1,6 @@
 [package]
 name = "sc-client-db"
-version = "0.52.0"
+version = "0.55.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -32,17 +32,17 @@ linked-hash-map = { workspace = true }
 log = { workspace = true, default-features = true }
 parity-db = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-state-db = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-state-db = { workspace = true, default-features = true }
 schnellru = { workspace = true }
-sp-arithmetic = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-database = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+sp-arithmetic = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-database = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 sysinfo = { workspace = true }
 
 [dev-dependencies]
@@ -51,8 +51,9 @@ criterion = { workspace = true, default-features = true }
 kitchensink-runtime = { workspace = true }
 kvdb-rocksdb = { workspace = true }
 rand = { workspace = true, default-features = true }
-sp-database = { default-features = true, features = ["rocksdb"], workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+rstest = { workspace = true }
+sp-database = { workspace = true, default-features = true, features = ["rocksdb"] }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 tempfile = { workspace = true }
 

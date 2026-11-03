@@ -21,7 +21,7 @@ use core::{cell::RefCell, marker::PhantomData};
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types, sp_runtime,
 	sp_runtime::{
-		traits::{Get, IdentityLookup, MaybeEquivalence, TryConvert},
+		traits::{Get, IdentityLookup, MaybeEquivalence, TryConvert, TryConvertInto},
 		BuildStorage, SaturatedConversion,
 	},
 	traits::{
@@ -38,10 +38,7 @@ use xcm_builder::{
 	FixedWeightBounds, FungibleAdapter, FungiblesAdapter, InspectMessageQueues, IsConcrete,
 	MintLocation, NoChecking, TakeWeightCredit,
 };
-use xcm_executor::{
-	traits::{ConvertLocation, JustTry},
-	XcmExecutor,
-};
+use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
 use xcm_runtime_apis::{
 	conversions::{Error as LocationToAccountApiError, LocationToAccountApi},
@@ -291,7 +288,12 @@ pub type AssetsTransactor = FungiblesAdapter<
 	// We use pallet-assets for handling the relay token.
 	AssetsPallet,
 	// Matches the relay token.
-	ConvertedConcreteId<AssetIdForAssetsPallet, Balance, LocationToAssetIdForAssetsPallet, JustTry>,
+	ConvertedConcreteId<
+		AssetIdForAssetsPallet,
+		Balance,
+		LocationToAssetIdForAssetsPallet,
+		TryConvertInto,
+	>,
 	// How we convert locations to accounts.
 	LocationToAccountId,
 	// We need to specify the AccountId type.

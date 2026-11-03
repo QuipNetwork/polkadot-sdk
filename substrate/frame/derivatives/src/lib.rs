@@ -279,6 +279,10 @@ impl<T: Config<I>, I: 'static> DerivativesRegistry<OriginalOf<T, I>, DerivativeO
 			Self::original_to_derivative(original).is_none(),
 			Error::<T, I>::DerivativeAlreadyExists,
 		);
+		ensure!(
+			Self::derivative_to_original(derivative).is_none(),
+			Error::<T, I>::DerivativeAlreadyExists,
+		);
 
 		<OriginalToDerivative<T, I>>::insert(original, derivative);
 		<DerivativeToOriginal<T, I>>::insert(derivative, original);

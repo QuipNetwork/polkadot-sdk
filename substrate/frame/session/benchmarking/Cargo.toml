@@ -1,6 +1,6 @@
 [package]
 name = "pallet-session-benchmarking"
-version = "46.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -28,18 +28,19 @@ sp-session = { workspace = true }
 
 [dev-dependencies]
 codec = { features = ["derive"], workspace = true, default-features = true }
-frame-election-provider-support = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-staking-reward-curve = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-staking-reward-curve = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
 scale-info = { workspace = true, default-features = true }
-sp-io = { default-features = true, workspace = true }
-sp-staking = { workspace = true, default-features = false }
+sp-io = { workspace = true, default-features = true }
+sp-staking = { workspace = true }
 
 [features]
 default = ["std"]
 std = [
 	"frame-benchmarking/std",
+	"frame-election-provider-support/std",
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-session/std",

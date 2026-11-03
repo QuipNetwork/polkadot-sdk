@@ -1,0 +1,15 @@
+title: "pallet-psm: relax AssetId from Copy to Clone"
+doc:
+- audience: Runtime Dev
+  description: |
+    Relaxes the `T::AssetId` bound on `pallet-psm`'s `Config` from `Copy` to
+    `Clone`. Lets runtimes wire `pallet-psm` with a non-`Copy` `AssetId`.
+    The most relevant example is using XCM `Location` as `AssetId`.
+
+    No semantic changes; only the `Config` bound and ownership at use sites.
+    For `AssetId`s that are `Copy` (e.g. `u32`), the added `.clone()` calls
+    are free since `Copy` types implement `Clone` trivially.
+crates:
+- name: pallet-psm
+  bump: minor
+ 

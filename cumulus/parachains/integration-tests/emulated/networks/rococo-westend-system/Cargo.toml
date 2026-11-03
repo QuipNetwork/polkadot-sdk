@@ -1,6 +1,6 @@
 [package]
 name = "rococo-westend-system-emulated-network"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,6 +11,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# Cumulus
 asset-hub-rococo-emulated-chain = { workspace = true }
 asset-hub-westend-emulated-chain = { workspace = true }
 bridge-hub-rococo-emulated-chain = { workspace = true }
@@ -18,4 +19,4 @@ bridge-hub-westend-emulated-chain = { workspace = true }
 emulated-integration-tests-common = { workspace = true }
 penpal-emulated-chain = { workspace = true }
 rococo-emulated-chain = { workspace = true }
-westend-emulated-chain = { default-features = true, workspace = true }
+westend-emulated-chain = { workspace = true, default-features = true }

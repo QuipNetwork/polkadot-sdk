@@ -1132,7 +1132,7 @@ fn hrmp_notifications_works() {
 
 		let assert_notification_for = |sent_at, para_id, expected| {
 			assert_eq!(
-				Dmp::dmq_contents(para_id),
+				Dmp::dmq_contents_do_not_call_in_consensus(para_id),
 				vec![InboundDownwardMessage { sent_at, msg: expected }]
 			);
 		};

@@ -153,9 +153,13 @@ fn bond_works() {
 #[test]
 fn bond_controller_cannot_be_stash_works() {
 	ExtBuilder::default().build_and_execute(|| {
+		// `create_unique_stash_controller` bonds `ED * (balance_factor / 10).max(1)`. Pass a
+		// `balance_factor` large enough that the bonded amount clears `min_chilled_bond` under
+		// the default builder. The test's concern is the `AlreadyPaired` path, not the min-bond
+		// thresholds.
 		let (stash, controller) = testing_utils::create_unique_stash_controller::<Test>(
 			0,
-			10,
+			100,
 			RewardDestination::Staked,
 			false,
 		)

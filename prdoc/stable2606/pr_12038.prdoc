@@ -1,0 +1,14 @@
+title: 'Network: Add bitswap client'
+doc:
+- audience: Node Dev
+  description: |
+    Adds a Bitswap client API to `sc-network` for fetching CID-addressed blocks
+    from a peer over the native litep2p Bitswap protocol. The public API is
+    block-fetch only and reports per-CID outcomes as either delivered bytes or
+    "missing"; on-wire presence (`HAVE` / `DONT_HAVE`) is handled internally
+    and is not part of the public surface.
+crates:
+- name: sc-network
+  bump: major
+- name: sc-network-sync
+  bump: patch

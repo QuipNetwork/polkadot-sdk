@@ -1,0 +1,10 @@
+title: 'pallet-dap: re-export WeightInfo at crate root'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The trait was only reachable at `pallet_dap::weights::WeightInfo`, so the benchmark template's generated `pallet_dap::WeightInfo` path failed to resolve and required a manual fixup in every consumer. Add the standard FRAME re-export (`pub use weights::WeightInfo;`) and switch the Asset Hub Westend weights file and the staking-async integration test back to the canonical `pallet_dap::WeightInfo` path.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: pallet-dap
+  bump: minor

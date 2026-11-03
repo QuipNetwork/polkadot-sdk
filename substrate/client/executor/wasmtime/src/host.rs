@@ -19,12 +19,10 @@
 //! This module defines `HostState` and `HostContext` structs which provide logic and state
 //! required for execution of host.
 
-use wasmtime::Caller;
-
+use crate::{instance_wrapper::MemoryWrapper, runtime::StoreData, util};
 use sc_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{Pointer, WordSize};
-
-use crate::{instance_wrapper::MemoryWrapper, runtime::StoreData, util};
+use wasmtime::Caller;
 
 /// The state required to construct a HostContext context. The context only lasts for one host
 /// call, whereas the state is maintained for the duration of a Wasm runtime call, which may make
@@ -75,7 +73,7 @@ impl<'a> HostContext<'a> {
 
 impl<'a> sp_wasm_interface::FunctionContext for HostContext<'a> {
 	fn read_memory_into(
-		&self,
+		&mut self,
 		address: Pointer<u8>,
 		dest: &mut [u8],
 	) -> sp_wasm_interface::Result<()> {

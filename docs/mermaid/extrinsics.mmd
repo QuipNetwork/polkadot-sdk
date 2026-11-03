@@ -1,5 +1,6 @@
 flowchart TD
-    E(Extrinsic) ---> I(Inherent);
-    E --> T(Transaction)
-    T --> ST("Signed (aka. Transaction)")
-    T --> UT(Unsigned)
+    E(Extrinsic) ---> B(Bare);
+    E --> S(Signed Transaction)
+    E --> G(General Transaction)
+    B --> I(Inherent);
+    B --> U(Unsigned Transaction (deprecated))

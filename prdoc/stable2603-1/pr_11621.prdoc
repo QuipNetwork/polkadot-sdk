@@ -1,0 +1,12 @@
+title: 'Enforce current relay parent to be available'
+doc:
+- audience: Node Dev
+  description: |-
+    Ensures that the current relay parent is always available when building
+    parachain blocks in the slot-based collator. The block builder task now
+    uses a relay chain notification stream to keep relay chain data
+    up-to-date and enforces that the current relay parent is present before
+    proceeding with block building.
+crates:
+- name: cumulus-client-consensus-aura
+  bump: patch

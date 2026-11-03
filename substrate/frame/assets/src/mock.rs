@@ -104,7 +104,8 @@ impl Config for Test {
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
 	type Freezer = TestFreezer;
 	type Holder = TestHolder;
-	type CallbackHandle = (AssetsCallbackHandle, AutoIncAssetId<Test>);
+	type CallbackHandle = AssetsCallbackHandle;
+	type AssetIdAllocator = AutoIncAssetId<Test>;
 	type ReserveData = u128;
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = AssetsBenchmarkHelper;

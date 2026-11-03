@@ -17,7 +17,7 @@
 
 #![cfg(test)]
 
-use crate::{core_mask::*, mock::*, *};
+use crate::{mock::*, *};
 use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::nonfungible::{Inspect as NftInspect, Mutate, Transfer},
@@ -402,6 +402,126 @@ fn migration_works() {
 				(18, AssignCore { core: 1, begin: 20, assignment: just_pool(), end_hint: None }),
 			]
 		);
+	});
+}
+
+#[test]
+fn migration_v5_reconstructs_sale_index_from_region_begin() {
+	use crate::migration::v5::{old, FirstSaleRegion, MigrateToV5Impl};
+	use frame_support::traits::UncheckedOnRuntimeUpgrade;
+
+	struct FirstRegion;
+	impl FirstSaleRegion for FirstRegion {
+		fn region_begin() -> Timeslice {
+			100
+		}
+	}
+
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 1));
+		let region_length = Configuration::<Test>::get().unwrap().region_length;
+		let template = SaleInfo::<Test>::get().unwrap();
+
+		let migrate_with_region_begin = |region_begin: Timeslice| {
+			// Write the pre-v5 record (old layout, no `sale_index`) that the migration reads.
+			old::SaleInfo::<Test>::put(old::SaleInfoRecord {
+				sale_start: template.sale_start,
+				leadin_length: template.leadin_length,
+				end_price: template.end_price,
+				region_begin,
+				region_end: region_begin + region_length,
+				ideal_cores_sold: template.ideal_cores_sold,
+				cores_offered: template.cores_offered,
+				first_core: template.first_core,
+				sellout_price: template.sellout_price,
+				cores_sold: template.cores_sold,
+			});
+
+			let _ = <MigrateToV5Impl<Test, FirstRegion> as UncheckedOnRuntimeUpgrade>::on_runtime_upgrade();
+			SaleInfo::<Test>::get().unwrap().sale_index
+		};
+
+		// First sale (region_begin == anchor) is index 1; bootstrap sale is index 0.
+		assert_eq!(migrate_with_region_begin(100), 1);
+
+		// Five regions later the current sale is index 6.
+		assert_eq!(migrate_with_region_begin(100 + 5 * region_length), 6);
+	});
+}
+
+#[test]
+fn migration_v5_defaults_sale_index_when_configuration_missing() {
+	use crate::migration::v5::{old, FirstSaleRegion, MigrateToV5Impl};
+	use frame_support::traits::UncheckedOnRuntimeUpgrade;
+	use sp_tracing::{
+		test_log_capture::init_log_capture,
+		tracing::{subscriber, Level},
+	};
+
+	struct FirstRegion;
+	impl FirstSaleRegion for FirstRegion {
+		fn region_begin() -> Timeslice {
+			100
+		}
+	}
+
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 1));
+		let region_length = Configuration::<Test>::get().unwrap().region_length;
+		let template = SaleInfo::<Test>::get().unwrap();
+
+		// Pre-v5 record present, Configuration gone: migration must not panic, still rewrites it.
+		old::SaleInfo::<Test>::put(old::SaleInfoRecord {
+			sale_start: template.sale_start,
+			leadin_length: template.leadin_length,
+			end_price: template.end_price,
+			region_begin: 100 + 5 * region_length,
+			region_end: 100 + 6 * region_length,
+			ideal_cores_sold: template.ideal_cores_sold,
+			cores_offered: template.cores_offered,
+			first_core: template.first_core,
+			sellout_price: template.sellout_price,
+			cores_sold: template.cores_sold,
+		});
+		Configuration::<Test>::kill();
+
+		// `log` to `tracing` bridge, needed for capture.
+		sp_tracing::init_for_tests();
+		let (log_capture, subscriber) = init_log_capture(Level::ERROR, false);
+		subscriber::with_default(subscriber, || {
+			let _ = <MigrateToV5Impl<Test, FirstRegion> as UncheckedOnRuntimeUpgrade>::on_runtime_upgrade();
+		});
+
+		// Record still rewritten, with the fallback index, and the fallback is logged.
+		let migrated = SaleInfo::<Test>::get().expect("record rewritten in new layout");
+		assert_eq!(migrated.sale_index, 1);
+		assert!(log_capture.contains("Configuration missing while SaleInfo exists"));
+	});
+}
+
+#[cfg(feature = "try-runtime")]
+#[test]
+fn migration_v5_post_upgrade_accepts_missing_sale_info() {
+	use crate::migration::v5::{FirstSaleRegion, MigrateToV5Impl};
+	use frame_support::traits::UncheckedOnRuntimeUpgrade;
+
+	struct FirstRegion;
+	impl FirstSaleRegion for FirstRegion {
+		fn region_begin() -> Timeslice {
+			100
+		}
+	}
+
+	type Migration = MigrateToV5Impl<Test, FirstRegion>;
+
+	TestExt::new().execute_with(|| {
+		// No SaleInfo: on_runtime_upgrade skips, so pre/post_upgrade must agree it is valid.
+		assert!(SaleInfo::<Test>::get().is_none());
+
+		let state = <Migration as UncheckedOnRuntimeUpgrade>::pre_upgrade().unwrap();
+		let _ = <Migration as UncheckedOnRuntimeUpgrade>::on_runtime_upgrade();
+		assert!(SaleInfo::<Test>::get().is_none());
+		assert_ok!(<Migration as UncheckedOnRuntimeUpgrade>::post_upgrade(state));
 	});
 }
 
@@ -1706,6 +1826,7 @@ fn purchase_requires_valid_status_and_sale_info() {
 			ideal_cores_sold: 0,
 			cores_offered: 1,
 			cores_sold: 2,
+			sale_index: 0,
 		};
 		SaleInfo::<Test>::put(&dummy_sale);
 		assert_noop!(Broker::do_purchase(1, 100), Error::<Test>::Unavailable);
@@ -1748,6 +1869,7 @@ fn renewal_requires_valid_status_and_sale_info() {
 			ideal_cores_sold: 0,
 			cores_offered: 1,
 			cores_sold: 2,
+			sale_index: 0,
 		};
 		SaleInfo::<Test>::put(&dummy_sale);
 		assert_noop!(Broker::do_renew(1, 1), Error::<Test>::Unavailable);
@@ -2100,7 +2222,10 @@ fn enable_auto_renewal_works_for_legacy_leases() {
 
 		// Will fail if we don't provide the end hint since it expects renewal record to be at next
 		// sale start.
-		assert_noop!(Broker::do_enable_auto_renew(1001, 0, 1001, None), Error::<Test>::NotAllowed);
+		assert_noop!(
+			Broker::do_enable_auto_renew(1001, 0, 1001, None),
+			Error::<Test>::TaskNotInWorkload
+		);
 
 		assert_ok!(Broker::do_enable_auto_renew(1001, 0, 1001, Some(10)));
 		assert_eq!(
@@ -2321,6 +2446,215 @@ fn enable_auto_renew_immediate_updates_core_and_renews() {
 			when: sale_after_renew.region_end
 		})
 		.is_some());
+	});
+}
+
+#[test]
+fn enable_auto_renew_fails_for_workload_of_another_task() {
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 2));
+		advance_to(2);
+		let region_1 = Broker::do_purchase(1, u64::max_value()).unwrap();
+		let region_2 = Broker::do_purchase(1, u64::max_value()).unwrap();
+		assert_ok!(Broker::do_assign(region_1, Some(1), 1001, Final));
+		assert_ok!(Broker::do_assign(region_2, Some(1), 2001, Final));
+		endow(1001, 1000);
+
+		// Task 1001 cannot enable auto-renewal for the core running task 2001's workload, even
+		// with a valid workload end hint:
+		assert_noop!(
+			Broker::do_enable_auto_renew(1001, region_2.core, 1001, Some(7)),
+			Error::<Test>::TaskNotInWorkload
+		);
+
+		// Now both cores are expiring, so enabling auto-renewal would renew immediately. Task
+		// 1001 must not renew (and pay for) task 2001's workload:
+		advance_to(6);
+		assert_noop!(
+			Broker::do_enable_auto_renew(1001, region_2.core, 1001, None),
+			Error::<Test>::TaskNotInWorkload
+		);
+		assert_eq!(balance(1001), 1000);
+		assert_eq!(AutoRenewals::<Test>::get().to_vec(), vec![]);
+
+		// Works for the core running its own workload:
+		assert_ok!(Broker::do_enable_auto_renew(1001, region_1.core, 1001, None));
+		assert_eq!(balance(1001), 900);
+	});
+}
+
+#[test]
+fn enable_auto_renew_falls_back_to_hint_when_core_carries_foreign_renewal() {
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 1));
+		advance_to(2);
+		let region_id = Broker::do_purchase(1, u64::max_value()).unwrap();
+		assert_ok!(Broker::do_assign(region_id, Some(1), 1001, Final));
+		endow(2001, 1000);
+
+		// The core is expiring with task 1001's workload, while task 2001 has its own renewal
+		// record on the same core index further in the future:
+		advance_to(6);
+		let sale = SaleInfo::<Test>::get().unwrap();
+		PotentialRenewals::<Test>::insert(
+			PotentialRenewalId { core: region_id.core, when: sale.region_end },
+			PotentialRenewalRecord {
+				price: 100,
+				completion: CompletionStatus::Complete(
+					vec![ScheduleItem { mask: CoreMask::complete(), assignment: Task(2001) }]
+						.try_into()
+						.unwrap(),
+				),
+			},
+		);
+
+		// Task 2001 must not renew task 1001's expiring workload; the hint leads to its own
+		// renewal record instead:
+		assert_ok!(Broker::do_enable_auto_renew(2001, region_id.core, 2001, Some(sale.region_end)));
+		assert_eq!(balance(2001), 1000);
+		assert_eq!(
+			AutoRenewals::<Test>::get().to_vec(),
+			vec![AutoRenewalRecord {
+				core: region_id.core,
+				task: 2001,
+				next_renewal: sale.region_end
+			}]
+		);
+		// Task 1001's expiring workload was left untouched:
+		assert!(PotentialRenewals::<Test>::get(PotentialRenewalId {
+			core: region_id.core,
+			when: sale.region_begin
+		})
+		.is_some());
+	});
+}
+
+#[test]
+fn enable_auto_renew_fails_for_incomplete_workload() {
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 1));
+		advance_to(2);
+		endow(1001, 1000);
+
+		// A partially assigned renewal record cannot be renewed, even by a task which is part
+		// of the partial workload:
+		PotentialRenewals::<Test>::insert(
+			PotentialRenewalId { core: 0, when: 10 },
+			PotentialRenewalRecord {
+				price: 100,
+				completion: CompletionStatus::Partial(CoreMask::from_chunk(0, 40)),
+			},
+		);
+		assert_noop!(
+			Broker::do_enable_auto_renew(1001, 0, 1001, Some(10)),
+			Error::<Test>::IncompleteAssignment
+		);
+	});
+}
+
+#[test]
+fn auto_renewal_fails_for_workload_of_another_task() {
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 2));
+		advance_to(2);
+		let region_id = Broker::do_purchase(1, u64::max_value()).unwrap();
+		assert_ok!(Broker::do_assign(region_id, Some(1), 1001, Final));
+		assert_ok!(Broker::do_enable_auto_renew(1001, region_id.core, 1001, Some(7)));
+		endow(1001, 1000);
+
+		// The workload on the core changes hands before the renewal is processed (e.g. a stale
+		// record created before the task-workload check existed):
+		let renewal_id = PotentialRenewalId { core: region_id.core, when: 7 };
+		let record = PotentialRenewals::<Test>::get(renewal_id).unwrap();
+		PotentialRenewals::<Test>::insert(
+			renewal_id,
+			PotentialRenewalRecord {
+				price: record.price,
+				completion: CompletionStatus::Complete(
+					vec![ScheduleItem { mask: CoreMask::complete(), assignment: Task(2001) }]
+						.try_into()
+						.unwrap(),
+				),
+			},
+		);
+
+		// The renewal fails instead of charging task 1001 for task 2001's workload:
+		advance_to(7);
+		assert_eq!(balance(1001), 1000);
+		System::assert_has_event(
+			Event::<Test>::AutoRenewalFailed { core: region_id.core, payer: Some(1001) }.into(),
+		);
+		// The mismatched record is dropped:
+		assert_eq!(AutoRenewals::<Test>::get().to_vec(), vec![]);
+	});
+}
+
+#[test]
+fn auto_renewal_skips_record_with_future_next_renewal() {
+	TestExt::new().endow(1, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 1));
+		advance_to(2);
+
+		// Task 1001 has a renewal record further in the future (e.g. due to holding a lease)
+		// and enables auto-renewal with a hint:
+		PotentialRenewals::<Test>::insert(
+			PotentialRenewalId { core: 0, when: 10 },
+			PotentialRenewalRecord {
+				price: 100,
+				completion: CompletionStatus::Complete(
+					vec![ScheduleItem { mask: CoreMask::complete(), assignment: Task(1001) }]
+						.try_into()
+						.unwrap(),
+				),
+			},
+		);
+		endow(1001, 1000);
+		assert_ok!(Broker::do_enable_auto_renew(1001, 0, 1001, Some(10)));
+
+		// In the meantime, the same core index carries another task's expiring workload:
+		PotentialRenewals::<Test>::insert(
+			PotentialRenewalId { core: 0, when: 7 },
+			PotentialRenewalRecord {
+				price: 100,
+				completion: CompletionStatus::Complete(
+					vec![ScheduleItem { mask: CoreMask::complete(), assignment: Task(2001) }]
+						.try_into()
+						.unwrap(),
+				),
+			},
+		);
+
+		// The record is not due for renewal yet, so it must be skipped and left untouched
+		// rather than dropped because of the foreign workload:
+		advance_to(7);
+		assert_eq!(balance(1001), 1000);
+		assert_eq!(
+			AutoRenewals::<Test>::get().to_vec(),
+			vec![AutoRenewalRecord { core: 0, task: 1001, next_renewal: 10 }]
+		);
+
+		// Once due, the renewal is processed normally:
+		advance_to(13);
+		assert_eq!(balance(1001), 900);
+	});
+}
+
+#[test]
+fn enable_auto_renew_immediate_ignores_hint_for_next_renewal() {
+	TestExt::new().endow(1, 1000).endow(1001, 1000).execute_with(|| {
+		assert_ok!(Broker::do_start_sales(100, 1));
+		advance_to(2);
+		let region_id = Broker::do_purchase(1, u64::max_value()).unwrap();
+		assert_ok!(Broker::do_assign(region_id, Some(1), 1001, Final));
+		advance_to(6);
+
+		// The core is renewable now, so enabling auto-renewal renews immediately. The hint must
+		// not delay the next renewal past the period just renewed for:
+		assert_ok!(Broker::do_enable_auto_renew(1001, region_id.core, 1001, Some(100)));
+		assert_eq!(
+			AutoRenewals::<Test>::get().to_vec(),
+			vec![AutoRenewalRecord { core: 0, task: 1001, next_renewal: 10 }]
+		);
 	});
 }
 

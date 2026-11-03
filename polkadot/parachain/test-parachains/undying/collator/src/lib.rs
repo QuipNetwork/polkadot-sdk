@@ -17,14 +17,14 @@
 //! Collator for the `Undying` test parachain.
 
 use codec::{Decode, Encode};
-use futures::{channel::oneshot, StreamExt};
+use futures::StreamExt;
 use futures_timer::Delay;
 use polkadot_cli::ProvideRuntimeApi;
 use polkadot_node_primitives::{
-	maybe_compress_pov, AvailableData, Collation, CollationResult, CollationSecondedSignal,
-	CollatorFn, MaybeCompressedPoV, PoV, Statement, UpwardMessages,
+	maybe_compress_pov, AvailableData, Collation, CollationResult, CollatorFn, MaybeCompressedPoV,
+	PoV, UpwardMessages,
 };
-use polkadot_node_subsystem::messages::CollatorProtocolMessage;
+use polkadot_node_subsystem::messages::{CollatorProtocolMessage, Segment, SegmentEntry};
 use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptorV2, CandidateReceiptV2, ClaimQueueOffset, CollatorId,
 	CollatorPair, CoreIndex, Hash, Id as ParaId, OccupiedCoreAssumption,
@@ -36,10 +36,7 @@ use sp_core::Pair;
 
 use std::{
 	collections::HashMap,
-	sync::{
-		atomic::{AtomicU32, Ordering},
-		Arc, Mutex,
-	},
+	sync::{Arc, Mutex},
 	time::Duration,
 };
 use test_parachain_undying::{
@@ -194,7 +191,6 @@ impl State {
 pub struct Collator {
 	state: Arc<Mutex<State>>,
 	key: CollatorPair,
-	seconded_collations: Arc<AtomicU32>,
 }
 
 impl Default for Collator {
@@ -234,7 +230,6 @@ impl Collator {
 				experimental_send_approved_peer,
 			))),
 			key: CollatorPair::generate().0,
-			seconded_collations: Arc::new(AtomicU32::new(0)),
 		}
 	}
 
@@ -270,12 +265,11 @@ impl Collator {
 	/// undying parachain.
 	pub fn create_collation_function(
 		&self,
-		spawner: impl SpawnNamed + Clone + 'static,
+		_spawner: impl SpawnNamed + Clone + 'static,
 	) -> CollatorFn {
 		use futures::FutureExt as _;
 
 		let state = self.state.clone();
-		let seconded_collations = self.seconded_collations.clone();
 
 		Box::new(move |relay_parent, validation_data| {
 			let parent = match HeadData::decode(&mut &validation_data.parent_head.0[..]) {
@@ -337,32 +331,7 @@ impl Collator {
 				compressed_pov.block_data.0.len(),
 			);
 
-			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
-			let seconded_collations = seconded_collations.clone();
-			spawner.spawn(
-				"undying-collator-seconded",
-				None,
-				async move {
-					if let Ok(res) = recv.await {
-						if !matches!(
-							res.statement.payload(),
-							Statement::Seconded(s) if s.descriptor.pov_hash() == compressed_pov.hash(),
-						) {
-							log::error!(
-								target: LOG_TARGET,
-								"Seconded statement should match our collation: {:?}",
-								res.statement.payload(),
-							);
-						}
-
-						seconded_collations.fetch_add(1, Ordering::Relaxed);
-					}
-				}
-				.boxed(),
-			);
-
-			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }
-				.boxed()
+			async move { Some(CollationResult { collation }) }.boxed()
 		})
 	}
 
@@ -375,22 +344,6 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return;
-			}
-		}
-	}
-
-	/// Wait until `seconded` collations of this collator are seconded by a parachain validator.
-	///
-	/// The internal counter isn't de-duplicating the collations when counting the number of
-	/// seconded collations. This means when one collation is seconded by X validators, we record X
-	/// seconded messages.
-	pub async fn wait_for_seconded_collations(&self, seconded: u32) {
-		let seconded_collations = self.seconded_collations.clone();
-		loop {
-			Delay::new(Duration::from_secs(1)).await;
-
-			if seconded <= seconded_collations.load(Ordering::Relaxed) {
 				return;
 			}
 		}
@@ -533,7 +486,6 @@ impl Collator {
 
 					let persisted_validation_data_hash = validation_data.hash();
 					let parent_head_data = validation_data.parent_head.clone();
-					let parent_head_data_hash = validation_data.parent_head.hash();
 
 					// Apply compression to the block data.
 					let pov = {
@@ -633,13 +585,22 @@ impl Collator {
 						// validation.
 						overseer_handle
 							.send_msg(
-								CollatorProtocolMessage::DistributeCollation {
-									candidate_receipt,
-									parent_head_data_hash,
-									pov: pov.clone(),
-									parent_head_data: parent_head_data.clone(),
-									result_sender: None,
+								CollatorProtocolMessage::DistributeSegment {
 									core_index: *core_index,
+									para_id,
+									segment: Segment::V2(SegmentEntry {
+										relay_parent,
+										session_index,
+										validation_code_hash,
+										persisted_validation_data_hash,
+										erasure_root,
+										commitments_hash: candidate_receipt.commitments_hash,
+										output_head_data_hash: candidate_receipt
+											.descriptor()
+											.para_head(),
+										pov: pov.clone(),
+										parent_head_data: parent_head_data.clone(),
+									}),
 								},
 								"Collator",
 							)

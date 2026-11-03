@@ -4,10 +4,11 @@ set -euo pipefail
 # This script processes logs produced by nodes spawned using the zombienet-sdk framework.
 # The logs are prepared for upload as GitHub artifacts.
 # If Loki logging is available, the corresponding log URLs are also printed.
-# NOTE: P2838773B5F7DE937 is the loki.cicd until we switch to loki.zombienet
-LOKI_URL_FOR_NODE='https://grafana.teleport.parity.io/explore?orgId=1&left=%7B%22datasource%22:%22P2838773B5F7DE937%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22loki%22,%22uid%22:%22P2838773B5F7DE937%22%7D,%22editorMode%22:%22code%22,%22expr%22:%22%7Bzombie_ns%3D%5C%22{{namespace}}%5C%22,zombie_node%3D%5C%22{{podName}}%5C%22%7D%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22{{from}}%22,%22to%22:%22{{to}}%22%7D%7D'
+# NOTE: P982945308D3682D1 is the loki until we switch to loki.zombienet
+LOKI_URL_FOR_NODE='https://grafana.teleport.parity.io/explore?schemaVersion=1&panes=%7B%22vxs%22:%7B%22datasource%22:%22P982945308D3682D1%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bzombie_ns%3D%5C%22{{namespace}}%5C%22,zombie_node%3D%5C%22{{podName}}%5C%22%7D%22,%22queryType%22:%22range%22,%22datasource%22:%7B%22type%22:%22loki%22,%22uid%22:%22P982945308D3682D1%22%7D,%22editorMode%22:%22code%22,%22direction%22:%22forward%22%7D%5D,%22range%22:%7B%22from%22:%22{{from}}%22,%22to%22:%22{{to}}%22%7D,%22compact%22:false%7D%7D&orgId=1'
 
-LOKI_DIR_FOR_NATIVE_LOGS="/tmp/zombienet"
+# Directory to send logs to loki
+LOKI_DIR_FOR_NATIVE_LOGS="/var/log/shared/zombienet"
 
 # JQ queries
 JQ_QUERY_RELAY_V1='.relay[].name'
@@ -43,7 +44,7 @@ process_logs_from_fallback() {
 
   # Find all logs with glob patterns
   local log_files=()
-  
+
   # Search for SDK pattern: BASE_DIR/<name>/<name>.log
   if [[ -d "$BASE_DIR" ]]; then
     for node_dir in "$BASE_DIR"/*; do
@@ -89,6 +90,7 @@ process_logs_from_fallback() {
     # Send logs to loki
     if [[ -d "$LOKI_DIR_FOR_NATIVE_LOGS" ]]; then
       if [[ -f "$TARGET_DIR/$name.log" ]]; then
+        echo -e "sending logs to loki file: $LOKI_DIR_FOR_NATIVE_LOGS/to-loki.log"
         awk -v NS="$NS" -v NAME="$name" '{print NS" "NAME" " $0}' "$TARGET_DIR/$name.log" >> "$LOKI_DIR_FOR_NATIVE_LOGS/to-loki.log"
         local_to=$(($(date +%s%3N) + 60000))
       fi
@@ -172,6 +174,7 @@ process_logs_from_zombie_file() {
 
         # send logs to loki
         if [[ -d "$LOKI_DIR_FOR_NATIVE_LOGS" && -f "$TARGET_DIR/$name.log" ]]; then
+          echo -e "[para] sending logs to loki file: $LOKI_DIR_FOR_NATIVE_LOGS/to-loki.log"
           awk -v NS="$NS" -v NAME="$name" '{print NS" "NAME" " $0}' "$TARGET_DIR/$name.log" >> "$LOKI_DIR_FOR_NATIVE_LOGS/to-loki.log"
           local_to=$(($(date +%s%3N) + 60000))
         fi
@@ -192,7 +195,7 @@ fi
 
 for BASE_DIR in $BASE_DIRS; do
   echo "Processing directory: $BASE_DIR"
-  
+
   # Make sure target directory exists
   TARGET_DIR="$BASE_DIR/logs"
   mkdir -p "$TARGET_DIR"

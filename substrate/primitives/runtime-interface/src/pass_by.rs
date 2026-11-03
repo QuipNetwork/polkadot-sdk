@@ -222,6 +222,60 @@ where
 	}
 }
 
+/// Pass an `Option` of a value into the host by a fat pointer.
+///
+/// Behaves like [`PassFatPointerAndRead`] for the `Some` case, with `None` encoded as the
+/// sentinel fat pointer `(ptr = 0, len = 0)`. This is unambiguous: the runtime side calls
+/// `as_ptr()` on a slice, which is documented never to return null even for empty slices,
+/// so a real `Some(&[])` always carries a non-zero pointer.
+///
+/// Raw FFI type: `u64` (a fat pointer; upper 32 bits is the size, lower 32 bits is the pointer)
+pub struct PassFatPointerAndReadOption<T>(PhantomData<T>);
+
+impl<T> RIType for PassFatPointerAndReadOption<T> {
+	type FFIType = u64;
+	type Inner = Option<T>;
+}
+
+#[cfg(not(substrate_runtime))]
+impl<'a> FromFFIValue<'a> for PassFatPointerAndReadOption<&'a [u8]> {
+	type Owned = Option<Vec<u8>>;
+
+	fn from_ffi_value(
+		context: &mut dyn FunctionContext,
+		arg: Self::FFIType,
+	) -> Result<Self::Owned> {
+		let (ptr, len) = unpack_ptr_and_len(arg);
+		if ptr == 0 {
+			Ok(None)
+		} else {
+			context.read_memory(Pointer::new(ptr), len).map(Some)
+		}
+	}
+
+	fn take_from_owned(owned: &'a mut Self::Owned) -> Self::Inner {
+		owned.as_deref()
+	}
+}
+
+#[cfg(substrate_runtime)]
+impl<T> IntoFFIValue for PassFatPointerAndReadOption<T>
+where
+	T: AsRef<[u8]>,
+{
+	type Destructor = ();
+
+	fn into_ffi_value(value: &mut Self::Inner) -> (Self::FFIType, Self::Destructor) {
+		match value {
+			Some(value) => {
+				let value = value.as_ref();
+				(pack_ptr_and_len(value.as_ptr() as u32, value.len() as u32), ())
+			},
+			None => (pack_ptr_and_len(0, 0), ()),
+		}
+	}
+}
+
 /// Pass a value into the host by a fat pointer, writing it back after the host call ends.
 ///
 /// This casts the value into a `&mut [u8]` and passes a pointer to that byte blob and its length
@@ -590,6 +644,64 @@ where
 				);
 			},
 		}
+	}
+}
+
+/// Return `T` through the FFI boundary by first converting it to `U` and then to `V` on the
+/// host's side, and then converting it back to `U` and then to `T` in the runtime.
+///
+/// This is useful to pass types when the conversion to/from FFI type cannot be implemented
+/// directly, e.g. because of the orphan rule.
+///
+/// Raw FFI type: same as `V`'s FFI type
+pub struct ConvertAndReturnAs<T, U, V>(PhantomData<(T, U, V)>);
+
+impl<T, U, V> RIType for ConvertAndReturnAs<T, U, V>
+where
+	V: RIType,
+{
+	type FFIType = <V as RIType>::FFIType;
+	type Inner = T;
+}
+
+#[cfg(not(substrate_runtime))]
+impl<T, U, V> IntoFFIValue for ConvertAndReturnAs<T, U, V>
+where
+	V: RIType + IntoFFIValue + Primitive,
+	<V as RIType>::Inner: From<U>,
+	U: From<Self::Inner>,
+{
+	fn into_ffi_value(
+		value: Self::Inner,
+		context: &mut dyn FunctionContext,
+	) -> Result<Self::FFIType> {
+		let value: U = value.into();
+		let value: <V as RIType>::Inner = value.into();
+		<V as IntoFFIValue>::into_ffi_value(value, context)
+	}
+}
+
+#[cfg(substrate_runtime)]
+impl<T, U, V> FromFFIValue for ConvertAndReturnAs<T, U, V>
+where
+	V: RIType + FromFFIValue + Primitive,
+	U: TryFrom<V::Inner>,
+	Self::Inner: From<U>,
+{
+	fn from_ffi_value(arg: Self::FFIType) -> Self::Inner {
+		let value = <V as FromFFIValue>::from_ffi_value(arg);
+		let value = match U::try_from(value) {
+			Ok(value) => value,
+			Err(_) => {
+				panic!(
+					"failed to convert '{}' (passed as '{}') into a intermediate type '{}' when marshalling a hostcall's return value through the FFI boundary",
+					type_name::<V::Inner>(),
+					type_name::<Self::FFIType>(),
+					type_name::<U>()
+				);
+			},
+		};
+		value.into()
 	}
 }
 

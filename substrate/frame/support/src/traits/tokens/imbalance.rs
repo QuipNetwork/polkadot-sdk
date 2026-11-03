@@ -30,7 +30,7 @@ mod split_two_ways;
 pub use imbalance_accounting::{
 	ImbalanceAccounting, UnsafeConstructorDestructor, UnsafeManualAccounting,
 };
-pub use on_unbalanced::{OnUnbalanced, ResolveAssetTo, ResolveTo};
+pub use on_unbalanced::{MaybeResolveAssetTo, OnUnbalanced, ResolveAssetTo, ResolveTo};
 pub use signed_imbalance::SignedImbalance;
 pub use split_two_ways::SplitTwoWays;
 

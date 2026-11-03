@@ -131,3 +131,48 @@ impl FusedStream for PendingResponses {
 		false
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn explicit_cancellation_preserves_replacement_response() {
+		let mut pending = PendingResponses::new();
+		let peer = PeerId::random();
+		let key = StrategyKey::new("test");
+		let (old_tx, old_rx) = oneshot::channel::<()>();
+		pending.insert(
+			peer,
+			key,
+			async move {
+				old_rx.await?;
+				Ok(Ok((Box::new(1u32) as Box<dyn Any + Send>, ProtocolName::Static("test"))))
+			}
+			.boxed(),
+		);
+		assert!(pending.next().now_or_never().is_none());
+
+		// CancelRequest removes the old future before StartRequest installs its replacement.
+		assert!(pending.remove(peer, key));
+		let (new_tx, new_rx) = oneshot::channel::<()>();
+		pending.insert(
+			peer,
+			key,
+			async move {
+				new_rx.await?;
+				Ok(Ok((Box::new(2u32) as Box<dyn Any + Send>, ProtocolName::Static("test"))))
+			}
+			.boxed(),
+		);
+		assert!(old_tx.send(()).is_err());
+		new_tx.send(()).unwrap();
+		let event = futures::executor::block_on(pending.next()).unwrap();
+		assert_eq!(event.peer_id, peer);
+		assert_eq!(event.key, key);
+		let (response, _) = event.response.unwrap().unwrap();
+		assert_eq!(*response.downcast::<u32>().unwrap(), 2);
+		assert_eq!(pending.len(), 0);
+		assert!(pending.next().now_or_never().is_none());
+	}
+}

@@ -12,13 +12,15 @@ workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
-bp-polkadot-core = { default-features = true, workspace = true }
 futures = { workspace = true }
-relay-substrate-client = { workspace = true }
 relay-utils = { workspace = true }
 tokio = { features = ["macros", "rt-multi-thread", "sync", "time"], workspace = true }
 tracing = { workspace = true }
 
+# Bridge dependencies
+bp-polkadot-core = { workspace = true, default-features = true }
+relay-substrate-client = { workspace = true }
+
 [dev-dependencies]
 relay-substrate-client = { features = ["test-helpers"], workspace = true }
-sp-core = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }

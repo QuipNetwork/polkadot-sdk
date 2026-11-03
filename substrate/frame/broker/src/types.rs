@@ -17,7 +17,7 @@
 
 use crate::{
 	Config, CoreAssignment, CoreIndex, CoreMask, CoretimeInterface, RCBlockNumberOf, TaskId,
-	CORE_MASK_BITS,
+	Timeslice, CORE_MASK_BITS,
 };
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::traits::fungible::Inspect;
@@ -32,14 +32,14 @@ pub type RelayBalanceOf<T> = <<T as Config>::Coretime as CoretimeInterface>::Bal
 pub type RelayBlockNumberOf<T> = RCBlockNumberOf<<T as Config>::Coretime>;
 pub type RelayAccountIdOf<T> = <<T as Config>::Coretime as CoretimeInterface>::AccountId;
 
-/// Relay-chain block number with a fixed divisor of Config::TimeslicePeriod.
-pub type Timeslice = u32;
 /// Counter for the total number of set bits over every core's `CoreMask`. `u32` so we don't
 /// ever get an overflow. This is 1/80th of a Polkadot Core per timeslice. Assuming timeslices are
 /// 80 blocks, then this indicates usage of a single core one time over a timeslice.
 pub type CoreMaskBitCount = u32;
 /// The same as `CoreMaskBitCount` but signed.
 pub type SignedCoreMaskBitCount = i32;
+/// A sequential index for identifying a sale period.
+pub type SaleIndex = u32;
 
 /// Whether a core assignment is revokable or not.
 #[derive(
@@ -59,45 +59,6 @@ pub enum Finality {
 	Provisional,
 	/// The region is removed; the assignment may be eligible for renewal.
 	Final,
-}
-
-/// Self-describing identity for a Region of Bulk Coretime.
-#[derive(
-	Encode,
-	Decode,
-	DecodeWithMemTracking,
-	Copy,
-	Clone,
-	PartialEq,
-	Eq,
-	Debug,
-	TypeInfo,
-	MaxEncodedLen,
-)]
-pub struct RegionId {
-	/// The timeslice at which this Region begins.
-	pub begin: Timeslice,
-	/// The index of the Polkadot Core on which this Region will be scheduled.
-	pub core: CoreIndex,
-	/// The regularity parts in which this Region will be scheduled.
-	pub mask: CoreMask,
-}
-impl From<u128> for RegionId {
-	fn from(x: u128) -> Self {
-		Self { begin: (x >> 96) as u32, core: (x >> 80) as u16, mask: x.into() }
-	}
-}
-impl From<RegionId> for u128 {
-	fn from(x: RegionId) -> Self {
-		((x.begin as u128) << 96) | ((x.core as u128) << 80) | u128::from(x.mask)
-	}
-}
-#[test]
-fn region_id_converts_u128() {
-	let r = RegionId { begin: 0x12345678u32, core: 0xabcdu16, mask: 0xdeadbeefcafef00d0123.into() };
-	let u = 0x12345678_abcd_deadbeefcafef00d0123u128;
-	assert_eq!(RegionId::from(u), r);
-	assert_eq!(u128::from(r), u);
 }
 
 /// The rest of the information describing a Region.
@@ -174,15 +135,12 @@ impl CompletionStatus {
 			Self::Partial(_) => None,
 		}
 	}
-}
-
-/// The identity of a possibly renewable Core workload.
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, Debug, TypeInfo, MaxEncodedLen)]
-pub struct PotentialRenewalId {
-	/// The core whose workload at the sale ending with `when` may be renewed to begin at `when`.
-	pub core: CoreIndex,
-	/// The point in time that the renewable workload on `core` ends and a fresh renewal may begin.
-	pub when: Timeslice,
+	/// Return whether the workload is complete and includes the given task.
+	pub fn is_complete_and_contains_task(&self, task: TaskId) -> bool {
+		self.complete().map_or(false, |workload| {
+			workload.iter().any(|item| item.assignment == CoreAssignment::Task(task))
+		})
+	}
 }
 
 /// A record of a potential renewal.
@@ -256,6 +214,8 @@ pub struct SaleInfoRecord<Balance, RelayBlockNumber> {
 	pub sellout_price: Option<Balance>,
 	/// Number of cores which have been sold; never more than cores_offered.
 	pub cores_sold: CoreIndex,
+	/// Identifier for the current sale.
+	pub sale_index: SaleIndex,
 }
 pub type SaleInfoRecordOf<T> = SaleInfoRecord<BalanceOf<T>, RelayBlockNumberOf<T>>;
 

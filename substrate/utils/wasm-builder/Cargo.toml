@@ -1,6 +1,6 @@
 [package]
 name = "substrate-wasm-builder"
-version = "32.0.0"
+version = "35.0.0"
 authors.workspace = true
 description = "Utility for building WASM binaries"
 edition.workspace = true
@@ -22,7 +22,7 @@ filetime = { workspace = true }
 jobserver = { workspace = true }
 parity-wasm = { workspace = true }
 polkavm-linker = { workspace = true }
-sp-maybe-compressed-blob = { default-features = true, workspace = true }
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
 strum = { features = ["derive"], workspace = true, default-features = true }
 tempfile = { workspace = true }
 toml = { workspace = true }

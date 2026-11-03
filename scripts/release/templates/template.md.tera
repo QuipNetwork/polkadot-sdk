@@ -1,5 +1,4 @@
 {# This is the entry point of the template -#}
-
 This release contains the changes from `{{ env.REF1 | replace(from="refs/tags/", to="") }}` to `{{ env.REF2 | replace(from="refs/tags/", to="") }}`.
 
 {# -- Manual free notes section -- #}

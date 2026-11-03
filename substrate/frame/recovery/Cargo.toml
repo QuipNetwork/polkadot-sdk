@@ -1,6 +1,6 @@
 [package]
 name = "pallet-recovery"
-version = "46.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -18,23 +18,43 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { features = ["derive"], workspace = true }
 frame = { workspace = true, features = ["runtime"] }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+log = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
 
 [features]
 default = ["std"]
 runtime-benchmarks = [
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
 	"frame/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 ]
 std = [
 	"codec/std",
+	"frame-support/std",
+	"frame-system/std",
 	"frame/std",
+	"log/std",
+	"pallet-balances/std",
 	"scale-info/std",
+	"sp-io/std",
+	"sp-runtime/std",
 ]
 try-runtime = [
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
 	"frame/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-utility/try-runtime",
+	"sp-runtime/try-runtime",
 ]

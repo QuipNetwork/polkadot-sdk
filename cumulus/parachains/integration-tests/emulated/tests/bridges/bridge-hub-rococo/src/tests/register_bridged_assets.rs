@@ -58,9 +58,6 @@ fn register_rococo_asset_on_wah_from_rah() {
 
 	let destination = asset_hub_westend_location();
 
-	// fund the RAH's SA on RBH for paying bridge delivery fees
-	BridgeHubRococo::fund_para_sovereign(AssetHubRococo::para_id(), 10_000_000_000_000u128);
-
 	// set XCM versions
 	AssetHubRococo::force_xcm_version(destination.clone(), XCM_VERSION);
 	BridgeHubRococo::force_xcm_version(bridge_hub_westend_location(), XCM_VERSION);

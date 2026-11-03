@@ -4,6 +4,7 @@
 use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig};
 
 pub const BEST_BLOCK_METRIC: &str = "block_height{status=\"best\"}";
+pub const FINALIZED_BLOCK_METRIC: &str = "block_height{status=\"finalized\"}";
 
 pub async fn initialize_network(
 	config: NetworkConfig,

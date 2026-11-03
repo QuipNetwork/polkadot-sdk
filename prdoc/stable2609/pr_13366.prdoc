@@ -1,0 +1,12 @@
+title: Bump litep2p to 0.15.3
+doc:
+- audience: Node Dev
+  description: This fixes some internal issues of litep2p assuming connections still
+    being alive while this not being the case anymore.
+crates:
+- name: sc-network-types
+  bump: minor
+- name: sc-network
+  bump: minor
+- name: sc-network-bitswap
+  bump: minor

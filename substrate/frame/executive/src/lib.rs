@@ -68,14 +68,6 @@
 //! # use sp_runtime::transaction_validity::{
 //! #    TransactionValidity, UnknownTransaction, TransactionSource,
 //! # };
-//! # use sp_runtime::traits::ValidateUnsigned;
-//! # impl ValidateUnsigned for Runtime {
-//! #     type Call = ();
-//! #
-//! #     fn validate_unsigned(_source: TransactionSource, _call: &Self::Call) -> TransactionValidity {
-//! #         UnknownTransaction::NoUnsignedValidator.into()
-//! #     }
-//! # }
 //! /// Executive: handles dispatch to the various modules.
 //! pub type Executive = executive::Executive<Runtime, Block, Context, Runtime, AllPalletsWithSystem>;
 //! ```
@@ -135,11 +127,14 @@ use sp_runtime::{
 	generic::Digest,
 	traits::{
 		self, Applyable, CheckEqual, Checkable, Dispatchable, Header, LazyBlock, NumberFor, One,
-		ValidateUnsigned, Zero,
+		Zero,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
 	ApplyExtrinsicResult, ExtrinsicInclusionMode,
 };
+
+#[allow(deprecated)]
+use sp_runtime::traits::ValidateUnsigned;
 
 #[cfg(feature = "try-runtime")]
 use ::{
@@ -870,8 +865,10 @@ where
 		sp_io::init_tracing();
 		let encoded = uxt.encode();
 		let encoded_len = encoded.len();
-		sp_tracing::enter_span!(sp_tracing::info_span!("apply_extrinsic",
-			ext=?sp_core::hexdisplay::HexDisplay::from(&encoded)));
+		sp_tracing::enter_span!(sp_tracing::info_span!(
+			"apply_extrinsic",
+			ext=?sp_core::hexdisplay::HexDisplay::from(&encoded)
+		));
 
 		let uxt = <Block::Extrinsic as codec::DecodeLimit>::decode_all_with_depth_limit(
 			MAX_EXTRINSIC_DEPTH,

@@ -27,56 +27,57 @@ clap = { features = ["derive"], workspace = true }
 color-eyre = { workspace = true }
 colored = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 hex = { workspace = true, default-features = true }
 kvdb-memorydb = { workspace = true }
-polkadot-availability-bitfield-distribution = { default-features = true, workspace = true }
-polkadot-availability-distribution = { default-features = true, workspace = true }
+polkadot-availability-bitfield-distribution = { workspace = true, default-features = true }
+polkadot-availability-distribution = { workspace = true, default-features = true }
 polkadot-availability-recovery = { features = ["subsystem-benchmarks"], workspace = true, default-features = true }
-polkadot-dispute-distribution = { default-features = true, workspace = true }
-polkadot-node-core-av-store = { default-features = true, workspace = true }
-polkadot-node-core-dispute-coordinator = { default-features = true, workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-types = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
+polkadot-dispute-distribution = { workspace = true, default-features = true }
+polkadot-node-core-av-store = { workspace = true, default-features = true }
+polkadot-node-core-dispute-coordinator = { workspace = true, default-features = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-types = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
 polkadot-primitives = { workspace = true, features = ["test"] }
-polkadot-statement-distribution = { default-features = true, workspace = true }
+polkadot-statement-distribution = { workspace = true, default-features = true }
 # `rand` only supports uniform distribution, we need normal distribution for latency.
 rand = { workspace = true, default-features = true }
 rand_distr = { workspace = true }
-sc-keystore = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
 sha1 = { workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
 sp-tracing = { workspace = true }
 tikv-jemallocator = { features = ["profiling", "unprefixed_malloc_on_supported_platforms"], workspace = true, optional = true }
 
 codec = { features = ["derive", "std"], workspace = true, default-features = true }
 itertools = { workspace = true }
-polkadot-approval-distribution = { default-features = true, workspace = true }
-polkadot-node-core-approval-voting = { default-features = true, workspace = true }
-polkadot-node-core-approval-voting-parallel = { default-features = true, workspace = true }
-polkadot-node-metrics = { default-features = true, workspace = true }
+polkadot-node-metrics = { workspace = true, default-features = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
 polkadot-primitives-test-helpers = { workspace = true }
 prometheus = { workspace = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sc-service = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
 tokio = { features = ["parking_lot", "rt-multi-thread"], workspace = true, default-features = true }
+
+polkadot-approval-distribution = { workspace = true, default-features = true }
+polkadot-node-core-approval-voting = { workspace = true, default-features = true }
+polkadot-node-core-approval-voting-parallel = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-runtime = { workspace = true }
+sp-timestamp = { workspace = true, default-features = true }
 
 orchestra = { features = ["futures_channel"], workspace = true }
 paste = { workspace = true, default-features = true }

@@ -24,11 +24,11 @@ use crate::{
 	Error, U256,
 	vm::{
 		Ext,
-		evm::{EVMGas, Interpreter, interpreter::Halt},
+		evm::{EVMGas, EvmOpcodeCosts, Interpreter, interpreter::Halt},
 	},
 };
 use core::ops::ControlFlow;
-use revm::interpreter::gas::{EXP, LOW, MID, VERYLOW};
+use revm::interpreter::gas::{EXP, LOW, VERYLOW};
 
 /// Implements the ADD instruction - adds two values from stack.
 pub fn add<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
@@ -56,7 +56,7 @@ pub fn sub<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
 
 /// Implements the DIV instruction - divides two values from stack.
 pub fn div<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
-	interpreter.ext.charge_or_halt(EVMGas(LOW))?;
+	interpreter.ext.charge_or_halt(EvmOpcodeCosts::Div)?;
 	let ([op1], op2) = interpreter.stack.popn_top()?;
 	if !op2.is_zero() {
 		*op2 = op1 / *op2;
@@ -68,7 +68,7 @@ pub fn div<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
 ///
 /// Performs signed division of two values from stack.
 pub fn sdiv<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
-	interpreter.ext.charge_or_halt(EVMGas(LOW))?;
+	interpreter.ext.charge_or_halt(EvmOpcodeCosts::SDiv)?;
 	let ([op1], op2) = interpreter.stack.popn_top()?;
 	*op2 = i256_div(op1, *op2);
 	ControlFlow::Continue(())
@@ -77,7 +77,7 @@ pub fn sdiv<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
 ///
 /// Pops two values from stack and pushes the remainder of their division.
 pub fn rem<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
-	interpreter.ext.charge_or_halt(EVMGas(LOW))?;
+	interpreter.ext.charge_or_halt(EvmOpcodeCosts::Mod)?;
 	let ([op1], op2) = interpreter.stack.popn_top()?;
 	if !op2.is_zero() {
 		*op2 = op1 % *op2;
@@ -89,7 +89,7 @@ pub fn rem<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
 ///
 /// Performs signed modulo of two values from stack.
 pub fn smod<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
-	interpreter.ext.charge_or_halt(EVMGas(LOW))?;
+	interpreter.ext.charge_or_halt(EvmOpcodeCosts::SMod)?;
 	let ([op1], op2) = interpreter.stack.popn_top()?;
 	*op2 = i256_mod(op1, *op2);
 	ControlFlow::Continue(())
@@ -99,7 +99,7 @@ pub fn smod<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
 ///
 /// Pops three values from stack and pushes (a + b) % n.
 pub fn addmod<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
-	interpreter.ext.charge_or_halt(EVMGas(MID))?;
+	interpreter.ext.charge_or_halt(EvmOpcodeCosts::AddMod)?;
 	let ([op1, op2], op3) = interpreter.stack.popn_top()?;
 	*op3 = op1.add_mod(op2, *op3);
 	ControlFlow::Continue(())
@@ -109,7 +109,7 @@ pub fn addmod<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
 ///
 /// Pops three values from stack and pushes (a * b) % n.
 pub fn mulmod<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt> {
-	interpreter.ext.charge_or_halt(EVMGas(MID))?;
+	interpreter.ext.charge_or_halt(EvmOpcodeCosts::MulMod)?;
 	let ([op1, op2], op3) = interpreter.stack.popn_top()?;
 	*op3 = op1.mul_mod(op2, *op3);
 	ControlFlow::Continue(())

@@ -62,17 +62,42 @@ where
 		}
 	}
 
-	/// Collect the traces and return them.
+	/// Collect the trace, or `None` when it is empty. A tracer can run and still produce an empty
+	/// trace (e.g. a prestate diff with no state changes), so the caller decides what `None` means.
 	pub fn collect_trace(self) -> Option<Trace> {
-		match self {
-			Tracer::CallTracer(inner) => inner.collect_trace().map(Trace::Call),
-			Tracer::PrestateTracer(inner) => Some(inner.collect_trace().into()),
-			Tracer::ExecutionTracer(inner) => Some(inner.collect_trace().into()),
-		}
+		let empty = self.empty_trace();
+		let trace = match self {
+			Tracer::CallTracer(inner) => Trace::Call(inner.collect_trace().unwrap_or_default()),
+			Tracer::PrestateTracer(inner) => Trace::Prestate(inner.collect_trace()),
+			Tracer::ExecutionTracer(inner) => Trace::Execution(inner.collect_trace()),
+		};
+		(trace != empty).then_some(trace)
 	}
 
 	/// Check if this is an execution tracer.
 	pub fn is_execution_tracer(&self) -> bool {
 		matches!(self, Tracer::ExecutionTracer(_))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::tests::{ExtBuilder, Test};
+
+	// An extrinsic that runs no contract code must produce no trace, so
+	// consumers can rely on a trace's presence to mean a contract actually ran.
+	#[test]
+	fn collect_trace_is_none_when_nothing_executed() {
+		ExtBuilder::default().build().execute_with(|| {
+			let call = Tracer::<Test>::CallTracer(CallTracer::new(Default::default()));
+			let prestate = Tracer::<Test>::PrestateTracer(PrestateTracer::new(Default::default()));
+			let execution =
+				Tracer::<Test>::ExecutionTracer(ExecutionTracer::new(Default::default()));
+
+			assert_eq!(call.collect_trace(), None);
+			assert_eq!(prestate.collect_trace(), None);
+			assert_eq!(execution.collect_trace(), None);
+		});
 	}
 }

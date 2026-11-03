@@ -1,7 +1,7 @@
 [package]
 name = "parachain-template"
 description = "A parachain-template helper crate to keep documentation in sync with the template's components."
-version = "0.1.0"
+version = "0.0.0"
 license = "Unlicense"
 authors.workspace = true
 homepage.workspace = true

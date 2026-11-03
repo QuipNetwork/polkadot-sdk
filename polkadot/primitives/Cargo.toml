@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-primitives"
-version = "23.0.0"
+version = "26.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -17,10 +17,10 @@ bounded-collections = { features = ["serde"], workspace = true }
 codec = { features = ["bit-vec", "derive"], workspace = true }
 hex-literal = { workspace = true, default-features = true }
 log = { workspace = true }
-polkadot-core-primitives = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
 scale-info = { features = ["bit-vec", "derive", "serde"], workspace = true }
 serde = { features = ["alloc", "derive"], workspace = true }
+thiserror = { workspace = true, optional = true }
+
 sp-api = { workspace = true }
 sp-application-crypto = { features = ["serde"], workspace = true }
 sp-arithmetic = { features = ["serde"], workspace = true }
@@ -33,7 +33,9 @@ sp-keystore = { optional = true, workspace = true }
 sp-runtime = { workspace = true }
 sp-staking = { features = ["serde"], workspace = true }
 sp-std = { workspace = true, optional = true }
-thiserror = { workspace = true, optional = true }
+
+polkadot-core-primitives = { workspace = true }
+polkadot-parachain-primitives = { workspace = true }
 
 [features]
 default = ["std"]

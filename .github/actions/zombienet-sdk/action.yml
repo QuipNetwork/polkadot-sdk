@@ -19,6 +19,14 @@ inputs:
   gh-token:
     description: "GITHUB_TOKEN to use for downloading artifacts"
     required: true
+  app-id:
+    description: "GitHub App ID for artifact downloads"
+    required: false
+    default: ""
+  app-private-key:
+    description: "GitHub App private key for artifact downloads"
+    required: false
+    default: ""
 
 
 
@@ -56,11 +64,20 @@ runs:
         fi
         echo "::endgroup::"
 
+    - name: Create App installation token
+      id: app_token
+      # paritytech members use creds, external contributors user default GH token
+      if: inputs.app-id != ''
+      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+
     - name: Download binaries for zombienet native tests
       if: env.ZOMBIE_PROVIDER == 'native'
       uses: ./.github/actions/download-binaries-for-zombienet-tests
       with:
-        gh-token: ${{ inputs.gh-token }}
+        gh-token: ${{ steps.app_token.outputs.token || inputs.gh-token }}
         ref-slug: ${{ inputs.ref-slug }}
         build-id: ${{ inputs.build-id }}
         destination-path: ./bin
@@ -68,7 +85,7 @@ runs:
     - uses: ./.github/actions/download-artifact-extract
       with:
         artifact-name: prepare-${{ inputs.prefix }}-zombienet-artifacts-${{ inputs.ref-slug }}
-        gh-token: ${{ inputs.gh-token }}
+        gh-token: ${{ steps.app_token.outputs.token || inputs.gh-token }}
         run-id: ${{ inputs.build-id }}
 
     - name: k8s_auth

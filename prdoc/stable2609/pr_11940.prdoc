@@ -1,0 +1,29 @@
+title: 'Post AHM Cleanup: Remove Staking (and friends) from Westend Runtime.'
+doc:
+- audience: Runtime Dev
+  description: |-
+    - Remove the following pallets from westend runtime: pallet_election_provider_multi_phase, pallet_bags_list, pallet_nomination_pools, pallet_fast_unstake, pallet_delegated_staking (including weights and other related code such as bag generation logic)
+    - Ensure the try runtime checks pass for Westend (without any [excluded pallets](https://github.com/paritytech/polkadot-sdk/commit/463ef05cf1b5dbbcd91379a952d0ba0f0af347bb#diff-5264d812f7aadfc486efffd3322b11c8dee5e8ddf2e77e0a9e70b573f3d2afddR2829))
+    - Disable `ProxyType::Staking`: post-AHM, session-key management moves to Asset Hub, so this proxy type no longer permits any calls on the Westend relay chain. The enum variant is retained so existing on-chain proxy entries still decode.
+    - Due to the scope of the changes, several follow-up issues have not been addressed here and instead moved to https://github.com/paritytech/polkadot-sdk/issues/12513
+
+    Closes https://github.com/paritytech/polkadot-sdk/issues/9442
+crates:
+- name: pallet-staking
+  bump: patch
+- name: westend-runtime
+  bump: major
+- name: pallet-root-offences
+  bump: patch
+- name: frame-support
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: generate-bags
+  bump: minor
+- name: polkadot-voter-bags
+  bump: patch
+- name: polkadot-sdk
+  bump: patch
+- name: pallet-staking-async-ah-client
+  bump: major

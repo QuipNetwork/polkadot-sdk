@@ -1,6 +1,6 @@
 [package]
 name = "sc-storage-monitor"
-version = "0.28.0"
+version = "0.16.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -15,6 +15,6 @@ workspace = true
 clap = { features = ["derive", "string"], workspace = true }
 fs4 = { workspace = true }
 log = { workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 tokio = { features = ["time"], workspace = true, default-features = true }

@@ -114,5 +114,9 @@ sp_api::impl_runtime_apis! {
 		fn relay_parent_offset() -> u32 {
 			unimplemented!()
 		}
+
+		fn max_claim_queue_offset() -> u8 {
+			unimplemented!()
+		}
 	}
 }

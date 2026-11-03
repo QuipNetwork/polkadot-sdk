@@ -30,7 +30,7 @@
 
 use frame_support::{pallet_prelude::*, traits::fungible::Inspect};
 use frame_system::pallet_prelude::*;
-use sp_statement_store::{Proof, Statement};
+use sp_statement_store::Statement;
 
 pub use pallet::*;
 
@@ -119,18 +119,8 @@ where
 	}
 
 	fn collect_statements() {
-		// Find `NewStatement` events and submit them to the store
-		for (index, event) in frame_system::Pallet::<T>::read_events_no_consensus().enumerate() {
-			if let Ok(Event::<T>::NewStatement { account, mut statement }) = event.event.try_into()
-			{
-				if statement.proof().is_none() {
-					let proof = Proof::OnChain {
-						who: account.into(),
-						block_hash: frame_system::Pallet::<T>::parent_hash().into(),
-						event_index: index as u64,
-					};
-					statement.set_proof(proof);
-				}
+		for event in frame_system::Pallet::<T>::read_events_no_consensus() {
+			if let Ok(Event::<T>::NewStatement { account: _, statement }) = event.event.try_into() {
 				sp_statement_store::runtime_api::statement_store::submit_statement(statement);
 			}
 		}

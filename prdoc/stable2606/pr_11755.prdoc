@@ -1,0 +1,11 @@
+title: Bump ark-vrf to 0.5.0
+doc:
+- audience: Runtime Dev
+  description: |-
+    Bumps `ark-vrf` from 0.2.2 to 0.5.0. The Bandersnatch VRF primitives in `sp-core` are updated
+    to use the new API. Plain sign/verify now uses thin VRF proofs instead of IETF proofs with a
+    dummy input. VRF sign and ring VRF sign/verify use the new `VrfIo`-based interface. No changes
+    to the public `sp-core` traits (`VrfSecret`, `VrfPublic`, `RingVrfSign`, `RingVrfVerify`).
+crates:
+- name: sp-core
+  bump: minor

@@ -1,6 +1,6 @@
 [package]
 name = "fork-tree"
-version = "13.0.1"
+version = "12.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

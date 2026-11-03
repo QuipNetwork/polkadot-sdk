@@ -183,8 +183,10 @@ impl Config for Test {
 	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
 	type WeightInfo = ();
 	type FundingSource = PalletIdAsFundingSource<BountyPalletId, Test, Identity, ()>;
-	type BountySource = BountySourceFromPalletId<BountyPalletId, Test, Identity, ()>;
-	type ChildBountySource = ChildBountySourceFromPalletId<BountyPalletId, Test, Identity, ()>;
+	type BountySource =
+		BountySourceFromPalletId<BountyPalletId, BountyAccountPrefix, Test, Identity, ()>;
+	type ChildBountySource =
+		ChildBountySourceFromPalletId<BountyPalletId, ChildBountyAccountPrefix, Test, Identity, ()>;
 	type Paymaster = TestBountiesPay;
 	type BalanceConverter = UnityAssetBalanceConversion;
 	type Preimages = Preimage;
@@ -217,9 +219,15 @@ impl Config<Instance1> for Test {
 	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
 	type WeightInfo = ();
 	type FundingSource = PalletIdAsFundingSource<BountyPalletId2, Test, Identity, Instance1>;
-	type BountySource = BountySourceFromPalletId<BountyPalletId2, Test, Identity, Instance1>;
-	type ChildBountySource =
-		ChildBountySourceFromPalletId<BountyPalletId2, Test, Identity, Instance1>;
+	type BountySource =
+		BountySourceFromPalletId<BountyPalletId2, BountyAccountPrefix, Test, Identity, Instance1>;
+	type ChildBountySource = ChildBountySourceFromPalletId<
+		BountyPalletId2,
+		ChildBountyAccountPrefix,
+		Test,
+		Identity,
+		Instance1,
+	>;
 	type Paymaster = TestBountiesPay;
 	type BalanceConverter = UnityAssetBalanceConversion;
 	type Preimages = Preimage;

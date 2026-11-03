@@ -1,0 +1,38 @@
+title: '[dmp] Use page queue instead of single vec'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The DMP queue pallet currently uses one `Para -> Vec<Message>` map to map parachains to their messages.
+    Using one big vector per parachain is not ideal, hence i change it to a `(Para, Index) -> Message` list.
+
+    ## Storage
+
+    A lazy multi-block-migration is in place `migration::MigrateV0ToV1` and must be applied to all chains that deploy the DMP pallet.
+    All new storage items should be used through the static functions of `InboundDownwardQueue` to preserve invariants.
+
+    #### DownwardMessageQueueMeta
+
+    `ParaId -> InboundDownwardQueueMeta`: Maps parachain ID to metadata for managing the list.
+
+    #### DownwardMessageQueuePages
+
+    `ParaId -> PageIndex -> Message`: Treats each message as page and stores all pages.
+
+    #### DownwardMessageQueueLazyDelete
+
+    `PageId -> (PageIndex, PageIndex)`: For lazily sweeping old queues. Contains `[first, last)` range of pages to be deleted.
+
+    #### <s>DownwardMessageQueues</s>
+
+    Removed the old Vector based page map.
+crates:
+- name: polkadot-core-primitives
+  bump: minor
+- name: polkadot-runtime-parachains
+  bump: major
+- name: polkadot-runtime-common
+  bump: major
+- name: rococo-runtime
+  bump: major
+- name: westend-runtime
+  bump: major

@@ -428,6 +428,8 @@ pub struct OutboundChannelDetails {
 	last_index: u16,
 	/// Flags
 	flags: OutboundChannelFlags,
+	/// Cached total byte size of the pages currently queued in this channel.
+	queued_bytes: u32,
 }
 
 impl OutboundChannelDetails {
@@ -439,6 +441,7 @@ impl OutboundChannelDetails {
 			first_index: 0,
 			last_index: 0,
 			flags: OutboundChannelFlags::empty(),
+			queued_bytes: 0,
 		}
 	}
 
@@ -608,29 +611,29 @@ impl<T: Config> Pallet<T> {
 		let mut current_page = existing_page.unwrap_or_else(|| {
 			// We need to add a new page.
 			channel_details.last_index += 1;
-			format.encode()
+			let new_page = format.encode();
+			channel_details.queued_bytes =
+				channel_details.queued_bytes.saturating_add(new_page.len() as u32);
+			new_page
 		});
 
 		current_page.append(&mut encoded_fragment);
+		channel_details.queued_bytes =
+			channel_details.queued_bytes.saturating_add(encoded_fragment_len as u32);
 		let current_page = WeakBoundedVec::try_from(current_page).map_err(|error| {
 			tracing::debug!(target: LOG_TARGET, ?error, "Failed to create bounded message page");
 			MessageSendError::TooBig
 		})?;
 		let page_count =
 			channel_details.last_index.saturating_sub(channel_details.first_index) as u32;
-		let last_page_size = current_page.len();
 		<OutboundXcmpMessages<T>>::insert(recipient, channel_details.last_index - 1, current_page);
-		<OutboundXcmpStatus<T>>::put(all_channels);
 
-		// We have to count the total size here since `channel_info.total_size` is not updated at
-		// this point in time. We assume all previous pages are filled, which, in practice, is not
-		// always the case.
-		let total_size =
-			page_count.saturating_sub(1) * max_message_size as u32 + last_page_size as u32;
 		let threshold = channel_info.max_total_size / delivery_fee_constants::THRESHOLD_FACTOR;
-		if total_size > threshold {
+		if channel_details.queued_bytes > threshold {
 			Self::increase_fee_factor(recipient, encoded_fragment_len as u128);
 		}
+
+		<OutboundXcmpStatus<T>>::put(all_channels);
 
 		Ok(page_count)
 	}
@@ -1082,7 +1085,10 @@ impl<T: Config> XcmpMessageHandler for Pallet<T> {
 }
 
 impl<T: Config> XcmpMessageSource for Pallet<T> {
-	fn take_outbound_messages(maximum_channels: usize) -> Vec<(ParaId, Vec<u8>)> {
+	fn take_outbound_messages(
+		maximum_channels: usize,
+		excluded_recipients: &[ParaId],
+	) -> Vec<(ParaId, Vec<u8>)> {
 		let mut statuses = <OutboundXcmpStatus<T>>::get().into_inner();
 		let old_statuses_len = statuses.len();
 		let max_message_count = statuses.len().min(maximum_channels);
@@ -1096,6 +1102,7 @@ impl<T: Config> XcmpMessageSource for Pallet<T> {
 				first_index,
 				last_index,
 				flags,
+				queued_bytes,
 			} = status;
 
 			let (max_size_now, max_size_ever) = match T::ChannelInfo::get_channel_status(*para_id) {
@@ -1113,6 +1120,11 @@ impl<T: Config> XcmpMessageSource for Pallet<T> {
 				ChannelStatus::Full => return true,
 				ChannelStatus::Ready(max_size_now, max_size_ever) => (max_size_now, max_size_ever),
 			};
+
+			// Check if we should omit the recipient.
+			if excluded_recipients.contains(para_id) {
+				return true;
+			}
 
 			// This is a hard limit from the host config; not even signals can bypass it.
 			if result.len() == max_message_count {
@@ -1146,6 +1158,7 @@ impl<T: Config> XcmpMessageSource for Pallet<T> {
 					if page.len() < max_size_now {
 						<OutboundXcmpMessages<T>>::remove(*para_id, *first_index);
 						*first_index += 1;
+						*queued_bytes = queued_bytes.saturating_sub(page.len() as u32);
 						break 'page_fetch page;
 					}
 				}
@@ -1172,6 +1185,7 @@ impl<T: Config> XcmpMessageSource for Pallet<T> {
 			if first_index == last_index {
 				*first_index = 0;
 				*last_index = 0;
+				*queued_bytes = 0;
 			}
 
 			if page.len() > max_size_ever {
@@ -1187,14 +1201,12 @@ impl<T: Config> XcmpMessageSource for Pallet<T> {
 				Some(channel_info) => channel_info.max_total_size,
 				None => {
 					tracing::warn!(target: LOG_TARGET, "calling `get_channel_info` with no RelevantMessagingState?!");
-					MAX_POSSIBLE_ALLOCATION // We use this as a fallback in case the messaging state is not present
+					// We use this as a fallback in case the messaging state is not present
+					MAX_POSSIBLE_ALLOCATION
 				},
 			};
 			let threshold = max_total_size.saturating_div(delivery_fee_constants::THRESHOLD_FACTOR);
-			let remaining_total_size: usize = (*first_index..*last_index)
-				.map(|index| OutboundXcmpMessages::<T>::decode_len(*para_id, index).unwrap())
-				.sum();
-			if remaining_total_size <= threshold as usize {
+			if *queued_bytes <= threshold {
 				Self::decrease_fee_factor(*para_id);
 			}
 
@@ -1299,6 +1311,7 @@ impl<T: Config> InspectMessageQueues for Pallet<T> {
 			for details in details_vec {
 				details.first_index = 0;
 				details.last_index = 0;
+				details.queued_bytes = 0;
 			}
 		});
 	}
@@ -1325,8 +1338,7 @@ impl<T: Config> InspectMessageQueues for Pallet<T> {
 						},
 					}
 					.unwrap();
-					let decoded_message = VersionedXcm::<()>::decode_with_depth_limit(
-						MAX_XCM_DECODE_DEPTH,
+					let decoded_message = VersionedXcm::<()>::decode_all_with_mem_and_depth_limit(
 						&mut &message_bytes[..],
 					)
 					.unwrap();

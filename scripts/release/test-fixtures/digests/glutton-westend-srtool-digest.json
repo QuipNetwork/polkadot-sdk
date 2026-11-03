@@ -1,0 +1,238 @@
+{
+  "gen": "srtool v0.18.3",
+  "src": "git",
+  "version": "3.0.0",
+  "commit": "48004f09eaa1ca17a14d2e5bb0ec32409f7aa9a4",
+  "tag": "polkadot--rc1",
+  "branch": "stable2509",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "pkg": "glutton-westend-runtime",
+  "tmsp": "2025-09-09T15:07:42Z",
+  "size": "675884",
+  "prop": "0xb9bb4b2ba18eec6f887f545c57e267c05eb692438e904b8c0eacf3f338d4535e",
+  "authorize_upgrade_prop": "0xca8cb58c2c1bd10a753e4c16a2b21fcd98ebe95a702bb335cbccefcecfe0a9a8",
+  "ipfs": "QmNd63BEpFRTYyuscwTRQSM4x1tqPArdu6y4qgjtxcNdxG",
+  "sha256": "0xc4f7c2151d4d43809737e78e8971c43b1918e58b2eaf377a55b3830efbfb7c1b",
+  "wasm": "cumulus/parachains/runtimes/glutton/glutton-westend/target/srtool/production/wbuild/glutton-westend-runtime/glutton_westend_runtime.compact.compressed.wasm",
+  "info": {
+    "generator": {
+      "name": "srtool",
+      "version": "0.18.3"
+    },
+    "src": "git",
+    "version": "3.0.0",
+    "git": {
+      "commit": "48004f09eaa1ca17a14d2e5bb0ec32409f7aa9a4",
+      "tag": "",
+      "branch": "stable2509"
+    },
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "pkg": "glutton-westend-runtime",
+    "profile": "production"
+  },
+  "context": {
+    "package": "glutton-westend-runtime",
+    "runtime_dir": "cumulus/parachains/runtimes/glutton/glutton-westend",
+    "docker": {
+      "image": "paritytech/srtool",
+      "tag": "1.88.0"
+    },
+    "profile": "production"
+  },
+  "runtimes": {
+    "compact": {
+      "tmsp": "2025-09-09T15:07:18Z",
+      "size": "2526410",
+      "prop": "0x6918167f9b0dd00ed3bc7b3cc0b81684a014c4351beaac8ac0049498b184e9cc",
+      "authorize_upgrade_prop": "0xd1b4c36a70a30041375f482124b52ad3b76ed7540c52da801210f886fd9d37bf",
+      "blake2_256": "0xb3dac2dbf58aa8b009b5767395d595001b0e9bd7132d0e022630c7cff003a668",
+      "ipfs": "QmRFVN9XAf2XJtshd7aBkzkBqMHVVXTuQoU97QGeU9Na7f",
+      "sha256": "0x0e094614ba1e93bc784a61778a812156ca62b0c2ec4f11ddd77f3887bcfecd95",
+      "wasm": "cumulus/parachains/runtimes/glutton/glutton-westend/target/srtool/production/wbuild/glutton-westend-runtime/glutton_westend_runtime.compact.wasm",
+      "subwasm": {
+        "size": 2526410,
+        "compression": {
+          "size_compressed": 2526410,
+          "size_decompressed": 2526410,
+          "compressed": false
+        },
+        "reserved_meta": [
+          109,
+          101,
+          116,
+          97
+        ],
+        "reserved_meta_valid": true,
+        "metadata_version": 14,
+        "core_version": {
+          "specName": "glutton-westend",
+          "implName": "glutton-westend",
+          "authoringVersion": 1,
+          "specVersion": 1020000,
+          "implVersion": 0,
+          "apis": [
+            [
+              "0xdf6acb689907609b",
+              5
+            ],
+            [
+              "0x37e397fc7c91f5e4",
+              2
+            ],
+            [
+              "0xdd718d5cc53262d4",
+              1
+            ],
+            [
+              "0x04e70521a0d3d2f8",
+              1
+            ],
+            [
+              "0xd7bdd8a272ca0d65",
+              2
+            ],
+            [
+              "0x40fe3ad401f8959a",
+              6
+            ],
+            [
+              "0xd2bc9897eed08f15",
+              3
+            ],
+            [
+              "0xf78b278be53f454c",
+              2
+            ],
+            [
+              "0xab3c0572291feb8b",
+              1
+            ],
+            [
+              "0xea93e3f16f3d6962",
+              3
+            ],
+            [
+              "0x695c80446b8b3d4e",
+              1
+            ],
+            [
+              "0xbc9d89904f5b923f",
+              1
+            ],
+            [
+              "0xfbc577b9d747efd6",
+              1
+            ],
+            [
+              "0xa2ddb6a58477bf63",
+              1
+            ]
+          ],
+          "transactionVersion": 1,
+          "stateVersion": 1
+        },
+        "proposal_hash": "0x6918167f9b0dd00ed3bc7b3cc0b81684a014c4351beaac8ac0049498b184e9cc",
+        "parachain_authorize_upgrade_hash": "0xd1b4c36a70a30041375f482124b52ad3b76ed7540c52da801210f886fd9d37bf",
+        "ipfs_hash": "QmRFVN9XAf2XJtshd7aBkzkBqMHVVXTuQoU97QGeU9Na7f",
+        "blake2_256": "0xb3dac2dbf58aa8b009b5767395d595001b0e9bd7132d0e022630c7cff003a668"
+      }
+    },
+    "compressed": {
+      "tmsp": "2025-09-09T15:00:25Z",
+      "size": "675884",
+      "prop": "0xb9bb4b2ba18eec6f887f545c57e267c05eb692438e904b8c0eacf3f338d4535e",
+      "authorize_upgrade_prop": "0xca8cb58c2c1bd10a753e4c16a2b21fcd98ebe95a702bb335cbccefcecfe0a9a8",
+      "blake2_256": "0xeaac4abecf3243b4bd69060bc8b321e543d333847f0ae2f8a7501b31ece1717b",
+      "ipfs": "QmNd63BEpFRTYyuscwTRQSM4x1tqPArdu6y4qgjtxcNdxG",
+      "sha256": "0xc4f7c2151d4d43809737e78e8971c43b1918e58b2eaf377a55b3830efbfb7c1b",
+      "wasm": "cumulus/parachains/runtimes/glutton/glutton-westend/target/srtool/production/wbuild/glutton-westend-runtime/glutton_westend_runtime.compact.compressed.wasm",
+      "subwasm": {
+        "size": 675884,
+        "compression": {
+          "size_compressed": 675884,
+          "size_decompressed": 2526410,
+          "compressed": true
+        },
+        "reserved_meta": [
+          109,
+          101,
+          116,
+          97
+        ],
+        "reserved_meta_valid": true,
+        "metadata_version": 14,
+        "core_version": {
+          "specName": "glutton-westend",
+          "implName": "glutton-westend",
+          "authoringVersion": 1,
+          "specVersion": 1020000,
+          "implVersion": 0,
+          "apis": [
+            [
+              "0xdf6acb689907609b",
+              5
+            ],
+            [
+              "0x37e397fc7c91f5e4",
+              2
+            ],
+            [
+              "0xdd718d5cc53262d4",
+              1
+            ],
+            [
+              "0x04e70521a0d3d2f8",
+              1
+            ],
+            [
+              "0xd7bdd8a272ca0d65",
+              2
+            ],
+            [
+              "0x40fe3ad401f8959a",
+              6
+            ],
+            [
+              "0xd2bc9897eed08f15",
+              3
+            ],
+            [
+              "0xf78b278be53f454c",
+              2
+            ],
+            [
+              "0xab3c0572291feb8b",
+              1
+            ],
+            [
+              "0xea93e3f16f3d6962",
+              3
+            ],
+            [
+              "0x695c80446b8b3d4e",
+              1
+            ],
+            [
+              "0xbc9d89904f5b923f",
+              1
+            ],
+            [
+              "0xfbc577b9d747efd6",
+              1
+            ],
+            [
+              "0xa2ddb6a58477bf63",
+              1
+            ]
+          ],
+          "transactionVersion": 1,
+          "stateVersion": 1
+        },
+        "proposal_hash": "0xb9bb4b2ba18eec6f887f545c57e267c05eb692438e904b8c0eacf3f338d4535e",
+        "parachain_authorize_upgrade_hash": "0xca8cb58c2c1bd10a753e4c16a2b21fcd98ebe95a702bb335cbccefcecfe0a9a8",
+        "ipfs_hash": "QmNd63BEpFRTYyuscwTRQSM4x1tqPArdu6y4qgjtxcNdxG",
+        "blake2_256": "0xeaac4abecf3243b4bd69060bc8b321e543d333847f0ae2f8a7501b31ece1717b"
+      }
+    }
+  }
+}

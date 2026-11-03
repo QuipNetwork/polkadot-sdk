@@ -728,6 +728,7 @@ fn report_double_voting_invalid_equivocation_proof() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn report_double_voting_validate_unsigned_prevents_duplicates() {
 	use sp_runtime::transaction_validity::{
 		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
@@ -1171,6 +1172,44 @@ fn report_future_block_voting_invalid_equivocation_proof() {
 					&equivocation_keyring,
 				))),
 				key_owner_proof.clone(),
+			),
+			Error::<Test>::InvalidFutureBlockVotingProof,
+		);
+	});
+}
+
+#[test]
+fn report_future_block_voting_invalid_signature() {
+	let authorities = test_authorities();
+
+	ExtBuilder::default().add_authorities(authorities).build_and_execute(|| {
+		start_era(1);
+
+		let block_num = System::block_number();
+		let validator_set = Beefy::validator_set().expect(
+			"starting era 1 with configured authorities initializes the BEEFY validator set; qed",
+		);
+		let equivocation_key = &validator_set.validators()[0];
+		let equivocation_keyring = BeefyKeyring::from_public(equivocation_key)
+			.expect("test_authorities returns keys from BeefyKeyring; qed");
+		let key_owner_proof = Historical::prove((BEEFY_KEY_TYPE, equivocation_key))
+			.expect("the current validator key is registered in historical session storage; qed");
+
+		let mut equivocation_proof = generate_future_block_voting_proof((
+			block_num + 100,
+			Payload::from_single_entry(MMR_ROOT_ID, vec![42]),
+			validator_set.id(),
+			&equivocation_keyring,
+		));
+		// Alter the signed payload without updating the signature.
+		equivocation_proof.vote.commitment.payload =
+			Payload::from_single_entry(MMR_ROOT_ID, vec![200]);
+
+		assert_err!(
+			Beefy::report_future_block_voting_unsigned(
+				RuntimeOrigin::none(),
+				Box::new(equivocation_proof),
+				key_owner_proof,
 			),
 			Error::<Test>::InvalidFutureBlockVotingProof,
 		);

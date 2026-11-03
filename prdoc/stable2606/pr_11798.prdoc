@@ -1,0 +1,14 @@
+title: 'pallet-asset-conversion: distinguish `PoolEmpty` from `PoolNotFound`'
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\n- Adds a new `PoolEmpty` error variant to `pallet-asset-conversion`\n\
+    - `PoolNotFound` now only means the pool does not exist in storage\n- `PoolEmpty`\
+    \ is returned when the pool exists but has zero reserves\n\n## Motivation\n\n\
+    When a pool exists but has no liquidity, `get_reserves()` returned `PoolNotFound`.\
+    \ This is misleading \u2014 the pool is in storage, it just has empty reserves.\
+    \ Users and frontends cannot distinguish between \"you need to create a pool\"\
+    \ and \"you need to add liquidity.\"\n\n## Changes\n\n- `substrate/frame/asset-conversion/src/lib.rs`:\
+    \ Added `PoolEmpty` error variant, changed the zero-reserves check in `get_reserves()`\
+    \ to use it\n- `substrate/frame/asset-conversion/src/tests.rs`: Updated `can_not_swap_in_pool_with_no_liquidity_added_yet`\
+    \ to expect `PoolEmpty`"
+crates: []

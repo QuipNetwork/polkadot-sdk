@@ -172,7 +172,8 @@ impl metrics::Metrics for Metrics {
 						"How much time collations spend waiting to be fetched",
 					)
 					.buckets(vec![
-						0.001, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0, 2.0, 5.0,
+						0.25, 0.35, 0.5, 0.75, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0,
+						60.0,
 					]),
 				)?,
 				registry,
@@ -215,7 +216,9 @@ impl metrics::Metrics for Metrics {
 						"polkadot_parachain_collation_expired",
 						"How many collations expired (not backed or not included)",
 					)
-					.buckets(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]),
+					.buckets(vec![
+						1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 15.0, 20.0, 25.0, 30.0,
+					]),
 					&["state"],
 				)?,
 				registry,
@@ -431,6 +434,7 @@ pub(crate) struct CollationStats {
 impl CollationStats {
 	/// Create new empty instance.
 	pub fn new(
+		clock: &dyn polkadot_node_clock::Clock,
 		head: Hash,
 		relay_parent_number: BlockNumber,
 		relay_parent: Hash,
@@ -443,7 +447,7 @@ impl CollationStats {
 			head,
 			relay_parent_number,
 			relay_parent,
-			advertised_at: std::time::Instant::now(),
+			advertised_at: clock.now(),
 			backed_at: None,
 			expired_at: None,
 			fetched_at: None,

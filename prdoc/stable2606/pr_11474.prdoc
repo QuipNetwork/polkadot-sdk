@@ -1,0 +1,16 @@
+title: Support multiple `IndexOperation::Renew` calls within a single extrinsic index
+  in `sc-client-db`
+doc:
+- audience: Node Dev
+  description: |-
+    Previously `apply_index_ops` used `HashMap<u32, DbHash>` so multiple `Renew`
+    operations at the same extrinsic index silently overwrote each other, blocking
+    batch-renewal inherents (e.g. the Bulletin chain's `process_auto_renewals`).
+
+    A new `DbExtrinsic::MultiRenew` variant carries all renewed hashes for an
+    extrinsic; single-renewal extrinsics still produce `DbExtrinsic::Indexed`
+    (backwards-compatible). Downstream consumers reading `BODY_INDEX` directly
+    must handle the new variant; users of the standard `BlockchainDb` APIs do not.
+crates:
+- name: sc-client-db
+  bump: patch

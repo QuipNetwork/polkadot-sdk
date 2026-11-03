@@ -31,8 +31,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_types::UnpinHandle;
 use polkadot_primitives::{
-	node_features::FeatureIndex, slashing, CandidateEvent, CandidateHash, CoreIndex, CoreState,
-	EncodeAs, ExecutorParams, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec,
+	node_features::FeatureIndex, slashing, ApprovalVotingParams, CandidateEvent, CandidateHash,
+	CoreIndex, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec,
 	NodeFeatures, OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
 	SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId,
 	ValidatorIndex, DEFAULT_SCHEDULING_LOOKAHEAD,
@@ -41,9 +41,9 @@ use polkadot_primitives::{
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::{
-	request_availability_cores, request_candidate_events, request_claim_queue,
-	request_disabled_validators, request_from_runtime, request_key_ownership_proof,
-	request_node_features, request_on_chain_votes, request_session_executor_params,
+	request_approval_voting_params, request_availability_cores, request_candidate_events,
+	request_claim_queue, request_disabled_validators, request_from_runtime,
+	request_key_ownership_proof, request_node_features, request_on_chain_votes,
 	request_session_index_for_child, request_session_info, request_submit_report_dispute_lost,
 	request_unapplied_slashes, request_unapplied_slashes_v2, request_validation_code_by_hash,
 	request_validator_groups,
@@ -100,10 +100,10 @@ pub struct ExtendedSessionInfo {
 	pub session_info: SessionInfo,
 	/// Contains useful information about ourselves, in case this node is a validator.
 	pub validator_info: ValidatorInfo,
-	/// Session executor parameters
-	pub executor_params: ExecutorParams,
 	/// Node features
 	pub node_features: NodeFeatures,
+	/// Approval-voting parameters.
+	pub approval_voting_params: ApprovalVotingParams,
 }
 
 /// Information about ourselves, in case we are an `Authority`.
@@ -233,11 +233,6 @@ impl RuntimeInfo {
 					.await?
 					.ok_or(JfyiError::NoSuchSession(session_index))?;
 
-			let executor_params =
-				recv_runtime(request_session_executor_params(parent, session_index, sender).await)
-					.await?
-					.ok_or(JfyiError::NoExecutorParams(session_index))?;
-
 			let validator_info = self.get_validator_info(&session_info)?;
 
 			let node_features =
@@ -247,11 +242,14 @@ impl RuntimeInfo {
 				gum::warn!(target: LOG_TARGET, "Runtime requires feature bit {} that node doesn't support, please upgrade node version", last_set_index);
 			}
 
+			let approval_voting_params =
+				request_approval_voting_params(parent, session_index, sender).await.await??;
+
 			let full_info = ExtendedSessionInfo {
 				session_info,
 				validator_info,
-				executor_params,
 				node_features,
+				approval_voting_params,
 			};
 
 			self.session_info_cache.insert(session_index, full_info);
@@ -617,97 +615,5 @@ pub async fn fetch_validation_code_bomb_limit(
 		Ok(polkadot_node_primitives::VALIDATION_CODE_BOMB_LIMIT as u32)
 	} else {
 		res
-	}
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[test]
-	fn iter_claims_at_depth_for_para_works() {
-		let claim_queue = ClaimQueueSnapshot(BTreeMap::from_iter(
-			[
-				(
-					CoreIndex(0),
-					VecDeque::from_iter([ParaId::from(1), ParaId::from(2), ParaId::from(1)]),
-				),
-				(
-					CoreIndex(1),
-					VecDeque::from_iter([ParaId::from(1), ParaId::from(1), ParaId::from(2)]),
-				),
-				(
-					CoreIndex(2),
-					VecDeque::from_iter([ParaId::from(1), ParaId::from(2), ParaId::from(3)]),
-				),
-				(
-					CoreIndex(3),
-					VecDeque::from_iter([ParaId::from(2), ParaId::from(1), ParaId::from(3)]),
-				),
-			]
-			.into_iter(),
-		));
-
-		// Test getting claims for para_id 1 at depth 0: cores 0, 1, 2
-		let depth_0_cores =
-			claim_queue.iter_claims_at_depth_for_para(0, 1u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_0_cores.len(), 3);
-		assert_eq!(depth_0_cores, vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)]);
-
-		// Test getting claims for para_id 1 at depth 1: cores 1, 3
-		let depth_1_cores =
-			claim_queue.iter_claims_at_depth_for_para(1, 1u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_1_cores.len(), 2);
-		assert_eq!(depth_1_cores, vec![CoreIndex(1), CoreIndex(3)]);
-
-		// Test getting claims for para_id 1 at depth 2: core 0
-		let depth_2_cores =
-			claim_queue.iter_claims_at_depth_for_para(2, 1u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_2_cores.len(), 1);
-		assert_eq!(depth_2_cores, vec![CoreIndex(0)]);
-
-		// Test getting claims for para_id 1 at depth 3: no claims
-		let depth_3_cores =
-			claim_queue.iter_claims_at_depth_for_para(3, 1u32.into()).collect::<Vec<_>>();
-		assert!(depth_3_cores.is_empty());
-
-		// Test getting claims for para_id 2 at depth 0: core 3
-		let depth_0_cores =
-			claim_queue.iter_claims_at_depth_for_para(0, 2u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_0_cores.len(), 1);
-		assert_eq!(depth_0_cores, vec![CoreIndex(3)]);
-
-		// Test getting claims for para_id 2 at depth 1: cores 0, 2
-		let depth_1_cores =
-			claim_queue.iter_claims_at_depth_for_para(1, 2u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_1_cores.len(), 2);
-		assert_eq!(depth_1_cores, vec![CoreIndex(0), CoreIndex(2)]);
-
-		// Test getting claims for para_id 2 at depth 2: core 1
-		let depth_2_cores =
-			claim_queue.iter_claims_at_depth_for_para(2, 2u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_2_cores.len(), 1);
-		assert_eq!(depth_2_cores, vec![CoreIndex(1)]);
-
-		// Test getting claims for para_id 3 at depth 0: no claims
-		let depth_0_cores =
-			claim_queue.iter_claims_at_depth_for_para(0, 3u32.into()).collect::<Vec<_>>();
-		assert!(depth_0_cores.is_empty());
-
-		// Test getting claims for para_id 3 at depth 1: no claims
-		let depth_1_cores =
-			claim_queue.iter_claims_at_depth_for_para(1, 3u32.into()).collect::<Vec<_>>();
-		assert!(depth_1_cores.is_empty());
-
-		// Test getting claims for para_id 3 at depth 2: cores 2, 3
-		let depth_2_cores =
-			claim_queue.iter_claims_at_depth_for_para(2, 3u32.into()).collect::<Vec<_>>();
-		assert_eq!(depth_2_cores.len(), 2);
-		assert_eq!(depth_2_cores, vec![CoreIndex(2), CoreIndex(3)]);
-
-		// Test getting claims for non-existent para_id at depth 0: no claims
-		let depth_0_cores =
-			claim_queue.iter_claims_at_depth_for_para(0, 99u32.into()).collect::<Vec<_>>();
-		assert!(depth_0_cores.is_empty());
 	}
 }

@@ -1,0 +1,17 @@
+title: 'net: Update litep2p to v0.14.0'
+doc:
+- audience: Node Dev
+  description: |-
+    This PR updates litep2p to the latest release.
+
+    - multihash needs a new const generic
+    - multihash erorr is opaque without public variants
+    - litep2p re exports no longer have the `Identity` variant, which is handled via a local constant
+
+    Litep2pProtocol and Libp2pProtocol now are deduced to the same type, therefore the LiteP2pProtocol to/from Protocol is no longer needed.  Small other changes revolve around the fact that Protocol::p2p now contains a peerID rather than a multihash.
+
+crates:
+- name: sc-network-types
+  bump: major
+- name: sc-network
+  bump: major

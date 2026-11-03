@@ -29,8 +29,9 @@ use frame_support::{
 	dispatch::{DispatchInfo, GetDispatchInfo},
 	parameter_types,
 	traits::{
-		fungible, ConstU32, ConstU8, Imbalance as ImbalanceT, OnUnbalanced, StorageMapShim,
-		StoredMap, VariantCount, VariantCountOf, WhitelistedStorageKeys,
+		fungible, ConstU32, ConstU8, Imbalance as ImbalanceT, LockIdentifier, LockableCurrency,
+		OnUnbalanced, StorageMapShim, StoredMap, VariantCount, VariantCountOf,
+		WhitelistedStorageKeys, WithdrawReasons,
 	},
 	weights::{IdentityFee, Weight},
 };
@@ -137,10 +138,11 @@ pub struct ExtBuilder {
 	existential_deposit: u64,
 	monied: bool,
 	dust_trap: Option<u64>,
+	reentrant_dust_action: Option<ReentrantDustAction>,
 }
 impl Default for ExtBuilder {
 	fn default() -> Self {
-		Self { existential_deposit: 1, monied: false, dust_trap: None }
+		Self { existential_deposit: 1, monied: false, dust_trap: None, reentrant_dust_action: None }
 	}
 }
 impl ExtBuilder {
@@ -159,6 +161,18 @@ impl ExtBuilder {
 		self.dust_trap = Some(account);
 		self
 	}
+	pub fn reentrant_dust_hold(mut self, account: u64) -> Self {
+		self.reentrant_dust_action = Some(ReentrantDustAction::Hold(account));
+		self
+	}
+	pub fn reentrant_dust_freeze(mut self, account: u64) -> Self {
+		self.reentrant_dust_action = Some(ReentrantDustAction::Freeze(account));
+		self
+	}
+	pub fn reentrant_dust_lock(mut self, account: u64) -> Self {
+		self.reentrant_dust_action = Some(ReentrantDustAction::Lock(account));
+		self
+	}
 	#[cfg(feature = "try-runtime")]
 	pub fn auto_try_state(self, auto_try_state: bool) -> Self {
 		AutoTryState::set(auto_try_state);
@@ -166,6 +180,7 @@ impl ExtBuilder {
 	}
 	pub fn set_associated_consts(&self) {
 		DUST_TRAP_TARGET.with(|v| v.replace(self.dust_trap));
+		REENTRANT_DUST_ACTION_VALUE.with(|v| v.replace(self.reentrant_dust_action));
 		EXISTENTIAL_DEPOSIT.with(|v| v.replace(self.existential_deposit));
 	}
 	pub fn build(self) -> sp_io::TestExternalities {
@@ -215,14 +230,48 @@ impl ExtBuilder {
 	}
 }
 
+#[derive(Clone, Copy)]
+enum ReentrantDustAction {
+	Hold(u64),
+	Freeze(u64),
+	Lock(u64),
+}
+
+const REENTRANT_LOCK_ID: LockIdentifier = *b"RELOCK__";
+
 parameter_types! {
 	static DustTrapTarget: Option<u64> = None;
+	static ReentrantDustActionValue: Option<ReentrantDustAction> = None;
 }
 
 pub struct DustTrap;
 
 impl OnUnbalanced<CreditOf<Test, ()>> for DustTrap {
 	fn on_nonzero_unbalanced(amount: CreditOf<Test, ()>) {
+		match ReentrantDustActionValue::get() {
+			Some(ReentrantDustAction::Hold(account)) => {
+				<Balances as fungible::Mutate<_>>::mint_into(&account, 20)
+					.expect("reentrant mint should succeed");
+				<Balances as fungible::MutateHold<_>>::hold(&TestId::Bar, &account, 7)
+					.expect("reentrant hold should succeed");
+			},
+			Some(ReentrantDustAction::Freeze(account)) => {
+				<Balances as fungible::MutateFreeze<_>>::set_freeze(&TestId::Bar, &account, 7)
+					.expect("reentrant freeze should succeed");
+			},
+			Some(ReentrantDustAction::Lock(account)) => {
+				<Balances as fungible::Mutate<_>>::mint_into(&account, 20)
+					.expect("reentrant mint should succeed");
+				<Balances as LockableCurrency<_>>::set_lock(
+					REENTRANT_LOCK_ID,
+					&account,
+					7,
+					WithdrawReasons::all(),
+				);
+			},
+			None => {},
+		}
+
 		match DustTrapTarget::get() {
 			None => drop(amount),
 			Some(a) => {

@@ -1,6 +1,6 @@
 [package]
 name = "frame-remote-externalities"
-version = "0.57.0"
+version = "0.62.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -22,13 +22,13 @@ jsonrpsee = { features = ["http-client", "ws-client"], workspace = true }
 log = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
 spinners = { workspace = true }
-substrate-rpc-client = { default-features = true, workspace = true }
+substrate-rpc-client = { workspace = true, default-features = true }
 tokio = { features = [
 	"macros",
 	"rt-multi-thread",
@@ -36,13 +36,13 @@ tokio = { features = [
 ], workspace = true, default-features = true }
 
 [dev-dependencies]
-frame-support = { default-features = true, workspace = true }
+frame-support = { workspace = true, default-features = true }
 jsonrpsee = { features = [
 	"http-client",
 	"server",
 	"ws-client",
 ], workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 remote-test = []

@@ -1,0 +1,19 @@
+title: '[frame-support] Add fungible metadata and lifetime traits with ItemOf support'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds `fungible::metadata` and `fungible::lifetime` modules mirroring the corresponding
+    `fungibles` APIs:
+
+    - **metadata**: `Inspect` and `Mutate` traits for fungible token metadata (name, symbol,
+      decimals).
+    - **lifetime**: `Create` trait for creating a new fungible asset.
+
+    These modules initially exist to support functionality in the `ItemOf` adapter for `fungibles`.
+    When a `fungibles` implementation provides the corresponding traits
+    (`fungibles::metadata::Inspect`, `fungibles::metadata::Mutate`, `fungibles::lifetime::Create`),
+    the `ItemOf` wrapper implements the fungible equivalents, allowing a single asset from a
+    fungibles set to be used where fungible metadata or create is expected.
+crates:
+- name: frame-support
+  bump: minor

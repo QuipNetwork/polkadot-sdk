@@ -1,0 +1,11 @@
+title: 'collator-protocol revamp: Increase channel size used by the background writer
+  of `PersistentDb`'
+doc:
+- audience: Node Dev
+  description: |-
+    Increases the channel capacity used by `PersistentDb` and `PeerManager` to avoid delaying
+    `PersistenceRequests` in spam scenarios.
+    Introduce a separate log target for the persistent_db module.
+crates:
+- name: polkadot-collator-protocol
+  bump: patch

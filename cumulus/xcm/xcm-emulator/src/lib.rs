@@ -161,6 +161,44 @@ pub trait AdditionalInherentCode {
 
 impl AdditionalInherentCode for () {}
 
+/// Customizes block production inside the emulator.
+///
+/// The default impl ([`AuraBlockProducer`]) covers Aura-based parachains.
+/// Parachains using a different consensus (e.g. Nimbus) can supply a custom
+/// implementation via the `BlockProducer:` field of `decl_test_parachains!`.
+pub trait BlockProducer {
+	/// Slot duration in milliseconds, used to compute the relay-to-para block
+	/// ratio when advancing the network.
+	fn slot_duration() -> u64;
+
+	/// Pre-runtime digest prepended when initialising a new parachain block.
+	fn pre_runtime_digest(relay_block_number: u32) -> Digest;
+}
+
+/// Default `BlockProducer` implementation for Aura-based parachains.
+pub struct AuraBlockProducer<T>(PhantomData<T>);
+
+impl<T> BlockProducer for AuraBlockProducer<T>
+where
+	T: pallet_aura::Config,
+	u64: From<<T as pallet_timestamp::Config>::Moment>,
+{
+	fn slot_duration() -> u64 {
+		pallet_aura::Pallet::<T>::slot_duration().into()
+	}
+
+	fn pre_runtime_digest(relay_block_number: u32) -> Digest {
+		let slot_duration = Self::slot_duration();
+		let aura_slot: Slot =
+			(relay_block_number as u64 * RELAY_CHAIN_SLOT_DURATION_MILLIS / slot_duration).into();
+		let mut digest = Digest::default();
+		digest
+			.logs
+			.push(DigestItem::PreRuntime(AURA_ENGINE_ID, Encode::encode(&aura_slot)));
+		digest
+	}
+}
+
 pub trait TestExt {
 	fn build_new_ext(storage: Storage) -> TestExternalities;
 	fn new_ext() -> TestExternalities;
@@ -292,6 +330,7 @@ pub trait Parachain: Chain {
 	type ParachainSystem;
 	type MessageProcessor: ProcessMessage + ServiceQueues;
 	type AdditionalInherentCode: AdditionalInherentCode;
+	type BlockProducer: BlockProducer;
 
 	fn init();
 
@@ -633,6 +672,7 @@ macro_rules! decl_test_parachains {
 					MessageOrigin: $message_origin:path,
 					$( AdditionalInherentCode: $additional_inherent_code:ty,)?
 					$( native_total_supply_tracker: $total_supply_tracker:expr,)?
+					$( BlockProducer: $block_producer:ty,)?
 				},
 				pallets = {
 					$($pallet_name:ident: $pallet_path:path,)*
@@ -678,6 +718,7 @@ macro_rules! decl_test_parachains {
 				type ParachainInfo = $parachain_info;
 				type MessageProcessor = $crate::DefaultParaMessageProcessor<$name<N>, $message_origin>;
 				$crate::decl_test_parachains!(@inner_additional_inherent_code $($additional_inherent_code)?);
+				$crate::decl_test_parachains!(@inner_block_producer $runtime, $($block_producer)?);
 
 				// We run an empty block during initialisation to open HRMP channels
 				// and have them ready for the next block
@@ -698,21 +739,18 @@ macro_rules! decl_test_parachains {
 
 				fn new_block() {
 					use $crate::{
-						Dispatchable, Chain, TestExt, Zero, AdditionalInherentCode,
-						RELAY_CHAIN_SLOT_DURATION_MILLIS
+						Dispatchable, Chain, TestExt, Zero, AdditionalInherentCode, BlockProducer,
+						Parachain, RELAY_CHAIN_SLOT_DURATION_MILLIS
 					};
 
 					let para_id = Self::para_id().into();
 
 					Self::ext_wrapper(|| {
-						let slot_duration = $crate::pallet_aura::Pallet::<$runtime::Runtime>::slot_duration();
+						let slot_duration =
+							<<Self as Parachain>::BlockProducer as BlockProducer>::slot_duration();
 
-						let relay_blocks_per_para_block =
-							(slot_duration / RELAY_CHAIN_SLOT_DURATION_MILLIS).max(1) as u32;
-
-						// Increase Relay Chain block number by relay_blocks_per_para_block
 						let mut relay_block_number = N::relay_block_number();
-						relay_block_number += relay_blocks_per_para_block;
+						relay_block_number += 1;
 						N::set_relay_block_number(relay_block_number);
 
 						// Initialize a new Parachain block
@@ -726,16 +764,9 @@ macro_rules! decl_test_parachains {
 							.clone()
 						);
 
-						// Build aura digest: derive para slot from relay block number and slot durations.
-						let aura_slot: $crate::Slot = (relay_block_number as u64
-							* RELAY_CHAIN_SLOT_DURATION_MILLIS
-							/ slot_duration)
-							.into();
-						let mut digest = $crate::Digest::default();
-						digest.logs.push($crate::DigestItem::PreRuntime(
-							$crate::AURA_ENGINE_ID,
-							$crate::Encode::encode(&aura_slot),
-						));
+						// Pre-runtime digest comes from the configured `BlockProducer`
+						// (Aura by default; Nimbus and friends can plug in).
+						let digest = <<Self as Parachain>::BlockProducer as BlockProducer>::pre_runtime_digest(relay_block_number);
 						<Self as Chain>::System::initialize(&block_number, &parent_head_data.hash(), &digest);
 
 						// Process `on_initialize` for all pallets except `System`.
@@ -839,6 +870,8 @@ macro_rules! decl_test_parachains {
 	( @inner_additional_inherent_code /* none */ ) => { type AdditionalInherentCode = (); };
 	( @inner_total_supply_tracker $total_supply_tracker:expr ) => { $total_supply_tracker };
 	( @inner_total_supply_tracker /* none */ ) => { false };
+	( @inner_block_producer $runtime:ident, $block_producer:ty ) => { type BlockProducer = $block_producer; };
+	( @inner_block_producer $runtime:ident, /* none */ ) => { type BlockProducer = $crate::AuraBlockProducer<$runtime::Runtime>; };
 }
 
 #[macro_export]
@@ -1581,17 +1614,17 @@ pub struct TestAccount<R: Chain> {
 
 /// Default `Args` provided by xcm-emulator to be stored in a `Test` instance
 #[derive(Clone)]
-pub struct TestArgs {
+pub struct TestArgs<AssetId = u32> {
 	pub dest: Location,
 	pub beneficiary: Location,
 	pub amount: Balance,
 	pub assets: Assets,
-	pub asset_id: Option<u32>,
+	pub asset_id: Option<AssetId>,
 	pub fee_asset_item: u32,
 	pub weight_limit: WeightLimit,
 }
 
-impl TestArgs {
+impl<AssetId> TestArgs<AssetId> {
 	/// Returns a [`TestArgs`] instance to be used for the Relay Chain across integration tests.
 	pub fn new_relay(dest: Location, beneficiary_id: AccountId32, amount: Balance) -> Self {
 		Self {
@@ -1611,7 +1644,7 @@ impl TestArgs {
 		beneficiary_id: AccountId32,
 		amount: Balance,
 		assets: Assets,
-		asset_id: Option<u32>,
+		asset_id: Option<AssetId>,
 		fee_asset_item: u32,
 	) -> Self {
 		Self {

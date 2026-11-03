@@ -23,8 +23,9 @@
 pub mod middleware;
 pub mod utils;
 
-use std::{error::Error as StdError, net::SocketAddr, time::Duration};
+use std::{error::Error as StdError, net::SocketAddr, sync::Arc, time::Duration};
 
+use futures::future::BoxFuture;
 use jsonrpsee::{
 	core::BoxError,
 	server::{
@@ -47,18 +48,86 @@ pub use utils::{RpcEndpoint, RpcMethods};
 
 const MEGABYTE: u32 = 1024 * 1024;
 
+/// Creates a dedicated tokio runtime for RPC operations.
+///
+/// This runtime isolates RPC blocking operations from the rest of the node
+/// by limiting the number of blocking threads to `max_connections`.
+pub fn create_rpc_runtime(max_connections: u32) -> std::io::Result<tokio::runtime::Runtime> {
+	tokio::runtime::Builder::new_multi_thread()
+		.thread_name("rpc")
+		.enable_all()
+		.max_blocking_threads((max_connections as usize).max(1))
+		.on_thread_start(|| {
+			sc_utils::metrics::TOKIO_THREADS_ALIVE.inc();
+			sc_utils::metrics::TOKIO_THREADS_TOTAL.inc();
+			middleware::RPC_THREADS_ALIVE.inc();
+			middleware::RPC_THREADS_TOTAL.inc();
+		})
+		.on_thread_stop(|| {
+			sc_utils::metrics::TOKIO_THREADS_ALIVE.dec();
+			middleware::RPC_THREADS_ALIVE.dec();
+		})
+		.build()
+}
+
+/// Spawn handle for RPC tasks that uses the dedicated RPC runtime.
+///
+/// This ensures all RPC-related task spawning (including rpc-spec-v2 APIs like
+/// chainHead and transactionWatch) runs on the isolated RPC runtime rather than
+/// the main node runtime.
+#[derive(Clone)]
+pub struct RpcSpawnHandle {
+	handle: tokio::runtime::Handle,
+}
+
+impl RpcSpawnHandle {
+	/// Create a new RpcSpawnHandle from a tokio runtime handle.
+	pub fn new(handle: tokio::runtime::Handle) -> Self {
+		Self { handle }
+	}
+}
+
+impl sp_core::traits::SpawnNamed for RpcSpawnHandle {
+	fn spawn_blocking(
+		&self,
+		_name: &'static str,
+		_group: Option<&'static str>,
+		future: BoxFuture<'static, ()>,
+	) {
+		let handle = self.handle.clone();
+		self.handle.spawn_blocking(move || {
+			handle.block_on(future);
+		});
+	}
+
+	fn spawn(
+		&self,
+		_name: &'static str,
+		_group: Option<&'static str>,
+		future: BoxFuture<'static, ()>,
+	) {
+		self.handle.spawn(future);
+	}
+}
+
 /// Type to encapsulate the server handle and listening address.
 pub struct Server {
 	/// Handle to the rpc server
 	handle: ServerHandle,
 	/// Listening address of the server
 	listen_addrs: Vec<SocketAddr>,
+	/// Dedicated RPC runtime (kept alive for the lifetime of the server)
+	rpc_runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl Server {
 	/// Creates a new Server.
-	pub fn new(handle: ServerHandle, listen_addrs: Vec<SocketAddr>) -> Server {
-		Server { handle, listen_addrs }
+	pub fn new(
+		handle: ServerHandle,
+		listen_addrs: Vec<SocketAddr>,
+		rpc_runtime: tokio::runtime::Runtime,
+	) -> Server {
+		Server { handle, listen_addrs, rpc_runtime: Some(rpc_runtime) }
 	}
 
 	/// Returns the `jsonrpsee::server::ServerHandle` for this Server. Can be used to stop the
@@ -71,12 +140,29 @@ impl Server {
 	pub fn listen_addrs(&self) -> &[SocketAddr] {
 		&self.listen_addrs
 	}
+
+	/// Returns the spawn handle for tasks on the dedicated RPC runtime.
+	pub fn spawn_handle(&self) -> Arc<dyn sp_core::traits::SpawnNamed> {
+		Arc::new(RpcSpawnHandle::new(
+			self.rpc_runtime
+				.as_ref()
+				.expect("rpc_runtime is only taken in Drop; qed")
+				.handle()
+				.clone(),
+		))
+	}
 }
 
 impl Drop for Server {
 	fn drop(&mut self) {
 		// This doesn't not wait for the server to be stopped but fires the signal.
 		let _ = self.handle.stop();
+
+		// Use `shutdown_background()` to avoid blocking, which would panic if
+		// we are being dropped from within an async context.
+		if let Some(runtime) = self.rpc_runtime.take() {
+			runtime.shutdown_background();
+		}
 	}
 }
 
@@ -89,20 +175,55 @@ pub trait SubscriptionIdProvider:
 dyn_clone::clone_trait_object!(SubscriptionIdProvider);
 
 /// RPC server configuration.
-#[derive(Debug)]
 pub struct Config<M: Send + Sync + 'static> {
 	/// RPC interfaces to start.
 	pub endpoints: Vec<RpcEndpoint>,
 	/// Metrics.
 	pub metrics: Option<RpcMetrics>,
-	/// RPC API.
+	/// RPC API module.
 	pub rpc_api: RpcModule<M>,
 	/// Subscription ID provider.
 	pub id_provider: Option<Box<dyn SubscriptionIdProvider>>,
-	/// Tokio runtime handle.
-	pub tokio_handle: tokio::runtime::Handle,
 	/// RPC logger capacity (default: 1024).
 	pub request_logger_limit: u32,
+	/// Dedicated RPC runtime.
+	pub rpc_runtime: tokio::runtime::Runtime,
+}
+
+/// Guards the dedicated RPC runtime while [`start_server`] is setting the server up.
+///
+/// `start_server` is awaited from within a runtime context, so dropping the RPC runtime on an
+/// early error return would panic: `Runtime::drop` blocks until the blocking pool has shut down,
+/// which tokio forbids on a runtime thread. Routing every exit path through this guard tears the
+/// runtime down with `shutdown_background()` instead, just like [`Server::drop`] does.
+struct RuntimeGuard(Option<tokio::runtime::Runtime>);
+
+impl RuntimeGuard {
+	fn new(runtime: tokio::runtime::Runtime) -> Self {
+		Self(Some(runtime))
+	}
+
+	fn handle(&self) -> tokio::runtime::Handle {
+		self.0
+			.as_ref()
+			.expect("runtime is only taken in `into_inner` and `Drop`; qed")
+			.handle()
+			.clone()
+	}
+
+	/// Hands the runtime over to the [`Server`], which owns it from then on.
+	fn into_inner(mut self) -> tokio::runtime::Runtime {
+		self.0.take().expect("runtime is only taken here and in `Drop`; qed")
+	}
+}
+
+impl Drop for RuntimeGuard {
+	fn drop(&mut self) {
+		if let Some(runtime) = self.0.take() {
+			// Same trade-off `Server::drop` accepts
+			runtime.shutdown_background();
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -118,14 +239,25 @@ pub async fn start_server<M>(config: Config<M>) -> Result<Server, Box<dyn StdErr
 where
 	M: Send + Sync,
 {
-	let Config { endpoints, metrics, tokio_handle, rpc_api, id_provider, request_logger_limit } =
+	let Config { endpoints, metrics, rpc_api, id_provider, request_logger_limit, rpc_runtime } =
 		config;
 
+	// Held as a guard so that every early error return below shuts the runtime down
+	let rpc_runtime = RuntimeGuard::new(rpc_runtime);
+	let rpc_handle = rpc_runtime.handle();
+
 	let (stop_handle, server_handle) = stop_channel();
+	let rpc_api = build_rpc_api(rpc_api);
+	// Bound the metrics `method` label to the registered methods so its
+	// cardinality stays finite (unknown names collapse to `"unknown"`).
+	let metrics = metrics.map(|m| {
+		let known: Vec<&'static str> = rpc_api.method_names().collect();
+		m.with_known_methods(known)
+	});
 	let cfg = PerConnection {
-		methods: build_rpc_api(rpc_api).into(),
+		methods: rpc_api.into(),
 		metrics,
-		tokio_handle: tokio_handle.clone(),
+		tokio_handle: rpc_handle.clone(),
 		stop_handle,
 	};
 
@@ -183,7 +315,7 @@ where
 			.set_http_middleware(http_middleware)
 			.set_message_buffer_capacity(max_buffer_capacity_per_connection)
 			.set_batch_request_config(batch_config)
-			.custom_tokio_runtime(cfg.tokio_handle.clone());
+			.custom_tokio_runtime(rpc_handle.clone());
 
 		if let Some(provider) = id_provider.clone() {
 			builder = builder.set_id_provider(provider);
@@ -194,7 +326,7 @@ where
 		let service_builder = builder.to_service_builder();
 		let deny_unsafe = deny_unsafe(&local_addr, &rpc_methods);
 
-		tokio_handle.spawn(async move {
+		rpc_handle.spawn(async move {
 			loop {
 				let (sock, remote_addr) = tokio::select! {
 					res = listener.accept() => {
@@ -306,5 +438,63 @@ where
 	// This is to make it work with old scripts/utils that parse the logs.
 	log::info!("Running JSON-RPC server: addr={}", format_listen_addrs(&local_addrs));
 
-	Ok(Server::new(server_handle, local_addrs))
+	Ok(Server::new(server_handle, local_addrs, rpc_runtime.into_inner()))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn test_runtime() -> tokio::runtime::Runtime {
+		tokio::runtime::Builder::new_multi_thread()
+			.worker_threads(1)
+			.enable_all()
+			.build()
+			.expect("test runtime can be built; qed")
+	}
+
+	fn config(endpoints: Vec<RpcEndpoint>) -> Config<()> {
+		Config {
+			endpoints,
+			metrics: None,
+			rpc_api: RpcModule::new(()),
+			id_provider: None,
+			request_logger_limit: 1024,
+			rpc_runtime: test_runtime(),
+		}
+	}
+
+	fn endpoint(listen_addr: SocketAddr) -> RpcEndpoint {
+		RpcEndpoint {
+			listen_addr,
+			batch_config: BatchRequestConfig::Disabled,
+			max_connections: 1,
+			max_payload_in_mb: 1,
+			max_payload_out_mb: 1,
+			max_subscriptions_per_connection: 1,
+			max_buffer_capacity_per_connection: 1,
+			rate_limit: None,
+			rate_limit_trust_proxy_headers: false,
+			rate_limit_whitelisted_ips: Vec::new(),
+			cors: None,
+			rpc_methods: RpcMethods::Auto,
+			is_optional: false,
+			retry_random_port: false,
+		}
+	}
+
+	#[tokio::test]
+	async fn start_server_with_no_endpoints_returns_error_without_panicking() {
+		let res = start_server(config(Vec::new())).await;
+		assert!(res.is_err(), "expected ListenAddrError, got Ok");
+	}
+
+	#[tokio::test]
+	async fn start_server_bind_failure_returns_error_without_panicking() {
+		let blocker = std::net::TcpListener::bind("127.0.0.1:0").expect("bind blocker; qed");
+		let taken_addr = blocker.local_addr().expect("blocker has a local addr; qed");
+
+		let res = start_server(config(vec![endpoint(taken_addr)])).await;
+		assert!(res.is_err(), "expected a bind error, got Ok");
+	}
 }

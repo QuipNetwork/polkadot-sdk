@@ -11,9 +11,9 @@ workspace = true
 
 [dependencies]
 honggfuzz = { workspace = true }
-polkadot-erasure-coding = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+polkadot-erasure-coding = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 
 [[bin]]
 name = "reconstruct"

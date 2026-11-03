@@ -5,14 +5,16 @@
 //! be stopped and resumed.
 
 use crate::utils::{
-	check_metrics, env_or_default, initialize_network, MetricCheckSetup, INTEGRATION_IMAGE_ENV,
-	NODE_ROLES_METRIC,
+	assert_nodes_are_validators, check_metrics, env_or_default, initialize_network,
+	maybe_enable_experimental_collator_protocol, MetricCheckSetup, INTEGRATION_IMAGE_ENV,
 };
 use anyhow::anyhow;
+use cumulus_zombienet_sdk_helpers::wait_for_nth_session_change;
 use futures::future::try_join_all;
 use std::collections::HashMap;
 use zombienet_sdk::{
 	subxt::{
+		self,
 		ext::subxt_rpcs::client::{rpc_params, RpcParams},
 		OnlineClient, PolkadotConfig,
 	},
@@ -29,11 +31,13 @@ async fn beefy_and_mmr_test() -> Result<(), anyhow::Error> {
 	let network = initialize_network(config).await?;
 
 	let validator_nodes = network.relaychain().nodes();
-	// let _ = tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+
+	// Check authority status
+	log::info!("Checking validator node roles");
+	assert_nodes_are_validators(&validator_nodes).await?;
+	log::info!("All validators confirmed as authorities");
 
 	let metric_checks: Vec<MetricCheckSetup> = vec![
-		// All nodes are validators
-		(NODE_ROLES_METRIC, Box::new(|v| v == 4.0), 0),
 		// BEEFY sanity checks.
 		("substrate_beefy_validator_set_id", Box::new(|v| v == 0.0), 0),
 		// Verify voting happens and 1st mandatory block is finalized within 1st session.
@@ -84,9 +88,23 @@ async fn beefy_and_mmr_test() -> Result<(), anyhow::Error> {
 	);
 
 	unstable_node.resume().await?;
+
+	// Wait at least 1 full sessions
+	log::info!("Waiting for at least 1 full session");
+	let relay_node = stable_validators
+		.first()
+		.ok_or(anyhow!("stable-validators should have one node"))?;
+	let relay_client = relay_node.wait_client().await?;
+	let mut blocks_sub = relay_client.blocks().subscribe_finalized().await?;
+	// in order to ensure to wait at least one full session
+	// we wait 2 session change events.
+	wait_for_nth_session_change(&mut blocks_sub, 2).await?;
+	log::info!("Full session passed");
+
 	let metric_checks: Vec<MetricCheckSetup> = vec![
-		("substrate_beefy_validator_set_id", Box::new(|v| v >= 2.0), 60u64),
+		// wait syncing
 		("substrate_beefy_best_block", Box::new(|v| v >= 21.0), 120u64),
+		("substrate_beefy_validator_set_id", Box::new(|v| v >= 3.0), 60u64),
 	];
 	check_metrics(&[unstable_node], &metric_checks).await?;
 
@@ -214,10 +232,10 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 		r.with_chain("rococo-local")
 			.with_default_command("polkadot")
 			.with_default_image(polkadot_image.as_str())
-			.with_default_args(vec![
+			.with_default_args(maybe_enable_experimental_collator_protocol(vec![
 				"--log=beefy=debug".into(),
 				"--enable-offchain-indexing=true".into(),
-			])
+			]))
 			.with_default_resources(|r| {
 				r.with_limit_memory("4G")
 					.with_limit_cpu("2")

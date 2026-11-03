@@ -1,6 +1,6 @@
 [package]
 name = "pallet-dummy-dim"
-version = "0.7.0"
+version = "0.11.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -26,7 +26,7 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-people = { workspace = true, default-features = false }
+pallet-people = { workspace = true }
 verifiable = { workspace = true, features = ["small-ring"] }
 
 [features]

@@ -35,7 +35,8 @@
 //! If weight is a concern or you are not sure which type of migration to use, you should probably
 //! use a multi-block migration.
 //!
-//! TODO: Link above to multi-block migration example.
+//! See the [`pallet-example-mbm`](https://paritytech.github.io/polkadot-sdk/master/pallet_example_mbm/index.html)
+//! pallet for an example of a multi-block migration.
 //!
 //! ## Pallet Overview
 //!

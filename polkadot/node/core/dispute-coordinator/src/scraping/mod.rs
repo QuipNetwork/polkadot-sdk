@@ -315,7 +315,7 @@ impl ChainScraper {
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
 		// `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because
 		// `finalized_block_number`counts to the candidate lifetime.
-		match finalized_block_number.checked_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
+		match finalized_block_number.checked_sub(*DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
 		{
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
@@ -393,7 +393,7 @@ impl ChainScraper {
 	{
 		let target_ancestor = get_finalized_block_number(sender)
 			.await?
-			.saturating_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION);
+			.saturating_sub(*DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION);
 
 		let mut ancestors = Vec::new();
 

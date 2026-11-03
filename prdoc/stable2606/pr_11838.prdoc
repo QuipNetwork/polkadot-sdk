@@ -1,0 +1,18 @@
+title: 'statement-store: fix metrics accuracy'
+doc:
+- audience: Node Dev
+  description: |-
+    # Description
+
+    Fixes accuracy gaps and clarify help text in statement store and network metrics.
+
+    ## Integration
+
+    No integration needed.
+crates:
+- name: sc-statement-store
+  bump: patch
+- name: sp-statement-store
+  bump: patch
+- name: sc-network-statement
+  bump: patch

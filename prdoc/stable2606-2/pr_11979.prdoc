@@ -1,0 +1,31 @@
+title: Scale validator self-stake incentive by era-points performance
+doc:
+- audience: Runtime Dev
+  description: |-
+    Validator self-stake incentive payout is now distributed proportionally across
+    elected validators using the weighted-points share
+    `share_i = (w_i · ep_i) / Σ_j(w_j · ep_j)`, where `w_j` is each validator's
+    per-era incentive weight and `ep_j` is their era points.
+
+    The denominator is maintained incrementally in `ErasSumWeightedPoints` as
+    session reports credit era points, avoiding a full validator iteration at
+    payout time. Validators with zero era points or no incentive weight receive
+    nothing, and non-zero weighted performers share the era budget subject to
+    normal rounding.
+
+    Pre-upgrade pending eras keep paying out under the legacy stake-only share
+    `w_i / Σ_j w_j` so they are not zeroed out by the missing
+    `ErasSumWeightedPoints` denominator. The cutoff era is recorded by a
+    one-shot migration `SetWeightedPointsFormulaStartEra` into a new
+    `WeightedPointsFormulaStartEra` storage item; eras strictly older than the
+    cutoff use the legacy formula, eras at or after the cutoff use the new
+    weighted-points formula. The pallet storage version is bumped (17 → 18) and
+    the migration is version-gated.
+
+    The `rc_on_session_report` benchmark/weight now scales with the number of
+    validators included in the relay-chain session report.
+crates:
+- name: pallet-staking-async
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: patch

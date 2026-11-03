@@ -1,0 +1,47 @@
+[package]
+description = "Substrate Bitswap client/server service"
+name = "sc-network-bitswap"
+version = "0.38.0"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/sc-network-bitswap"
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+async-trait = { workspace = true }
+bytes = { workspace = true, default-features = true }
+cid = { workspace = true }
+futures = { workspace = true }
+litep2p = { workspace = true }
+log = { workspace = true, default-features = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+rand = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-network-common = { workspace = true, default-features = true }
+sc-network-sync = { workspace = true, default-features = true }
+slotmap = { workspace = true }
+smallvec = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+thiserror = { workspace = true }
+tokio = { features = ["macros", "rt", "sync", "time"], workspace = true, default-features = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+rstest = { workspace = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+substrate-test-runtime = { workspace = true }
+substrate-test-runtime-client = { workspace = true }
+tokio = { features = ["macros", "rt-multi-thread", "test-util"], workspace = true, default-features = true }
+tokio-stream = { workspace = true }

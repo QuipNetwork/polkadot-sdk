@@ -1,6 +1,6 @@
 [package]
 name = "node-bench"
-version = "0.9.0"
+version = "0.9.0-dev"
 authors.workspace = true
 description = "Substrate node integration benchmarks."
 edition.workspace = true
@@ -26,22 +26,22 @@ kitchensink-runtime = { workspace = true }
 kvdb = { workspace = true }
 kvdb-rocksdb = { workspace = true }
 log = { workspace = true, default-features = true }
-node-primitives = { default-features = true, workspace = true }
+node-primitives = { workspace = true, default-features = true }
 node-testing = { workspace = true }
 parity-db = { workspace = true }
 rand = { features = ["small_rng"], workspace = true, default-features = true }
-sc-basic-authorship = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-transaction-pool = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
+sc-basic-authorship = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
 sp-timestamp = { workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 tempfile = { workspace = true }

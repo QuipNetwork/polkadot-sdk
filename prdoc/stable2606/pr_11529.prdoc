@@ -1,0 +1,30 @@
+title: 'Westend Asset Hub: Integrate PSM pallet and add remote tests'
+doc:
+- audience: Runtime User
+  description: |-
+    Adds the PSM pallet to Asset Hub Westend, enabling 1:1 minting and redemption
+    of pUSD against USDT.
+- audience: Runtime Dev
+  description: |-
+    Integrates the PSM pallet into the Asset Hub Westend runtime and adds remote
+    integration tests that run against live chain state.
+
+    Runtime changes:
+    - Configures `pallet-psm` on Asset Hub Westend with pUSD (asset ID 50000342)
+    - Adds `pallet-parameters` for governance-configurable maximum issuance (default 50 million pUSD)
+    - Fee destination is the pUSD insurance fund account (`PalletId(*b"pusd/ins")`)
+    - Adds V1 migration to initialize USDT (1984) as the first external asset
+      with 0% minting fee and 0.01% redemption fee
+    - Adds weights for the PSM pallet
+
+    Remote tests:
+    - Adds `pallet-psm-remote-tests` library with reusable test functions
+    - Adds `remote-ext-tests-psm` binary that fetches live Asset Hub state via RPC
+    - Tests mint/redeem flow and circuit breaker mechanism against real asset data
+    - Uses snapshot caching to avoid redundant RPC requests
+
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: pallet-psm-remote-tests
+  bump: major

@@ -1,0 +1,15 @@
+title: 'Fix try-state warning for LastValidatorEra in staking-async'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fixes a false try-state warning where `LastValidatorEra` was flagged as incorrect for active
+    validators. After the election for the next era completes but before that era becomes active,
+    `LastValidatorEra` is correctly set to `active_era + 1`. The previous check only accepted
+    `active_era`, causing spurious warnings.
+
+    Adds a test verifying `LastValidatorEra` transitions from `active_era` to `active_era + 1`
+    once the next era's election results are stored.
+
+crates:
+- name: pallet-staking-async
+  bump: patch

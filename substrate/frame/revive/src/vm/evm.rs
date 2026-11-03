@@ -15,7 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use crate::{
-	AccountIdOf, CodeInfo, Config, ContractBlob, DispatchError, Error, H256, LOG_TARGET, Weight,
+	AccountIdOf, BalanceOf, CodeInfo, Config, ContractBlob, DispatchError, Error, H256, LOG_TARGET,
+	Weight,
 	debug::DebugSettings,
 	precompiles::Token,
 	tracing,
@@ -35,7 +36,7 @@ mod interpreter;
 pub use interpreter::{Halt, Interpreter};
 
 mod ext_bytecode;
-use ext_bytecode::ExtBytecode;
+pub use ext_bytecode::ExtBytecode;
 
 mod memory;
 mod stack;
@@ -57,6 +58,53 @@ impl<T: Config> Token<T> for EVMGas {
 	fn weight(&self) -> Weight {
 		let base_cost = T::WeightInfo::evm_opcode(1).saturating_sub(T::WeightInfo::evm_opcode(0));
 		base_cost.saturating_mul(self.0)
+	}
+}
+
+/// The cost of an EVM op-code that is charged from its own benchmark rather than in [`EVMGas`].
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+enum EvmOpcodeCosts {
+	Div,
+	SDiv,
+	Mod,
+	SMod,
+	AddMod,
+	MulMod,
+}
+
+impl<T: Config> Token<T> for EvmOpcodeCosts {
+	fn weight(&self) -> Weight {
+		let per_opcode = |weight_fn: fn(u32) -> Weight| weight_fn(1).saturating_sub(weight_fn(0));
+		// These op-codes are benchmarked in pairs with a `POP`, whose cost isn't theirs.
+		let pop = per_opcode(T::WeightInfo::evm_pop_opcode);
+		match self {
+			Self::Div => per_opcode(T::WeightInfo::evm_div_opcode)
+				.max(per_opcode(T::WeightInfo::evm_div_opcode_one_limb_variant))
+				.max(per_opcode(T::WeightInfo::evm_div_opcode_mixed_variant))
+				.max(per_opcode(T::WeightInfo::evm_div_opcode_fixed_knuth_variant))
+				.saturating_sub(pop),
+			Self::SDiv => per_opcode(T::WeightInfo::evm_sdiv_opcode)
+				.max(per_opcode(T::WeightInfo::evm_sdiv_opcode_one_limb_variant))
+				.max(per_opcode(T::WeightInfo::evm_sdiv_opcode_mixed_variant))
+				.max(per_opcode(T::WeightInfo::evm_sdiv_opcode_fixed_knuth_variant))
+				.saturating_sub(pop),
+			Self::Mod => per_opcode(T::WeightInfo::evm_mod_opcode)
+				.max(per_opcode(T::WeightInfo::evm_mod_opcode_one_limb_variant))
+				.max(per_opcode(T::WeightInfo::evm_mod_opcode_mixed_variant))
+				.max(per_opcode(T::WeightInfo::evm_mod_opcode_fixed_knuth_variant))
+				.saturating_sub(pop),
+			Self::SMod => per_opcode(T::WeightInfo::evm_smod_opcode)
+				.max(per_opcode(T::WeightInfo::evm_smod_opcode_one_limb_variant))
+				.max(per_opcode(T::WeightInfo::evm_smod_opcode_mixed_variant))
+				.max(per_opcode(T::WeightInfo::evm_smod_opcode_fixed_knuth_variant))
+				.saturating_sub(pop),
+			Self::AddMod => per_opcode(T::WeightInfo::evm_addmod_opcode)
+				.max(per_opcode(T::WeightInfo::evm_addmod_opcode_one_limb_variant))
+				.max(per_opcode(T::WeightInfo::evm_addmod_opcode_mixed_variant))
+				.max(per_opcode(T::WeightInfo::evm_addmod_opcode_fixed_knuth_variant))
+				.saturating_sub(pop),
+			Self::MulMod => per_opcode(T::WeightInfo::evm_mulmod_opcode).saturating_sub(pop),
+		}
 	}
 }
 
@@ -99,6 +147,24 @@ impl<T: Config> ContractBlob<T> {
 		code: Vec<u8>,
 		owner: AccountIdOf<T>,
 	) -> Result<Self, DispatchError> {
+		let code_len = code.len() as u32;
+		let deposit = super::calculate_code_deposit::<T>(code_len);
+		Self::from_evm_runtime_code_with_deposit(code, owner, deposit)
+	}
+
+	/// Create a new contract from EVM runtime code with an explicit owner and
+	/// deposit amount.
+	///
+	/// Used for `Origin::Root` uploads: there is no origin account to attribute
+	/// the deposit to, so the caller passes the pallet's own account as a
+	/// sentinel owner (no user can sign as it, so the code can't be removed via
+	/// the owner-gated path) and a zero deposit (both `charge_deposit` and
+	/// `refund_deposit` short-circuit at amount 0).
+	pub fn from_evm_runtime_code_with_deposit(
+		code: Vec<u8>,
+		owner: AccountIdOf<T>,
+		deposit: BalanceOf<T>,
+	) -> Result<Self, DispatchError> {
 		if code.len() > revm::primitives::eip170::MAX_CODE_SIZE &&
 			!DebugSettings::is_unlimited_contract_size_allowed::<T>()
 		{
@@ -106,7 +172,6 @@ impl<T: Config> ContractBlob<T> {
 		}
 
 		let code_len = code.len() as u32;
-		let deposit = super::calculate_code_deposit::<T>(code_len);
 
 		let code_info = CodeInfo {
 			owner,
@@ -140,7 +205,7 @@ pub fn call<E: Ext>(bytecode: Bytecode, ext: &mut E, input: Vec<u8>) -> ExecResu
 	halt.into()
 }
 
-fn run_plain<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt, Infallible> {
+pub fn run_plain<E: Ext>(interpreter: &mut Interpreter<E>) -> ControlFlow<Halt, Infallible> {
 	loop {
 		let opcode = interpreter.bytecode.opcode();
 		interpreter.bytecode.relative_jump(1);

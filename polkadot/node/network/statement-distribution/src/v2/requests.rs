@@ -239,7 +239,7 @@ impl RequestManager {
 		}
 	}
 
-	/// Remove based on relay-parent.
+	/// Remove all requests associated with the given scheduling parent.
 	pub fn remove_by_scheduling_parent(&mut self, scheduling_parent: Hash) {
 		let mut candidate_hashes = HashSet::new();
 
@@ -284,6 +284,19 @@ impl RequestManager {
 		}
 
 		false
+	}
+
+	#[cfg(test)]
+	pub(super) fn requests_count_by_scheduling_parent(&self, scheduling_parent: Hash) -> usize {
+		self.requests
+			.keys()
+			.filter(|id| id.scheduling_parent == scheduling_parent)
+			.count()
+	}
+
+	#[cfg(test)]
+	pub(super) fn total_requests_count(&self) -> usize {
+		self.requests.len()
 	}
 
 	/// Returns an instant at which the next request to be retried will be ready.
@@ -739,18 +752,18 @@ fn validate_complete_response(
 			return invalid_candidate_output(COST_INVALID_UMP_SIGNALS);
 		}
 
-		// Check if `session_index` of relay parent matches candidate descriptor
-		// `session_index`.
-		if let Some(candidate_session_index) = response.candidate_receipt.descriptor.session_index()
+		// Check if `session_index` of scheduling parent matches candidate descriptor
+		// `scheduling_session`.
+		if let Some(scheduling_session) = response.candidate_receipt.descriptor.scheduling_session()
 		{
-			if candidate_session_index != session {
+			if scheduling_session != session {
 				gum::debug!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					peer = ?requested_peer,
 					session_index = session,
-					candidate_session_index,
-					"Received candidate has invalid session index"
+					scheduling_session,
+					"Received candidate has invalid scheduling session index"
 				);
 				return invalid_candidate_output(COST_INVALID_SESSION_INDEX);
 			}
@@ -942,7 +955,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_remove_by_relay_parent() {
+	fn test_remove_by_scheduling_parent() {
 		let parent_a = Hash::from_low_u64_le(1);
 		let parent_b = Hash::from_low_u64_le(2);
 		let parent_c = Hash::from_low_u64_le(3);

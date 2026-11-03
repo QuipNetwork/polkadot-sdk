@@ -1,4 +1,6 @@
 name: "build and push image"
+description: "Build a Docker image and push it to GCP and DockerHub registries"
+
 inputs:
   dockerfile:
     description: "dockerfile to build"
@@ -7,9 +9,11 @@ inputs:
     description: "image name (without registry)"
     required: true
   username:
+    description: "DockerHub username for authentication"
     required: false
     default: ""
   password:
+    description: "DockerHub password for authentication"
     required: false
     default: ""
 outputs:
@@ -39,6 +43,10 @@ runs:
       run: |
         export DOCKER_IMAGES_VERSION=${{ github.event.pull_request.head.sha || 'master' }}
         if [[ ${{ github.event_name }} == "merge_group" ]]; then export DOCKER_IMAGES_VERSION="${GITHUB_SHA::8}"; fi
+        if [[ ${{ github.event_name }} == "push" ]]; then export DOCKER_IMAGES_VERSION="master-${GITHUB_SHA::8}"; fi
+        export IMAGE_TAG_TIMESTAMP="$(date -u '+%Y%m%d-%H%M%S')"
+        echo "IMAGE_TAG_TIMESTAMP=${IMAGE_TAG_TIMESTAMP}" >> "$GITHUB_ENV"
+        export DOCKER_IMAGES_VERSION="${DOCKER_IMAGES_VERSION}-${IMAGE_TAG_TIMESTAMP}"
         docker build \
           --build-arg VCS_REF="${GITHUB_SHA}" \
           --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
@@ -68,7 +76,9 @@ runs:
         if [[ ${{ github.event_name }} == "pull_request" ]]; then export DOCKERHUB_TAG=$DOCKERHUB_TAG-${GITHUB_PR_HEAD_SHA::8}; fi
         if [[ ${{ github.event_name }} == "push" ]]; then export DOCKERHUB_TAG=$DOCKERHUB_TAG-${GITHUB_SHA::8}; fi
         #
-        docker tag "europe-docker.pkg.dev/parity-ci-2024/temp-images/${{ inputs.image-name }}:${{ github.event.pull_request.head.sha || 'master' }}" $DOCKERHUB_TAG
+        export SOURCE_TAG=${{ github.event.pull_request.head.sha || 'master' }}
+        if [[ ${{ github.event_name }} == "push" ]]; then export SOURCE_TAG="master-${GITHUB_SHA::8}"; fi
+        export SOURCE_TAG="${SOURCE_TAG}-${IMAGE_TAG_TIMESTAMP}"
+        docker tag "europe-docker.pkg.dev/parity-ci-2024/temp-images/${{ inputs.image-name }}:${SOURCE_TAG}" $DOCKERHUB_TAG
         docker push $DOCKERHUB_TAG
-
 

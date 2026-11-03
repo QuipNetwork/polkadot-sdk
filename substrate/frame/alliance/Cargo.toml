@@ -1,6 +1,6 @@
 [package]
 name = "pallet-alliance"
-version = "45.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -20,22 +20,25 @@ array-bytes = { optional = true, workspace = true, default-features = true }
 log = { workspace = true }
 
 codec = { features = ["derive"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
-pallet-collective = { optional = true, workspace = true }
-pallet-identity = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
+
 sp-core = { workspace = true }
 sp-crypto-hashing = { optional = true, workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
+frame-benchmarking = { optional = true, workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
+pallet-collective = { optional = true, workspace = true }
+pallet-identity = { workspace = true }
+
 [dev-dependencies]
 array-bytes = { workspace = true, default-features = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-collective = { default-features = true, workspace = true }
-sp-crypto-hashing = { workspace = true, default-features = false }
+pallet-balances = { workspace = true, default-features = true }
+pallet-collective = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true }
 
 [features]
 default = ["std"]
@@ -45,6 +48,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
 	"pallet-collective?/std",
 	"pallet-identity/std",
 	"scale-info/std",

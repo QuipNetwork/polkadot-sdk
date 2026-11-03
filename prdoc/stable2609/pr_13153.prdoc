@@ -1,0 +1,20 @@
+title: '`pallet-accumulate-and-forward`: measure the transfer period from the last forward'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    `on_idle` only forwarded when the block number of the configured `BlockNumberProvider` was an
+    exact multiple of `TransferPeriod`. A chain that does not observe every block of its provider,
+    e.g. a parachain using `RelaychainDataProvider`, can miss those blocks indefinitely.
+
+    The pallet now records the block of the last forwarding attempt in the new `LastForwardBlock`
+    storage item and forwards once `TransferPeriod` blocks have elapsed since then, whatever the
+    block cadence. No migration is needed: an empty `LastForwardBlock` means "never forwarded", so
+    after upgrade the first block with enough funds forwards immediately.
+
+crates:
+- name: pallet-accumulate-and-forward
+  bump: minor
+- name: emulated-integration-tests-common
+  bump: major
+  validate: false

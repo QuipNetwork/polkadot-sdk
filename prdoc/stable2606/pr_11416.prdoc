@@ -1,0 +1,22 @@
+title: 'revive: Automatic address mapping via OnNewAccount/OnKilledAccount'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    - Add `AutoMapper<T>` struct that implements `OnNewAccount`/`OnKilledAccount` to automatically map accounts when created and unmap when killed
+    - Add `AutoMap` config constant to enable/disable the feature per-runtime
+    - Guard `map_account`/`unmap_account` dispatchables with `AutoMappingEnabled` error when auto-mapping is active
+    - Wire up `AutoMapper` in Asset Hub Westend and dev-node runtimes with `AutoMap = true`
+    - Add v3 multi-block migration to auto-map all existing accounts and release deposits for already-mapped accounts
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: revive-dev-runtime
+  bump: major
+- name: pallet-revive
+  bump: major
+- name: penpal-runtime
+  bump: minor
+- name: kitchensink-runtime
+  bump: minor

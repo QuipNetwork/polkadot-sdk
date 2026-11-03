@@ -1,0 +1,12 @@
+title: 'sc-consensus-babe: skip epoch pruning when finalized header has no BABE pre-digest'
+doc:
+- audience: Node Dev
+  description: |-
+    `prune_finalized` assumed every finalized header carries a BABE pre-digest and panicked otherwise.
+    That breaks constructing `BabeBlockImport` when finalized blocks were authored by another engine
+    (e.g. during an Aura→BABE migration).
+
+    Pruning is now skipped when the pre-digest is missing.
+crates:
+- name: sc-consensus-babe
+  bump: patch

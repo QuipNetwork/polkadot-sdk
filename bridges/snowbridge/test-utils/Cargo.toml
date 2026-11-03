@@ -1,7 +1,7 @@
 [package]
 name = "snowbridge-test-utils"
 description = "Snowbridge test utilities"
-version = "0.9.0"
+version = "0.15.0"
 authors = ["Snowfork <contact@snowfork.com>"]
 edition.workspace = true
 repository.workspace = true
@@ -15,19 +15,20 @@ workspace = true
 exclude-from-umbrella = true
 
 [dependencies]
-bp-relayers = { default-features = true, workspace = true }
+bp-relayers = { workspace = true, default-features = true }
 codec = { workspace = true, default-features = true }
 frame-benchmarking = { optional = true, workspace = true, default-features = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
-pallet-asset-conversion = { default-features = true, workspace = true }
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-asset-conversion = { workspace = true, default-features = true }
 scale-info = { features = ["derive"], workspace = true, default-features = true }
-snowbridge-core = { default-features = true, workspace = true }
-snowbridge-outbound-queue-primitives = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-xcm = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-executor = { default-features = true, workspace = true }
+snowbridge-core = { workspace = true, default-features = true }
+snowbridge-outbound-queue-primitives = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }
 
 [features]
 runtime-benchmarks = [

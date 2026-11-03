@@ -149,6 +149,15 @@ where
 		methods: Option<String>,
 	) -> Result<sp_rpc::tracing::TraceBlockResponse, Error>;
 
+	/// Run `method` re-enacting `block` at its parent state with a proof-size recorder, replaying
+	/// `block`'s stored recording when available.
+	fn call_recorded(
+		&self,
+		block: Block::Hash,
+		method: String,
+		call_data: Bytes,
+	) -> Result<Bytes, Error>;
+
 	/// New runtime version subscription
 	fn subscribe_runtime_version(&self, pending: PendingSubscriptionSink);
 
@@ -162,6 +171,10 @@ where
 }
 
 /// Create new state API that works on full node.
+///
+/// `execute_block` is the optional proof-size-recording block executor (`Some` on parachains).
+/// When `None`, `state_traceBlock` runs without recording and `state_callRecorded` reports
+/// `CallRecordedUnsupported`.
 pub fn new_full<BE, Block: BlockT, Client>(
 	client: Arc<Client>,
 	executor: SubscriptionTaskExecutor,
@@ -329,6 +342,17 @@ where
 		self.backend
 			.trace_block(block, targets, storage_keys, methods)
 			.map_err(Into::into)
+	}
+
+	fn call_recorded(
+		&self,
+		ext: &Extensions,
+		method: String,
+		data: Bytes,
+		block: Block::Hash,
+	) -> Result<Bytes, Error> {
+		check_if_safe(ext).map_err(|_| Error::CallRecordedDenied)?;
+		self.backend.call_recorded(block, method, data).map_err(Into::into)
 	}
 
 	fn subscribe_runtime_version(&self, pending: PendingSubscriptionSink) {

@@ -17,15 +17,15 @@
 //! Genesis configs presets for the Westend runtime
 
 use crate::{
-	BabeConfig, BalancesConfig, ConfigurationConfig, DapSatellitePalletId, ExistentialDeposit,
-	RegistrarConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, StakingConfig, SudoConfig,
+	BabeConfig, BalancesConfig, ConfigurationConfig, ExistentialDeposit, RegistrarConfig, Runtime,
+	RuntimeGenesisConfig, SessionConfig, SessionKeys, StakingAhClientConfig, SudoConfig,
 	BABE_GENESIS_EPOCH_CONFIG,
 };
 #[cfg(not(feature = "std"))]
 use alloc::format;
 use alloc::{vec, vec::Vec};
-use frame_support::{build_struct_json_patch, sp_runtime::traits::AccountIdConversion};
-use pallet_staking::{Forcing, StakerStatus};
+use frame_support::build_struct_json_patch;
+use pallet_staking_async_ah_client::OperatingMode;
 use polkadot_primitives::{vstaging::SchedulerParams, AccountId, AssignmentId, ValidatorId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -34,11 +34,10 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::get_public_from_string_or_panic, sr25519};
 use sp_genesis_builder::PresetId;
 use sp_keyring::Sr25519Keyring;
-use sp_runtime::Perbill;
 use westend_runtime_constants::currency::UNITS as WND;
 
-fn dap_satellite_account() -> AccountId {
-	DapSatellitePalletId::get().into_account_truncating()
+fn accumulation_account() -> AccountId {
+	pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account()
 }
 
 /// Helper function to generate stash, controller and session key from seed
@@ -176,14 +175,13 @@ fn westend_testnet_genesis(
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * WND;
-	const STASH: u128 = 100 * WND;
 
 	build_struct_json_patch!(RuntimeGenesisConfig {
 		balances: BalancesConfig {
 			balances: endowed_accounts
 				.iter()
 				.map(|k| (k.clone(), ENDOWMENT))
-				.chain(core::iter::once((dap_satellite_account(), ExistentialDeposit::get())))
+				.chain(core::iter::once((accumulation_account(), ExistentialDeposit::get())))
 				.collect::<Vec<_>>(),
 		},
 		session: SessionConfig {
@@ -205,21 +203,15 @@ fn westend_testnet_genesis(
 				})
 				.collect::<Vec<_>>(),
 		},
-		staking: StakingConfig {
-			minimum_validator_count: 1,
-			validator_count: initial_authorities.len() as u32,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, StakerStatus::<AccountId>::Validator))
-				.collect::<Vec<_>>(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
-			force_era: Forcing::NotForcing,
-			slash_reward_fraction: Perbill::from_percent(10),
-		},
 		babe: BabeConfig { epoch_config: BABE_GENESIS_EPOCH_CONFIG },
 		sudo: SudoConfig { key: Some(root_key) },
 		configuration: ConfigurationConfig { config: default_parachains_host_configuration() },
 		registrar: RegistrarConfig { next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID },
+		staking_ah_client: StakingAhClientConfig {
+			operating_mode: OperatingMode::Buffered,
+			validator_set_applied_at: Some(0),
+			..Default::default()
+		},
 	})
 }
 
@@ -355,7 +347,7 @@ fn westend_staging_testnet_config_genesis() -> serde_json::Value {
 				.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-				.chain(core::iter::once((dap_satellite_account(), ExistentialDeposit::get())))
+				.chain(core::iter::once((accumulation_account(), ExistentialDeposit::get())))
 				.collect::<Vec<_>>(),
 		},
 		session: SessionConfig {
@@ -376,17 +368,6 @@ fn westend_staging_testnet_config_genesis() -> serde_json::Value {
 					)
 				})
 				.collect::<Vec<_>>(),
-		},
-		staking: StakingConfig {
-			validator_count: 50,
-			minimum_validator_count: 4,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), STASH, StakerStatus::<AccountId>::Validator))
-				.collect::<Vec<_>>(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
-			force_era: Forcing::ForceNone,
-			slash_reward_fraction: Perbill::from_percent(10),
 		},
 		babe: BabeConfig { epoch_config: BABE_GENESIS_EPOCH_CONFIG },
 		sudo: SudoConfig { key: Some(endowed_accounts[0].clone()) },

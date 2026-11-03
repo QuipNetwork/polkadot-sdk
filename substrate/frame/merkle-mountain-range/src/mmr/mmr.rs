@@ -104,9 +104,13 @@ where
 		raw_ancestry_proof.prev_peaks.clone(),
 	)
 	.map_err(|e| Error::Verify.log_debug(e))?;
-	raw_ancestry_proof
+
+	let is_valid = raw_ancestry_proof
 		.verify_ancestor(Node::Hash(root), prev_root.clone())
 		.map_err(|e| Error::Verify.log_debug(e))?;
+	if !is_valid {
+		return Err(Error::Verify.log_debug("invalid ancestry proof"));
+	}
 
 	Ok(prev_root.hash())
 }

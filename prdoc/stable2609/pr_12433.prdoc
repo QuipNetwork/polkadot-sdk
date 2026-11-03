@@ -1,0 +1,24 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'txpool: maintain the transaction pool on every imported block (all forks)'
+
+doc:
+  - audience: [Node Operator, Node Dev]
+    description: |
+      The fork-aware transaction pool is now maintained on every imported block, not only on blocks
+      imported as the new best, so it builds a view for all forks. The new `--pool-best-blocks-only`
+      flag restores the previous best-blocks-only behavior. The flag only affects the fork-aware pool;
+      the single-state pool is always maintained on best blocks only.
+
+crates:
+  - name: sc-transaction-pool-api
+    bump: major
+  - name: sc-transaction-pool
+    bump: major
+  - name: sc-client-api
+    bump: minor
+  - name: sc-service
+    bump: patch
+  - name: sc-cli
+    bump: major

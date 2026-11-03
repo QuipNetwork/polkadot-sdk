@@ -1,6 +1,6 @@
 [package]
 name = "pallet-staking-runtime-api"
-version = "31.0.0"
+version = "34.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

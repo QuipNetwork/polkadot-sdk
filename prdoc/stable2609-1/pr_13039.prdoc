@@ -1,0 +1,13 @@
+title: '[pallet-revive] Enforce the storage deposit limit before recording the charge'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `charge_deposit` now checks the storage deposit limit before recording a charge instead
+    of recording it and resetting the whole meter on overflow. This keeps the transaction's
+    other storage charges in place when a contract termination's deposit charge would exceed
+    the limit, so those writes are charged and held rather than committed without a deposit.
+crates:
+- name: pallet-revive
+  bump: patch
+- name: pallet-revive-fixtures
+  bump: minor

@@ -1,0 +1,48 @@
+title: '[pallet-revive] Version Trivial Runtime API Functions'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR versions all of the runtime API functions in pallet-revive which have a trivial interface and therefore doesn't require us to add a lot of new wire types or move too many things around. Any runtime API function which required a complex wire type to be defined for it is intentionally not versioned in this PR.
+
+    The following checklist shows all of the runtime API functions we have in pallet-revive. The checked-off functions are the ones which have been versioned in this PR (plus the `trace_block` function which was versioned in #12244).
+
+    - [ ] `eth_block`
+    - [x] `eth_block_hash`
+    - [x] `eth_receipt_data`
+    - [x] `balance`
+    - [x] `block_author`
+    - [x] `block_gas_limit`
+    - [x] `max_extrinsic_weight_in_gas`
+    - [x] `gas_price`
+    - [x] `nonce`
+    - [x] `address`
+    - [ ] `eth_transact`
+    - [ ] `eth_transact_with_config`
+    - [ ] `eth_estimate_gas`
+    - [x] `eth_pre_dispatch_weight`
+    - [ ] `call`
+    - [ ] `instantiate`
+    - [x] `upload_code`
+    - [x] `get_storage_var_key`
+    - [x] `get_storage`
+    - [x] `trace_block`
+    - [x] `trace_tx`
+    - [ ] `trace_call`
+    - [ ] `trace_call_with_config`
+    - [x] `runtime_pallets_address`
+    - [x] `code`
+    - [x] `account_id`
+    - [x] `new_balance_with_dust`
+
+    Most notably is that all of the functions which make use of `GenericTransaction` or of `Block` have not been versioned yet. This is planned in an upcoming PR.
+
+    Also, this PR adds a `GUIDE.md` file into the `pallet-revive-types` crate which serves as a guide on how versioning can be done. This file was written such that it can be consumed by us or by agents to do all of the mechanical work needed to version any runtime API function. It currently contains a guide on how to version an unversioned runtime API function and I'm planning on adding a section on updating a versioned runtime API function in the future.
+crates:
+- name: pallet-revive-types
+  bump: minor
+- name: pallet-revive
+  bump: minor
+- name: pallet-revive-eth-rpc
+  bump: minor

@@ -1,0 +1,17 @@
+title: Remove deprecated frame_support::error module
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    Removes deprecated `frame_support::error` as part of #11561.
+
+    The module was a re-export of `sp_runtime::traits::{BadOrigin, LookupError}` (deprecated July 2023). Updates the only in-repo caller, `pallet-revive`.
+
+    Does not close #11561.
+
+crates:
+- name: pallet-revive
+  bump: patch
+- name: frame-support
+  bump: major

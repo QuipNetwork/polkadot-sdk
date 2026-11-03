@@ -14,11 +14,11 @@
 // limitations under the License.
 
 use super::{
-	governance::TreasuryAccount, AccountId, AllPalletsWithSystem, Assets, Balance, Balances,
-	BaseDeliveryFee, CollatorSelection, DepositPerByte, DepositPerItem, FeeAssetId,
-	FellowshipAdmin, ForeignAssets, GeneralAdmin, ParachainInfo, ParachainSystem, PolkadotXcm,
-	PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, RuntimeOrigin, StakingAdmin,
-	ToRococoXcmRouter, TransactionByteFee, Treasurer, Uniques, WeightToFee, XcmpQueue,
+	AccountId, AllPalletsWithSystem, Assets, Balance, Balances, BaseDeliveryFee, CollatorSelection,
+	DepositPerByte, DepositPerItem, FeeAssetId, ForeignAssets, GeneralAdmin, ParachainInfo,
+	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeHoldReason, RuntimeOrigin, ToRococoXcmRouter, TransactionByteFee, Uniques, WeightToFee,
+	XcmpQueue,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use assets_common::{
@@ -28,12 +28,13 @@ use assets_common::{
 	},
 	TrustBackedAssetsAsLocation,
 };
+use cumulus_primitives_core::{IsSystem, ParaId};
 use frame_support::{
 	parameter_types,
 	traits::{
 		fungible::HoldConsideration,
 		tokens::imbalance::{ResolveAssetTo, ResolveTo},
-		ConstU32, Contains, Equals, Everything, LinearStoragePrice, PalletInfoAccess,
+		ConstU32, ConstU8, Contains, Equals, Everything, LinearStoragePrice, PalletInfoAccess,
 	},
 	PalletId,
 };
@@ -46,9 +47,11 @@ use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
 use snowbridge_outbound_queue_primitives::v2::exporter::PausableExporter;
 use sp_runtime::traits::{AccountIdConversion, TryConvertInto};
-use testnet_parachains_constants::westend::locations::AssetHubParaId;
-use westend_runtime_constants::{
-	system_parachain::COLLECTIVES_ID, xcm::body::FELLOWSHIP_ADMIN_INDEX,
+use testnet_parachains_constants::westend::{
+	accumulate_forward::AccumulateForwardPalletId, locations::AssetHubParaId,
+};
+use westend_runtime_constants::system_parachain::{
+	BRIDGE_HUB_ID, BROKER_ID, COLLECTIVES_ID, PEOPLE_ID,
 };
 use xcm::latest::{prelude::*, ROCOCO_GENESIS_HASH, WESTEND_GENESIS_HASH};
 use xcm_builder::{
@@ -58,7 +61,7 @@ use xcm_builder::{
 	DenyRecursively, DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal,
 	DescribeFamily, EnsureXcmOrigin, ExternalConsensusLocationsConverterFor,
 	FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter, HashedDescription, IsConcrete,
-	LocalMint, MatchInClassInstances, MatchedConvertedConcreteId, MintLocation,
+	IsParentsOnly, LocalMint, MatchInClassInstances, MatchedConvertedConcreteId, MintLocation,
 	NetworkExportTableItem, NoChecking, OriginToPluralityVoice, ParentAsSuperuser, ParentIsPreset,
 	RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
 	SignedAccountId32AsNative, SignedToAccountId32, SingleAssetExchangeAdapter,
@@ -87,7 +90,6 @@ parameter_types! {
 		PalletInstance(<Uniques as PalletInfoAccess>::index() as u8).into();
 	pub CheckingAccount: AccountId = PolkadotXcm::check_account();
 	pub StakingPot: AccountId = CollatorSelection::account_id();
-	pub RelayTreasuryLocation: Location = (Parent, PalletInstance(westend_runtime_constants::TREASURY_PALLET_ID)).into();
 	/// Asset Hub has mint authority since the Asset Hub migration.
 	pub TeleportTracking: Option<(AccountId, MintLocation)> = Some((CheckingAccount::get(), MintLocation::Local));
 }
@@ -213,6 +215,7 @@ parameter_types! {
 	pub const ERC20TransferGasLimit: Weight = Weight::from_parts(500_000_000_000, 10 * 1024 * 1024);
 	pub const ERC20TransferStorageDepositLimit: Balance = 10_200_000_000;
 	pub ERC20TransfersCheckingAccount: AccountId = PalletId(*b"py/revch").into_account_truncating();
+	pub DapBufferAccount: AccountId = pallet_dap::Pallet::<Runtime>::buffer_account();
 }
 
 /// Transactor for ERC20 tokens.
@@ -271,13 +274,6 @@ parameter_types! {
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-pub struct ParentOrParentsPlurality;
-impl Contains<Location> for ParentOrParentsPlurality {
-	fn contains(location: &Location) -> bool {
-		matches!(location.unpack(), (1, []) | (1, [Plurality { .. }]))
-	}
-}
-
 pub struct FellowshipEntities;
 impl Contains<Location> for FellowshipEntities {
 	fn contains(location: &Location) -> bool {
@@ -311,6 +307,25 @@ impl Contains<Location> for SecretaryEntities {
 	}
 }
 
+pub struct SystemChainAccumulationAccounts;
+impl Contains<Location> for SystemChainAccumulationAccounts {
+	fn contains(location: &Location) -> bool {
+		let accumulation_account: [u8; 32] =
+			AccumulateForwardPalletId::get().into_account_truncating();
+		match location.unpack() {
+			// Relay chain (parent) accumulation account.
+			(1, [AccountId32 { id, .. }]) => *id == accumulation_account,
+			// Sibling system parachain accumulation account.
+			(1, [Parachain(id), AccountId32 { id: account_id, .. }]) => {
+				ParaId::from(*id).is_system() &&
+					matches!(*id, BRIDGE_HUB_ID | BROKER_ID | COLLECTIVES_ID | PEOPLE_ID) &&
+					*account_id == accumulation_account
+			},
+			_ => false,
+		}
+	}
+}
+
 pub type Barrier = TrailingSetTopicAsId<
 	DenyThenTry<
 		DenyRecursively<DenyReserveTransferToRelayChain>,
@@ -324,16 +339,23 @@ pub type Barrier = TrailingSetTopicAsId<
 					// If the message is one that immediately attempts to pay for execution, then
 					// allow it.
 					AllowTopLevelPaidExecutionFrom<Everything>,
-					// Parent, its pluralities (i.e. governance bodies), relay treasury pallet and
-					// sibling parachains get free execution.
-					AllowExplicitUnpaidExecutionFrom<(
-						ParentOrParentsPlurality,
-						Equals<RelayTreasuryLocation>,
-						RelayOrOtherSystemParachains<AllSiblingSystemParachains, Runtime>,
-						FellowshipEntities,
-						AmbassadorEntities,
-						SecretaryEntities,
-					)>,
+					// Parent and sibling system parachains get free execution.
+					AllowExplicitUnpaidExecutionFrom<
+						(
+							IsParentsOnly<ConstU8<1>>,
+							RelayOrOtherSystemParachains<AllSiblingSystemParachains, Runtime>,
+							FellowshipEntities,
+							AmbassadorEntities,
+							SecretaryEntities,
+						),
+						CheapTrustedAliasers,
+					>,
+					// Accumulation accounts get free execution, while aliasing allows the chain
+					// (as the XCM sending origin) to claim the identity of these accounts.
+					AllowExplicitUnpaidExecutionFrom<
+						SystemChainAccumulationAccounts,
+						CheapTrustedAliasers,
+					>,
 					// Subscriptions for version tracking are OK.
 					AllowSubscriptionsFrom<Everything>,
 					// HRMP notifications from the relay chain are OK.
@@ -352,7 +374,6 @@ pub type Barrier = TrailingSetTopicAsId<
 pub type WaivedLocations = (
 	Equals<RootLocation>,
 	RelayOrOtherSystemParachains<AllSiblingSystemParachains, Runtime>,
-	Equals<RelayTreasuryLocation>,
 	FellowshipEntities,
 	AmbassadorEntities,
 	LocalPlurality,
@@ -379,11 +400,20 @@ pub type TrustedTeleporters = (
 	>,
 );
 
-/// Defines origin aliasing rules for this chain.
+/// Aliasing rules that are pure computation and thus cheap enough to also be evaluated by
+/// barriers, before any payment is taken.
 ///
-/// - Allow any origin to alias into a child sub-location (equivalent to DescendOrigin),
+/// - Allow any origin to alias into a child sub-location (equivalent to DescendOrigin).
+///
+/// `AuthorizedAliasers` is deliberately NOT part of this: it reads storage, which is more than a
+/// barrier is allowed to cost.
+pub type CheapTrustedAliasers = (AliasChildLocation,);
+
+/// Defines origin aliasing rules for this chain. Used by the executor.
+///
+/// - Allow all the cheap aliasing rules also used by the barriers,
 /// - Allow origins explicitly authorized by the alias target location.
-pub type TrustedAliasers = (AliasChildLocation, AuthorizedAliasers<Runtime>);
+pub type TrustedAliasers = (CheapTrustedAliasers, AuthorizedAliasers<Runtime>);
 
 /// Asset converter for pool assets.
 /// Used to convert one asset to another, when there is a pool available between the two.
@@ -457,10 +487,9 @@ impl xcm_executor::Config for XcmConfig {
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 	type AssetLocker = ();
 	type AssetExchanger = PoolAssetsExchanger;
-	// TODO: once DAP allocates budgets, split delivery fees to DAP via a HandleFee wrapper.
 	type FeeManager = XcmFeeManagerFromComponents<
 		WaivedLocations,
-		SendXcmFeeToAccount<Self::AssetTransactor, TreasuryAccount>,
+		SendXcmFeeToAccount<Self::AssetTransactor, DapBufferAccount>,
 	>;
 	type MessageExporter = ();
 	type UniversalAliases =
@@ -478,12 +507,6 @@ impl xcm_executor::Config for XcmConfig {
 parameter_types! {
 	// `GeneralAdmin` pluralistic body.
 	pub const GeneralAdminBodyId: BodyId = BodyId::Administration;
-	// StakingAdmin pluralistic body.
-	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
-	// FellowshipAdmin pluralistic body.
-	pub const FellowshipAdminBodyId: BodyId = BodyId::Index(FELLOWSHIP_ADMIN_INDEX);
-	// `Treasurer` pluralistic body.
-	pub const TreasurerBodyId: BodyId = BodyId::Treasury;
 }
 
 /// Type to convert the `GeneralAdmin` origin to a Plurality `Location` value.
@@ -493,30 +516,6 @@ pub type GeneralAdminToPlurality =
 /// Local origins on this chain are allowed to dispatch XCM sends/executions.
 pub type LocalOriginToLocation =
 	(GeneralAdminToPlurality, SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>);
-
-/// Type to convert the `StakingAdmin` origin to a Plurality `Location` value.
-pub type StakingAdminToPlurality =
-	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
-
-/// Type to convert the `FellowshipAdmin` origin to a Plurality `Location` value.
-pub type FellowshipAdminToPlurality =
-	OriginToPluralityVoice<RuntimeOrigin, FellowshipAdmin, FellowshipAdminBodyId>;
-
-/// Type to convert the `Treasurer` origin to a Plurality `Location` value.
-pub type TreasurerToPlurality = OriginToPluralityVoice<RuntimeOrigin, Treasurer, TreasurerBodyId>;
-
-/// Type to convert a pallet `Origin` type value into a `Location` value which represents an
-/// interior location of this chain for a destination chain.
-pub type LocalPalletOriginToLocation = (
-	// GeneralAdmin origin to be used in XCM as a corresponding Plurality `Location` value.
-	GeneralAdminToPlurality,
-	// StakingAdmin origin to be used in XCM as a corresponding Plurality `Location` value.
-	StakingAdminToPlurality,
-	// FellowshipAdmin origin to be used in XCM as a corresponding Plurality `Location` value.
-	FellowshipAdminToPlurality,
-	// `Treasurer` origin to be used in XCM as a corresponding Plurality `Location` value.
-	TreasurerToPlurality,
-);
 
 pub type PriceForParentDelivery =
 	ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, ParachainSystem>;
@@ -798,5 +797,70 @@ pub mod bridging {
 				});
 			Some(alias.expect("we expect here BridgeHubWestend to Rococo mapping at least"))
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use frame_support::traits::Contains;
+	use sp_runtime::traits::AccountIdConversion;
+
+	#[test]
+	fn system_chain_accumulation_accounts_allows_sibling_system_parachain() {
+		let accumulation_account: [u8; 32] =
+			AccumulateForwardPalletId::get().into_account_truncating();
+		// A sibling system parachain with the accumulation account — use BridgeHub (1002).
+		let location = Location::new(
+			1,
+			[Parachain(BRIDGE_HUB_ID), AccountId32 { network: None, id: accumulation_account }],
+		);
+		assert!(SystemChainAccumulationAccounts::contains(&location));
+	}
+
+	#[test]
+	fn system_chain_accumulation_accounts_allows_relay_chain_parent() {
+		let accumulation_account: [u8; 32] =
+			AccumulateForwardPalletId::get().into_account_truncating();
+		// Relay chain (parent) with the accumulation account.
+		let location = Location::new(1, [AccountId32 { network: None, id: accumulation_account }]);
+		assert!(SystemChainAccumulationAccounts::contains(&location));
+	}
+
+	#[test]
+	fn system_chain_accumulation_accounts_rejects_wrong_account() {
+		let wrong_account = [0u8; 32];
+		// Correct sibling system parachain, but wrong account.
+		let location =
+			Location::new(1, [Parachain(1000), AccountId32 { network: None, id: wrong_account }]);
+		assert!(!SystemChainAccumulationAccounts::contains(&location));
+	}
+
+	#[test]
+	fn system_chain_accumulation_accounts_rejects_non_system_parachain() {
+		let accumulation_account: [u8; 32] =
+			AccumulateForwardPalletId::get().into_account_truncating();
+		// Non-system parachain (id=2000, the lowest public parachain id).
+		let location = Location::new(
+			1,
+			[Parachain(2000), AccountId32 { network: None, id: accumulation_account }],
+		);
+		assert!(!SystemChainAccumulationAccounts::contains(&location));
+	}
+
+	#[test]
+	fn system_chain_accumulation_accounts_rejects_local_account() {
+		let accumulation_account: [u8; 32] =
+			AccumulateForwardPalletId::get().into_account_truncating();
+		// Local account (parents=0) — not a system chain origin.
+		let location = Location::new(0, [AccountId32 { network: None, id: accumulation_account }]);
+		assert!(!SystemChainAccumulationAccounts::contains(&location));
+	}
+
+	#[test]
+	fn system_chain_accumulation_accounts_rejects_parachain_without_account() {
+		// Sibling system parachain with no account junction.
+		let location = Location::new(1, [Parachain(1000)]);
+		assert!(!SystemChainAccumulationAccounts::contains(&location));
 	}
 }

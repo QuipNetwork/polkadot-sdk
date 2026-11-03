@@ -1,0 +1,18 @@
+title: Recovery pallet modernization
+doc:
+- audience: Runtime Dev
+  description: |-
+    Revamps the recovery pallet to support multiple recovery groups and many new features.
+crates:
+- name: pallet-recovery
+  bump: major
+- name: frame-support
+  bump: minor
+- name: westend-runtime
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: major
+- name: rococo-runtime
+  bump: major
+- name: substrate-build-script-utils
+  bump: patch

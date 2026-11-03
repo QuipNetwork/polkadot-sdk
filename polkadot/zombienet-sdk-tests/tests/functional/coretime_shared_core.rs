@@ -6,26 +6,38 @@
 
 use crate::utils::{
 	create_force_register_call, env_or_default, fetch_header_and_validation_code,
-	initialize_network, BLOCK_HEIGHT_FINALIZED_METRIC, COL_IMAGE_ENV, INTEGRATION_IMAGE_ENV,
+	initialize_network, maybe_enable_experimental_collator_protocol, COL_IMAGE_ENV,
+	INTEGRATION_IMAGE_ENV,
 };
 use anyhow::anyhow;
-use cumulus_zombienet_sdk_helpers::submit_extrinsic_and_wait_for_finalization_success_with_timeout;
+use cumulus_zombienet_sdk_helpers::{
+	assert_para_throughput, submit_extrinsic_and_wait_for_finalization_success_with_timeout,
+};
+use polkadot_primitives::Id as ParaId;
 use serde_json::json;
+use std::{collections::HashMap, ops::Range};
 use zombienet_sdk::{
 	subxt::{dynamic::Value, ext::scale_value::value, tx},
 	subxt_signer::sr25519::dev,
 	NetworkConfig, NetworkConfigBuilder, RegistrationStrategy,
 };
 
-const PARAS: [u32; 4] = [2000, 2001, 2002, 2003];
+#[tokio::test(flavor = "multi_thread")]
+async fn coretime_shared_core_test_3_paras() -> Result<(), anyhow::Error> {
+	coretime_shared_core_inner(3u32).await
+}
 
 #[tokio::test(flavor = "multi_thread")]
-async fn coretime_shared_core_test() -> Result<(), anyhow::Error> {
+async fn coretime_shared_core_test_4_paras() -> Result<(), anyhow::Error> {
+	coretime_shared_core_inner(4u32).await
+}
+
+async fn coretime_shared_core_inner(number_of_paras: u32) -> Result<(), anyhow::Error> {
 	let _ = env_logger::try_init_from_env(
 		env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
 	);
 
-	let config = build_network_config()?;
+	let config = build_network_config(number_of_paras)?;
 	let network = initialize_network(config).await?;
 
 	let alice_account = Value::from_bytes(dev::alice().public_key().0);
@@ -33,8 +45,9 @@ async fn coretime_shared_core_test() -> Result<(), anyhow::Error> {
 	let relay_node = relaychain_nodes.first().ok_or(anyhow!("relaychain should have one node"))?;
 	let relay_client = relay_node.wait_client().await?;
 
+	let para_ids: Vec<u32> = (0..number_of_paras).map(|i| 2000 + i).collect();
 	log::info!("register paras 2 by 2 to speed up the test. registering all at once will exceed the weight limit.");
-	for chunk in PARAS.chunks_exact(2) {
+	for chunk in para_ids.chunks(2) {
 		let mut calls = vec![];
 		for para_id in chunk {
 			let node = network.get_node(format!("collator-{para_id}"))?;
@@ -71,17 +84,16 @@ async fn coretime_shared_core_test() -> Result<(), anyhow::Error> {
 		log::info!("Registration for paras {chunk:?} completed");
 	}
 
-	log::info!("assign core 0 to be shared by all paras.");
-	// core 0, shared in '14400' parts by each para
+	let part_of_57600 = 57600 / number_of_paras;
+	log::info!("assign core 0 to be shared by all paras ({part_of_57600}).");
+	let assigments: Vec<Value> =
+		para_ids.iter().map(|id| value! { (Task(*id), part_of_57600) }).collect();
 	let sudo_call_assign_core = tx::dynamic(
 		"Sudo",
 		"sudo",
 		vec![value! {
 			Coretime(assign_core { core: 0u32, begin: 0u32, assignment: (
-				(Task(2000u32), 14400u16),
-				(Task(2001u32), 14400u16),
-				(Task(2002u32), 14400u16),
-				(Task(2003u32), 14400u16),
+				assigments
 			), end_hint: None() })
 		}],
 	);
@@ -96,39 +108,29 @@ async fn coretime_shared_core_test() -> Result<(), anyhow::Error> {
 	assert!(res.is_ok(), "Extrinsic failed to finalize: {:?}", res.unwrap_err());
 	log::info!("Core 0 assignment shared for all paras completed");
 
-	//  Timeout derivation (zombienet checks run sequentially; each timeout starts after the
-	//  previous check passes, with actual elapsed time anywhere from 0s to the full budget):
-	//
-	//  Parameters: EpochDurationInBlocks=10 (fast-runtime), SESSION_DELAY=2, relay block
-	//  time=6s. 4 paras share 1 core → slot every 24s, ~2 para blocks/slot (async backing).
-	//
-	//  Paras registered in 2 batches (weight limit). force-register-paras.js waits for
-	//  finalization (~3 blocks) between batches. This causes batch 2 to land in the next
-	//  session, and with SESSION_DELAY=2, batch 2 paras activate 1 full session (60s) later.
-	//
-	//  collator-2000 (250s): from test start. Registration (~54s) + onboarding (2 sessions
-	//    = 120s) + block production (3 slots × 24s = 72s) ≈ 246s, rounded to 250s + margin.
-	//  collator-2001 (30s): same batch as 2000, max 1 slot-cycle lag (24s) + margin.
-	//  collator-2002 (90s): different batch, 60s session stagger + 24s slot-cycle = 84s after
-	//    2000 reaches #6. Sized assuming best case (0s) for preceding checks. 90s with margin.
-	//  collator-2003 (30s): same batch as 2002, max 1 slot-cycle lag (24s) + margin.
-
-	log::info!("Checks parachains block production...");
-	let para_timeout = vec![(2000, 260), (2001, 30), (2002, 90), (2003, 30)];
-	for (para_id, timeout) in para_timeout {
-		let node = network.get_node(format!("collator-{para_id}"))?;
-		node.wait_metric_with_timeout(BLOCK_HEIGHT_FINALIZED_METRIC, |v| v >= 6.0, timeout as u64)
-			.await
-			.map_err(|e| {
-				anyhow!("node {} check failed ({BLOCK_HEIGHT_FINALIZED_METRIC}): {e}", node.name())
-			})?;
+	// Check that all parachains produce blocks within 40 RC blocks
+	// (since core 0 is shared between all paras)
+	let num_blocks = 40;
+	// N paras share 1 core (~1 para blocks/slot async backing).
+	// Each session lasts for 10 blocks (fast-runtime) and the first 2 blocks of each session
+	// don't produce backed candidates (because max_claim_queue_offset = 1).
+	// So only 80% of the relay chain blocks will produce backed candidates.
+	let exp = (num_blocks as f64 * 0.8) / (number_of_paras as f64);
+	let min = exp.round() as u32 - 1;
+	let max = exp.round() as u32 + 2; // +2 because it's not `RangeInclusive`.
+	log::info!("Checking parachain block production with range ({min}..{max})");
+	let mut para_throughput_map: HashMap<ParaId, Range<u32>> = Default::default();
+	for id in para_ids.iter() {
+		para_throughput_map.insert(ParaId::from(*id), min..max);
 	}
+	assert_para_throughput(&relay_client, num_blocks, para_throughput_map, []).await?;
+	log::info!("All parachains producing blocks");
 
 	log::info!("Test finished successfully");
 	Ok(())
 }
 
-fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
+fn build_network_config(number_of_paras: u32) -> Result<NetworkConfig, anyhow::Error> {
 	let images = zombienet_sdk::environment::get_images_from_env();
 	let polkadot_image = env_or_default(INTEGRATION_IMAGE_ENV, images.polkadot.as_str());
 	let col_image = env_or_default(COL_IMAGE_ENV, images.cumulus.as_str());
@@ -138,7 +140,9 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
         .with_chain("rococo-local")
         .with_default_command("polkadot")
         .with_default_image(polkadot_image.as_str())
-        .with_default_args(vec!["-lparachain=debug,runtime=debug".into()])
+        .with_default_args(maybe_enable_experimental_collator_protocol(
+            vec!["-lparachain=debug,runtime=debug".into()],
+        ))
         .with_genesis_overrides(json!({
             "patch": {
                 "configuration": {
@@ -146,7 +150,7 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
                         "needed_approvals": 3,
                         "scheduler_params": {
                             "max_validators_per_core": 1,
-                            "num_cores": 4
+                            "num_cores": number_of_paras
                         }
                     }
                 }
@@ -159,7 +163,7 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
                 .with_request_cpu("1")
         })
         .with_node_group(|g| {
-            g.with_count(4)
+            g.with_count((number_of_paras + 1u32) as usize)
 			.with_base_node(|node| {
                 node.with_name("validator")
                     .with_args(vec!["-lruntime=debug,parachain=debug,parachain::backing=trace,parachain::collator-protocol=trace,parachain::prospective-parachains=trace,runtime::parachains::scheduler=trace,runtime::inclusion-inherent=trace,runtime::inclusion=trace".into()])
@@ -167,7 +171,8 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 		})
 	});
 
-	builder = PARAS.into_iter().fold(builder, |acc, para_id| {
+	let para_ids: Vec<u32> = (0..number_of_paras).map(|i| 2000 + i).collect();
+	builder = para_ids.into_iter().fold(builder, |acc, para_id| {
 		acc.with_parachain(|p| {
 			p.with_id(para_id)
 				.with_registration_strategy(RegistrationStrategy::Manual)
@@ -183,7 +188,10 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 				}))
 				.with_default_image(col_image.as_str())
 				.with_default_command("polkadot-parachain")
-				.with_default_args(vec!["-lparachain=debug".into()])
+				.with_default_args(vec![
+					"--authoring=slot-based".into(),
+					"-lparachain=debug".into(),
+				])
 				.with_collator(|n| n.with_name(&format!("collator-{para_id}")))
 		})
 	});

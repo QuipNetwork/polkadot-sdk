@@ -95,8 +95,6 @@ pub(crate) fn assert_bridge_hub_rococo_message_accepted(expected_processed: bool
 			assert_expected_events!(
 				BridgeHubRococo,
 				vec![
-					// pay for bridge fees
-					RuntimeEvent::Balances(pallet_balances::Event::Withdraw { .. }) => {},
 					// message exported
 					RuntimeEvent::BridgeWestendMessages(
 						pallet_bridge_messages::Event::MessageAccepted { .. }
@@ -335,9 +333,6 @@ fn register_rococo_asset_on_ethereum_from_rah() {
 	});
 
 	let destination = asset_hub_westend_global_location();
-
-	// fund the RAH's SA on RBH for paying bridge delivery fees
-	BridgeHubRococo::fund_para_sovereign(AssetHubRococo::para_id(), 10_000_000_000_000u128);
 
 	// set XCM versions
 	AssetHubRococo::force_xcm_version(destination.clone(), XCM_VERSION);

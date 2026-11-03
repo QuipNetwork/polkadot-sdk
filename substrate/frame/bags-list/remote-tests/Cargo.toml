@@ -1,6 +1,6 @@
 [package]
 name = "pallet-bags-list-remote-tests"
-version = "4.0.0"
+version = "4.0.0-dev"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -16,14 +16,19 @@ workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-frame-election-provider-support = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
+# frame
+frame-election-provider-support = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
 pallet-bags-list = { features = ["fuzz"], workspace = true, default-features = true }
-pallet-staking = { default-features = true, workspace = true }
-remote-externalities = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+pallet-staking-async = { workspace = true, default-features = true }
+
+# core
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+# utils
+remote-externalities = { workspace = true, default-features = true }
 
 # others
 log = { workspace = true, default-features = true }

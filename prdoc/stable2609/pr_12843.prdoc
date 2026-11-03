@@ -1,0 +1,23 @@
+title: '[EPMB] Add configurable reward source and slash destination to signed phase'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds `type RewardSource` (pay rewards from a pot account instead of minting) and `type Slash`
+    (route slashed deposits to a handler instead of burning) to
+    `pallet-election-provider-multi-block::signed::Config`. Asset Hub and the staking-async
+    parachain runtime now wire both through the DAP buffer, keeping `TotalIssuance` reconcilable
+    with the DAP emission curve.
+- audience: Runtime User
+  description: |-
+    If a `RewardSource` pot is depleted, a round-winner's reward is no longer just logged as
+    failed: it is queued and can be claimed by anyone via the new permissionless
+    `claim_unpaid_reward(round)` call, free of charge on success, paying out to the original
+    winner. The queue holds at most 16 entries; if full, the oldest is evicted to make room.
+crates:
+- name: pallet-election-provider-multi-block
+  bump: major
+  validate: false
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: pallet-staking-async-parachain-runtime
+  bump: minor

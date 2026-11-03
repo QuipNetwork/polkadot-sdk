@@ -1,0 +1,19 @@
+title: Migrate `pallet-im-online` to use `TransactionExtension` API
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    Migrates `pallet-im-online` from the deprecated `ValidateUnsigned` trait to the modern
+    `TransactionExtension` API using the `#[pallet::authorize]` attribute.
+
+    Runtime integrators: the pallet's `Config` trait now requires
+    `CreateAuthorizedTransaction<Call<Self>>` instead of `CreateBare<Call<Self>>`.
+    The runtime must include `frame_system::AuthorizeCall` in its transaction extension pipeline.
+    
+crates:
+- name: pallet-im-online
+  bump: major
+- name: pallet-offences-benchmarking
+  bump: patch
+- name: kitchensink-runtime
+  bump: patch

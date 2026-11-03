@@ -1,6 +1,6 @@
 [package]
 name = "frame-omni-bencher"
-version = "0.18.0"
+version = "0.28.0"
 description = "Freestanding benchmark runner for any Polkadot runtime."
 authors.workspace = true
 edition.workspace = true
@@ -13,20 +13,22 @@ workspace = true
 
 [dependencies]
 clap = { features = ["derive"], workspace = true }
-cumulus-primitives-proof-size-hostfunction = { default-features = true, workspace = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true, default-features = true }
 frame-benchmarking-cli = { workspace = true }
 polkadot-jemalloc-shim = { workspace = true }
-sc-cli = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-statement-store = { default-features = true, workspace = true }
+sc-cli = { workspace = true, default-features = true }
+sp-crypto-ec-utils = { workspace = true, default-features = true, features = ["rfc163"] }
+sp-runtime = { workspace = true, default-features = true }
+sp-statement-store = { workspace = true, default-features = true }
 tracing-subscriber = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# Jemalloc as global allocator prevents huge benchmark regression for storage-heavy extrinsics.
 polkadot-jemalloc-shim = { workspace = true, features = ["jemalloc-allocator"] }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
 cumulus-test-runtime = { workspace = true }
-sc-chain-spec = { workspace = true, default-features = false }
-sp-genesis-builder = { default-features = true, workspace = true }
+sc-chain-spec = { workspace = true }
+sp-genesis-builder = { workspace = true, default-features = true }
 tempfile = { workspace = true }

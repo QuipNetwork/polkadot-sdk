@@ -30,6 +30,7 @@ use sc_network::{
 
 use sc_network::{config::FullNetworkConfiguration, NetworkBackend, NotificationService};
 use sc_network_common::{role::Roles, sync::message::BlockAnnouncesHandshake};
+use sc_network_sync::{block_announces_legacy_protocol_name, block_announces_protocol_name};
 use sc_service::{error::Error, Configuration, SpawnTaskHandle};
 
 use std::{iter, sync::Arc};
@@ -76,7 +77,7 @@ pub(crate) fn build_collator_network<Network: NetworkBackend<Block, Hash>>(
 		protocol_id,
 		metrics_registry: config.prometheus_config.as_ref().map(|config| config.registry.clone()),
 		block_announce_config,
-		bitswap_config: None,
+		ipfs_config: None,
 		notification_metrics,
 	};
 
@@ -143,18 +144,11 @@ fn get_block_announce_proto_config<Network: NetworkBackend<Block, Hash>>(
 	metrics: NotificationMetrics,
 	peer_store_handle: Arc<dyn PeerStoreProvider>,
 ) -> (Network::NotificationProtocolConfig, Box<dyn NotificationService>) {
-	let block_announces_protocol = {
-		let genesis_hash = genesis_hash.as_ref();
-		if let Some(ref fork_id) = fork_id {
-			format!("/{}/{}/block-announces/1", array_bytes::bytes2hex("", genesis_hash), fork_id)
-		} else {
-			format!("/{}/block-announces/1", array_bytes::bytes2hex("", genesis_hash))
-		}
-	};
+	let block_announces_protocol = block_announces_protocol_name(genesis_hash, fork_id.as_deref());
 
 	Network::notification_config(
 		block_announces_protocol.into(),
-		iter::once(format!("/{}/block-announces/1", protocol_id.as_ref()).into()).collect(),
+		iter::once(block_announces_legacy_protocol_name(&protocol_id).into()).collect(),
 		1024 * 1024,
 		Some(NotificationHandshake::new(BlockAnnouncesHandshake::<Block>::build(
 			roles,

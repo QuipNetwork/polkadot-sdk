@@ -35,11 +35,21 @@ pub struct Pallet<T: Config<I>, I: 'static = ()>(crate::Pallet<T, I>);
 pub trait Config<I: 'static = ()>: crate::Config<I> {
 	/// `T::Reward` to use in benchmarks.
 	fn bench_reward() -> Self::Reward;
-	/// Prepare environment for paying given reward for serving given lane.
+	/// Prepare environment for paying the given reward, and optionally return the
+	/// `(reward_kind, beneficiary)` pair to use for the `claim_rewards_to`
+	/// benchmark. Returning `Some` enables that benchmark and lets the runtime
+	/// pick a different reward kind than `bench_reward()` for it (e.g., a
+	/// Snowbridge reward routed via XCM to an `AssetHubLocation`, which is not
+	/// valid for the basic `claim_rewards` extrinsic). Implementations should
+	/// also fund `relayer` with whatever balance the payment path needs (e.g.,
+	/// XCM delivery fees).
+	///
+	/// Returning `None` causes `claim_rewards_to` to be assigned `Weight::MAX`.
 	fn prepare_rewards_account(
+		relayer: &Self::AccountId,
 		reward_kind: Self::Reward,
 		reward: Self::RewardBalance,
-	) -> Option<BeneficiaryOf<Self, I>>;
+	) -> Option<(Self::Reward, BeneficiaryOf<Self, I>)>;
 	/// Give enough balance to given account.
 	fn deposit_account(account: Self::AccountId, balance: Self::Balance);
 }
@@ -62,7 +72,7 @@ mod benchmarks {
 		let relayer: T::AccountId = whitelisted_caller();
 		let reward_kind = T::bench_reward();
 		let reward_balance = T::RewardBalance::from(REWARD_AMOUNT);
-		let _ = T::prepare_rewards_account(reward_kind, reward_balance);
+		let _ = T::prepare_rewards_account(&relayer, reward_kind, reward_balance);
 		RelayerRewards::<T, I>::insert(&relayer, reward_kind, reward_balance);
 
 		#[extrinsic_call]
@@ -85,10 +95,10 @@ mod benchmarks {
 	#[benchmark]
 	fn claim_rewards_to() -> Result<(), BenchmarkError> {
 		let relayer: T::AccountId = whitelisted_caller();
-		let reward_kind = T::bench_reward();
 		let reward_balance = T::RewardBalance::from(REWARD_AMOUNT);
 
-		let Some(alternative_beneficiary) = T::prepare_rewards_account(reward_kind, reward_balance)
+		let Some((reward_kind, alternative_beneficiary)) =
+			T::prepare_rewards_account(&relayer, T::bench_reward(), reward_balance)
 		else {
 			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)));
 		};

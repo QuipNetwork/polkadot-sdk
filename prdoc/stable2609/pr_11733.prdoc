@@ -1,0 +1,9 @@
+title: 'fatxpool: invalid inblock event fixed'
+doc:
+- audience: Node Dev
+  description: |
+    Fixes a false `InBlock` (and cascading `Finalized`) event in the fork-aware transaction pool when a replaced transaction (same sender+nonce, higher priority) had its original version included in a block by another node.
+    The faulty "pruned-by-tag + invalid-on-resubmit => in block" inference in `resubmit_pruned` is removed, so `InBlock` now fires only for hashes actually present in the imported block body.
+crates:
+- name: sc-transaction-pool
+  bump: minor

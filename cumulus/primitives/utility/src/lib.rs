@@ -259,10 +259,11 @@ impl<
 				if outstanding_credit.peek().saturating_sub(refund_balance) >= minimum_balance {
 					outstanding_credit.extract(refund_balance)
 				} else {
-					// If refunding would leave less than ED, we refund ED to ensure the
-					// OnUnbalanced handler receives at least ED when this trader is dropped.
-					// This prevents dust amounts that can't be properly handled.
-					outstanding_credit.extract(minimum_balance)
+					// Keep at least ED in outstanding credit for the OnUnbalanced drop
+					// handler. Refund only the surplus above ED (zero if outstanding < ED).
+					let keep = minimum_balance.min(outstanding_credit.peek());
+					let refund_amount = outstanding_credit.peek().saturating_sub(keep);
+					outstanding_credit.extract(refund_amount)
 				}
 			})?;
 		// Subtract the refunded weight from existing weight.
@@ -1059,6 +1060,149 @@ mod test_trader {
 			},
 			_ => panic!("Expected fungible asset"),
 		}
+	}
+
+	#[test]
+	fn take_first_asset_trader_refund_keeps_ed_for_drop_handler() {
+		// Regression test: when refunding would leave less than ED in outstanding
+		// credit, `refund_weight` must refund `outstanding - ED` and keep ED for the
+		// `OnUnbalanced` drop handler.
+		use core::cell::Cell;
+
+		const ED: u128 = 10;
+		const BUY_FEE: u128 = 15;
+		const REFUND_FEE: u128 = 10;
+
+		type TestAccountId = u32;
+		type TestAssetId = Location;
+		type TestBalance = u128;
+
+		struct TestAssets;
+		impl MatchesFungibles<TestAssetId, TestBalance> for TestAssets {
+			fn matches_fungibles(a: &Asset) -> Result<(TestAssetId, TestBalance), Error> {
+				match a {
+					Asset { fun: Fungible(amount), id: AssetId(_) } => {
+						Ok((Location::new(0, [GeneralIndex(1)]), *amount))
+					},
+					_ => Err(Error::AssetNotHandled),
+				}
+			}
+		}
+		impl fungibles::Inspect<TestAccountId> for TestAssets {
+			type AssetId = TestAssetId;
+			type Balance = TestBalance;
+			fn total_issuance(_: Self::AssetId) -> Self::Balance {
+				0
+			}
+			fn minimum_balance(_: Self::AssetId) -> Self::Balance {
+				ED
+			}
+			fn balance(_: Self::AssetId, _: &TestAccountId) -> Self::Balance {
+				0
+			}
+			fn total_balance(_: Self::AssetId, _: &TestAccountId) -> Self::Balance {
+				0
+			}
+			fn reducible_balance(
+				_: Self::AssetId,
+				_: &TestAccountId,
+				_: Preservation,
+				_: Fortitude,
+			) -> Self::Balance {
+				0
+			}
+			fn can_deposit(
+				_: Self::AssetId,
+				_: &TestAccountId,
+				_: Self::Balance,
+				_: Provenance,
+			) -> DepositConsequence {
+				DepositConsequence::Success
+			}
+			fn can_withdraw(
+				_: Self::AssetId,
+				_: &TestAccountId,
+				_: Self::Balance,
+			) -> WithdrawConsequence<Self::Balance> {
+				WithdrawConsequence::Success
+			}
+			fn asset_exists(_: Self::AssetId) -> bool {
+				true
+			}
+		}
+		impl fungibles::Mutate<TestAccountId> for TestAssets {}
+		impl fungibles::Balanced<TestAccountId> for TestAssets {
+			type OnDropCredit = fungibles::DecreaseIssuance<TestAccountId, Self>;
+			type OnDropDebt = fungibles::IncreaseIssuance<TestAccountId, Self>;
+		}
+		impl fungibles::Unbalanced<TestAccountId> for TestAssets {
+			fn handle_dust(_: fungibles::Dust<TestAccountId, Self>) {}
+			fn write_balance(
+				_: Self::AssetId,
+				_: &TestAccountId,
+				_: Self::Balance,
+			) -> Result<Option<Self::Balance>, DispatchError> {
+				Ok(None)
+			}
+			fn set_total_issuance(_: Self::AssetId, _: Self::Balance) {}
+		}
+
+		// Charge BUY_FEE on the first call (during `buy_weight`), REFUND_FEE on the
+		// next (during `refund_weight`).
+		thread_local! {
+			static CALLS: Cell<u32> = const { Cell::new(0) };
+			static HANDLER_RECEIVED: Cell<u128> = const { Cell::new(0) };
+		}
+		struct FeeCharger;
+		impl ChargeWeightInFungibles<TestAccountId, TestAssets> for FeeCharger {
+			fn charge_weight_in_fungibles(
+				_: <TestAssets as fungibles::Inspect<TestAccountId>>::AssetId,
+				_: Weight,
+			) -> Result<<TestAssets as fungibles::Inspect<TestAccountId>>::Balance, XcmError> {
+				let n = CALLS.with(|c| {
+					let v = c.get();
+					c.set(v + 1);
+					v
+				});
+				Ok(if n == 0 { BUY_FEE } else { REFUND_FEE })
+			}
+		}
+
+		struct HandleFees;
+		impl OnUnbalancedT<fungibles::Credit<TestAccountId, TestAssets>> for HandleFees {
+			fn on_unbalanced(credit: fungibles::Credit<TestAccountId, TestAssets>) {
+				HANDLER_RECEIVED.with(|h| h.set(credit.peek()));
+			}
+		}
+
+		type Trader =
+			TakeFirstAssetTrader<TestAccountId, FeeCharger, TestAssets, TestAssets, HandleFees>;
+		let mut trader = <Trader as WeightTrader>::new();
+		let ctx = XcmContext { origin: None, message_id: XcmHash::default(), topic: None };
+
+		// `buy_weight` populates outstanding_credit with BUY_FEE = 15.
+		let payment = asset_to_holding((Here, BUY_FEE).into());
+		assert_ok!(trader.buy_weight(Weight::from_parts(1_000, 1_000), payment, &ctx));
+
+		// `refund_weight` would compute refund=10, but outstanding(15) - 10 = 5 < ED(10),
+		// so it must refund only `outstanding - ED` = 5 and keep ED for the handler.
+		let refund = trader
+			.refund_weight(Weight::from_parts(500, 500), &ctx)
+			.expect("non-zero refund");
+		let refund_assets: Vec<Asset> = refund.fungible_assets_iter().collect();
+		assert_eq!(refund_assets.len(), 1);
+		match &refund_assets[0] {
+			Asset { fun: Fungible(amount), .. } => {
+				assert_eq!(*amount, BUY_FEE - ED, "refund must be `outstanding - ED`, not ED")
+			},
+			_ => panic!("expected fungible refund"),
+		}
+
+		// Drop the trader; the handler must receive at least ED.
+		drop(trader);
+		HANDLER_RECEIVED.with(|h| {
+			assert_eq!(h.get(), ED, "OnUnbalanced drop handler must receive at least ED")
+		});
 	}
 }
 

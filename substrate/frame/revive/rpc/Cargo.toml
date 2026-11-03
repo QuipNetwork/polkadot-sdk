@@ -1,6 +1,6 @@
 [package]
 name = "pallet-revive-eth-rpc"
-version = "0.14.0"
+version = "0.24.0"
 authors.workspace = true
 edition = "2024"
 license = "Apache-2.0"
@@ -20,46 +20,69 @@ name = "eth-rpc"
 path = "src/main.rs"
 
 [dependencies]
+alloy-rpc-types = { workspace = true, default-features = true, features = [
+	"trace",
+] }
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 codec = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true }
 futures = { workspace = true, features = ["thread-pool"] }
 hex = { workspace = true }
+humantime-serde = { workspace = true }
 jsonrpsee = { workspace = true, features = ["full"] }
+libsqlite3-sys = { workspace = true }
 log = { workspace = true }
-pallet-revive = { default-features = true, workspace = true }
-prometheus-endpoint = { default-features = true, workspace = true }
+pallet-revive = { workspace = true, default-features = true }
+pallet-revive-types = { workspace = true, features = ["std"] }
+prometheus-endpoint = { workspace = true, default-features = true }
 rlp = { workspace = true }
-sc-cli = { default-features = true, workspace = true }
-sc-rpc = { default-features = true, workspace = true }
-sc-rpc-api = { default-features = true, workspace = true }
-sc-service = { default-features = true, workspace = true }
-serde = { workspace = true, default-features = true, features = ["alloc", "derive"] }
+sc-cli = { workspace = true, default-features = true }
+sc-rpc = { workspace = true, default-features = true }
+sc-rpc-api = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
+serde = { workspace = true, default-features = true, features = [
+	"alloc",
+	"derive",
+] }
 serde_json = { workspace = true }
-sp-arithmetic = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
+sp-arithmetic = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
 sp-crypto-hashing = { workspace = true }
-sp-rpc = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-rpc = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 sp-timestamp = { workspace = true }
-sp-weights = { default-features = true, workspace = true }
+sp-weights = { workspace = true, default-features = true }
 sqlx = { workspace = true, features = ["macros", "runtime-tokio", "sqlite"] }
-subxt = { workspace = true, default-features = true, features = ["reconnecting-rpc-client"] }
+subxt = { workspace = true, default-features = true, features = [
+	"reconnecting-rpc-client",
+] }
 subxt-signer = { workspace = true, features = ["unstable-eth"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true }
 
 [dev-dependencies]
+alloy-network = { workspace = true, default-features = true }
+alloy-primitives = { workspace = true, default-features = true }
+alloy-provider = { workspace = true, default-features = true, features = [
+	"debug-api",
+	"reqwest",
+	"ws",
+] }
+alloy-signer-local = { workspace = true, default-features = true }
 env_logger = { workspace = true }
-pallet-revive-fixtures = { default-features = true, workspace = true }
+frame-system = { workspace = true, default-features = true }
+pallet-revive-fixtures = { workspace = true, default-features = true }
 pretty_assertions = { workspace = true }
 revive-dev-node = { workspace = true }
-sp-io = { default-features = true, workspace = true }
+revive-dev-runtime = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+subxt-rpcs = { workspace = true, features = ["mock-rpc-client"] }
 tempfile = { workspace = true }
 
 [build-dependencies]
 git2 = { workspace = true }
-revive-dev-runtime = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+revive-dev-runtime = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }

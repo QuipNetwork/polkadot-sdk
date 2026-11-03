@@ -23,14 +23,11 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{BlockNumber, CandidateHash, CandidateIndex, Hash};
 
 use crate::{
-	backend::{Backend, BackendWriteOp, V1ReadBackend, V2ReadBackend},
+	backend::{Backend, BackendWriteOp, V2ReadBackend},
 	persisted_entries,
 };
 
-use super::{
-	v2::{load_block_entry_v1, load_candidate_entry_v1},
-	v3::{load_block_entry_v2, load_candidate_entry_v2, BlockEntry, CandidateEntry},
-};
+use super::v3::{load_block_entry_v2, load_candidate_entry_v2, BlockEntry, CandidateEntry};
 
 pub mod migration_helpers;
 
@@ -154,24 +151,6 @@ impl Backend for DbBackend {
 		}
 
 		self.inner.write(tx).map_err(|e| e.into())
-	}
-}
-
-impl V1ReadBackend for DbBackend {
-	fn load_candidate_entry_v1(
-		&self,
-		candidate_hash: &CandidateHash,
-		candidate_index: CandidateIndex,
-	) -> SubsystemResult<Option<persisted_entries::CandidateEntry>> {
-		load_candidate_entry_v1(&*self.inner, &self.config, candidate_hash)
-			.map(|e| e.map(|e| persisted_entries::CandidateEntry::from_v1(e, candidate_index)))
-	}
-
-	fn load_block_entry_v1(
-		&self,
-		block_hash: &Hash,
-	) -> SubsystemResult<Option<persisted_entries::BlockEntry>> {
-		load_block_entry_v1(&*self.inner, &self.config, block_hash).map(|e| e.map(Into::into))
 	}
 }
 

@@ -1,0 +1,10 @@
+title: '[pallet-revive] eth-rpc: map EthRpcError to EIP-1474 error codes'
+doc:
+- audience: Runtime Dev
+  description: |-
+    closes https://github.com/paritytech/polkadot-sdk/issues/11886
+
+    Map `EthRpcError::ConversionError` to `-32602` (invalid params) and the remaining execution-time variants (`RlpError`, `InvalidSignature`, `AccountNotFound`, `InvalidTransaction`, `TransactionTypeNotSupported`) to `-32000`, matching Geth and Nethermind, instead of collapsing every non-`ClientError` to a blanket `-32600 Invalid Request`.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

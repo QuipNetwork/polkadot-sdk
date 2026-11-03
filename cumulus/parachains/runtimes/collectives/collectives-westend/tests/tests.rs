@@ -179,15 +179,16 @@ fn governance_authorize_upgrade_works() {
 		Runtime,
 		RuntimeOrigin,
 	>(GovernanceOrigin::Location(Location::new(1, Parachain(ASSET_HUB_ID)))));
-	// no - Collectives
+	// no - Collectives (passes barrier as system parachain, but not root)
 	assert_err!(
 		parachains_runtimes_test_utils::test_cases::can_governance_authorize_upgrade::<
 			Runtime,
 			RuntimeOrigin,
 		>(GovernanceOrigin::Location(Location::new(1, Parachain(COLLECTIVES_ID)))),
-		Either::Right(InstructionError { index: 0, error: XcmError::Barrier })
+		Either::Right(InstructionError { index: 1, error: XcmError::BadOrigin })
 	);
-	// no - Collectives Voice of Fellows plurality
+	// no - Collectives Voice of Fellows plurality (collectives-westend has no FellowsPlurality
+	// in its barrier, so the descended origin is rejected)
 	assert_err!(
 		parachains_runtimes_test_utils::test_cases::can_governance_authorize_upgrade::<
 			Runtime,
@@ -213,37 +214,43 @@ fn governance_authorize_upgrade_works() {
 }
 
 #[test]
-fn fees_go_to_dap_satellite() {
+fn fees_go_to_accumulation_account() {
 	use frame_support::traits::{fungible::Balanced, tokens::imbalance::OnUnbalanced};
 
 	// Collectives has no ChargeTransactionPayment in its TxExtension, so extrinsics don't pay fees.
-	// Test the DealWithFeesSatellite wiring via OnUnbalanced.
-	let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+	// Test the DealWithFeesAccumulate wiring via OnUnbalanced.
+	let accumulation_account =
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 	let ed = ExistentialDeposit::get();
 	let fee_amount = 1_000_000_000u128;
 
 	ExtBuilder::<Runtime>::default()
 		.with_collators(collator_session_keys().collators())
 		.with_session_keys(collator_session_keys().session_keys())
-		.with_balances(vec![(satellite.clone(), ed)])
+		.with_balances(vec![(accumulation_account.clone(), ed)])
 		.with_para_id(1001.into())
 		.build()
 		.execute_with(|| {
-			let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+			let accumulation_before =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 
 			let credit = <Balances as Balanced<AccountId>>::issue(fee_amount);
-			<collectives_westend_runtime::DapSatellite as OnUnbalanced<_>>::on_unbalanced(credit);
+			<collectives_westend_runtime::AccumulateForward as OnUnbalanced<_>>::on_unbalanced(
+				credit,
+			);
 
-			let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
-			assert_eq!(satellite_after, satellite_before + fee_amount);
+			let accumulation_after =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
+			assert_eq!(accumulation_after, accumulation_before + fee_amount);
 		});
 }
 
 #[test]
-fn dust_removal_goes_to_dap_satellite() {
+fn dust_removal_goes_to_accumulation_account() {
 	let alice = AccountId::from(Sr25519Keyring::Alice);
 	let bob = AccountId::from(Sr25519Keyring::Bob);
-	let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+	let accumulation_account =
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 	let ed = ExistentialDeposit::get();
 	let dust = ed / 2;
 
@@ -253,12 +260,13 @@ fn dust_removal_goes_to_dap_satellite() {
 		.with_balances(vec![
 			(alice.clone(), 100 * ed),
 			(bob.clone(), ed + dust),
-			(satellite.clone(), ed),
+			(accumulation_account.clone(), ed),
 		])
 		.with_para_id(1001.into())
 		.build()
 		.execute_with(|| {
-			let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+			let accumulation_before =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 
 			assert_ok!(Balances::transfer_allow_death(
 				RuntimeOrigin::signed(bob.clone()),
@@ -266,8 +274,9 @@ fn dust_removal_goes_to_dap_satellite() {
 				ed,
 			));
 
-			let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
-			assert_eq!(satellite_after, satellite_before + dust);
+			let accumulation_after =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
+			assert_eq!(accumulation_after, accumulation_before + dust);
 			assert_eq!(<Balances as Inspect<AccountId>>::balance(&bob), 0);
 		});
 }

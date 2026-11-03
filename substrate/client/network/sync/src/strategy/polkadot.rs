@@ -24,7 +24,7 @@ use crate::{
 	block_request_handler::MAX_BLOCKS_IN_RESPONSE,
 	service::network::NetworkServiceHandle,
 	strategy::{
-		chain_sync::{ChainSync, ChainSyncMode},
+		chain_sync::{ChainSync, ChainSyncMode, GapSyncBodyPolicyProvider},
 		state::StateStrategy,
 		warp::{WarpSync, WarpSyncConfig},
 		StrategyKey, SyncingAction, SyncingStrategy,
@@ -55,7 +55,7 @@ fn chain_sync_mode(sync_mode: SyncMode) -> ChainSyncMode {
 }
 
 /// Syncing configuration containing data for [`PolkadotSyncingStrategy`].
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PolkadotSyncingStrategyConfig<Block>
 where
 	Block: BlockT,
@@ -74,9 +74,8 @@ where
 	pub state_request_protocol_name: ProtocolName,
 	/// Block downloader
 	pub block_downloader: Arc<dyn BlockDownloader<Block>>,
-	/// Whether to archive blocks. When `true`, gap sync requests bodies to maintain complete
-	/// block history.
-	pub archive_blocks: bool,
+	/// Resolves the gap sync body policy when a `ChainSync` instance is created.
+	pub gap_sync_body_policy: GapSyncBodyPolicyProvider,
 }
 
 /// Proxy to specific syncing strategies used in Polkadot.
@@ -387,7 +386,7 @@ where
 				config.max_blocks_per_request,
 				config.state_request_protocol_name.clone(),
 				config.block_downloader.clone(),
-				config.archive_blocks,
+				(config.gap_sync_body_policy)()?,
 				config.metrics_registry.as_ref(),
 				std::iter::empty(),
 			)?;
@@ -440,7 +439,7 @@ where
 						self.config.max_blocks_per_request,
 						self.config.state_request_protocol_name.clone(),
 						self.config.block_downloader.clone(),
-						self.config.archive_blocks,
+						(self.config.gap_sync_body_policy)()?,
 						self.config.metrics_registry.as_ref(),
 						self.peer_best_blocks.iter().map(|(peer_id, (best_hash, best_number))| {
 							(*peer_id, *best_hash, *best_number)
@@ -471,7 +470,7 @@ where
 				self.config.max_blocks_per_request,
 				self.config.state_request_protocol_name.clone(),
 				self.config.block_downloader.clone(),
-				self.config.archive_blocks,
+				(self.config.gap_sync_body_policy)()?,
 				self.config.metrics_registry.as_ref(),
 				self.peer_best_blocks.iter().map(|(peer_id, (best_hash, best_number))| {
 					(*peer_id, *best_hash, *best_number)

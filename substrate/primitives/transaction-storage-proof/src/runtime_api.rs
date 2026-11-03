@@ -17,12 +17,20 @@
 
 //! Runtime API definition for the transaction storage proof processing.
 
+use alloc::vec::Vec;
 use sp_runtime::traits::NumberFor;
 
 sp_api::decl_runtime_apis! {
 	/// Runtime API trait for transaction storage support.
+	#[api_version(2)]
 	pub trait TransactionStorageApi {
-		/// Get the actual value of a retention period in blocks.
+		/// Retention period for indexed data, in blocks.
 		fn retention_period() -> NumberFor<Block>;
+
+		/// Indexed-transaction metadata for `block`.
+		///
+		/// Returns an empty vector if the block has no indexed transactions or
+		/// is outside the retention window.
+		fn indexed_transactions(block: NumberFor<Block>) -> Vec<crate::IndexedTransactionInfo>;
 	}
 }

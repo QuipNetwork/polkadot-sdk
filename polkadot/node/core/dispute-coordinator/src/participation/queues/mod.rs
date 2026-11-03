@@ -22,8 +22,7 @@ use std::{
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceiptV2 as CandidateReceipt, ExecutorParams, Hash,
-	SessionIndex,
+	BlockNumber, CandidateHash, CandidateReceiptV2 as CandidateReceipt, Hash, SessionIndex,
 };
 
 use crate::{
@@ -76,7 +75,6 @@ pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	executor_params: ExecutorParams,
 	request_timer: Option<prometheus::HistogramTimer>, // Sends metric data when request is dropped
 }
 
@@ -124,16 +122,9 @@ impl ParticipationRequest {
 	pub fn new(
 		candidate_receipt: CandidateReceipt,
 		session: SessionIndex,
-		executor_params: ExecutorParams,
 		request_timer: Option<prometheus::HistogramTimer>,
 	) -> Self {
-		Self {
-			candidate_hash: candidate_receipt.hash(),
-			candidate_receipt,
-			session,
-			executor_params,
-			request_timer,
-		}
+		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, request_timer }
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -144,9 +135,6 @@ impl ParticipationRequest {
 	}
 	pub fn session(&self) -> SessionIndex {
 		self.session
-	}
-	pub fn executor_params(&self) -> ExecutorParams {
-		self.executor_params.clone()
 	}
 	pub fn discard_timer(&mut self) {
 		if let Some(timer) = self.request_timer.take() {
@@ -164,17 +152,11 @@ impl ParticipationRequest {
 #[cfg(test)]
 impl PartialEq for ParticipationRequest {
 	fn eq(&self, other: &Self) -> bool {
-		let ParticipationRequest {
-			candidate_receipt,
-			candidate_hash,
-			session,
-			executor_params,
-			request_timer: _,
-		} = self;
+		let ParticipationRequest { candidate_receipt, candidate_hash, session, request_timer: _ } =
+			self;
 		candidate_receipt == other.candidate_receipt() &&
 			candidate_hash == other.candidate_hash() &&
-			*session == other.session() &&
-			executor_params.hash() == other.executor_params.hash()
+			*session == other.session()
 	}
 }
 #[cfg(test)]

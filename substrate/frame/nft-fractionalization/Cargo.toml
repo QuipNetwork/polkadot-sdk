@@ -1,6 +1,6 @@
 [package]
 name = "pallet-nft-fractionalization"
-version = "30.0.0"
+version = "35.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -24,7 +24,7 @@ pallet-nfts = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -33,6 +33,7 @@ std = [
 	"frame/std",
 	"log/std",
 	"pallet-assets/std",
+	"pallet-balances/std",
 	"pallet-nfts/std",
 	"scale-info/std",
 ]

@@ -1,0 +1,18 @@
+title: Fix `AllowedRelayParentInfo` off by one error
+doc:
+- audience: Runtime Dev
+  description: |-
+    Related to https://github.com/paritytech/polkadot-sdk/issues/11624
+
+    The pruning for AllowedRelayParentInfo was performed in new_block. But new_block is called at the beginning of
+    each block, receiving the parent block number and parent block session as arguments.
+    So when a new session starts, for example at block 31, new_block will be called for block 30, session 2,
+    and only at block 32, it will be called for block 31, session 3, performing the required pruning.
+    So at block 31, even if max_relay_parent_session_age, the blocks from session 1 were still considered valid
+    relay parents. Which is wrong.
+
+    Moved the pruning logic from new_block() to initializer_on_new_session(), which is actually called correctly
+    at the first block of the session for the current session (for example at block 31 for session 3).
+crates:
+- name: polkadot-runtime-parachains
+  bump: major

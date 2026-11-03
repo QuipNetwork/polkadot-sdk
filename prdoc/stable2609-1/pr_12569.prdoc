@@ -1,0 +1,29 @@
+title: Preserve Snowbridge v1 inbound liveness when the Asset Hub sovereign is empty
+
+doc:
+  - audience: [Runtime Dev, Runtime User]
+    description: |
+      Snowbridge v1 inbound messages now burn the teleported Asset Hub execution fee from the
+      relayer's Bridge Hub account instead of requiring funds in the Asset Hub sovereign account
+      on Bridge Hub. The Asset Hub sovereign reimburses the relayer best-effort for the burned fee
+      plus delivery reward when it has enough reducible balance.
+
+      This preserves the existing funded-sovereign economics while preventing an empty Asset Hub
+      sovereign from stalling the Ethereum-to-Polkadot inbound channel. In the empty-sovereign case,
+      the message is still processed and the nonce advances, but the relayer is not reimbursed.
+
+crates:
+  - name: snowbridge-pallet-inbound-queue
+    bump: patch
+    validate: false
+    note: |
+      Two changes are flagged as major by the semver check but are internal in practice, so the
+      crate is only bumped by a patch and semver validation is skipped:
+      - `Pallet::burn_fees` was changed from public to private (and renamed to `burn_for_teleport`
+        with a new `who` parameter); it is an internal helper with no external callers.
+      - The `Config` trait gained a `frame_system::Config<AccountId: Into<[u8; 32]>>` supertrait
+        bound, which every runtime instantiating this pallet already satisfies.
+  - name: snowbridge-beacon-primitives
+    bump: none
+  - name: bridge-hub-westend-runtime
+    bump: patch

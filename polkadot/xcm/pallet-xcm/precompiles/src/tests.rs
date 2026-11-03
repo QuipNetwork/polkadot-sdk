@@ -25,11 +25,11 @@ use pallet_revive::{
 	precompiles::{
 		alloy::{
 			hex,
-			sol_types::{SolInterface, SolValue},
+			sol_types::{SolCall, SolInterface, SolValue},
 		},
 		H160,
 	},
-	ExecConfig, TransactionLimits, U256,
+	Code, ExecConfig, TransactionLimits, U256,
 };
 use polkadot_parachain_primitives::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
@@ -745,5 +745,157 @@ fn weight_fails_on_old_version() {
 			Err(err) => panic!("XcmExecutePrecompile Failed to decode weight with error {err:?}"),
 		};
 		assert!(result.did_revert());
+	});
+}
+
+alloy::sol! {
+	interface ICaller {
+		function delegate(address callee, bytes data, uint64 gas) external returns (bool success, bytes output);
+	}
+}
+
+/// The delegatecall guard rejects all calls via delegatecall.
+#[test]
+fn delegatecall_is_rejected() {
+	let balances = vec![(ALICE, 1_000_000_000_000_000u128)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let xcm_precompile_addr = H160::from(
+			hex::const_decode_to_array(b"00000000000000000000000000000000000A0000").unwrap(),
+		);
+
+		let (init_code, _) = pallet_revive_fixtures::compile_module_with_type(
+			"Caller",
+			pallet_revive_fixtures::FixtureType::Solc,
+		)
+		.expect("Caller fixture must be compiled");
+		let caller_addr = pallet_revive::Pallet::<Test>::bare_instantiate(
+			RuntimeOrigin::signed(ALICE),
+			0u32.into(),
+			TransactionLimits::WeightAndDeposit {
+				weight_limit: Weight::MAX,
+				deposit_limit: u128::MAX,
+			},
+			Code::Upload(init_code),
+			vec![],
+			None,
+			&ExecConfig::new_substrate_tx(),
+		)
+		.result
+		.expect("Caller deployment must succeed")
+		.addr;
+
+		let calldata = ICaller::delegateCall {
+			callee: alloy::primitives::Address::from(xcm_precompile_addr.0),
+			data: IXcm::weighMessageCall { message: Default::default() }.abi_encode().into(),
+			gas: u64::MAX,
+		}
+		.abi_encode();
+
+		let result = pallet_revive::Pallet::<Test>::bare_call(
+			RuntimeOrigin::signed(ALICE),
+			caller_addr,
+			U256::zero(),
+			TransactionLimits::WeightAndDeposit {
+				weight_limit: Weight::MAX,
+				deposit_limit: u128::MAX,
+			},
+			calldata,
+			&ExecConfig::new_substrate_tx(),
+		)
+		.result
+		.expect("outer call must succeed");
+
+		let ret = ICaller::delegateCall::abi_decode_returns(&result.data)
+			.expect("return must decode as (bool, bytes)");
+		assert!(!ret.success, "DELEGATECALL to XCM precompile must be rejected");
+		// PrecompileDelegateDenied is an Error::Error (trap), not an Error::Revert, so the
+		// inner call produces no output data. A Solidity-level revert would include
+		// ABI-encoded reason bytes.
+		assert!(
+			ret.output.is_empty(),
+			"expected empty output from PrecompileDelegateDenied trap, got {} bytes",
+			ret.output.len(),
+		);
+	});
+}
+
+/// Large in bytes but a single instruction, so that under the mock's `FixedWeightBounds` only
+/// the per-byte charge differs between this and a small message.
+fn one_big_instruction() -> Xcm<()> {
+	Xcm(vec![ExpectPallet {
+		index: 0,
+		name: vec![0u8; 4096],
+		module_name: vec![],
+		crate_major: 0,
+		min_crate_minor: 0,
+	}])
+}
+
+fn xcm_precompile_address() -> H160 {
+	H160::from(hex::const_decode_to_array(b"00000000000000000000000000000000000A0000").unwrap())
+}
+
+fn precompile_weight_consumed(calldata: Vec<u8>) -> Weight {
+	pallet_revive::Pallet::<Test>::bare_call(
+		RuntimeOrigin::signed(ALICE),
+		xcm_precompile_address(),
+		U256::zero(),
+		TransactionLimits::WeightAndDeposit { weight_limit: Weight::MAX, deposit_limit: u128::MAX },
+		calldata,
+		&ExecConfig::new_substrate_tx(),
+	)
+	.weight_consumed
+}
+
+/// Asserts that the weight charged for `calldata_for(message)` grows with the size of `message`,
+/// by at least the per-byte slope `TestWeightInfo` declares (100_000 ps per byte).
+fn assert_charge_scales_with_size(calldata_for: impl Fn(Xcm<()>) -> Vec<u8>) {
+	use codec::Encode;
+
+	let encoded_len = |message: Xcm<()>| VersionedXcm::from(message).encode().len();
+	let (small, big) = (encoded_len(Xcm(vec![ClearOrigin])), encoded_len(one_big_instruction()));
+	assert!(big > small + 1_000, "test needs a meaningfully bigger blob: {big} vs {small}");
+
+	let small_weight = precompile_weight_consumed(calldata_for(Xcm(vec![ClearOrigin])));
+	let big_weight = precompile_weight_consumed(calldata_for(one_big_instruction()));
+
+	let expected_gap = (big - small) as u64 * 100_000;
+	assert!(
+		big_weight.ref_time().saturating_sub(small_weight.ref_time()) >= expected_gap,
+		"per-byte charge missing or too small: gap {} < expected {expected_gap}",
+		big_weight.ref_time().saturating_sub(small_weight.ref_time()),
+	);
+}
+
+/// `weighMessage` must charge for the size of the blob it decodes and weighs, not a flat fee:
+/// the instruction cap does not bound that work.
+#[test]
+fn weigh_message_charge_scales_with_message_size() {
+	use codec::Encode;
+
+	new_test_ext_with_balances(vec![(ALICE, CUSTOM_INITIAL_BALANCE)]).execute_with(|| {
+		assert_charge_scales_with_size(|message| {
+			IXcm::IXcmCalls::weighMessage(weighMessageCall {
+				message: VersionedXcm::from(message).encode().into(),
+			})
+			.abi_encode()
+		});
+	});
+}
+
+/// `execute` weighs the blob too, and `adjust_gas` must not refund that charge. `max_weight` of
+/// zero makes execution fail, so its own charge is fully refunded and only this one remains.
+#[test]
+fn execute_decode_charge_is_not_refunded() {
+	use codec::Encode;
+
+	new_test_ext_with_balances(vec![(ALICE, CUSTOM_INITIAL_BALANCE)]).execute_with(|| {
+		assert_charge_scales_with_size(|message| {
+			IXcm::IXcmCalls::execute(IXcm::executeCall {
+				message: VersionedXcm::from(message).encode().into(),
+				weight: IXcm::Weight { refTime: 0, proofSize: 0 },
+			})
+			.abi_encode()
+		});
 	});
 }

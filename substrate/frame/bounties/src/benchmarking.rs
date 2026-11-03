@@ -383,6 +383,43 @@ mod benchmarks {
 
 		Ok(())
 	}
+
+	#[benchmark]
+	fn reclaim_bounty_funds() -> Result<(), BenchmarkError> {
+		setup_pot_account::<T, I>();
+
+		let (caller, _, _, value, reason) = setup_bounty::<T, I>(0, T::MaximumReasonLength::get());
+		Bounties::<T, I>::propose_bounty(RawOrigin::Signed(caller).into(), value, reason)?;
+		let bounty_id = BountyCount::<T, I>::get() - 1;
+		let approve_origin =
+			T::SpendOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+		Bounties::<T, I>::approve_bounty(approve_origin.clone(), bounty_id)?;
+		set_block_number::<T, I>(T::SpendPeriod::get());
+		Treasury::<T, I>::on_initialize(frame_system::Pallet::<T>::block_number());
+
+		let bounty_account = Bounties::<T, I>::bounty_account_id(bounty_id);
+		// Drop the bounty record so its account counts as stale.
+		crate::Bounties::<T, I>::remove(bounty_id);
+		BountyDescriptions::<T, I>::remove(bounty_id);
+
+		// Mint all relevant assets into the bounty account so the benchmark exercises real
+		// transfers instead of being a no-op for runtimes with non-trivial TransferAllAssets.
+		T::TransferAllAssets::ensure_successful(&bounty_account);
+
+		assert!(
+			!T::Currency::free_balance(&bounty_account).is_zero(),
+			"Bounty account should have a balance to reclaim"
+		);
+
+		let caller: T::AccountId = whitelisted_caller();
+
+		#[extrinsic_call]
+		_(RawOrigin::Signed(caller), bounty_id);
+
+		assert_last_event::<T, I>(Event::BountyFundsReclaimed { bounty_id }.into());
+
+		Ok(())
+	}
 	impl_benchmark_test_suite!(
 		Bounties,
 		crate::tests::ExtBuilder::default().build(),

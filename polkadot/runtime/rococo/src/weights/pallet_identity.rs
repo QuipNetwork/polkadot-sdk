@@ -66,6 +66,21 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
+	/// Storage: `Identity::Registrars` (r:1 w:1)
+	/// Proof: `Identity::Registrars` (`max_values`: Some(1), `max_size`: Some(1141), added: 1636, mode: `MaxEncodedLen`)
+	/// The range of component `r` is `[1, 19]`.
+	fn remove_registrar(r: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `32 + r * (57 ±0)`
+		//  Estimated: `2626`
+		// Minimum execution time: 10_004_000 picoseconds.
+		Weight::from_parts(10_748_943, 0)
+			.saturating_add(Weight::from_parts(0, 2626))
+			// Standard Error: 1_578
+			.saturating_add(Weight::from_parts(115_154, 0).saturating_mul(r.into()))
+			.saturating_add(T::DbWeight::get().reads(1))
+			.saturating_add(T::DbWeight::get().writes(1))
+	}
 	/// Storage: `Identity::IdentityOf` (r:1 w:1)
 	/// Proof: `Identity::IdentityOf` (`max_values`: None, `max_size`: Some(7538), added: 10013, mode: `MaxEncodedLen`)
 	/// The range of component `r` is `[1, 20]`.

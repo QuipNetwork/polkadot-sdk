@@ -1,0 +1,10 @@
+title: Remove deprecated AllowAll, DenyAll, and Filter from frame-support
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes deprecated `frame_support::AllowAll`, `DenyAll`, and `Filter`, legacy
+      aliases for `Everything`, `Nothing`, and `Contains`. Use those types directly.
+
+crates:
+  - name: frame-support
+    bump: major

@@ -1,0 +1,9 @@
+title: 'net: Fix bitswap silently stopping to serve a peer after a substream open failure'
+doc:
+- audience: Node Operator
+  description: |-
+    Bumps litep2p to 0.14.2. Fixes a bug where a failed outbound bitswap substream open left responses queued on a dead queue, silently halting bitswap service to that peer until node restart. Only affects nodes run with `--ipfs-server`.
+crates:
+- name: sc-network
+  bump: patch
+  validate: false

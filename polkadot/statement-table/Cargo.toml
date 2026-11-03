@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-statement-table"
-version = "24.0.0"
+version = "27.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,5 +13,5 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }

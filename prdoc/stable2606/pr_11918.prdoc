@@ -1,0 +1,13 @@
+title: 'Invalidate storage transaction cache on state version change'
+doc:
+- audience: Node Dev
+  description: |-
+    Fix a cache-bleed bug. The cache stored the pre-computed storage root and transaction without
+    recording which `StateVersion` was used to build them.
+
+    The cache now stores the `state_version` it was built with and is invalidated and recomputed
+    whenever a different version is requested.
+
+crates:
+- name: sp-state-machine
+  bump: patch

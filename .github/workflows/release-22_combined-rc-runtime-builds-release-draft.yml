@@ -56,12 +56,14 @@ on:
 jobs:
   check-synchronization:
     uses: paritytech-release/sync-workflows/.github/workflows/check-synchronization.yml@main
+    with:
+      concurrency_suffix: combined-builds
     secrets:
       fork_writer_app_key: ${{ secrets.UPSTREAM_CONTENT_SYNC_APP_KEY }}
 
   validate-inputs:
     needs: [check-synchronization]
-    if: needs.check-synchronization.outputs.checks_passed == 'true'
+    if: ${{ needs.check-synchronization.outputs.checks_passed == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.validate_inputs.outputs.release_tag }}
@@ -87,6 +89,7 @@ jobs:
       chain: ${{ inputs.chain }}
       runtime_dir: ${{ inputs.runtime_dir }}
       release_tag: ${{ needs.validate-inputs.outputs.release_tag }}
+
     secrets: inherit
     permissions:
       id-token: write
@@ -99,6 +102,7 @@ jobs:
     with:
       binary: ${{ inputs.binary }}
       release_tag: ${{ needs.validate-inputs.outputs.release_tag }}
+
     secrets: inherit
     permissions:
       id-token: write
@@ -115,6 +119,7 @@ jobs:
       runtimes: '${{ needs.build-runtimes-flow.outputs.published_runtimes }}'
       no_runtimes: ${{ inputs.no_runtimes }}
       crates_only: false
+
     secrets: inherit
 
   trigger-release-draft-without-runtimes:
@@ -126,4 +131,5 @@ jobs:
       build_run_id: ${{ github.run_id }}
       no_runtimes: ${{ inputs.no_runtimes }}
       crates_only: false
+
     secrets: inherit

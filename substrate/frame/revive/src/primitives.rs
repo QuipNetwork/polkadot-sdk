@@ -18,13 +18,17 @@
 //! A crate that hosts a common definitions that are relevant for the pallet-revive.
 
 use crate::{
-	BalanceOf, Config, H160, Time, U256, evm::DryRunConfig, mock::MockHandler,
+	BalanceOf, Config, H160, U256, deposit_payment::Funds, exec::MomentOf, mock::MockHandler,
 	storage::WriteOutcome, transient_storage::TransientStorage,
 };
 use alloc::{boxed::Box, fmt::Debug, string::String, vec::Vec};
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::cell::RefCell;
 use frame_support::{DefaultNoBound, traits::tokens::Balance, weights::Weight};
+use pallet_revive_types::runtime_api::{
+	CodeV1, ContractResultV1, EthTransactInfoV1, ExecReturnValueV1, InstantiateReturnValueV1,
+	StorageDepositV1,
+};
 use pallet_revive_uapi::ReturnFlags;
 use scale_info::TypeInfo;
 use sp_core::Get;
@@ -43,7 +47,7 @@ use sp_runtime::{
 /// It has been extended to include `events` at the end of the struct while not bumping the
 /// `ContractsApi` version. Therefore when SCALE decoding a `ContractResult` its trailing data
 /// should be ignored to avoid any potential compatibility issues.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ContractResult<R, Balance> {
 	/// How much weight was consumed during execution.
 	pub weight_consumed: Weight,
@@ -88,8 +92,24 @@ impl<R: Default, B: Balance> Default for ContractResult<R, B> {
 	}
 }
 
+impl<R, RV1, Balance> From<ContractResult<R, Balance>> for ContractResultV1<RV1, Balance>
+where
+	RV1: From<R>,
+{
+	fn from(value: ContractResult<R, Balance>) -> Self {
+		Self {
+			weight_consumed: value.weight_consumed,
+			weight_required: value.weight_required,
+			storage_deposit: value.storage_deposit.into(),
+			max_storage_deposit: value.max_storage_deposit.into(),
+			gas_consumed: value.gas_consumed,
+			result: value.result.map(Into::into),
+		}
+	}
+}
+
 /// The result of the execution of a `eth_transact` call.
-#[derive(Clone, Eq, PartialEq, Default, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Default, Debug)]
 pub struct EthTransactInfo<Balance> {
 	/// The amount of weight that was necessary to execute the transaction.
 	pub weight_required: Weight,
@@ -101,6 +121,18 @@ pub struct EthTransactInfo<Balance> {
 	pub eth_gas: U256,
 	/// The execution return value.
 	pub data: Vec<u8>,
+}
+
+impl<Balance> From<EthTransactInfo<Balance>> for EthTransactInfoV1<Balance> {
+	fn from(value: EthTransactInfo<Balance>) -> Self {
+		Self {
+			weight_required: value.weight_required,
+			storage_deposit: value.storage_deposit,
+			max_storage_deposit: value.max_storage_deposit,
+			eth_gas: value.eth_gas,
+			data: value.data,
+		}
+	}
 }
 
 /// Error type of a `eth_transact` call.
@@ -197,7 +229,7 @@ pub enum ContractAccessError {
 }
 
 /// Output of a contract call or instantiation which ran to completion.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug, TypeInfo, Default)]
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct ExecReturnValue {
 	/// Flags passed along by `seal_return`. Empty when `seal_return` was never called.
 	pub flags: ReturnFlags,
@@ -212,13 +244,25 @@ impl ExecReturnValue {
 	}
 }
 
+impl From<ExecReturnValue> for ExecReturnValueV1 {
+	fn from(value: ExecReturnValue) -> Self {
+		Self { flags: value.flags, data: value.data }
+	}
+}
+
 /// The result of a successful contract instantiation.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug, TypeInfo, Default)]
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct InstantiateReturnValue {
 	/// The output of the called constructor.
 	pub result: ExecReturnValue,
 	/// The address of the new contract.
 	pub addr: H160,
+}
+
+impl From<InstantiateReturnValue> for InstantiateReturnValueV1 {
+	fn from(value: InstantiateReturnValue) -> Self {
+		Self { result: value.result.into(), addr: value.addr }
+	}
 }
 
 /// The result of successfully uploading a contract.
@@ -230,8 +274,16 @@ pub struct CodeUploadReturnValue<Balance> {
 	pub deposit: Balance,
 }
 
+impl<Balance> From<CodeUploadReturnValue<Balance>>
+	for pallet_revive_types::runtime_api::CodeUploadReturnValueV1<Balance>
+{
+	fn from(value: CodeUploadReturnValue<Balance>) -> Self {
+		Self { code_hash: value.code_hash, deposit: value.deposit }
+	}
+}
+
 /// Reference to an existing code hash or a new vm module.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Code {
 	/// A vm module as raw bytes.
 	Upload(Vec<u8>),
@@ -239,8 +291,17 @@ pub enum Code {
 	Existing(sp_core::H256),
 }
 
+impl From<CodeV1> for Code {
+	fn from(value: CodeV1) -> Self {
+		match value {
+			CodeV1::Upload(code) => Self::Upload(code),
+			CodeV1::Existing(code_hash) => Self::Existing(code_hash),
+		}
+	}
+}
+
 /// The amount of balance that was either charged or refunded in order to pay for storage.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, MaxEncodedLen, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum StorageDeposit<Balance> {
 	/// The transaction reduced storage consumption.
 	///
@@ -252,6 +313,15 @@ pub enum StorageDeposit<Balance> {
 	/// This means that the specified amount of balance was transferred from the origin
 	/// to the involved deposit accounts.
 	Charge(Balance),
+}
+
+impl<Balance> From<StorageDeposit<Balance>> for StorageDepositV1<Balance> {
+	fn from(value: StorageDeposit<Balance>) -> Self {
+		match value {
+			StorageDeposit::Refund(amount) => Self::Refund(amount),
+			StorageDeposit::Charge(amount) => Self::Charge(amount),
+		}
+	}
 }
 
 impl<T, Balance> ContractResult<T, Balance> {
@@ -386,7 +456,7 @@ pub struct ExecConfig<T: Config> {
 	pub effective_gas_price: Option<U256>,
 	/// Whether this configuration was created for a dry-run execution.
 	/// Use to enable logic that should only run in dry-run mode.
-	pub is_dry_run: Option<DryRunConfig<<<T as Config>::Time as Time>::Moment>>,
+	pub is_dry_run: Option<DryRunConfigurations<MomentOf<T>>>,
 	/// An optional mock handler that can be used to override certain behaviors.
 	/// This is primarily used for testing purposes and should be `None` in production
 	/// environments.
@@ -435,12 +505,21 @@ impl<T: Config> ExecConfig<T> {
 	}
 
 	/// Set this config to be a dry-run.
-	pub fn with_dry_run(
-		mut self,
-		dry_run_config: DryRunConfig<<<T as Config>::Time as Time>::Moment>,
-	) -> Self {
-		self.is_dry_run = Some(dry_run_config);
+	pub fn with_dry_run(mut self, timestamp_override: impl Into<Option<MomentOf<T>>>) -> Self {
+		self.is_dry_run =
+			Some(DryRunConfigurations { timestamp_override: timestamp_override.into() });
 		self
+	}
+
+	/// Classify `account` as a deposit source or refund destination based on
+	/// [`Self::collect_deposit_from_hold`]: [`Funds::TxFee`] under eth-tx dispatch (where
+	/// deposits flow through the tx fee pool), otherwise [`Funds::Balance`].
+	pub fn funds<'a>(&self, account: &'a T::AccountId) -> Funds<'a, T::AccountId> {
+		if self.collect_deposit_from_hold.is_some() {
+			Funds::TxFee(account)
+		} else {
+			Funds::Balance(account)
+		}
 	}
 
 	/// Almost clone for testing (does not clone mock_handler)
@@ -455,6 +534,11 @@ impl<T: Config> ExecConfig<T> {
 			test_env_transient_storage: None,
 		}
 	}
+}
+
+#[derive(Clone)]
+pub struct DryRunConfigurations<Moment> {
+	pub timestamp_override: Option<Moment>,
 }
 
 /// Indicates whether the code was removed after the last refcount was decremented.

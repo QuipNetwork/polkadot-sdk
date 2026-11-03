@@ -428,7 +428,8 @@ fn scraper_requests_candidates_of_non_finalized_ancestors() {
 			&chain,
 			finalized_block_number,
 			BLOCKS_TO_SKIP -
-				(finalized_block_number - DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION) as usize, /* Expect the provider not to go past finalized block. */
+				(finalized_block_number - *DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION)
+					as usize, // Expect the provider not to go past finalized block.
 			get_backed_and_included_candidate_events,
 		);
 		join(process_active_leaves_update(ctx.sender(), &mut ordering, next_update), overseer_fut)
@@ -474,7 +475,7 @@ fn scraper_prunes_finalized_candidates() {
 		// After `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks the candidate should be
 		// removed
 		finalized_block_number =
-			TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			TEST_TARGET_BLOCK_NUMBER + *DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
@@ -533,10 +534,10 @@ fn scraper_handles_backed_but_not_included_candidate() {
 		// The candidate should be removed.
 		assert!(
 			finalized_block_number <
-				TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION
+				TEST_TARGET_BLOCK_NUMBER + *DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION
 		);
 		finalized_block_number +=
-			TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			TEST_TARGET_BLOCK_NUMBER + *DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
@@ -584,7 +585,7 @@ fn scraper_handles_the_same_candidate_included_in_two_different_block_heights() 
 		// The magic candidate was added twice, so it shouldn't be removed if we finalize two more
 		// blocks.
 		finalized_block_number = test_targets.first().expect("there are two block nums") +
-			DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			*DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		let magic_candidate = make_candidate_receipt(get_magic_candidate_hash());
@@ -650,7 +651,7 @@ fn inclusions_per_candidate_properly_adds_and_prunes() {
 		// After `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks the earlier inclusion should
 		// be removed
 		finalized_block_number =
-			TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			TEST_TARGET_BLOCK_NUMBER + *DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		// The later inclusion should still be present, as we haven't exceeded its lifetime
@@ -663,7 +664,7 @@ fn inclusions_per_candidate_properly_adds_and_prunes() {
 		);
 
 		finalized_block_number =
-			TEST_TARGET_BLOCK_NUMBER_2 + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			TEST_TARGET_BLOCK_NUMBER_2 + *DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		// Now both inclusions have exceeded their lifetimes after finalization and should be purged

@@ -1,0 +1,10 @@
+title: 'grandpa: Revert memory changes synced with db'
+doc:
+- audience: Node Dev
+  description: |-
+    This PR keeps the in memory changes synced with the DB ones in grandpa
+
+    While at it, have added a few tests and changed the API a bit
+crates:
+- name: sc-consensus-grandpa
+  bump: patch

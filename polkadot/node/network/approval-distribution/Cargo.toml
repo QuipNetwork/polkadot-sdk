@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-approval-distribution"
-version = "29.0.0"
+version = "36.0.0"
 description = "Polkadot Approval Distribution subsystem for the distribution of assignments and approvals for approval checks on candidates over the network."
 authors.workspace = true
 edition.workspace = true
@@ -13,23 +13,23 @@ workspace = true
 
 [dependencies]
 itertools = { workspace = true }
-polkadot-node-metrics = { default-features = true, workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+polkadot-node-metrics = { workspace = true, default-features = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
 
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+sp-core = { features = ["std"], workspace = true, default-features = true }
 
 [dev-dependencies]
-sc-keystore = { workspace = true, default-features = false }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-authority-discovery = { default-features = true, workspace = true }
-sp-core = { features = ["std"], default-features = true, workspace = true }
+sc-keystore = { workspace = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-authority-discovery = { workspace = true, default-features = true }
 
 polkadot-node-subsystem-test-helpers = { workspace = true }
 polkadot-primitives-test-helpers = { workspace = true }
@@ -39,4 +39,4 @@ rand_chacha = { workspace = true, default-features = true }
 schnorrkel = { workspace = true }
 # rand_core should match schnorrkel
 rand_core = { workspace = true }
-sp-tracing = { workspace = true, default-features = false }
+sp-tracing = { workspace = true }

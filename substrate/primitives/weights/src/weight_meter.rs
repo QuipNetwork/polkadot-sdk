@@ -119,12 +119,6 @@ impl WeightMeter {
 	}
 
 	/// Consume some weight and defensively fail if it is over the limit. Saturate in any case.
-	#[deprecated(note = "Use `consume` instead. Will be removed after December 2023.")]
-	pub fn defensive_saturating_accrue(&mut self, w: Weight) {
-		self.consume(w);
-	}
-
-	/// Consume some weight and defensively fail if it is over the limit. Saturate in any case.
 	pub fn consume(&mut self, w: Weight) {
 		self.consumed.saturating_accrue(w);
 		debug_assert!(self.consumed.all_lte(self.limit), "Weight counter overflow");

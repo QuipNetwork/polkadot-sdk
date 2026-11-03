@@ -1,0 +1,66 @@
+title: 'pallet-revive: expose pre-dispatch weight runtime API'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR adds a new `pallet-revive` runtime API for computing the booked pre-dispatch weight of an
+    Ethereum transaction from its signed payload bytes.
+
+    The new API decodes the signed Ethereum transaction payload, converts it into the inner revive
+    call, and returns the same per-extrinsic weight contribution that `frame_system::CheckWeight`
+    books:
+
+    - `dispatch_info.total_weight()` including extension weight
+    - the dispatch class `base_extrinsic`
+    - the length-based proof-size charge
+
+    This is intended to expose the actual booked pre-dispatch weight for benchmarking and analysis,
+    without reconstructing the outer transaction from a `GenericTransaction`.
+
+    ## Integration
+
+    This changes the `ReviveApi` runtime API surface by adding:
+
+    ```rust
+    fn eth_pre_dispatch_weight(tx: Vec<u8>) -> Result<Weight, EthTransactError>;
+    ```
+
+    Downstream consumers of `ReviveApi` will need regenerated metadata or updated runtime API bindings
+    to call the new method.
+
+    The method expects the signed Ethereum transaction payload bytes, not a `GenericTransaction`. This
+    is important because the outer transaction length contributes to proof-size booking and should come
+    from the real signed payload.
+
+    There is no storage migration and no change to dispatch behavior.
+
+    ## Review Notes
+
+    Implementation details:
+
+    - the new pallet helper decodes `TransactionSigned` from the provided payload
+    - it recovers the signer address and builds the `GenericTransaction` from the signed tx
+    - it computes the actual outer `eth_transact` encoded length from the provided payload
+    - it reuses `into_call(CreateCallMode::ExtrinsicExecution(...))` to construct the inner revive call
+    - it returns:
+
+    ```rust
+    dispatch_info.total_weight()
+    + base_extrinsic
+    + Weight::from_parts(0, encoded_len)
+    ```
+
+    The PR also adds a regression test, `eth_pre_dispatch_weight_matches_check_weight_booking`, which
+    checks that the new API returns the same booked weight that `CheckWeight` would account for.
+
+    Example usage:
+
+    ```rust
+    let weight = runtime_api.eth_pre_dispatch_weight(signed_tx_bytes)?;
+    ```
+crates:
+- name: pallet-revive
+  bump: minor
+- name: frame-system
+  bump: minor

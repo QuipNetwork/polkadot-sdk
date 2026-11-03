@@ -6,25 +6,20 @@
 //! chunk mapping feature and check systematic chunk recovery.
 
 use crate::utils::{
-	check_log_lines, check_metrics, env_or_default, initialize_network, MetricCheckSetup,
-	APPROVAL_CHECKING_FINALITY_LAG_METRIC, APPROVAL_NO_SHOWS_TOTAL_METRIC,
+	assert_nodes_are_validators, check_log_lines, check_metrics, enable_node_features,
+	env_or_default, initialize_network, maybe_enable_experimental_collator_protocol,
+	MetricCheckSetup, APPROVAL_CHECKING_FINALITY_LAG_METRIC, APPROVAL_NO_SHOWS_TOTAL_METRIC,
 	AVAILABILITY_RECOVERY_RECOVERIES_FINISHED, BLOCK_HEIGHT_FINALIZED_METRIC, COL_IMAGE_ENV,
 	DATA_RECOVERY_CHUNKS_PATTERN, DATA_RECOVERY_FROM_SYSTEMATIC_CHUNKS_COMPLETE_PATTERN,
 	DATA_RECOVERY_FROM_SYSTEMATIC_CHUNKS_NOT_POSSIBLE_PATTERN, INTEGRATION_IMAGE_ENV,
-	NODE_ROLES_METRIC,
 };
 use anyhow::anyhow;
-use cumulus_zombienet_sdk_helpers::{
-	assert_para_throughput, submit_extrinsic_and_wait_for_finalization_success_with_timeout,
-};
+use cumulus_zombienet_sdk_helpers::assert_para_throughput;
 use polkadot_primitives::Id as ParaId;
 use serde_json::json;
 use std::{ops::Range, time::Duration};
 use zombienet_orchestrator::network::node::LogLineCountOptions;
-use zombienet_sdk::{
-	subxt::{ext::scale_value::value, tx},
-	NetworkConfig, NetworkConfigBuilder,
-};
+use zombienet_sdk::{NetworkConfig, NetworkConfigBuilder};
 
 const PARAS: [u32; 2] = [2000, 2001];
 pub const DATA_RECOVERY_CHUNKS_NOT_POSSIBLE_PATTERN: &str =
@@ -38,20 +33,11 @@ async fn systematic_chunk_recovery_test() -> Result<(), anyhow::Error> {
 
 	let config = build_network_config()?;
 	let network = initialize_network(config).await?;
+	let mut validator_nodes = network.relaychain().nodes();
 
 	// Check authority status
 	log::info!("Checking validator node roles");
-	let validators: Vec<String> = (0..3).map(|i| format!("validator-{i}")).collect();
-	let validators_names =
-		[vec!["alice"], validators.iter().map(|x| x.as_str()).collect()].concat();
-
-	for name in validators_names {
-		let validator = network.get_node(name)?;
-		validator
-			.wait_metric_with_timeout(NODE_ROLES_METRIC, |v| v == 4.0, 60u64)
-			.await
-			.map_err(|e| anyhow!("Validator {name} role check failed: {e}"))?;
-	}
+	assert_nodes_are_validators(&validator_nodes).await?;
 	log::info!("All validators confirmed as authorities");
 
 	// Get a relay client for parachain throughput checks
@@ -61,13 +47,11 @@ async fn systematic_chunk_recovery_test() -> Result<(), anyhow::Error> {
 	// Check that all parachains produce at least 5 blocks within 1 session and 5 blocks (RC)
 	log::info!("Checking parachain block production (all paras registered at genesis)");
 	let para_throughput: [(ParaId, Range<u32>); 2] = PARAS.map(|id| (ParaId::from(id), 2..6));
-	assert_para_throughput(&alice_client, 5, para_throughput).await?;
+	assert_para_throughput(&alice_client, 5, para_throughput, []).await?;
 	log::info!("All parachains producing blocks");
 
-	let mut validator_nodes = vec![];
-	for name in validators {
-		validator_nodes.push(network.get_node(name)?);
-	}
+	// remove alice  and use the others validators for the rest of the checks.
+	validator_nodes.retain(|n| n.name() != "alice");
 
 	let metric_checks: Vec<MetricCheckSetup> = vec![
 		(BLOCK_HEIGHT_FINALIZED_METRIC, Box::new(|v| v >= 30.0), 400),
@@ -107,22 +91,7 @@ async fn systematic_chunk_recovery_test() -> Result<(), anyhow::Error> {
 	log::info!("All validators pass metric check - {AVAILABILITY_RECOVERY_RECOVERIES_FINISHED}");
 
 	log::info!("Enable the chunk mapping feature.");
-	// Build the sudo call: sudo(Configuration::set_node_feature(2 as u8, true))
-	let sudo_call = tx::dynamic(
-		"Sudo",
-		"sudo",
-		vec![value! {
-			Configuration(set_node_feature { index: (2_u8), value: true })
-		}],
-	);
-
-	let res = submit_extrinsic_and_wait_for_finalization_success_with_timeout(
-		&alice_client,
-		&sudo_call,
-		&zombienet_sdk::subxt_signer::sr25519::dev::alice(),
-		600u64,
-	)
-	.await;
+	let res = enable_node_features(&alice_client, &[2]).await;
 	assert!(res.is_ok(), "Extrinsic failed to finalize: {:?}", res.unwrap_err());
 	log::info!("Configuration::set_node_feature updated");
 
@@ -180,7 +149,9 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
         .with_chain("rococo-local")
         .with_default_command("polkadot")
         .with_default_image(polkadot_image.as_str())
-        .with_default_args(vec!["-lparachain=debug,runtime=debug".into()])
+        .with_default_args(maybe_enable_experimental_collator_protocol(
+            vec!["-lparachain=debug,runtime=debug".into()],
+        ))
         .with_genesis_overrides(json!({
             "patch": {
                 "configuration": {
@@ -224,7 +195,10 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 				}))
 				.with_default_image(col_image.as_str())
 				.with_default_command("polkadot-parachain")
-				.with_default_args(vec!["-lparachain=debug".into()])
+				.with_default_args(vec![
+					"-lparachain=debug".into(),
+					"--authoring=slot-based".into(),
+				])
 				.with_collator(|n| n.with_name(&format!("collator-{para_id}")))
 		})
 	});

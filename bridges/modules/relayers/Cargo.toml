@@ -1,7 +1,7 @@
 [package]
 name = "pallet-bridge-relayers"
 description = "Module used to store relayer rewards and coordinate relayers set."
-version = "0.26.0"
+version = "0.30.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -11,31 +11,35 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+codec = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+tracing = { workspace = true }
+
+# Bridge dependencies
 bp-header-chain = { workspace = true }
 bp-messages = { workspace = true }
 bp-relayers = { workspace = true }
 bp-runtime = { workspace = true }
-codec = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 pallet-bridge-grandpa = { workspace = true }
 pallet-bridge-messages = { workspace = true }
 pallet-bridge-parachains = { workspace = true }
+
+# Substrate Dependencies
+frame-benchmarking = { optional = true, workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 pallet-transaction-payment = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-arithmetic = { workspace = true }
 sp-runtime = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
-bp-parachains = { workspace = true, default-features = false }
-bp-polkadot-core = { workspace = true, default-features = false }
-bp-test-utils = { workspace = true, default-features = false }
-pallet-balances = { default-features = true, workspace = true }
-pallet-utility = { workspace = true, default-features = false }
-sp-core = { workspace = true, default-features = false }
-sp-io = { workspace = true, default-features = false }
+bp-parachains = { workspace = true }
+bp-polkadot-core = { workspace = true }
+bp-test-utils = { workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-utility = { workspace = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
 
 [features]
 default = ["std"]

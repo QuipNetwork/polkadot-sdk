@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-sdk-frame"
-version = "0.15.0"
+version = "0.19.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition.workspace = true
 license = "Apache-2.0"
@@ -17,31 +17,43 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 # external deps
 codec = { features = ["derive"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-executive = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
-frame-system-benchmarking = { optional = true, workspace = true }
-frame-system-rpc-runtime-api = { optional = true, workspace = true }
-frame-try-runtime = { optional = true, workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { workspace = true }
-sp-api = { optional = true, workspace = true }
+
+# primitive deps, used for developing FRAME pallets.
 sp-arithmetic = { workspace = true }
+sp-core = { workspace = true }
+sp-crypto-hashing = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+
+# frame deps, for developing FRAME pallets.
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
+# primitive types used for developing FRAME runtimes.
+sp-api = { optional = true, workspace = true }
 sp-block-builder = { optional = true, workspace = true }
 sp-consensus-aura = { optional = true, workspace = true }
 sp-consensus-grandpa = { optional = true, workspace = true }
-sp-core = { workspace = true }
 sp-genesis-builder = { optional = true, workspace = true }
 sp-inherents = { optional = true, workspace = true }
-sp-io = { workspace = true }
 sp-keyring = { optional = true, workspace = true }
 sp-offchain = { optional = true, workspace = true }
-sp-runtime = { workspace = true }
 sp-session = { optional = true, workspace = true }
 sp-storage = { optional = true, workspace = true }
 sp-transaction-pool = { optional = true, workspace = true }
 sp-version = { optional = true, workspace = true }
+
+frame-executive = { optional = true, workspace = true }
+frame-system-rpc-runtime-api = { optional = true, workspace = true }
+
+# Used for runtime benchmarking
+frame-benchmarking = { optional = true, workspace = true }
+frame-system-benchmarking = { optional = true, workspace = true }
+
+# Used for try-runtime
+frame-try-runtime = { optional = true, workspace = true }
 
 docify = { workspace = true }
 log = { workspace = true }
@@ -66,6 +78,7 @@ std = [
 	"sp-consensus-aura?/std",
 	"sp-consensus-grandpa?/std",
 	"sp-core/std",
+	"sp-crypto-hashing/std",
 	"sp-genesis-builder?/std",
 	"sp-inherents?/std",
 	"sp-io/std",

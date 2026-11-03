@@ -1,0 +1,42 @@
+title: Keep storage-reading aliasers out of `AllowExplicitUnpaidExecutionFrom`
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      `AllowExplicitUnpaidExecutionFrom<T, Aliasers>` emulates origin-altering instructions before
+      `UnpaidExecution`, calling `Aliasers::contains` for every `AliasOrigin` it sees. Barriers run
+      before any payment is taken, so `Aliasers` must be pure computation: passing a filter that
+      reads storage (such as `pallet_xcm::AuthorizedAliasers`) lets any incoming message trigger
+      several unmetered storage reads.
+
+      The barrier's doc comment previously told runtime authors to set `Aliasers` to the same type as
+      `xcm_executor::Config::Aliasers`. It now says to use a cheap, computation-only *subset* of it,
+      and explains that aliases only allowed by the excluded (expensive) filters can still buy
+      execution via the paid barrier. No logic changed in the barrier.
+
+      The system parachain runtimes are restructured to demonstrate the pattern: `TrustedAliasers` is
+      split into a `CheapTrustedAliasers` part (computation only) plus `AuthorizedAliasers<Runtime>`.
+      The executor keeps using the full `TrustedAliasers`, while the barriers get
+      `CheapTrustedAliasers`. `AuthorizedAliasers` stays last in the tuple, so the invariant that
+      cheaper filters are evaluated first is preserved. As a side effect, cheap `AliasOrigin` +
+      `UnpaidExecution` flows are now accepted by these chains' barriers, matching the executor.
+
+crates:
+  - name: staging-xcm-builder
+    bump: patch
+  - name: asset-hub-westend-runtime
+    bump: minor
+  - name: asset-hub-rococo-runtime
+    bump: minor
+  - name: bridge-hub-westend-runtime
+    bump: minor
+  - name: bridge-hub-rococo-runtime
+    bump: minor
+  - name: coretime-westend-runtime
+    bump: minor
+  - name: people-westend-runtime
+    bump: minor
+  - name: collectives-westend-runtime
+    bump: minor
+  - name: penpal-runtime
+    bump: minor

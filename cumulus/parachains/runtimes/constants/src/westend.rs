@@ -155,7 +155,7 @@ pub mod consensus {
 	///
 	/// Change this to adjust the block time.
 	pub const MILLISECS_PER_BLOCK: u64 = 6000;
-	pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
+	pub const SLOT_DURATION: u64 = 24_000;
 }
 
 /// Time-related
@@ -194,6 +194,16 @@ pub mod snowbridge {
 pub mod xcm_version {
 	/// The default XCM version to set in genesis config.
 	pub const SAFE_XCM_VERSION: u32 = xcm::prelude::XCM_VERSION;
+}
+
+/// DAP-related constants, shared across all Westend system parachain runtimes.
+pub mod dap {
+	pub use westend_runtime_constants::system_parachain::dap::*;
+}
+
+/// Accumulate-and-forward constants, shared across all Westend system parachain runtimes.
+pub mod accumulate_forward {
+	pub use westend_runtime_constants::system_parachain::accumulate_forward::*;
 }
 
 pub mod locations {

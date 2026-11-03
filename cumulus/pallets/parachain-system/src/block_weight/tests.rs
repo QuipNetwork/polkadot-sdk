@@ -18,7 +18,7 @@ use super::{mock::*, transaction_extension::DynamicMaxBlockWeight, *};
 use assert_matches::assert_matches;
 use codec::Compact;
 use cumulus_primitives_core::{
-	BundleInfo, ClaimQueueOffset, CoreInfo, CoreSelector, CumulusDigestItem,
+	BlockBundleInfo, ClaimQueueOffset, CoreInfo, CoreSelector, CumulusDigestItem,
 };
 use frame_support::{
 	assert_ok,
@@ -189,16 +189,17 @@ fn test_is_first_block_in_core_functions() {
 		assert!(super::is_first_block_in_core_with_digest(&empty_digest).is_none());
 
 		// Test with bundle info index = 0 - should return true
-		let bundle_info_first = BundleInfo { index: 0, maybe_last: false };
-		let digest_item_first = CumulusDigestItem::BundleInfo(bundle_info_first).to_digest_item();
+		let bundle_info_first = BlockBundleInfo { index: 0, is_last: false };
+		let digest_item_first =
+			CumulusDigestItem::BlockBundleInfo(bundle_info_first).to_digest_item();
 		let mut digest_first = Digest::default();
 		digest_first.push(digest_item_first);
 		assert!(super::is_first_block_in_core_with_digest(&digest_first).unwrap());
 
 		// Test with bundle info index > 0 - should return false
-		let bundle_info_not_first = BundleInfo { index: 5, maybe_last: true };
+		let bundle_info_not_first = BlockBundleInfo { index: 5, is_last: true };
 		let digest_item_not_first =
-			CumulusDigestItem::BundleInfo(bundle_info_not_first).to_digest_item();
+			CumulusDigestItem::BlockBundleInfo(bundle_info_not_first).to_digest_item();
 		let mut digest_not_first = Digest::default();
 		digest_not_first.push(digest_item_not_first);
 		assert!(!super::is_first_block_in_core_with_digest(&digest_not_first).unwrap());

@@ -54,7 +54,7 @@ async fn pov_recovery() -> Result<(), anyhow::Error> {
 	assert_para_is_registered(&validator_client, ParaId::from(PARA_ID), 30).await?;
 
 	log::info!("Ensuring parachain making progress");
-	assert_para_throughput(&validator_client, 20, [(ParaId::from(PARA_ID), 2..20)]).await?;
+	assert_para_throughput(&validator_client, 20, [(ParaId::from(PARA_ID), 2..20)], []).await?;
 
 	for (name, timeout_secs) in [("bob", 600u64)] {
 		log::info!("Checking block production for {name} within {timeout_secs}s");

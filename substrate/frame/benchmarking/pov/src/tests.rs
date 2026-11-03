@@ -161,6 +161,21 @@ fn noop_is_free() {
 	assert_eq!(w, 0, "Noop is free");
 }
 
+/// Whitelisting a regular storage key produces zero PoV.
+/// The whitelisted read is fully hidden from the framework.
+#[test]
+fn storage_whitelisted_read_no_pov() {
+	let w = W::storage_whitelisted_read().proof_size();
+	assert_eq!(w, 0, "Whitelisted read produces no PoV");
+}
+
+/// Whitelisting a child trie key produces zero PoV, same as regular keys.
+#[test]
+fn child_storage_whitelisted_read_no_pov() {
+	let w = W::child_storage_whitelisted_read().proof_size();
+	assert_eq!(w, 0, "Whitelisted child storage read produces no PoV");
+}
+
 mod mock {
 	use frame_support::derive_impl;
 	use sp_runtime::testing::H256;

@@ -16,6 +16,11 @@ on:
         description: "Run tests which names match this pattern (also flaky)"
         default: ""
         required: false
+    secrets:
+      ARTIFACTS_DOWNLOADER_APP_ID:
+        required: false
+      ARTIFACTS_DOWNLOADER_PRIVATE_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       test_pattern:
@@ -49,17 +54,16 @@ jobs:
       build_run_id: ${{ inputs.build_run_id }}
       ref_slug: ${{ inputs.ref_slug }}
 
-
   zombienet-parachain-template-tests:
     name: ${{ matrix.test.job-name }}
-    runs-on: ${{ matrix.test.runner-type == 'large' && needs.preflight.outputs.ZOMBIENET_SDK_LARGE_RUNNER || needs.preflight.outputs.ZOMBIENET_SDK_DEFAULT_RUNNER }}
+    runs-on: ${{ matrix.test.runner-type == 'default' && needs.preflight.outputs.ZOMBIENET_SDK_DEFAULT_RUNNER || needs.preflight.outputs.ZOMBIENET_SDK_LARGE_RUNNER }}
     timeout-minutes: 40 # 30 for test + 10 for send logs
     needs: [preflight]
     # Run if: called from build workflow OR merge_group OR (changes detected)
     if: ${{ github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || (needs.preflight.outputs.changes_substrate == 'true' || needs.preflight.outputs.changes_cumulus == 'true' || needs.preflight.outputs.changes_polkadot == 'true' || needs.preflight.outputs.changes_zombienet == 'true') }}
     container:
       image: ${{ needs.preflight.outputs.ZOMBIENET_SDK_IMAGE }}
-      options: -v /tmp/zombienet:/tmp/zombienet
+      options: -v /var/log/shared/zombienet:/var/log/shared/zombienet
     env:
       POLKADOT_IMAGE: "${{ needs.preflight.outputs.TEMP_IMAGES_BASE }}/polkadot-debug:${{ needs.preflight.outputs.DOCKER_IMAGES_VERSION }}"
       CUMULUS_IMAGE: "${{ needs.preflight.outputs.TEMP_IMAGES_BASE }}/${{ matrix.test.cumulus-image }}:${{ needs.preflight.outputs.DOCKER_IMAGES_VERSION }}"
@@ -85,6 +89,8 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           build-id: ${{ needs.preflight.outputs.BUILD_RUN_ID }}
           ref-slug: ${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
+          app-id: ${{ secrets.ARTIFACTS_DOWNLOADER_APP_ID }}
+          app-private-key: ${{ secrets.ARTIFACTS_DOWNLOADER_PRIVATE_KEY }}
 
       - name: process_logs
         if: ${{ always() }}
@@ -100,9 +106,8 @@ jobs:
             echo "::endgroup::"
           fi
 
-
       - name: upload_logs
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
         with:
           name: zombienet-logs-${{ matrix.test.job-name }}-${{ github.sha }}

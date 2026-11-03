@@ -61,19 +61,9 @@ fn bridge_hub_rococo_genesis(
 				.collect(),
 		},
 		polkadot_xcm: PolkadotXcmConfig { safe_xcm_version: Some(SAFE_XCM_VERSION) },
-		bridge_polkadot_bulletin_grandpa: BridgePolkadotBulletinGrandpaConfig {
-			owner: bridges_pallet_owner.clone(),
-		},
 		bridge_westend_grandpa: BridgeWestendGrandpaConfig { owner: bridges_pallet_owner.clone() },
 		bridge_westend_messages: BridgeWestendMessagesConfig {
 			owner: bridges_pallet_owner.clone(),
-		},
-		xcm_over_polkadot_bulletin: XcmOverPolkadotBulletinConfig {
-			opened_bridges: vec![(
-				Location::new(1, [Parachain(1004)]),
-				Junctions::from([GlobalConsensus(NetworkId::PolkadotBulletin).into()]),
-				Some(bp_messages::LegacyLaneId([0, 0, 0, 0])),
-			)],
 		},
 		xcm_over_bridge_hub_westend: XcmOverBridgeHubWestendConfig { opened_bridges },
 		ethereum_system: EthereumSystemConfig { para_id: id, asset_hub_para_id },

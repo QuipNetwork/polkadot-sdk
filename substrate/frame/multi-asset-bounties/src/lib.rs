@@ -54,6 +54,11 @@
 //!   Beneficiary if the bounty is rewarded.
 //! - **Beneficiary:** The account/location to which the total or part of the bounty is assigned to.
 //!
+//! ### Account derivation
+//!
+//! Bounty and child-bounty accounts are derived from the funding source [`PalletId`] using the
+//! raw-byte prefixes `b"mbt"` (multi-asset bounty) and `b"mcb"` (multi-asset child bounty).
+//!
 //! ### Example
 //!
 //! 1. Fund a bounty approved by spend origin of some asset kind with a proposed curator.
@@ -96,7 +101,10 @@ use frame_system::pallet_prelude::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, BadOrigin, Convert, Saturating, StaticLookup, TryConvert, Zero},
+	traits::{
+		AccountIdConversion, BadOrigin, CheckedAdd, Convert, Saturating, StaticLookup, TryConvert,
+		Zero,
+	},
 	Debug, Permill,
 };
 
@@ -462,6 +470,8 @@ pub mod pallet {
 		},
 		/// A payment happened and can be checked.
 		Paid { index: BountyIndex, child_index: Option<BountyIndex>, payment_id: PaymentIdOf<T, I> },
+		/// A bounty's value was increased by its curator.
+		BountyValueIncreased { index: BountyIndex, old_value: T::Balance, new_value: T::Balance },
 	}
 
 	/// A reason for this pallet placing a hold on funds.
@@ -911,36 +921,40 @@ pub mod pallet {
 					);
 				},
 				BountyStatus::Active { ref curator, .. } => {
-					let maybe_curator_deposit =
-						CuratorDeposit::<T, I>::take(parent_bounty_id, child_bounty_id);
 					// The child-/bounty is active.
 					match maybe_sender {
 						// If the `RejectOrigin` is calling this function, burn the curator deposit.
 						None => {
-							if let Some(curator_deposit) = maybe_curator_deposit {
+							if let Some(curator_deposit) =
+								CuratorDeposit::<T, I>::take(parent_bounty_id, child_bounty_id)
+							{
 								T::Consideration::burn(curator_deposit, curator);
 							}
 							// Continue to change bounty status below...
 						},
 						Some(sender) if sender == *curator => {
-							if let Some(curator_deposit) = maybe_curator_deposit {
+							if let Some(curator_deposit) =
+								CuratorDeposit::<T, I>::get(parent_bounty_id, child_bounty_id)
+							{
 								// This is the curator, willingly giving up their role. Free their
 								// deposit.
 								T::Consideration::drop(curator_deposit, curator)?;
+								CuratorDeposit::<T, I>::remove(parent_bounty_id, child_bounty_id);
 							}
 							// Continue to change bounty status below...
 						},
 						Some(sender) => {
-							if let Some(parent_curator) = parent_curator {
-								// If the parent curator is unassigning a child curator, that is not
-								// itself, burn the child curator deposit.
-								if sender == parent_curator && *curator != parent_curator {
-									if let Some(curator_deposit) = maybe_curator_deposit {
-										T::Consideration::burn(curator_deposit, curator);
-									}
-								} else {
-									return Err(BadOrigin.into());
-								}
+							let parent_curator = parent_curator.ok_or(BadOrigin)?;
+							ensure!(
+								sender == parent_curator && *curator != parent_curator,
+								BadOrigin
+							);
+							// Parent curator is unassigning the child curator. Burn the curator
+							// deposit.
+							if let Some(curator_deposit) =
+								CuratorDeposit::<T, I>::take(parent_bounty_id, child_bounty_id)
+							{
+								T::Consideration::burn(curator_deposit, curator);
 							}
 						},
 					}
@@ -1380,6 +1394,92 @@ pub mod pallet {
 
 			Ok(Some(weight).into())
 		}
+
+		/// Increase the value of an active bounty by `amount`.
+		///
+		/// ## Dispatch Origin
+		///
+		/// Must be signed by the bounty curator.
+		///
+		/// ## Details
+		///
+		/// - The bounty must be in the `Active` state.
+		/// - Raises the recorded `value` by `amount`. This is used to register funds that were
+		///   transferred into the bounty account out-of-band (e.g. recurring external top-ups), so
+		///   they become available to award or to allocate to child bounties. It must be greater
+		///   than 0.
+		/// - The curator deposit is re-evaluated for the new value and any additional deposit is
+		///   collected from the curator.
+		/// - The value can only be increased, never decreased, so the invariant that the sum of
+		///   child-bounty values never exceeds the parent value is preserved.
+		/// - This call does **not** check that the bounty account holds `new_value`; it only
+		///   updates the recorded value. Payouts stay bounded by the account's real balance at
+		///   settlement, so increasing the value beyond the available funds simply makes a later
+		///   payout fail — no funds are moved by this call.
+		/// - Only a parent bounty's value can be increased via this call.
+		///
+		/// ### Parameters
+		/// - `parent_bounty_id`: Index of the bounty whose value is increased.
+		/// - `amount`: The amount to add to the bounty value.
+		///
+		/// ## Events
+		///
+		/// Emits [`Event::BountyValueIncreased`] if successful.
+		#[pallet::call_index(9)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::increase_value())]
+		pub fn increase_value(
+			origin: OriginFor<T>,
+			#[pallet::compact] parent_bounty_id: BountyIndex,
+			#[pallet::compact] amount: T::Balance,
+		) -> DispatchResult {
+			let signer = ensure_signed(origin)?;
+			ensure!(!amount.is_zero(), Error::<T, I>::InvalidValue);
+
+			let (old_value, new_value) = Bounties::<T, I>::try_mutate(
+				parent_bounty_id,
+				|maybe_bounty| -> Result<(T::Balance, T::Balance), DispatchError> {
+					let bounty = maybe_bounty.as_mut().ok_or(Error::<T, I>::InvalidIndex)?;
+
+					// Only an `Active` bounty has a committed curator who can authorize and
+					// collateralize the increase.
+					let curator = match &bounty.status {
+						BountyStatus::Active { curator } => curator.clone(),
+						_ => return Err(Error::<T, I>::UnexpectedStatus.into()),
+					};
+					ensure!(signer == curator, Error::<T, I>::RequireCurator);
+
+					// Reject an overflowing increase rather than silently saturating to a
+					// nonsensical value.
+					let old_value = bounty.value;
+					let new_value =
+						old_value.checked_add(&amount).ok_or(Error::<T, I>::InvalidValue)?;
+
+					// Re-evaluate the curator deposit for the new value, collecting any additional
+					// hold from the curator. The deposit always exists for an `Active` bounty.
+					let native_amount = T::BalanceConverter::from_asset_balance(
+						new_value,
+						bounty.asset_kind.clone(),
+					)
+					.map_err(|_| Error::<T, I>::FailedToConvertBalance)?;
+					let deposit =
+						CuratorDeposit::<T, I>::take(parent_bounty_id, None::<BountyIndex>)
+							.ok_or(Error::<T, I>::UnexpectedStatus)?;
+					let deposit = deposit.update(&curator, native_amount)?;
+					CuratorDeposit::<T, I>::insert(parent_bounty_id, None::<BountyIndex>, deposit);
+
+					bounty.value = new_value;
+					Ok((old_value, new_value))
+				},
+			)?;
+
+			Self::deposit_event(Event::<T, I>::BountyValueIncreased {
+				index: parent_bounty_id,
+				old_value,
+				new_value,
+			});
+
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -1551,7 +1651,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			None => {
 				// Get total child bounties value, and subtract it from the parent
 				// value.
-				let children_value = ChildBountiesValuePerParent::<T, I>::take(parent_bounty_id);
+				let children_value = ChildBountiesValuePerParent::<T, I>::get(parent_bounty_id);
 				debug_assert!(children_value <= value);
 				let payout = value.saturating_sub(children_value);
 				payout
@@ -1571,7 +1671,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 				Bounties::<T, I>::remove(parent_bounty_id);
 				ChildBountiesPerParent::<T, I>::remove(parent_bounty_id);
 				TotalChildBountiesPerParent::<T, I>::remove(parent_bounty_id);
-				debug_assert!(ChildBountiesValuePerParent::<T, I>::get(parent_bounty_id).is_zero());
+				ChildBountiesValuePerParent::<T, I>::remove(parent_bounty_id);
 			},
 			Some(child_bounty_id) => {
 				ChildBounties::<T, I>::remove(parent_bounty_id, child_bounty_id);
@@ -1853,28 +1953,60 @@ where
 	}
 }
 
+/// Standard 3-byte prefix for bounty account derivation.
+///
+/// Returns `b"mbt"` (multi-asset bounty). Use this type when configuring
+/// [`BountySourceFromPalletId`] unless your runtime requires a custom prefix.
+pub struct BountyAccountPrefix;
+impl Get<[u8; 3]> for BountyAccountPrefix {
+	fn get() -> [u8; 3] {
+		*b"mbt"
+	}
+}
+
+/// Standard 3-byte prefix for child-bounty account derivation.
+///
+/// Returns `b"mcb"` (multi-asset child bounty). Use this type when configuring
+/// [`ChildBountySourceFromPalletId`] unless your runtime requires a custom prefix.
+pub struct ChildBountyAccountPrefix;
+impl Get<[u8; 3]> for ChildBountyAccountPrefix {
+	fn get() -> [u8; 3] {
+		*b"mcb"
+	}
+}
+
 /// Derives a bounty `AccountId` from the `PalletId` and the `BountyIndex`,
 /// then converts it into the corresponding bounty `Beneficiary`.
 ///
+/// The account is derived using a fixed-size 3-byte prefix (e.g. `b"mbt"` for multi-asset bounty).
+/// The prefix is supplied via the `Prefix` type parameter, which must implement `Get<[u8; 3]>`.
+/// This ensures the encoded sub-account seed has a predictable size and avoids truncation issues.
+///
 /// Used when the [`PalletId`] itself owns the funds (i.e. pallet-treasury id).
+///
 /// # Type Parameters
 /// - `Id`: The pallet ID getter
+/// - `Prefix`: Getter for the 3-byte account prefix (e.g. [`BountyAccountPrefix`]). Must implement
+///   `Get<[u8; 3]>`. Fixed at 3 bytes to guarantee predictable seed size and avoid truncation of
+///   the bounty index.
 /// - `T`: The pallet configuration
 /// - `C`: Converter from `T::AccountId` to `T::Beneficiary`. Use `Identity` when types are the
 ///   same.
 /// - `I`: Instance parameter (default: `()`)
-pub struct BountySourceFromPalletId<Id, T, C, I = ()>(PhantomData<(Id, T, C, I)>);
-impl<Id, T, C, I> TryConvert<(BountyIndex, T::AssetKind), T::Beneficiary>
-	for BountySourceFromPalletId<Id, T, C, I>
+pub struct BountySourceFromPalletId<Id, Prefix, T, C, I = ()>(PhantomData<(Id, Prefix, T, C, I)>);
+impl<Id, Prefix, T, C, I> TryConvert<(BountyIndex, T::AssetKind), T::Beneficiary>
+	for BountySourceFromPalletId<Id, Prefix, T, C, I>
 where
 	Id: Get<PalletId>,
+	Prefix: Get<[u8; 3]>,
 	T: crate::Config<I>,
 	C: Convert<T::AccountId, T::Beneficiary>,
 {
 	fn try_convert(
 		(parent_bounty_id, _asset_kind): (BountyIndex, T::AssetKind),
 	) -> Result<T::Beneficiary, (BountyIndex, T::AssetKind)> {
-		let account: T::AccountId = Id::get().into_sub_account_truncating(("bt", parent_bounty_id));
+		let account: T::AccountId =
+			Id::get().into_sub_account_truncating((Prefix::get(), parent_bounty_id));
 		Ok(C::convert(account))
 	}
 }
@@ -1882,28 +2014,43 @@ where
 /// Derives a child-bounty `AccountId` from the `PalletId`, the parent index,
 /// and the child index, then converts it into the child-bounty `Beneficiary`.
 ///
+/// The account is derived using a fixed-size 3-byte prefix (e.g. `b"mcb"` for multi-asset child
+/// bounty). The prefix is supplied via the `Prefix` type parameter, which must implement
+/// `Get<[u8; 3]>`. Using a different prefix from the parent bounty ensures distinct account IDs
+/// when parent and child indices coincide.
+///
 /// Used when the [`PalletId`] itself owns the funds (i.e. pallet-treasury id).
+///
 /// # Type Parameters
 /// - `Id`: The pallet ID getter
+/// - `Prefix`: Getter for the 3-byte account prefix (e.g. [`ChildBountyAccountPrefix`]). Must
+///   implement `Get<[u8; 3]>`. Fixed at 3 bytes to guarantee predictable seed size and avoid
+///   truncation of the bounty indices.
 /// - `T`: The pallet configuration
 /// - `C`: Converter from `T::AccountId` to `T::Beneficiary`. Use `Identity` when types are the
 ///   same.
 /// - `I`: Instance parameter (default: `()`)
-pub struct ChildBountySourceFromPalletId<Id, T, C, I = ()>(PhantomData<(Id, T, C, I)>);
-impl<Id, T, C, I> TryConvert<(BountyIndex, BountyIndex, T::AssetKind), T::Beneficiary>
-	for ChildBountySourceFromPalletId<Id, T, C, I>
+pub struct ChildBountySourceFromPalletId<Id, Prefix, T, C, I = ()>(
+	PhantomData<(Id, Prefix, T, C, I)>,
+);
+impl<Id, Prefix, T, C, I> TryConvert<(BountyIndex, BountyIndex, T::AssetKind), T::Beneficiary>
+	for ChildBountySourceFromPalletId<Id, Prefix, T, C, I>
 where
 	Id: Get<PalletId>,
+	Prefix: Get<[u8; 3]>,
 	T: crate::Config<I>,
 	C: Convert<T::AccountId, T::Beneficiary>,
 {
 	fn try_convert(
 		(parent_bounty_id, child_bounty_id, _asset_kind): (BountyIndex, BountyIndex, T::AssetKind),
 	) -> Result<T::Beneficiary, (BountyIndex, BountyIndex, T::AssetKind)> {
-		// The prefix is changed to have different AccountId when the index of
-		// parent and child is same.
-		let account: T::AccountId =
-			Id::get().into_sub_account_truncating(("cb", parent_bounty_id, child_bounty_id));
+		// The prefix is distinct from the bounty prefix so AccountIds differ when parent and
+		// child index are the same.
+		let account: T::AccountId = Id::get().into_sub_account_truncating((
+			Prefix::get(),
+			parent_bounty_id,
+			child_bounty_id,
+		));
 		Ok(C::convert(account))
 	}
 }

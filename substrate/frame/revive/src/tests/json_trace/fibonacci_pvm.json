@@ -1,5 +1,5 @@
 {
-  "gas": 43429049,
+  "gas": 45538108,
   "weightConsumed": {
     "ref_time": 0,
     "proof_size": 0
@@ -12,10 +12,20 @@
   "returnValue": "0x0000000000000000000000000000000000000000000000000000000000000002",
   "structLogs": [
     {
-      "gas": 249961111334,
-      "gasCost": 33000,
+      "gas": 249960283505,
+      "gasCost": 67180,
       "weightCost": {
-        "ref_time": 330000,
+        "ref_time": 671800,
+        "proof_size": 0
+      },
+      "depth": 1,
+      "op": "pvm_fuel"
+    },
+    {
+      "gas": 249960198007,
+      "gasCost": 31800,
+      "weightCost": {
+        "ref_time": 318000,
         "proof_size": 0
       },
       "depth": 1,
@@ -23,10 +33,20 @@
       "returned": "0x24"
     },
     {
-      "gas": 249960429545,
-      "gasCost": 34300,
+      "gas": 249960166207,
+      "gasCost": 859904,
       "weightCost": {
-        "ref_time": 343000,
+        "ref_time": 8599040,
+        "proof_size": 0
+      },
+      "depth": 1,
+      "op": "pvm_fuel"
+    },
+    {
+      "gas": 249959287984,
+      "gasCost": 33800,
+      "weightCost": {
+        "ref_time": 338000,
         "proof_size": 0
       },
       "depth": 1,
@@ -37,46 +57,14 @@
       ]
     },
     {
-      "gas": 249960317525,
-      "gasCost": 31900,
+      "gas": 249959254184,
+      "gasCost": 80616,
       "weightCost": {
-        "ref_time": 319000,
+        "ref_time": 806160,
         "proof_size": 0
       },
       "depth": 1,
-      "op": "value_transferred",
-      "args": [
-        "0xfffdff80"
-      ]
-    },
-    {
-      "gas": 249960198059,
-      "gasCost": 34300,
-      "weightCost": {
-        "ref_time": 343000,
-        "proof_size": 0
-      },
-      "depth": 1,
-      "op": "call_data_load",
-      "args": [
-        "0xfffdffa0",
-        "0x4"
-      ]
-    },
-    {
-      "gas": 249957624538,
-      "gasCost": 53586,
-      "weightCost": {
-        "ref_time": 535865,
-        "proof_size": 0
-      },
-      "depth": 1,
-      "op": "seal_return",
-      "args": [
-        "0x0",
-        "0x20090",
-        "0x20"
-      ]
+      "op": "pvm_fuel"
     }
   ]
 }

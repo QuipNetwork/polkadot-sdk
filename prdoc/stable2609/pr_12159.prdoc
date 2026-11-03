@@ -1,0 +1,22 @@
+title: 'Snowbridge: blocks an origin-spoofing attack vector in the V2 outbound queue converter'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds a validation check in the V2 XCM converter to reject AliasOrigin instructions
+    that attempt to forge the Asset Hub sovereign account origin. This acts as a
+    "defense in depth" against upstream XCM regressions, protecting the bridge's primary
+    agent account (derived from the Asset Hub Root location) which holds ERC20 assets.
+
+    The `EthereumBlobExporter` and `XcmConverter` now accept a generic
+    `AllowedAliasOrigin: Contains<Location>` type parameter. Runtimes pass
+    `EverythingBut<Equals<AssetHubLocation>>` to reject any `AliasOrigin` that
+    matches the Asset Hub's parachain location.
+crates:
+- name: snowbridge-outbound-queue-primitives
+  bump: major
+- name: snowbridge-runtime-common
+  bump: minor
+- name: bridge-hub-westend-runtime
+  bump: minor
+- name: bridge-hub-westend-integration-tests
+  bump: none

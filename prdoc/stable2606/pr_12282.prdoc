@@ -1,0 +1,19 @@
+title: Logging improvements for the collator revamp
+doc:
+- audience: Node Dev
+  description: |-
+    Some logging updates:
+
+    - Decrease log levels in `wait_for_first_leaf` to DEBUG, to avoid startup spam
+    - Use `warn_if_frequent` for fetch errors
+    - Log assignment changes on view change
+    - pick_best_advertisement: trace logs for each outcome
+    - update_view: log scheduling parent <-> assigned core mapping
+    - update_view: log sp removal
+    - handle_seconded_collation: logs for each error case
+    - PeerManager: log reputation updates
+
+    Partially addresses https://github.com/paritytech/polkadot-sdk/issues/10402
+crates:
+- name: polkadot-collator-protocol
+  bump: patch

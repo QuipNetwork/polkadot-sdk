@@ -1,0 +1,23 @@
+title: Read the collator's scheduling parameters at the parent it builds on
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      The slot-based collator reads `scheduling_v3_enabled`, `relay_parent_offset`,
+      `max_claim_queue_offset` and the Aura authorities at the parent it builds on rather than at
+      the para best head, and resolves them against `:pending_code`, so they come from the runtime
+      that executes the block. This keeps candidate shape correct across a para runtime upgrade
+      that flips V3 scheduling off again.
+
+      `cumulus-pallet-parachain-system` only gains named constants for the claim queue lookahead
+      and regression coverage for the `CoreInfo` `claim_queue_offset` bound; its behaviour is
+      unchanged.
+crates:
+  - name: cumulus-client-consensus-common
+    bump: patch
+  - name: cumulus-pallet-parachain-system
+    bump: patch
+  - name: cumulus-client-consensus-aura
+    bump: patch
+  - name: cumulus-primitives-core
+    bump: patch

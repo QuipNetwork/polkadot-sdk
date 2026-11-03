@@ -5,7 +5,7 @@
 pub mod v1;
 pub mod v2;
 use codec::Encode;
-use sp_core::blake2_256;
+use sp_crypto_hashing::blake2_256;
 use sp_std::marker::PhantomData;
 use xcm::prelude::{AccountKey20, Ethereum, GlobalConsensus, Location};
 use xcm_executor::traits::ConvertLocation;

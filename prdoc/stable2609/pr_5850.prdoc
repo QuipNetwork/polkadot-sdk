@@ -1,0 +1,11 @@
+title: Try State Hook for Membership Pallet.
+
+doc:
+  - audience: Runtime User
+    description: |
+      Invariants for storage items in the membership pallet. Enforces the following Invariants:
+      1.`Prime` member must be part of `Members`.
+      2.Numbers of `Members` cannot be more than `MaxMember` allowed.
+crates:
+- name: pallet-membership
+  bump: minor

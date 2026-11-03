@@ -1,0 +1,18 @@
+title: Fix `claim_rewards_to` benchmark to enable Snowbridge reward claims
+doc:
+- audience: Runtime Dev
+  description: The `prepare_rewards_account` benchmark helper was returning `None`,
+    causing `claim_rewards_to` to be assigned `Weight::MAX` and effectively disabling
+    the extrinsic. This fix returns a valid beneficiary account, enabling Snowbridge
+    relayers to claim rewards to AssetHub as intended.
+crates:
+- name: bridge-hub-rococo-runtime
+  bump: minor
+- name: bridge-hub-westend-runtime
+  bump: minor
+- name: bp-bridge-hub-westend
+  bump: minor
+- name: pallet-bridge-relayers
+  bump: minor
+- name: bp-runtime
+  bump: minor

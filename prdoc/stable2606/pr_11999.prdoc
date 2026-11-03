@@ -1,0 +1,12 @@
+title: 'pallet-staking-async: Use offence era for proportional slash distribution'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fixes the proportional slash split between active stake and unlocking chunks.
+    The ledger now uses the offence era (not the slash application era) to decide
+    which unlocking chunks are still in range, restoring the intended proportional
+    distribution. No funds previously escaped slashing — the active balance was just
+    taking a disproportionate share.
+crates:
+- name: pallet-staking-async
+  bump: minor

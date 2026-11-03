@@ -1,0 +1,14 @@
+title: 'peerset/metrics: Add notification layer metrics for peer states'
+doc:
+- audience: Node Dev
+  description: |-
+    This PR adds two new metrics to enhance our monitoring insights into the notification protocol.
+
+    The data exposed:
+    - connected peers grouped by in / out and kind (reserve / non-reserve)
+    - disconnected and backed off peers
+
+    Because the slot counts are tightly coupled with the full peerset state machine, I've picked an eventually consistent model to easily bump the metrics at 1s tick intervals.
+crates:
+- name: sc-network
+  bump: minor

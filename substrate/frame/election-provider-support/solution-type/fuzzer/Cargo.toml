@@ -1,6 +1,6 @@
 [package]
 name = "frame-election-solution-type-fuzzer"
-version = "2.0.0"
+version = "2.0.0-alpha.5"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -23,8 +23,9 @@ path = "src/compact.rs"
 honggfuzz = { workspace = true }
 
 codec = { features = ["derive"], workspace = true }
-frame-election-provider-solution-type = { default-features = true, workspace = true }
-frame-election-provider-support = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
-sp-arithmetic = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+frame-election-provider-solution-type = { workspace = true, default-features = true }
+frame-election-provider-support = { workspace = true, default-features = true }
+sp-arithmetic = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+# used by generate_solution_type:
+frame-support = { workspace = true, default-features = true }

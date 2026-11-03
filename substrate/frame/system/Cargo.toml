@@ -1,6 +1,6 @@
 [package]
 name = "frame-system"
-version = "46.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -35,8 +35,8 @@ sp-weights = { features = ["serde"], workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, default-features = true }
-sp-externalities = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 
 [features]

@@ -1,0 +1,10 @@
+title: 'statement-store: Add malformed input unit tests'
+doc:
+- audience: Node Dev
+  description: |
+    Add unit tests for malformed input handling in statement-store crates.
+crates:
+- name: sp-statement-store
+  bump: none
+- name: sc-statement-store
+  bump: none

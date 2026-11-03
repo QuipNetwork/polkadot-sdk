@@ -1,0 +1,12 @@
+title: Remove deprecated AssetsToBlockAuthor from parachains-common
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes deprecated `parachains_common::AssetsToBlockAuthor`, which forwarded asset
+      transaction fees to the block author via `HandleCredit`. Use
+      `MaybeResolveAssetTo<BlockAuthor<Runtime>, ...>` instead (already used by system
+      parachain runtimes in this repo).
+
+crates:
+  - name: parachains-common
+    bump: major

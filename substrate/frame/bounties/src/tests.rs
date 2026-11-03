@@ -2022,3 +2022,277 @@ fn poke_deposit_works_for_non_proposer() {
 		assert_eq!(pallet_bounties::BountyCount::<Test>::get(), 1);
 	});
 }
+
+#[test]
+fn reclaim_bounty_funds_works_for_funded_bounty() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+
+		// Propose and approve a bounty so it gets funded.
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+
+		// Bounty is now Funded; its sub-account holds 50.
+		let bounty_account = Bounties::bounty_account_id(0);
+		assert_eq!(Balances::free_balance(&bounty_account), 50);
+
+		pallet_bounties::Bounties::<Test>::remove(0);
+		pallet_bounties::BountyDescriptions::<Test>::remove(0);
+
+		let treasury_before = Treasury::pot();
+
+		// Anyone can call reclaim_bounty_funds.
+		assert_ok!(Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0));
+
+		assert_eq!(last_event(), BountiesEvent::BountyFundsReclaimed { bounty_id: 0 },);
+
+		// Bounty account is now empty.
+		assert_eq!(Balances::free_balance(&bounty_account), 0);
+
+		// Treasury received the funds (minus any burn that happened at go_to_block(2)).
+		assert!(Treasury::pot() > treasury_before);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_works_after_accidental_refund() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+
+		// Full lifecycle: propose → approve → fund → curator → award → claim
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+
+		let fee = 4;
+		Balances::make_free_balance_be(&4, 10);
+		assert_ok!(Bounties::propose_curator(RuntimeOrigin::root(), 0, 4, fee));
+		assert_ok!(Bounties::accept_curator(RuntimeOrigin::signed(4), 0));
+		assert_ok!(Bounties::award_bounty(RuntimeOrigin::signed(4), 0, 3));
+		go_to_block(5);
+		assert_ok!(Bounties::claim_bounty(RuntimeOrigin::signed(1), 0));
+
+		// Bounty is now fully closed; verify it is gone from storage.
+		assert!(pallet_bounties::Bounties::<Test>::get(0).is_none());
+
+		let bounty_account = Bounties::bounty_account_id(0);
+		// Account should already be empty after claim.
+		assert_eq!(Balances::free_balance(&bounty_account), 0);
+
+		// Simulate someone accidentally sending funds to the closed bounty account.
+		Balances::make_free_balance_be(&bounty_account, 25);
+		assert_eq!(Balances::free_balance(&bounty_account), 25);
+
+		let treasury_before = Treasury::pot();
+
+		// Dust the account.
+		assert_ok!(Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(99), 0));
+		assert_eq!(last_event(), BountiesEvent::BountyFundsReclaimed { bounty_id: 0 },);
+
+		assert_eq!(Balances::free_balance(&bounty_account), 0);
+		assert!(Treasury::pot() > treasury_before);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_fails_when_bounty_still_active() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+
+		// Bounty is in Funded state (still exists in storage).
+		assert_noop!(
+			Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0),
+			Error::<Test>::BountyStillActive
+		);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_fails_when_bounty_in_proposed_state() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+
+		// Bounty is in Proposed state (still exists in storage).
+		assert_noop!(
+			Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0),
+			Error::<Test>::BountyStillActive
+		);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_fails_when_bounty_in_curator_proposed_state() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+		assert_ok!(Bounties::propose_curator(RuntimeOrigin::root(), 0, 4, 4));
+
+		// Bounty is in CuratorProposed state.
+		assert_noop!(
+			Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0),
+			Error::<Test>::BountyStillActive
+		);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_is_paid_noop_when_account_already_empty() {
+	ExtBuilder::default().build_and_execute(|| {
+		// No bounty at index 99 and its derived account is empty: the call succeeds as
+		// a paid no-op, so it cannot be used to grief the network.
+		let result = Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 99);
+		assert_ok!(result.as_ref());
+		assert_eq!(result.unwrap().pays_fee, Pays::Yes);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_fails_for_unsigned_origin() {
+	ExtBuilder::default().build_and_execute(|| {
+		assert_noop!(
+			Bounties::reclaim_bounty_funds(RuntimeOrigin::none(), 0),
+			DispatchError::BadOrigin
+		);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_can_be_called_by_anyone() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+
+		// Forcibly remove bounty, leave account funded.
+		pallet_bounties::Bounties::<Test>::remove(0);
+		pallet_bounties::BountyDescriptions::<Test>::remove(0);
+
+		// A random account (2) with only 1 token should be able to call this.
+		assert_ok!(Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(2), 0));
+		assert_eq!(last_event(), BountiesEvent::BountyFundsReclaimed { bounty_id: 0 },);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_works_with_additional_assets() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+		assert_ok!(Bounties::propose_curator(RuntimeOrigin::root(), 0, 0, 1));
+		assert_ok!(Bounties::accept_curator(RuntimeOrigin::signed(0), 0));
+
+		let bounty_account = Bounties::bounty_account_id(0);
+
+		// Load the bounty account with both native and asset 1.
+		Balances::make_free_balance_be(&bounty_account, 100);
+		assert_ok!(Assets::transfer(RuntimeOrigin::signed(0), 1, bounty_account, 10));
+
+		pallet_bounties::Bounties::<Test>::remove(0);
+		pallet_bounties::BountyDescriptions::<Test>::remove(0);
+
+		let treasury_native_before = Balances::free_balance(Bounties::account_id());
+		let treasury_asset1_before = Assets::balance(1, &Bounties::account_id());
+
+		// A single call reclaims both the native token and asset 1.
+		assert_ok!(Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(5), 0));
+		assert_eq!(last_event(), BountiesEvent::BountyFundsReclaimed { bounty_id: 0 },);
+
+		// Native balance drained to at most ED.
+		assert!(Balances::free_balance(&bounty_account) <= 1);
+
+		// Asset 1 swept to treasury.
+		assert_eq!(Assets::balance(1, &bounty_account), 0);
+		assert!(Assets::balance(1, &Bounties::account_id()) > treasury_asset1_before);
+
+		// Treasury received native funds.
+		assert!(Balances::free_balance(Bounties::account_id()) > treasury_native_before);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_works_after_close_bounty() {
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+
+		// Extra funds added to the bounty account.
+		let bounty_account = Bounties::bounty_account_id(0);
+		Balances::make_free_balance_be(&bounty_account, 60);
+
+		// Close the bounty through the normal path.
+		assert_ok!(Bounties::close_bounty(RuntimeOrigin::root(), 0));
+
+		// After close_bounty the bounty no longer exists in storage.
+		assert!(pallet_bounties::Bounties::<Test>::get(0).is_none());
+
+		// close_bounty already swept the account, so reclaiming again is a paid no-op.
+		assert_ok!(Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0));
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_is_free_for_caller() {
+	// Verify Pays::No is returned on success so the caller isn't charged.
+	ExtBuilder::default().build_and_execute(|| {
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Bounties::propose_bounty(RuntimeOrigin::signed(0), 50, b"12345".to_vec()));
+		assert_ok!(Bounties::approve_bounty(RuntimeOrigin::root(), 0));
+		go_to_block(2);
+
+		pallet_bounties::Bounties::<Test>::remove(0);
+		pallet_bounties::BountyDescriptions::<Test>::remove(0);
+
+		let result = Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0);
+		assert_ok!(result.as_ref());
+		// The extrinsic must return Pays::No.
+		assert_eq!(
+			result.unwrap(),
+			frame_support::dispatch::PostDispatchInfo {
+				actual_weight: None,
+				pays_fee: frame_support::pallet_prelude::Pays::No,
+			}
+		);
+	});
+}
+
+#[test]
+fn reclaim_bounty_funds_respects_native_locks() {
+	use frame_support::traits::{LockableCurrency, WithdrawReasons};
+
+	ExtBuilder::default().build_and_execute(|| {
+		let bounty_account = Bounties::bounty_account_id(0);
+		let treasury = Bounties::account_id();
+
+		Balances::make_free_balance_be(&bounty_account, 100);
+		// Lock 60 of the 100 native; only the 40 liquid units should be reclaimable.
+		<Balances as LockableCurrency<_>>::set_lock(
+			*b"testlock",
+			&bounty_account,
+			60,
+			WithdrawReasons::all(),
+		);
+
+		let treasury_before = Balances::free_balance(&treasury);
+		assert!(!pallet_bounties::Bounties::<Test>::contains_key(0));
+		let res = Bounties::reclaim_bounty_funds(RuntimeOrigin::signed(1), 0);
+		assert_ok!(res.as_ref());
+
+		// Liquid part swept, locked part left behind.
+		assert_eq!(Balances::free_balance(&treasury).saturating_sub(treasury_before), 40);
+		assert_eq!(Balances::free_balance(&bounty_account), 60);
+		assert_eq!(last_event(), BountiesEvent::BountyFundsReclaimed { bounty_id: 0 });
+		assert_eq!(res.unwrap().pays_fee, Pays::No);
+	});
+}

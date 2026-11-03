@@ -1,0 +1,19 @@
+title: 'Snowbridge: Set default asset claimer to local network'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The inbound-queue v2 message converter falls back to the Snowbridge sovereign
+    account on AssetHub as the asset claimer when no explicit claimer is supplied.
+    Previously this fallback used `AccountId32 { network: None, .. }`, which did
+    not match the location AssetHub's signed-origin converter produces (it sets
+    `network: Some(LocalNetwork)`). The trap-key hash stored on `AssetsTrapped`
+    therefore could not be matched by a signed `polkadotXcm.claim_assets` call,
+    making default-claimer trapped funds effectively unrecoverable without a
+    runtime upgrade.
+
+    This PR sets `network: Some(LocalNetwork::get())` on the fallback claimer so
+    its `Location` agrees with what `SignedToAccountId32<_, _, LocalNetwork>`
+    yields on AssetHub, and adds a test covering the no-claimer-supplied path.
+crates:
+- name: snowbridge-inbound-queue-primitives
+  bump: patch

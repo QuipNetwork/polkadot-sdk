@@ -15,16 +15,9 @@
 
 use crate::{imports::*, tests::bridged_roc_at_ah_westend};
 use asset_hub_westend_runtime::xcm_config::LocationToAccountId;
-use emulated_integration_tests_common::{
-	snowbridge::{SEPOLIA_ID, WETH},
-	PenpalBTeleportableAssetLocation,
-};
-use frame_support::traits::fungibles::Mutate;
+use emulated_integration_tests_common::snowbridge::{SEPOLIA_ID, WETH};
+use frame_support::traits::{fungible::Mutate as _, fungibles::Mutate};
 use hex_literal::hex;
-use rococo_westend_system_emulated_network::penpal_emulated_chain::{
-	penpal_runtime::xcm_config::{CheckingAccount, TELEPORTABLE_ASSET_ID},
-	PenpalAssetOwner,
-};
 use snowbridge_core::AssetMetadata;
 use sp_core::H160;
 use testnet_parachains_constants::westend::snowbridge::EthereumNetwork;
@@ -37,6 +30,7 @@ pub const AGENT_ADDRESS: [u8; 20] = hex!("90A987B944Cb1dCcE5564e5FDeCD7a54D3de27
 pub const TOKEN_AMOUNT: u128 = 10_000_000_000_000;
 pub const REMOTE_FEE_AMOUNT_IN_ETHER: u128 = 600_000_000_000;
 pub const LOCAL_FEE_AMOUNT_IN_DOT: u128 = 800_000_000_000;
+pub const LOCAL_FEE_AMOUNT_IN_PAL: u128 = 800_000_000_000;
 
 pub const EXECUTION_WEIGHT: u64 = 8_000_000_000;
 
@@ -83,14 +77,14 @@ pub fn register_relay_token_on_bh() {
 pub fn register_assets_on_penpal() {
 	let ethereum_sovereign: AccountId = snowbridge_sovereign();
 	PenpalB::execute_with(|| {
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::force_create(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::force_create(
 			<PenpalB as Chain>::RuntimeOrigin::root(),
 			weth_location().try_into().unwrap(),
 			ethereum_sovereign.clone().into(),
 			true,
 			1,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::force_create(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::force_create(
 			<PenpalB as Chain>::RuntimeOrigin::root(),
 			ethereum().try_into().unwrap(),
 			ethereum_sovereign.into(),
@@ -123,19 +117,10 @@ pub fn register_foreign_asset(token_location: Location) {
 	);
 }
 
-pub fn register_pal_on_ah() {
+pub fn mint_pal_on_ah() {
 	// Create PAL(i.e. native asset for penpal) on AH.
 	AssetHubWestend::execute_with(|| {
-		type RuntimeOrigin = <AssetHubWestend as Chain>::RuntimeOrigin;
 		let penpal_asset_id = Location::new(1, Parachain(PenpalB::para_id().into()));
-
-		assert_ok!(<AssetHubWestend as AssetHubWestendPallet>::ForeignAssets::force_create(
-			RuntimeOrigin::root(),
-			penpal_asset_id.clone(),
-			PenpalAssetOwner::get().into(),
-			false,
-			1_000_000,
-		));
 
 		assert!(<AssetHubWestend as AssetHubWestendPallet>::ForeignAssets::asset_exists(
 			penpal_asset_id.clone(),
@@ -170,70 +155,81 @@ pub fn fund_on_penpal() {
 	PenpalB::fund_accounts(vec![
 		(PenpalBReceiver::get(), INITIAL_FUND),
 		(PenpalBSender::get(), INITIAL_FUND),
-		(CheckingAccount::get(), INITIAL_FUND),
+		(PenpalCheckingAccount::get(), INITIAL_FUND),
 		(sudo_account.clone(), INITIAL_FUND),
 	]);
 	PenpalB::execute_with(|| {
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			Location::parent(),
 			&PenpalBReceiver::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			Location::parent(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			Location::parent(),
 			&sudo_account,
 			INITIAL_FUND,
 		));
 	});
 	PenpalB::execute_with(|| {
+		assert_ok!(<PenpalB as PenpalBPallet>::Balances::mint_into(
+			&PenpalBReceiver::get(),
+			INITIAL_FUND,
+		));
+		assert_ok!(<PenpalB as PenpalBPallet>::Balances::mint_into(
+			&PenpalBSender::get(),
+			INITIAL_FUND,
+		));
+		assert_ok!(<PenpalB as PenpalBPallet>::Balances::mint_into(&sudo_account, INITIAL_FUND,));
+	});
+	PenpalB::execute_with(|| {
 		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
-			TELEPORTABLE_ASSET_ID,
+			PenpalLocalPen2Asset::get(),
 			&PenpalBReceiver::get(),
 			INITIAL_FUND,
 		));
 		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
-			TELEPORTABLE_ASSET_ID,
+			PenpalLocalPen2Asset::get(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
 		));
 		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
-			TELEPORTABLE_ASSET_ID,
+			PenpalLocalPen2Asset::get(),
 			&sudo_account,
 			INITIAL_FUND,
 		));
 	});
 	PenpalB::execute_with(|| {
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			weth_location().try_into().unwrap(),
 			&PenpalBReceiver::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			weth_location().try_into().unwrap(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			weth_location().try_into().unwrap(),
 			&sudo_account,
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			ethereum().try_into().unwrap(),
 			&PenpalBReceiver::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			ethereum().try_into().unwrap(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			ethereum().try_into().unwrap(),
 			&sudo_account,
 			INITIAL_FUND,
@@ -326,18 +322,16 @@ pub fn create_pools_on_ah() {
 	let ethereum_sovereign = snowbridge_sovereign();
 	AssetHubWestend::fund_accounts(vec![(ethereum_sovereign.clone(), INITIAL_FUND)]);
 	PenpalB::fund_accounts(vec![(ethereum_sovereign.clone(), INITIAL_FUND)]);
-	create_pool_with_native_on!(
+	create_foreign_pool_with_parent_native_on!(
 		AssetHubWestend,
 		weth_location(),
-		true,
 		ethereum_sovereign.clone(),
 		1_000_000_000_000,
 		20_000_000_000
 	);
-	create_pool_with_native_on!(
+	create_foreign_pool_with_parent_native_on!(
 		AssetHubWestend,
 		ethereum(),
-		true,
 		ethereum_sovereign.clone(),
 		1_000_000_000_000,
 		20_000_000_000
@@ -349,14 +343,23 @@ pub(crate) fn set_up_eth_and_dot_pool() {
 	let ethereum_sovereign = snowbridge_sovereign();
 	AssetHubWestend::fund_accounts(vec![(ethereum_sovereign.clone(), INITIAL_FUND)]);
 	PenpalB::fund_accounts(vec![(ethereum_sovereign.clone(), INITIAL_FUND)]);
-	create_pool_with_native_on!(AssetHubWestend, eth_location(), true, ethereum_sovereign.clone());
+	create_foreign_pool_with_parent_native_on!(
+		AssetHubWestend,
+		eth_location(),
+		ethereum_sovereign.clone()
+	);
 }
 
 pub(crate) fn set_up_eth_and_dot_pool_on_penpal() {
 	let ethereum_sovereign = snowbridge_sovereign();
 	AssetHubWestend::fund_accounts(vec![(ethereum_sovereign.clone(), INITIAL_FUND)]);
 	PenpalB::fund_accounts(vec![(ethereum_sovereign.clone(), INITIAL_FUND)]);
-	create_pool_with_native_on!(PenpalB, eth_location(), true, ethereum_sovereign.clone());
+	create_foreign_pool_with_native_on!(
+		PenpalB,
+		Assets,
+		eth_location(),
+		ethereum_sovereign.clone()
+	);
 }
 
 pub(crate) fn set_up_eth_and_dot_pool_on_rococo() {
@@ -365,7 +368,11 @@ pub(crate) fn set_up_eth_and_dot_pool_on_rococo() {
 		AssetHubWestend::para_id(),
 	);
 	AssetHubRococo::fund_accounts(vec![(sa_of_wah_on_rah.clone(), INITIAL_FUND)]);
-	create_pool_with_native_on!(AssetHubRococo, eth_location(), true, sa_of_wah_on_rah.clone());
+	create_foreign_pool_with_parent_native_on!(
+		AssetHubRococo,
+		eth_location(),
+		sa_of_wah_on_rah.clone()
+	);
 }
 
 pub fn register_pal_on_bh() {
@@ -375,7 +382,7 @@ pub fn register_pal_on_bh() {
 
 		assert_ok!(<BridgeHubWestend as BridgeHubWestendPallet>::EthereumSystem::register_token(
 			RuntimeOrigin::root(),
-			Box::new(VersionedLocation::from(PenpalBTeleportableAssetLocation::get())),
+			Box::new(VersionedLocation::from(PenpalBLocation::get())),
 			AssetMetadata {
 				name: "pal".as_bytes().to_vec().try_into().unwrap(),
 				symbol: "pal".as_bytes().to_vec().try_into().unwrap(),

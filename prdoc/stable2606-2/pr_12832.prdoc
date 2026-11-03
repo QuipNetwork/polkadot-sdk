@@ -1,0 +1,59 @@
+title: 'pallet-xcm: weight asset claiming and precompile XCM input by their real size'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fixes weights and benchmark worst cases for the `claim_assets` extrinsic, the
+    `ClaimAsset` and `AliasOrigin` instructions, and the `pallet-revive` XCM precompile.
+    Each was benchmarked with an input far cheaper than one a caller can actually supply,
+    so all four under-charged.
+
+    What this needs from you:
+
+    - Regenerate your `pallet_xcm` weights. `WeightInfo::claim_assets` now takes the asset
+      count `n: u32`, `WeightInfo::weigh_message` takes the message length `n: u32`, and
+      `decode_xcm(n)` is new.
+    - Override `pallet_xcm::benchmarking::Config::get_assets` if your `AssetTransactor`
+      deposits several distinct asset kinds. The default measures a flat per-asset slope,
+      which is only sound for single-asset-kind transactors such as relay chains.
+    - Override `pallet_xcm::benchmarking::Config::batch_call` if you have a batching
+      pallet (`utility.batch` for all in-tree runtimes). Left at its `None` default, the
+      `weigh_message` worst case degrades and the precompile under-charges.
+    - Work out your own `alias_origin` worst case if your `Aliasers` differ from the setup
+      `parachains_common::benchmarking` assumes; its docs spell that setup out.
+    - Raise gas limits on contracts forwarding large XCMs through the precompile. The new
+      size-based charge is taken before decoding and is not refunded.
+
+    `VersionedAssets` gained `len()` and `is_empty()`.
+crates:
+- name: pallet-xcm
+  bump: major
+- name: staging-xcm
+  bump: minor
+- name: pallet-xcm-precompiles
+  bump: patch
+- name: pallet-xcm-benchmarks
+  bump: none
+- name: parachains-common
+  bump: minor
+- name: asset-hub-rococo-runtime
+  bump: patch
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: bridge-hub-rococo-runtime
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch
+- name: collectives-westend-runtime
+  bump: patch
+- name: coretime-westend-runtime
+  bump: patch
+- name: people-westend-runtime
+  bump: patch
+- name: rococo-runtime
+  bump: patch
+- name: westend-runtime
+  bump: patch
+- name: pallet-staking-async-parachain-runtime
+  bump: patch
+- name: pallet-staking-async-rc-runtime
+  bump: patch

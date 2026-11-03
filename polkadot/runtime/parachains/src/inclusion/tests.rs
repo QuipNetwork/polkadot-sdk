@@ -322,6 +322,7 @@ impl TestCandidateBuilder {
 				self.relay_parent,
 				core_index,
 				self.descriptor_session_index.unwrap_or(0),
+				self.descriptor_session_index.unwrap_or(0), // scheduling_session_index
 				self.persisted_validation_data_hash,
 				self.pov_hash,
 				Default::default(),
@@ -2081,7 +2082,7 @@ fn backing_works() {
 }
 
 #[test]
-fn backing_works_with_elastic_scaling_mvp() {
+fn backing_works_with_elastic_scaling() {
 	let chain_a = ParaId::from(1_u32);
 	let chain_b = ParaId::from(2_u32);
 	let thread_a = ParaId::from(3_u32);
@@ -3148,5 +3149,63 @@ fn cross_session_process_candidates_v3() {
 			"V3 cross-session process_candidates should succeed, got: {:?}",
 			result.err()
 		);
+	});
+}
+
+/// `verify_backed_candidate` rejects a candidate whose `new_validation_code` exceeds the
+/// on-chain `HostConfiguration.max_code_size`.
+#[test]
+fn verify_backed_candidate_rejects_oversized_new_validation_code() {
+	let chain_a = ParaId::from(1_u32);
+	let paras = vec![(chain_a, ParaKind::Parachain)];
+
+	new_test_ext(genesis_config(paras)).execute_with(|| {
+		run_to_block(2, |_| None);
+		let _ = default_allowed_scheduling_parent_tracker();
+
+		let max_code_size = configuration::ActiveConfig::<Test>::get().max_code_size as usize;
+		let oversized_code = vec![0u8; max_code_size + 1];
+
+		let parent_number = System::block_number().saturating_sub(1);
+		let candidate = TestCandidateBuilder {
+			para_id: chain_a,
+			relay_parent: System::parent_hash(),
+			pov_hash: Hash::repeat_byte(1),
+			persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+			hrmp_watermark: parent_number,
+			new_validation_code: Some(oversized_code.into()),
+			..Default::default()
+		}
+		.build();
+
+		let parent_head = paras::Heads::<Test>::get(chain_a).unwrap_or_default();
+
+		let check_ctx = CandidateCheckContext::<Test>::new(None);
+		assert_matches!(
+			check_ctx.verify_backed_candidate(&candidate, parent_head),
+			Err(Error::<Test>::NewCodeTooLarge)
+		);
+	});
+}
+
+/// `check_validation_outputs_for_runtime_api` returns `false` when the commitments contain a
+/// `new_validation_code` larger than the on-chain `HostConfiguration.max_code_size`.
+#[test]
+fn check_validation_outputs_for_runtime_api_rejects_oversized_new_validation_code() {
+	let chain_a = ParaId::from(1_u32);
+	let paras = vec![(chain_a, ParaKind::Parachain)];
+
+	new_test_ext(genesis_config(paras)).execute_with(|| {
+		run_to_block(2, |_| None);
+
+		let max_code_size = configuration::ActiveConfig::<Test>::get().max_code_size as usize;
+		let oversized_code = vec![0u8; max_code_size + 1];
+
+		let commitments = CandidateCommitments {
+			new_validation_code: Some(oversized_code.into()),
+			..Default::default()
+		};
+
+		assert!(!ParaInclusion::check_validation_outputs_for_runtime_api(chain_a, 1, commitments,));
 	});
 }

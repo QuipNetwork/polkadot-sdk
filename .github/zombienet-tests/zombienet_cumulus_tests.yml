@@ -2,13 +2,11 @@
   test-filter: "zombie_ci::sync_blocks::sync_blocks_from_tip_without_connected_collator"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0002-pov_recovery"
   test-filter: "zombie_ci::pov_recovery::pov_recovery"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0003-full_node_catching_up"
   test-filter: "zombie_ci::full_node_catching_up::full_node_catching_up"
@@ -17,42 +15,30 @@
 
 - job-name: "zombienet-cumulus-0004-runtime_upgrade"
   test-filter: "zombie_ci::runtime_upgrade::runtime_upgrade"
-  runner-type: "default"
   cumulus-image: "test-parachain"
   needs-wasm-binary: true
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0005-migrate_solo_to_para"
   test-filter: "zombie_ci::migrate_solo::migrate_solo_to_para"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0006-rpc_collator_builds_blocks"
   test-filter: "zombie_ci::rpc_collator_build_blocks::rpc_collator_builds_blocks"
-  runner-type: "large"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0007-full_node_warp_sync"
   test-filter: "zombie_ci::full_node_warp_sync::full_node_warp_sync"
-  runner-type: "large"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0008-elastic_authoring"
   test-filter: "zombie_ci::elastic_scaling::slot_based_authoring::elastic_scaling_slot_based_authoring"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
-# Disabled, occasionally fails
-# See https://github.com/paritytech/polkadot-sdk/issues/8986
 - job-name: "zombienet-cumulus-0009-elastic_scaling_pov_recovery"
   test-filter: "zombie_ci::elastic_scaling::pov_recovery::elastic_scaling_pov_recovery"
-  runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 # Disabled, occasionally fails.
 # See https://github.com/paritytech/polkadot-sdk/issues/8999
@@ -60,30 +46,131 @@
   test-filter: "zombie_ci::elastic_scaling::multiple_blocks_per_slot::elastic_scaling_multiple_blocks_per_slot"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0011-dht-bootnodes"
   test-filter: "zombie_ci::bootnodes::dht_bootnodes_test"
   runner-type: "default"
   cumulus-image: "polkadot-parachain-debug"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0013-elastic_scaling_slot_based_rp_offset"
   test-filter: "zombie_ci::elastic_scaling::slot_based_rp_offset::elastic_scaling_slot_based_relay_parent_offset_test"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
 
 - job-name: "zombienet-cumulus-0014-elastic_scaling_upgrade_to_3_cores"
   test-filter: "zombie_ci::elastic_scaling::upgrade_to_3_cores::elastic_scaling_upgrade_to_3_cores"
-  runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
   needs-wasm-binary: true
 
 - job-name: "zombienet-cumulus-0015-parachain-runtime-upgrade"
   test-filter: "zombie_ci::parachain_runtime_upgrade_slot_duration_18s::parachain_runtime_upgrade_slot_duration_18s"
+  cumulus-image: "test-parachain"
+  needs-wasm-binary: true
+
+- job-name: "zombienet-cumulus-0016-block_bundling_basic"
+  test-filter: "zombie_ci::block_bundling::basic::block_bundling_basic"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0017-block_bundling_pov_recovery"
+  test-filter: "zombie_ci::block_bundling::pov_recovery::block_bundling_pov_recovery"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
+
+- job-name: "zombienet-cumulus-0018-block_bundling_full_core_usage_scenarios"
+  test-filter: "zombie_ci::block_bundling::full_core_usage_scenarios::block_bundling_full_core_usage_scenarios"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0019-block_bundling_tracing_block"
+  test-filter: "zombie_ci::block_bundling::tracing_block::block_bundling_tracing_block"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0020-block_bundling_relay_parent_offset"
+  test-filter: "zombie_ci::block_bundling::relay_parent_offset::block_bundling_relay_parent_offset"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0021-block_bundling_runtime_upgrade"
+  test-filter: "zombie_ci::block_bundling::runtime_upgrade::block_bundling_runtime_upgrade"
+  cumulus-image: "test-parachain"
   needs-wasm-binary: true
+
+- job-name: "zombienet-cumulus-0022-block_bundling_three_cores_glutton"
+  test-filter: "zombie_ci::block_bundling::three_cores_glutton::block_bundling_three_cores_glutton"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0023-block_bundling_warp_sync"
+  test-filter: "zombie_ci::block_bundling::warp_sync::warp_sync_with_bundled_blocks"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0024-statement_store_basic_propagation"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_basic_propagation"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0025-statement_store_check_propagation_and_quota_invariants"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_check_propagation_and_quota_invariants"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0026-statement_store_crash_mid_sync"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_crash_mid_sync"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0027-statement_store_recovery_after_major_sync"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_recovery_after_major_sync"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0028-statement_store_sustained_rate_flooding"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_sustained_rate_flooding"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0029-statement_store_burst_flooding"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_burst_flooding"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0030-statement_store_subscription_reconnect"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_subscription_reconnect"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0031-statement_store_initial_sync"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_initial_sync"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0032-statement_store_mass_expiration"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_mass_expiration"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0033-elastic_scaling_asset_hub_westend"
+  test-filter: "zombie_ci::elastic_scaling::asset_hub_westend::elastic_scaling_asset_hub_westend"
+  cumulus-image: "polkadot-parachain-debug"
+
+- job-name: "zombienet-cumulus-0034-statement_store_lite_person_submit_and_propagate"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_lite_person_submit_and_propagate"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0035-collator_discovery_full_mesh"
+  test-filter: "zombie_ci::collator_discovery::collator_discovery_full_mesh_with_tight_non_reserved_budget"
+  runner-type: "large"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0036-statement_store_unstable_rpc_smoke"
+  test-filter: "zombie_ci::statement_store::integration::statement_store_unstable_rpc_smoke"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-cumulus-0037-storage_chain_tip_sync_with_renewals"
+  test-filter: "zombie_ci::storage_chain::parachain_tip_sync_with_renewals::parachain_tip_sync_with_renewals_test"
+  cumulus-image: "polkadot-parachain-debug"
+
+- job-name: "zombienet-cumulus-0041-rpc_collator_switches_back_to_preferred_rpc_node"
+  test-filter: "zombie_ci::rpc_collator_build_blocks::rpc_collator_switches_back_to_preferred_rpc_node"
+  cumulus-image: "test-parachain"

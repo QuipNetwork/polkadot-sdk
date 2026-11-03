@@ -65,7 +65,7 @@ jobs:
 
           inject_simple_analytics "$docs_dir" "$script_content"
       - run: echo "<meta http-equiv=refresh content=0;url=polkadot_sdk_docs/index.html>" > ./crate-docs/index.html
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.sha }}-doc
           path: ./crate-docs/
@@ -89,7 +89,7 @@ jobs:
       - run: mdbook build ./polkadot/roadmap/implementers-guide
       - run: mkdir -p artifacts
       - run: mv polkadot/roadmap/implementers-guide/book artifacts/
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.sha }}-guide
           path: ./artifacts/
@@ -122,7 +122,9 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: gh-pages
-      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         id: app-token
         with:
           app-id: ${{ secrets.POLKADOTSDK_GHPAGES_APP_ID }}
@@ -134,12 +136,12 @@ jobs:
         env:
           REF_NAME: ${{ github.head_ref || github.ref_name }}
       - name: Download rustdocs
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ github.sha }}-doc
           path: ${{ github.head_ref || github.ref_name }}
       - name: Download guide
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ github.sha }}-guide
           path: /tmp
@@ -162,14 +164,10 @@ jobs:
           git status | wc -l
 
           echo "${Green}Add new remote with gh app token${NC}"
-          git remote set-url origin $(git config remote.origin.url | sed "s/github.com/${APP_NAME}:${TOKEN}@github.com/g")
-
-          echo "${Green}Remove http section that causes issues with gh app auth token${NC}"
-          sed -i.bak '/\[http/d' ./.git/config
-          sed -i.bak '/extraheader/d' ./.git/config
+          git remote set-url origin $(git config remote.origin.url | sed "s|github.com|x-access-token:${TOKEN}@github.com|g")
 
           echo "${Green}Git push${NC}"
           git config user.email "ci@parity.io"
           git config user.name "${APP_NAME}"
-          git commit --amend -m "___Updated docs" || echo "___Nothing to commit___"
-          git push origin gh-pages --force
+          git commit -m "Updated docs for ${REF_NAME}" || echo "___Nothing to commit___"
+          git push origin gh-pages

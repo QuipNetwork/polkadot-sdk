@@ -1,0 +1,39 @@
+title: Support State Overrides in Tracing
+doc:
+- audience: Runtime Dev
+  description: "# Description\n\nAdds support for [Geth-compatible state overrides](https://geth.ethereum.org/docs/interacting-with-geth/rpc/objects#state-override-set)\
+    \ in `debug_traceCall`, extending the state override support introduced in #11545\
+    \ (which added them to `eth_call`).\n\nPer the [Geth specification](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#debugtracecall),\
+    \ `debug_traceCall` accepts a config object that is a superset of the base tracer\
+    \ config, adding `stateOverrides` for ephemerally modifying account state during\
+    \ traced execution.\n\n## Changes\n\n### Pallet (`pallet-revive`)\n\n- **`TracingConfig`\
+    \ type** \u2014 New backwards-compatible config type following the same pattern\
+    \ as `DryRunConfig` from #11545 (custom `Decode` impl, append-only fields, must\
+    \ be the last runtime API argument).\n- **`trace_call_with_config` runtime API**\
+    \ \u2014 New method that applies state overrides then delegates to the existing\
+    \ `trace_call`. Implemented in the macro so it can call `Self::trace_call` directly.\n\
+    - **`state_overrides` module** made `#[doc(hidden)] pub` so the macro-generated\
+    \ code can access it from downstream runtime crates.\n\n### ETH-RPC (`pallet-revive-eth-rpc`)\n\
+    \n- **`TraceCallConfig` type** \u2014 Extends `TracerConfig` (flattened) with\
+    \ an optional `stateOverrides` field, matching Geth's `TraceCallConfig` schema.\n\
+    - **`debug_traceCall`** signature updated to accept `Option<TraceCallConfig>`.\
+    \ When state overrides are present, the RPC uses `trace_call_with_config`; otherwise\
+    \ it falls back to `trace_call` for backwards compatibility with older runtimes.\n\
+    \n## Integration\n\nExisting `debug_traceCall` callers are unaffected \u2014 the\
+    \ config parameter remains optional, and omitting `stateOverrides` uses the original\
+    \ code path. Callers wanting state overrides pass them in the config object alongside\
+    \ the tracer settings:\n\n```json\n{\n  \"tracer\": \"callTracer\",\n  \"stateOverrides\"\
+    : {\n    \"0x1234...\": {\n      \"balance\": \"0xDE0B6B3A7640000\",\n      \"\
+    code\": \"0x6080...\"\n    }\n  }\n}\n```\n\n## Review Notes\n\n- `TracingConfig`\
+    \ mirrors `DryRunConfig`'s backwards compatibility strategy documented in #11545.\
+    \ The custom `Decode` impl defaults missing fields, and `sp_api`'s `Decode::decode`\
+    \ (not `decode_all`) discards trailing bytes from newer encodings.\n- The macro\
+    \ impl applies overrides before delegating to `Self::trace_call`, keeping the\
+    \ tracing logic in one place.\n- A single integration test (`test_state_override_trace_call`)\
+    \ verifies end-to-end functionality using alloy's `DebugApi::debug_trace_call_callframe`\
+    \ with state overrides."
+crates:
+- name: pallet-revive
+  bump: major
+- name: pallet-revive-eth-rpc
+  bump: major

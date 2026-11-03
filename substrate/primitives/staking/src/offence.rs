@@ -43,14 +43,16 @@ pub type OffenceCount = u32;
 ///
 /// Examples of offences include: a BABE equivocation or a GRANDPA unjustified vote.
 pub trait Offence<Offender> {
-	/// Identifier which is unique for this kind of an offence.
+	/// Identifier which is unique for this kind of offence.
 	const ID: Kind;
 
-	/// A type that represents a point in time on an abstract timescale.
+	/// A type used for grouping offences that happened at the "same time".
 	///
-	/// See `Offence::time_slot` for details. The only requirement is that such timescale could be
-	/// represented by a single `u128` value.
-	type TimeSlot: Clone + codec::Codec + Ord;
+	/// Usually this will be a time slot, representing a point in time on an abstract timescale.
+	/// But it can also be a more complex grouping strategy.
+	///
+	/// See `Offence::slot` for details.
+	type Slot: Clone + codec::Codec + Ord;
 
 	/// The list of all offenders involved in this incident.
 	///
@@ -66,18 +68,17 @@ pub trait Offence<Offender> {
 	/// Return a validator set count at the time when the offence took place.
 	fn validator_set_count(&self) -> u32;
 
-	/// A point in time when this offence happened.
+	/// A slot within which this offence happened.
 	///
 	/// This is used for looking up offences that happened at the "same time".
 	///
-	/// The timescale is abstract and doesn't have to be the same across different implementations
-	/// of this trait. The value doesn't represent absolute timescale though since it is interpreted
-	/// along with the `session_index`. Two offences are considered to happen at the same time iff
-	/// both `session_index` and `time_slot` are equal.
+	/// The slot is abstract and doesn't have to be the same across different implementations
+	/// of this trait. Two offences are considered to happen at the same time iff  both
+	/// `session_index` and `slot` are equal.
 	///
-	/// As an example, for GRANDPA timescale could be a round number and for BABE it could be a slot
-	/// number. Note that for GRANDPA the round number is reset each epoch.
-	fn time_slot(&self) -> Self::TimeSlot;
+	/// As an example, for GRANDPA the slot could be a round number and for BABE it could be
+	/// a slot number. Note that for GRANDPA the round number is reset each epoch.
+	fn slot(&self) -> Self::Slot;
 
 	/// A slash fraction of the total exposure that should be slashed for this
 	/// particular offence for the `offenders_count` that happened at a singular `TimeSlot`.
@@ -115,9 +116,9 @@ pub trait ReportOffence<Reporter, Offender, O: Offence<Offender>> {
 	fn report_offence(reporters: Vec<Reporter>, offence: O) -> Result<(), OffenceError>;
 
 	/// Returns true iff all of the given offenders have been previously reported
-	/// at the given time slot. This function is useful to prevent the sending of
+	/// at the given slot. This function is useful to prevent the sending of
 	/// duplicate offence reports.
-	fn is_known_offence(offenders: &[Offender], time_slot: &O::TimeSlot) -> bool;
+	fn is_known_offence(offenders: &[Offender], time_slot: &O::Slot) -> bool;
 }
 
 impl<Reporter, Offender, O: Offence<Offender>> ReportOffence<Reporter, Offender, O> for () {
@@ -125,7 +126,7 @@ impl<Reporter, Offender, O: Offence<Offender>> ReportOffence<Reporter, Offender,
 		Ok(())
 	}
 
-	fn is_known_offence(_offenders: &[Offender], _time_slot: &O::TimeSlot) -> bool {
+	fn is_known_offence(_offenders: &[Offender], _time_slot: &O::Slot) -> bool {
 		true
 	}
 }

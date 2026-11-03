@@ -13,6 +13,7 @@ on:
           - polkadot-omni-node
           - frame-omni-bencher
           - chain-spec-builder
+          - eth-rpc
           - all
       release_tag:
         description: Tag matching the actual release candidate with the format polkadot-stableYYMM(-X)-rcX
@@ -38,6 +39,8 @@ jobs:
 
   check-synchronization:
     uses: paritytech-release/sync-workflows/.github/workflows/check-synchronization.yml@main
+    with:
+      concurrency_suffix: promote-rc-to-final
     secrets:
       fork_writer_app_key: ${{ secrets.UPSTREAM_CONTENT_SYNC_APP_KEY }}
 
@@ -144,6 +147,23 @@ jobs:
         target: [ x86_64-unknown-linux-gnu, aarch64-apple-darwin ]
     with:
       package: chain-spec-builder
+      release_tag: ${{ needs.validate-inputs.outputs.release_tag }}
+      final_tag: ${{ needs.validate-inputs.outputs.final_tag }}
+      target: ${{ matrix.target }}
+    secrets:
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_RELEASE_ACCESS_KEY_ID: ${{ secrets.AWS_RELEASE_ACCESS_KEY_ID }}
+      AWS_RELEASE_SECRET_ACCESS_KEY: ${{ secrets.AWS_RELEASE_SECRET_ACCESS_KEY }}
+
+  promote-eth-rpc-rc-to-final:
+    if: ${{ inputs.binary == 'eth-rpc' || inputs.binary == 'all' }}
+    needs: [ validate-inputs ]
+    uses: ./.github/workflows/release-reusable-promote-to-final.yml
+    strategy:
+      matrix:
+        target: [ x86_64-unknown-linux-gnu, aarch64-apple-darwin ]
+    with:
+      package: eth-rpc
       release_tag: ${{ needs.validate-inputs.outputs.release_tag }}
       final_tag: ${{ needs.validate-inputs.outputs.final_tag }}
       target: ${{ matrix.target }}

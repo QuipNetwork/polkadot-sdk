@@ -1,0 +1,22 @@
+title: Add increase_value call to pallet-multi-asset-bounties
+doc:
+- audience: Runtime Dev
+  description: |
+    Adds a curator-gated `increase_value(parent_bounty_id, amount)` extrinsic that raises an
+    active bounty's recorded `value` by `amount`.
+
+    Bounty payouts are bounded by the recorded `value`, not the account balance, so funds
+    transferred into a bounty account out-of-band (e.g. recurring external top-ups) are
+    otherwise unspendable. This call lets the curator register those funds without a
+    governance round.
+
+    Behaviour:
+    - Only the curator of an `Active` bounty may call it; the value is increase-only.
+    - The curator deposit is re-evaluated and any additional hold is collected for the new value.
+    - Emits `BountyValueIncreased { index, old_value, new_value }`.
+    - Parent bounties only.
+
+    This is an additive change (new call and event variant); there is no storage migration.
+crates:
+- name: pallet-multi-asset-bounties
+  bump: major

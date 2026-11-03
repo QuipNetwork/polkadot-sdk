@@ -1,6 +1,6 @@
 [package]
 name = "sp-version-proc-macro"
-version = "15.0.0"
+version = "13.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -26,4 +26,4 @@ quote = { workspace = true }
 syn = { features = ["extra-traits", "fold", "full", "visit"], workspace = true }
 
 [dev-dependencies]
-sp-version = { default-features = true, workspace = true }
+sp-version = { workspace = true, default-features = true }

@@ -1,0 +1,17 @@
+title: 'rpc-server: Use own thread pool for RPC functionality'
+doc:
+- audience: Node Dev
+  description: |-
+    Right now the RPC is using the same thread pool as the rest of the node. When there is high usage and the node is running out of threads for blocking futures, RPC calls start to take very long time. This may also results in problems with other node functionality that would also be blocked by waiting for new threads. This pull request assigns the rpc server its own thread pool that gets the same number as threads as `max_connections`. These threads are only started on demand, but should allow any RPC connection to have at least one thread to run blocking tasks.
+
+    In a next step we should finally look into the performance metering of RPC calls and ensure that we have some proper rate limit in place to give every connection a fair share.
+
+
+    Hopefully helps with: https://github.com/paritytech/polkadot-sdk/issues/10719
+crates:
+- name: sc-rpc-server
+  bump: major
+- name: sc-service
+  bump: major
+- name: pallet-revive-eth-rpc
+  bump: major

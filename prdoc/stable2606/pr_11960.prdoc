@@ -1,0 +1,32 @@
+title: "sp-hop: HOP runtime API primitives crate"
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Adds the `sp-hop` crate, which defines the `HopRuntimeApi` runtime API
+      trait for the Hand-Off Protocol (HOP). HOP is an ephemeral, peer-to-peer
+      data pool service that holds data node-side until it is claimed or
+      promoted to on-chain storage.
+
+      `HopRuntimeApi` is the contract between the HOP node service (`sc-hop`,
+      added in a follow-up PR) and the runtime:
+
+      - `can_account_promote(who, data_len)` — authorization check.
+      - `create_promotion_extrinsic(data, signer, signature, submit_timestamp)` —
+        constructs the unsigned promotion extrinsic carrying the user's
+        submit-time signer, signature, and timestamp so the runtime pallet can
+        re-verify consent on-chain.
+      - `max_promotion_size()` — runtime-defined upper bound on a single
+        promotion blob.
+      - `is_promoted_on_chain(hash)` — used by the node's maintenance task to
+        confirm on-chain inclusion before flagging an entry as promoted.
+
+      This PR introduces the crate only; it has no runtime or node consumers
+      yet and is therefore a no-op at runtime. The follow-up PR adds `sc-hop`
+      and the `polkadot-omni-node` integration that depend on this trait.
+
+crates:
+  - name: sp-hop
+    bump: patch
+  - name: polkadot-sdk
+    bump: minor

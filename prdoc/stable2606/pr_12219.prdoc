@@ -1,0 +1,7 @@
+title: Bump jsonrpsee to 0.24.11
+doc:
+- audience: Node Dev
+  description: |-
+    Bumps `jsonrpsee` and `jsonrpsee-core` to 0.24.11 to pick up the new `subscription_id()` getter on
+      `PendingSubscriptionSink` (paritytech/jsonrpsee#1634).
+crates: []

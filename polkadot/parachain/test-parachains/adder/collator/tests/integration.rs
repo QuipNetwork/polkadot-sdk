@@ -86,7 +86,4 @@ async fn collating_using_adder_collator() {
 
 	// Wait until the parachain has 4 blocks produced.
 	collator.wait_for_blocks(4).await;
-
-	// Wait until the collator received `12` seconded statements for its collations.
-	collator.wait_for_seconded_collations(12).await;
 }

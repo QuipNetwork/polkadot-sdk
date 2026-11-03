@@ -121,10 +121,12 @@ where
 
 				loop {
 					if attempts >= MAX_RETRIES {
+						metrics.as_ref().map(|m| m.on_rejected(&req));
 						return reject_too_many_calls(req.id);
 					}
 
 					if let Err(rejected) = limit.inner.check() {
+						metrics.as_ref().map(|m| m.on_retry(&req));
 						tokio::time::sleep(jitter + rejected.wait_time_from(limit.clock.now()))
 							.await;
 					} else {

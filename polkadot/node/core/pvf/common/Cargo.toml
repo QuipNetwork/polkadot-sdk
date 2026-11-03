@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-core-pvf-common"
 description = "Polkadot crate that contains functionality related to PVFs that is shared by the PVF host and the PVF workers."
-version = "25.0.0"
+version = "29.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,24 +14,27 @@ workspace = true
 [dependencies]
 cpu-time = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 libc = { workspace = true }
 nix = { features = ["resource", "sched"], workspace = true }
 thiserror = { workspace = true }
 
 codec = { features = ["derive"], workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-executor = { default-features = true, workspace = true }
-sc-executor-common = { default-features = true, workspace = true }
-sc-executor-wasmtime = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-crypto-ec-utils = { workspace = true, features = ["rfc163"], default-features = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-externalities = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
+sc-executor = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
+sc-executor-wasmtime = { workspace = true, default-features = true }
+
+sp-core = { workspace = true, default-features = true }
+sp-crypto-ec-utils = { workspace = true, default-features = true, features = ["rfc163"] }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = { workspace = true }

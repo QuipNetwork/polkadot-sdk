@@ -39,22 +39,23 @@ impl<T: frame_system::Config> snowbridge_pallet_system_frontend::BackendWeightIn
 	}
 
 	fn do_process_message() -> Weight {
-		Weight::from_parts(19_000_000, 0)
-			.saturating_add(Weight::from_parts(0, 1527))
+		Weight::from_parts(23_370_000, 0)
+			.saturating_add(Weight::from_parts(0, 1493))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
 
 	fn commit_single() -> Weight {
-		Weight::from_parts(10_000_000, 0)
-			.saturating_add(Weight::from_parts(0, 1620))
+		Weight::from_parts(11_263_000, 0)
+			.saturating_add(Weight::from_parts(0, 1582))
 			.saturating_add(T::DbWeight::get().reads(1))
+			.saturating_add(T::DbWeight::get().writes(1))
 	}
 
 	fn submit_delivery_receipt() -> Weight {
-		Weight::from_parts(68_000_000, 0)
-			.saturating_add(Weight::from_parts(0, 3785))
-			.saturating_add(T::DbWeight::get().reads(4))
+		Weight::from_parts(99_542_000, 0)
+			.saturating_add(Weight::from_parts(0, 3756))
+			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }

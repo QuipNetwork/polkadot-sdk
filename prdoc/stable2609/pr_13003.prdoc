@@ -1,0 +1,19 @@
+title: 'statement store: skip expired statements before sending'
+doc:
+- audience: Node Operator
+  description: |-
+    Statement gossip sent statements that had already expired. The receiver
+    rejects them as `AlreadyExpired` and penalises the sender's reputation.
+    Both send paths, propagation and initial sync, now skip expired statements
+    while fetching, before they are encoded.
+- audience: Node Dev
+  description: |-
+    `sp_statement_store::Statement` gains `is_expired`, used by the gossip send
+    paths and by the store's submit-time expiry check.
+crates:
+- name: sp-statement-store
+  bump: minor
+- name: sc-network-statement
+  bump: patch
+- name: sc-statement-store
+  bump: patch

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-core-primitives"
-version = "22.0.0"
+version = "25.0.0"
 description = "Core Polkadot types used by Relay Chains and parachains."
 authors.workspace = true
 edition.workspace = true

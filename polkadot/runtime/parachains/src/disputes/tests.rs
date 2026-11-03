@@ -1501,7 +1501,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_1,
-		true,
+		2,
 	)
 	.is_ok());
 	assert!(check_signature(
@@ -1510,7 +1510,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_1,
-		true
+		2
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1519,7 +1519,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_1,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1528,7 +1528,7 @@ fn test_check_signature() {
 		wrong_session,
 		&statement_1,
 		&signed_1,
-		true
+		2
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1537,7 +1537,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_1,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1546,7 +1546,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_1,
-		true
+		2
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1555,7 +1555,7 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_1,
-		true
+		2
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1564,7 +1564,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_1,
-		true,
+		2,
 	)
 	.is_err());
 
@@ -1574,7 +1574,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_ok());
 	assert!(check_signature(
@@ -1583,7 +1583,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1592,7 +1592,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1601,7 +1601,7 @@ fn test_check_signature() {
 		wrong_session,
 		&statement_2,
 		&signed_2,
-		true
+		2
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1610,7 +1610,7 @@ fn test_check_signature() {
 		session,
 		&wrong_statement_2,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1619,7 +1619,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1628,7 +1628,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1637,7 +1637,7 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1646,7 +1646,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_2,
-		true,
+		2,
 	)
 	.is_err());
 
@@ -1656,7 +1656,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_ok());
 	assert!(check_signature(
@@ -1665,7 +1665,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1674,7 +1674,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1683,7 +1683,7 @@ fn test_check_signature() {
 		wrong_session,
 		&statement_3,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1692,7 +1692,7 @@ fn test_check_signature() {
 		session,
 		&wrong_statement_3,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1701,7 +1701,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1710,7 +1710,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_3,
-		true
+		2
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1719,7 +1719,7 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1728,7 +1728,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_3,
-		true,
+		2,
 	)
 	.is_err());
 
@@ -1738,7 +1738,7 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_ok());
 	assert!(check_signature(
@@ -1747,7 +1747,7 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1756,7 +1756,7 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1765,7 +1765,7 @@ fn test_check_signature() {
 		wrong_session,
 		&statement_4,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1774,7 +1774,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1783,7 +1783,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1792,7 +1792,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1801,7 +1801,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_4,
-		true,
+		2,
 	)
 	.is_err());
 
@@ -1811,7 +1811,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_ok());
 	assert!(check_signature(
@@ -1820,7 +1820,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1829,7 +1829,7 @@ fn test_check_signature() {
 		session,
 		&statement_5,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1838,7 +1838,7 @@ fn test_check_signature() {
 		wrong_session,
 		&statement_5,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1847,7 +1847,7 @@ fn test_check_signature() {
 		session,
 		&statement_1,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1856,7 +1856,7 @@ fn test_check_signature() {
 		session,
 		&statement_2,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1865,7 +1865,7 @@ fn test_check_signature() {
 		session,
 		&statement_3,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
 	assert!(check_signature(
@@ -1874,9 +1874,96 @@ fn test_check_signature() {
 		session,
 		&statement_4,
 		&signed_5,
-		true,
+		2,
 	)
 	.is_err());
+}
+
+#[test]
+fn test_check_signature_approval_multiple_candidates_coalesce_limit() {
+	let validator_id = <ValidatorId as CryptoType>::Pair::generate().0;
+
+	let session = 0;
+	let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+	let other_1 = CandidateHash(sp_core::H256::repeat_byte(2));
+	let other_2 = CandidateHash(sp_core::H256::repeat_byte(3));
+	let unrelated = CandidateHash(sp_core::H256::repeat_byte(9));
+
+	// A coalesced approval vote covering three candidates, signed over the full set.
+	let candidates = vec![candidate_hash, other_1, other_2];
+	let signed =
+		validator_id.sign(&ApprovalVoteMultipleCandidates(&candidates).signing_payload(session));
+	let statement =
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(
+			candidates.clone().try_into().expect("within the coalesce bound"),
+		));
+
+	// Coalescing disabled (`max_approval_coalesce_count == 1`): a set larger than the limit is
+	// rejected by the per-session cap (`candidates.len() > max_approval_coalesce_count`).
+	assert!(check_signature(
+		&validator_id.public(),
+		candidate_hash,
+		session,
+		&statement,
+		&signed,
+		1,
+	)
+	.is_err());
+
+	// Check a single-candidate coalesced statement is accepted.
+	let single = vec![candidate_hash];
+	let signed_single =
+		validator_id.sign(&ApprovalVoteMultipleCandidates(&single).signing_payload(session));
+	let statement_single =
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(
+			single.try_into().expect("within the coalesce bound"),
+		));
+	assert!(check_signature(
+		&validator_id.public(),
+		candidate_hash,
+		session,
+		&statement_single,
+		&signed_single,
+		1,
+	)
+	.is_ok());
+
+	// More candidates than the limit allows: rejected (the enforced cap).
+	assert!(check_signature(
+		&validator_id.public(),
+		candidate_hash,
+		session,
+		&statement,
+		&signed,
+		2,
+	)
+	.is_err());
+
+	// Exactly at the limit: accepted.
+	assert!(check_signature(
+		&validator_id.public(),
+		candidate_hash,
+		session,
+		&statement,
+		&signed,
+		3,
+	)
+	.is_ok());
+
+	// Below the limit: accepted.
+	assert!(check_signature(
+		&validator_id.public(),
+		candidate_hash,
+		session,
+		&statement,
+		&signed,
+		4,
+	)
+	.is_ok());
+
+	// The disputed candidate must be part of the coalesced set, even within the limit.
+	assert!(check_signature(&validator_id.public(), unrelated, session, &statement, &signed, 3,)
+		.is_err());
 }
 
 #[test]

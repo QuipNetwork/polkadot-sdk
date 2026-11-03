@@ -18,15 +18,18 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 log = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
+
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
 sp-io = { workspace = true }
 
+frame-benchmarking = { optional = true, workspace = true }
+
 [dev-dependencies]
-sp-core = { workspace = true, default-features = false }
+sp-core = { workspace = true }
 
 [features]
 default = ["std"]

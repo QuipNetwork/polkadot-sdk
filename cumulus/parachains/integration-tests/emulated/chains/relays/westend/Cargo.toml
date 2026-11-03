@@ -1,6 +1,6 @@
 [package]
 name = "westend-emulated-chain"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,15 +11,38 @@ publish = false
 workspace = true
 
 [dependencies]
-emulated-integration-tests-common = { workspace = true }
+# Substrate
 pallet-staking = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
-polkadot-primitives = { workspace = true }
 sc-consensus-grandpa = { workspace = true }
 sp-authority-discovery = { workspace = true }
 sp-consensus-babe = { workspace = true }
-sp-consensus-beefy = { default-features = true, workspace = true }
+sp-consensus-beefy = { workspace = true, default-features = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
-westend-runtime = { default-features = true, workspace = true }
+
+# Polkadot
+polkadot-primitives = { workspace = true }
+westend-runtime = { workspace = true, default-features = true }
 westend-runtime-constants = { workspace = true }
+
+# Cumulus
+emulated-integration-tests-common = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
+
+[features]
+runtime-benchmarks = [
+	"emulated-integration-tests-common/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
+	"parachains-common/runtime-benchmarks",
+	"polkadot-primitives/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"westend-runtime-constants/runtime-benchmarks",
+	"westend-runtime/runtime-benchmarks",
+]
+try-runtime = [
+	"emulated-integration-tests-common/try-runtime",
+	"pallet-staking/try-runtime",
+	"parachains-common/try-runtime",
+	"sp-runtime/try-runtime",
+	"westend-runtime/try-runtime",
+]

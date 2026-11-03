@@ -1,0 +1,14 @@
+title: "Remove deprecated CurrencyAdapter from pallet-transaction-payment"
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removes the deprecated `CurrencyAdapter` from `pallet-transaction-payment`. This adapter was
+    deprecated since March 2024 in favor of `FungibleAdapter`. Runtimes still using
+    `CurrencyAdapter` must migrate to `FungibleAdapter`.
+- audience: Runtime User
+  description: |-
+    The deprecated `CurrencyAdapter` type has been removed from `pallet-transaction-payment`.
+    Use `FungibleAdapter` instead.
+crates:
+- name: pallet-transaction-payment
+  bump: major

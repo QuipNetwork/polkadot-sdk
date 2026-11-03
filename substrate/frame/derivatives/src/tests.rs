@@ -171,6 +171,28 @@ fn auto_id_collection() {
 }
 
 #[test]
+fn duplicate_derivative_id_is_rejected() {
+	new_test_ext().execute_with(|| {
+		let id_a = AssetId(Location::new(1, [Parachain(1111)]));
+		let id_b = AssetId(Location::new(1, [Parachain(2222)]));
+		let derivative_id = 100;
+
+		assert_ok!(AutoIdDerivativeCollections::try_register_derivative(&id_a, &derivative_id));
+		assert_err!(
+			AutoIdDerivativeCollections::try_register_derivative(&id_b, &derivative_id),
+			pallet_derivatives::Error::<Test, AutoIdCollectionsInstance>::DerivativeAlreadyExists,
+		);
+
+		assert_eq!(AutoIdDerivativeCollections::get_derivative(&id_a), Ok(derivative_id));
+		assert_eq!(AutoIdDerivativeCollections::get_original(&derivative_id), Ok(id_a));
+		assert_err!(
+			AutoIdDerivativeCollections::get_derivative(&id_b),
+			pallet_derivatives::Error::<Test, AutoIdCollectionsInstance>::DerivativeNotFound,
+		);
+	});
+}
+
+#[test]
 fn local_nfts() {
 	new_test_ext().execute_with(|| {
 		let collection_owner = 1;

@@ -1,0 +1,10 @@
+title: Remove deprecated match_type macro from frame-support
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes deprecated `frame_support::match_type!`, a thin alias for `match_types!`.
+      Use `match_types!` directly.
+
+crates:
+  - name: frame-support
+    bump: major

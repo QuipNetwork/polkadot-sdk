@@ -178,116 +178,23 @@ jobs:
 
           reorder_prdocs "$VERSION"
 
-      - name: Replace path dependencies
-        run: |
-          echo "Running replace-all-path-deps.sh..."
-          bash scripts/release/replace-all-path-deps.sh
-
-          # Show git diff to see what changed
-          git diff --stat
-
-      - name: Remove versions where path deps are present
-        run: |
-          echo "Running delete-versions-if-path-is-present.sh..."
-          bash scripts/release/delete-versions-if-path-is-present.sh
-
-          # Show git diff to see what changed
-          git diff --stat
-
-      - name: Remove version from umbrella/Cargo.toml
-        run: |
-          echo "Running delete-version-from-umbrella.sh..."
-          bash scripts/release/delete-version-from-umbrella.sh
-
-          # Show git diff to see what changed
-          git diff --stat
-
-      - name: Install newer Zepter
-        run: |
-          cargo install zepter@1.82.1 --locked -q && zepter --version
-
-      - name: Run Zepter - check issues
-        run: |
-          echo "Running zepter run check to identify issues..."
-          zepter run check || echo "Zepter found issues that need to be fixed"
-
-      - name: Run Zepter - fix issues
-        run: |
-          echo "Running zepter to fix issues..."
-          zepter || echo "Zepter fix completed"
-          # Show git diff to see what changed
-          git diff --stat
-
-      - name: Run Zepter - verify fixes
-        run: |
-          echo "Running zepter run check again to verify fixes..."
-          zepter run check || echo "There are still issues to fix manually"
-
-      - name: Run taplo - check formatting
-        run: |
-          echo "Running taplo format check..."
-          taplo format --check --config .config/taplo.toml || echo "Taplo found formatting issues"
-
-      - name: Run taplo - format
-        run: |
-          echo "Running taplo format..."
-          taplo format --config .config/taplo.toml
-          # Show git diff to see what changed
-          git diff --stat
-
-      - name: Run taplo - verify formatting
-        run: |
-          echo "Running taplo format check again..."
-          taplo format --check --config .config/taplo.toml || echo "There are still formatting issues"
-
-      - name: Install Python dependencies
-        run: |
-          echo "Installing Python dependencies..."
-          pip3 install toml "cargo-workspace>=1.2.6"
-
-      - name: Run workspace check
-        run: |
-          echo "Running workspace check..."
-          python3 .github/scripts/check-workspace.py . --exclude \
-            "substrate/frame/contracts/fixtures/build" \
-            "substrate/frame/contracts/fixtures/contracts/common"
-
-      - name: Deny git dependencies
-        run: |
-          echo "Checking for git dependencies..."
-          python3 .github/scripts/deny-git-deps.py .
-
-      - name: Check git status before commit
-        run: |
-          echo "=== Git status ==="
-          git status
-          echo ""
-          echo "=== Git status --porcelain ==="
-          git status --porcelain
-          echo ""
-          echo "=== Changed files count ==="
-          git status --porcelain | wc -l
-
-      - name: Commit and push changes
+      - name: Push changes
         shell: bash
         run: |
-          . ./.github/scripts/release/release_lib.sh
+          echo "Pushing changes to branch..."
+          git push
+          echo "Changes pushed successfully"
 
-          # Check if there are changes to commit
-          if [[ -n $(git status --porcelain) ]]; then
-            commit_with_message "chore: post crates release actions - version bumps, path deps, zepter, taplo"
-            echo "Changes committed successfully"
-            # Push changes to the branch
-            echo "Pushing changes to branch..."
-            git push
-            echo "Changes pushed successfully"
-          else
-            echo "No changes to commit"
-          fi
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          app-id: ${{ secrets.RELEASE_BACKPORT_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BACKPORT_AUTOMATION_APP_PRIVATE_KEY }}
 
       - name: Create Pull Request to base release branch
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
           BRANCH_NAME: ${{ github.ref_name }}
           FULL_RELEASE: ${{ inputs.version }}
           GH_REPOSITORY: ${{ github.repository }}

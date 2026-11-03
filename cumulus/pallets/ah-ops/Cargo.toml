@@ -2,7 +2,7 @@
 name = "pallet-ah-ops"
 description = "Operations cleanup pallet for the post-migration Asset Hub"
 license = "Apache-2.0"
-version = "0.6.0"
+version = "0.10.0"
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true

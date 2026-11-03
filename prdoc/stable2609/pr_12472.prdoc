@@ -1,0 +1,10 @@
+title: Remove deprecated ConvertedConcreteAssetId type alias
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes deprecated `staging_xcm_builder::ConvertedConcreteAssetId`, a type alias
+      for `ConvertedConcreteId`. Use `ConvertedConcreteId` directly.
+
+crates:
+  - name: staging-xcm-builder
+    bump: major

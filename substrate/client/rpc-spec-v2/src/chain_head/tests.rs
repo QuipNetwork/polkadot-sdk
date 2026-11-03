@@ -2933,7 +2933,7 @@ async fn follow_finalized_before_new_block() {
 }
 
 #[tokio::test]
-async fn ensure_operation_limits_works() {
+async fn operation_limit_bounds_concurrency_not_items() {
 	let child_info = ChildInfo::new_default(CHILD_STORAGE_KEY);
 	let builder = TestClientBuilder::new().add_extra_child_storage(
 		&child_info,
@@ -2943,8 +2943,10 @@ async fn ensure_operation_limits_works() {
 	let backend = builder.backend();
 	let client = Arc::new(builder.build());
 
-	// Configure the chainHead with maximum 4 ongoing operations to tolerate brief overlaps during
-	// cleanup.
+	// A single permit, against a four-item query below. `reserve_at_most` takes what is
+	// available so a request larger than the remaining capacity is
+	// still admitted, and it still delivers every item: the limit bounds how many operations
+	// run concurrently, never the size or the result of any one of them.
 	let api = ChainHead::new(
 		client.clone(),
 		backend,
@@ -2952,7 +2954,7 @@ async fn ensure_operation_limits_works() {
 		ChainHeadConfig {
 			global_max_pinned_blocks: MAX_PINNED_BLOCKS,
 			subscription_max_pinned_duration: Duration::from_secs(MAX_PINNED_SECS),
-			subscription_max_ongoing_operations: 4,
+			subscription_max_ongoing_operations: 1,
 			max_lagging_distance: MAX_LAGGING_DISTANCE,
 			max_follow_subscriptions_per_connection: MAX_FOLLOW_SUBSCRIPTIONS_PER_CONNECTION,
 			subscription_buffer_cap: MAX_PINNED_BLOCKS,
@@ -2964,14 +2966,15 @@ async fn ensure_operation_limits_works() {
 	let sub_id = sub.subscription_id();
 	let sub_id = serde_json::to_string(&sub_id).unwrap();
 
-	let block = BlockBuilderBuilder::new(&*client)
+	// Import a block with a value at `KEY`, so every query item has a result to deliver.
+	let mut builder = BlockBuilderBuilder::new(&*client)
 		.on_parent_block(client.chain_info().genesis_hash)
 		.with_parent_block_number(0)
 		.build()
-		.unwrap()
-		.build()
-		.unwrap()
-		.block;
+		.unwrap();
+	builder.push_storage_change(KEY.to_vec(), Some(VALUE.to_vec())).unwrap();
+	let block = builder.build().unwrap().block;
+	let block_hash = format!("{:?}", block.header.hash());
 	client.import(BlockOrigin::Own, block.clone()).await.unwrap();
 
 	// Ensure the imported block is propagated and pinned for this subscription.
@@ -2992,9 +2995,7 @@ async fn ensure_operation_limits_works() {
 		FollowEvent::BestBlockChanged(_)
 	);
 
-	let block_hash = format!("{:?}", block.header.hash());
 	let key = hex_string(&KEY);
-
 	let items = vec![
 		StorageQuery {
 			key: key.clone(),
@@ -3024,38 +3025,35 @@ async fn ensure_operation_limits_works() {
 		.unwrap();
 	let operation_id = match response {
 		MethodResponse::Started(started) => {
-			// Check discarded items.
+			// Admitted on one permit, and nothing is dropped to fit.
 			assert_eq!(started.discarded_items, Some(0));
 			started.operation_id
 		},
-		MethodResponse::LimitReached => panic!("Expected started response"),
-	};
-	// No value associated with the provided key.
-	assert_matches!(
-			get_next_event::<FollowEvent<String>>(&mut sub).await,
-			FollowEvent::OperationStorageDone(done) if done.operation_id == operation_id
-	);
-
-	// The storage is finished and capacity must be released.
-	let alice_id = Sr25519Keyring::Alice.to_account_id();
-	// Hex encoded scale encoded bytes representing the call parameters.
-	let call_parameters = hex_string(&alice_id.encode());
-	let response: MethodResponse = api
-		.call(
-			"chainHead_v1_call",
-			[&sub_id, &block_hash, "AccountNonceApi_account_nonce", &call_parameters],
-		)
-		.await
-		.unwrap();
-	let operation_id = match response {
-		MethodResponse::Started(started) => started.operation_id,
-		MethodResponse::LimitReached => panic!("Expected started response"),
+		MethodResponse::LimitReached => {
+			panic!("a query larger than the remaining capacity must still be admitted")
+		},
 	};
 
-	// Response propagated to `chainHead_follow`.
-	assert_matches!(
+	// All four items are delivered, in query order, then the operation completes.
+	let expected_hash = format!("{:?}", Blake2Hasher::hash(&VALUE));
+	let expected_value = hex_string(&VALUE);
+	for expected in [
+		StorageResultType::Hash(expected_hash.clone()),
+		StorageResultType::Hash(expected_hash),
+		StorageResultType::Value(expected_value.clone()),
+		StorageResultType::Value(expected_value),
+	] {
+		assert_matches!(
 			get_next_event::<FollowEvent<String>>(&mut sub).await,
-			FollowEvent::OperationCallDone(done) if done.operation_id == operation_id && done.output == "0x0000000000000000"
+			FollowEvent::OperationStorageItems(res) if res.operation_id == operation_id &&
+				res.items.len() == 1 &&
+				res.items[0].key == key &&
+				res.items[0].result == expected
+		);
+	}
+	assert_matches!(
+		get_next_event::<FollowEvent<String>>(&mut sub).await,
+		FollowEvent::OperationStorageDone(done) if done.operation_id == operation_id
 	);
 }
 

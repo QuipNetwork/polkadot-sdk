@@ -1,0 +1,31 @@
+[package]
+name = "pallet-psm-remote-tests"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+description = "Remote/integration tests for pallet-psm against live chain state"
+publish = false
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+# frame
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-psm = { workspace = true, default-features = true }
+
+# core
+sp-runtime = { workspace = true, default-features = true }
+
+# utils
+remote-externalities = { workspace = true, default-features = true }
+
+# others
+log = { workspace = true, default-features = true }

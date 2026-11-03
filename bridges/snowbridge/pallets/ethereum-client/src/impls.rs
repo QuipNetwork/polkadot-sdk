@@ -19,6 +19,14 @@ impl<T: Config> Verifier for Pallet<T> {
 	/// is also sent with the message, to check if the header is an ancestor of a finalized
 	/// header.
 	fn verify(event_log: &Log, proof: &Proof) -> Result<(), VerificationError> {
+		// Refuse to verify any Ethereum-side proof while the beacon light client is halted.
+		// Governance halts the light client when it suspects a compromise (e.g. sync committee
+		// takeover), at which point any signed headers/receipts must be treated as untrusted.
+		// Covers every Verifier consumer, including `inbound_queue_v2::submit` and
+		// `outbound_queue_v2::submit_delivery_receipt` (which would otherwise still drain
+		// pending relayer rewards while the bridge is halted).
+		ensure!(!Self::operating_mode().is_halted(), VerificationError::Halted);
+
 		Self::verify_execution_proof(&proof.execution_proof)
 			.map_err(|e| InvalidExecutionProof(e.into()))?;
 

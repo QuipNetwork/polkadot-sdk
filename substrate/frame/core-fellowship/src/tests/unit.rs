@@ -120,6 +120,7 @@ impl Config for Test {
 	type FastPromoteOrigin = Self::PromoteOrigin;
 	type EvidenceSize = ConstU32<1024>;
 	type MaxRank = ConstU16<9>;
+	type BlockNumberProvider = frame_system::Pallet<Test>;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

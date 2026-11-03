@@ -1,0 +1,11 @@
+title: 'pallet-revive: reserve on_finalize per-tx weight for eth extrinsics'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ### Summary
+    Eth extrinsics using `with_ethereum_context` add per transaction work to `on_finalize` (closing out the Ethereum block). That cost should be reserved at dispatch via `on_finalize_block_per_tx`.
+
+    This PR adds the reservation to `eth_substrate_call` and `eth_instantiate_with_code`, matching `eth_call`.
+crates:
+- name: pallet-revive
+  bump: patch

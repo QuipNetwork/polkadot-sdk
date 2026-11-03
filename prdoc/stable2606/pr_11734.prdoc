@@ -1,0 +1,10 @@
+title: Try state check for pallet beefy mmr
+doc:
+- audience: Runtime Dev
+  description: |-
+    This PR introduces try state hook into the Beefy MMR Pallet. It also defines the invariants that holds for the pallet.
+
+    Part of: https://github.com/paritytech/polkadot-sdk/issues/239
+crates:
+- name: pallet-beefy-mmr
+  bump: major

@@ -1,0 +1,10 @@
+title: Allow calling `runtime_api` with supplied storage overlay
+doc:
+- audience: Node Dev
+  description: |-
+    This change allows users of `client.runtime_api()` to provide a custom overlay with changes before calling further runtime APIs.
+crates:
+- name: sp-api-proc-macro
+  bump: major
+- name: sp-api
+  bump: major

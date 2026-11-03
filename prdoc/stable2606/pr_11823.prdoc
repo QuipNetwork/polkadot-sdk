@@ -1,0 +1,19 @@
+title: "Refactor asset-conversion tx payment fee correction"
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fixes a bug where the `AssetTxFeePaid` event reported an incorrect `actual_fee` when paying
+    in the native asset via the asset-conversion extension (`asset_id == A::get()`). The returned
+    fee amount was double-subtracting the refund, under-reporting the fee in the event.
+
+    Refactors `SwapAssetAdapter::correct_and_deposit_fee` in `pallet-asset-conversion-tx-payment`
+    to handle all edge cases gracefully during post-dispatch fee correction. Adds comprehensive
+    test coverage for fee correction paths including account killed, account blocked, pool
+    drained, and native account with no free balance scenarios.
+- audience: Runtime User
+  description: |-
+    The `AssetTxFeePaid` event now reports the correct fee amount when paying transaction fees
+    in the native asset through the asset-conversion extension.
+crates:
+- name: pallet-asset-conversion-tx-payment
+  bump: patch

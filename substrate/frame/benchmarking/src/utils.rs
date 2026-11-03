@@ -315,7 +315,10 @@ pub trait Benchmarking {
 	// Add a new item to the DB whitelist.
 	fn add_to_whitelist(&mut self, add: PassFatPointerAndDecode<TrackedStorageKey>) {
 		let mut whitelist = self.get_whitelist();
-		match whitelist.iter_mut().find(|x| x.key == add.key) {
+		match whitelist
+			.iter_mut()
+			.find(|x| x.key == add.key && x.child_trie_key == add.child_trie_key)
+		{
 			// If we already have this key in the whitelist, update to be the most constrained
 			// value.
 			Some(item) => {
@@ -507,4 +510,11 @@ macro_rules! whitelist_account {
 			frame_system::Account::<T>::hashed_key_for(&$acc).into(),
 		);
 	};
+}
+
+/// Helper function to whitelist a child trie storage key.
+pub fn add_to_whitelist_child(child_trie_key: Vec<u8>, key: Vec<u8>) {
+	let mut tracked_key = sp_storage::TrackedStorageKey::new_child(child_trie_key, key);
+	tracked_key.whitelist();
+	self::benchmarking::add_to_whitelist(tracked_key);
 }

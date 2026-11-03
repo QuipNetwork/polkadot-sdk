@@ -1,0 +1,16 @@
+title: Revive, Estimate Gas with Binary Search
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR implements binary search for the gas estimation logic in the eth-rpc which means that gas estimations are no longer just simple dry runs but that binary search is now used to find the smallest gas limit at which the transaction would run.
+
+    This PR closes https://github.com/paritytech/contract-issues/issues/217 and also _kind of_ fixes https://github.com/paritytech/contract-issues/issues/259 or at least makes it harder to trigger the case in which we observe it, but the underlying issue still exists.
+
+    The binary search algorithm implemented in this PR is as close as possible to that used in Geth
+crates:
+- name: pallet-revive
+  bump: minor
+- name: pallet-revive-eth-rpc
+  bump: minor

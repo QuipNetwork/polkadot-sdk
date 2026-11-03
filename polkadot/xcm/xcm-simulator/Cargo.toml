@@ -1,7 +1,7 @@
 [package]
 name = "xcm-simulator"
 description = "Test kit to simulate cross-chain message passing and XCM execution"
-version = "26.0.0"
+version = "32.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,16 +13,18 @@ workspace = true
 
 [dependencies]
 codec = { workspace = true, default-features = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
 paste = { workspace = true, default-features = true }
-polkadot-core-primitives = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
 scale-info = { workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-xcm = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-executor = { default-features = true, workspace = true }
+
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+polkadot-core-primitives = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }

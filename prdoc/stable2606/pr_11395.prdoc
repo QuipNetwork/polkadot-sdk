@@ -1,0 +1,14 @@
+title: 'bandersnatch: extract vrf_sign_io/vrf_verify_io helpers'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Extract vrf_sign_io and vrf_verify_io helper functions in the bandersnatch
+    VRF module and reuse them in both the VRF trait impls and the TraitPair
+    sign/verify methods (with zero input). This removes duplicated
+    proving/verifying logic and fixes the TraitPair::sign implementation which
+    was previously using a manual Schnorr scheme inconsistent with verification.
+crates:
+- name: sp-core
+  bump: minor
+- name: sp-crypto-ec-utils
+  bump: minor

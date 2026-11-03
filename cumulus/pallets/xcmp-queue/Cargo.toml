@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-pallet-xcmp-queue"
-version = "0.26.0"
+version = "0.35.0"
 authors.workspace = true
 edition.workspace = true
 description = "Pallet to queue outbound and inbound XCMP messages."
@@ -14,36 +14,44 @@ workspace = true
 [dependencies]
 bitflags = { workspace = true }
 codec = { features = ["derive"], workspace = true }
-cumulus-primitives-core = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+tracing = { workspace = true }
+
+# Substrate
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 pallet-message-queue = { workspace = true }
-polkadot-runtime-common = { workspace = true }
-polkadot-runtime-parachains = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
-tracing = { workspace = true }
+
+# Polkadot
+polkadot-runtime-common = { workspace = true }
+polkadot-runtime-parachains = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true }
 
 # Optional import for weight accuracy testing
 approx = { workspace = true }
 # Optional import for benchmarking
 bounded-collections = { workspace = true }
-bp-xcm-bridge-hub-router = { optional = true, workspace = true }
 frame-benchmarking = { optional = true, workspace = true }
+
+# Bridges
+bp-xcm-bridge-hub-router = { optional = true, workspace = true }
 
 [dev-dependencies]
 # Substrate
-frame-support = { features = ["experimental"], default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
+frame-support = { features = ["experimental"], workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
 
 # Cumulus
-cumulus-pallet-parachain-system = { default-features = true, workspace = true }
+cumulus-pallet-parachain-system = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

@@ -80,7 +80,7 @@ pub struct EquivocationOffence<Offender> {
 
 impl<Offender: Clone> Offence<Offender> for EquivocationOffence<Offender> {
 	const ID: Kind = *b"grandpa:equivoca";
-	type TimeSlot = TimeSlot;
+	type Slot = TimeSlot;
 
 	fn offenders(&self) -> Vec<Offender> {
 		vec![self.offender.clone()]
@@ -94,7 +94,7 @@ impl<Offender: Clone> Offence<Offender> for EquivocationOffence<Offender> {
 		self.validator_set_count
 	}
 
-	fn time_slot(&self) -> Self::TimeSlot {
+	fn slot(&self) -> Self::Slot {
 		self.time_slot
 	}
 

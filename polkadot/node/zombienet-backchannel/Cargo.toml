@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 codec = { features = ["derive"], workspace = true, default-features = true }
 futures-util = { workspace = true, default-features = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
 thiserror = { workspace = true }

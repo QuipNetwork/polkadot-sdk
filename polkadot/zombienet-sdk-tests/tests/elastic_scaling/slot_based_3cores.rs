@@ -4,9 +4,12 @@
 // Test that parachains that use a single slot-based collator with elastic scaling MVP and with
 // elastic scaling with RFC103 can achieve full throughput of 3 candidates per block.
 
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
 
-use cumulus_zombienet_sdk_helpers::{assert_finality_lag, assert_para_throughput, assign_cores};
+use cumulus_zombienet_sdk_helpers::{
+	assert_finality_lag, assert_para_throughput, assign_cores, wait_for_pvf_prepare,
+};
 use polkadot_primitives::Id as ParaId;
 use serde_json::json;
 use zombienet_sdk::{
@@ -28,7 +31,9 @@ async fn slot_based_3cores_test() -> Result<(), anyhow::Error> {
 				.with_chain("rococo-local")
 				.with_default_command("polkadot")
 				.with_default_image(images.polkadot.as_str())
-				.with_default_args(vec![("-lparachain=debug").into()])
+				.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+					("-lparachain=debug").into(),
+				]))
 				.with_genesis_overrides(json!({
 					"configuration": {
 						"config": {
@@ -52,8 +57,6 @@ async fn slot_based_3cores_test() -> Result<(), anyhow::Error> {
 			})
 		})
 		.with_parachain(|p| {
-			// Para 2100 uses the old elastic scaling mvp, which doesn't send the new UMP signal
-			// commitment for selecting the core index.
 			p.with_id(2100)
 				.with_default_command("test-parachain")
 				.with_default_image(images.cumulus.as_str())
@@ -65,8 +68,6 @@ async fn slot_based_3cores_test() -> Result<(), anyhow::Error> {
 				.with_collator(|n| n.with_name("collator-elastic-mvp"))
 		})
 		.with_parachain(|p| {
-			// Para 2200 uses the new RFC103-enabled collator which sends the UMP signal commitment
-			// for selecting the core index
 			p.with_id(2200)
 				.with_default_command("test-parachain")
 				.with_default_image(images.cumulus.as_str())
@@ -98,6 +99,9 @@ async fn slot_based_3cores_test() -> Result<(), anyhow::Error> {
 	assign_cores(&relay_client, 2100, vec![0, 1]).await?;
 	assign_cores(&relay_client, 2200, vec![2, 3]).await?;
 
+	// Wait for PVF preparation to complete.
+	wait_for_pvf_prepare(&network, 1).await?;
+
 	// Expect a backed candidate count of at least 39 for each parachain in 15 relay chain blocks
 	// (2.6 candidates per para per relay chain block).
 	// Note that only blocks after the first session change and blocks that don't contain a session
@@ -107,7 +111,8 @@ async fn slot_based_3cores_test() -> Result<(), anyhow::Error> {
 	assert_para_throughput(
 		&relay_client,
 		15,
-		[(ParaId::from(2100), 34..46), (ParaId::from(2200), 34..46)],
+		[(ParaId::from(2100), 40..46), (ParaId::from(2200), 40..46)],
+		[],
 	)
 	.await?;
 

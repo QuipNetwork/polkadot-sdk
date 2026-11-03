@@ -448,9 +448,8 @@ pub const MIN_CODE_SIZE: u32 = 9;
 /// Used for:
 /// * initial genesis for the Parachains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
-/// * when detecting a code decompression bomb in the client
 // NOTE: This value is used in the runtime so be careful when changing it.
-pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
+pub const MAX_CODE_SIZE: u32 = 5 * 1024 * 1024;
 
 /// Maximum head data size we support right now.
 ///
@@ -1187,6 +1186,18 @@ impl DisputeStatement {
 	}
 }
 
+/// The maximum number of candidate approvals that can be coalesced into a single
+/// [`ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates`] statement (and the
+/// corresponding approval vote). It is a hard, type-level ceiling enforced at decode time, and the
+/// maximum value the runtime accepts for `max_approval_coalesce_count`.
+pub const MAX_COALESCE_APPROVALS: u32 = 16;
+
+/// The candidate hashes coalesced into a single approval vote, bounded at the type level to at most
+/// [`MAX_COALESCE_APPROVALS`]. Used to carry coalesced approval signatures between subsystems while
+/// preserving that bound.
+pub type CoalescedApprovalCandidateHashes =
+	BoundedVec<CandidateHash, ConstU32<{ MAX_COALESCE_APPROVALS }>>;
+
 /// Different kinds of statements of validity on  a candidate.
 #[derive(Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Debug, TypeInfo)]
 pub enum ValidDisputeStatementKind {
@@ -1206,8 +1217,15 @@ pub enum ValidDisputeStatementKind {
 	/// We can't create this version until all nodes
 	/// have been updated to support it and max_approval_coalesce_count
 	/// is set to more than 1.
+	///
+	/// The number of coalesced candidates is bounded at the type level to at most
+	/// [`MAX_COALESCE_APPROVALS`]. This is a hard ceiling enforced at decode time; the effective
+	/// per-session limit is `max_approval_coalesce_count`, enforced dynamically when the statement
+	/// is validated.
 	#[codec(index = 4)]
-	ApprovalCheckingMultipleCandidates(Vec<CandidateHash>),
+	ApprovalCheckingMultipleCandidates(
+		BoundedVec<CandidateHash, ConstU32<{ MAX_COALESCE_APPROVALS }>>,
+	),
 }
 
 impl ValidDisputeStatementKind {
@@ -1854,7 +1872,7 @@ pub enum CandidateDescriptorVersion {
 	/// An unknown/not yet supported version.
 	///
 	/// Such a candidate must be dropped by the runtime and rejected by backers.
-	Unknown,
+	Unknown(u8),
 }
 
 /// Error returned by [`CandidateDescriptorV2::check_version_acceptance`].
@@ -2065,7 +2083,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptorV2<H> {
 
 		match self.version {
 			0 => CandidateDescriptorVersion::V2,
-			_ => CandidateDescriptorVersion::Unknown,
+			_ => CandidateDescriptorVersion::Unknown(self.version),
 		}
 	}
 }
@@ -2088,7 +2106,7 @@ impl<H> CandidateDescriptorV2<H> {
 		match self.version {
 			0 => CandidateDescriptorVersion::V2,
 			1 => CandidateDescriptorVersion::V3,
-			_ => CandidateDescriptorVersion::Unknown,
+			_ => CandidateDescriptorVersion::Unknown(self.version),
 		}
 	}
 }
@@ -2197,7 +2215,7 @@ impl<H: Copy + AsRef<[u8]>> CandidateDescriptorV2<H> {
 			CandidateDescriptorVersion::V1 => self.relay_parent,
 			CandidateDescriptorVersion::V2 => self.relay_parent,
 			CandidateDescriptorVersion::V3 => self.scheduling_parent,
-			CandidateDescriptorVersion::Unknown => self.relay_parent,
+			CandidateDescriptorVersion::Unknown(_) => self.relay_parent,
 		}
 	}
 
@@ -2214,7 +2232,7 @@ impl<H: Copy + AsRef<[u8]>> CandidateDescriptorV2<H> {
 			CandidateDescriptorVersion::V3 => {
 				Some(self.session_index.saturating_add(self.scheduling_session_offset as _))
 			},
-			CandidateDescriptorVersion::Unknown => None,
+			CandidateDescriptorVersion::Unknown(_) => None,
 		}
 	}
 
@@ -2273,7 +2291,7 @@ impl<H: Copy + AsRef<[u8]>> CandidateDescriptorV2<H> {
 			CandidateDescriptorVersion::V3 => {
 				Some(self.session_index.saturating_add(self.scheduling_session_offset as _))
 			},
-			CandidateDescriptorVersion::Unknown => None,
+			CandidateDescriptorVersion::Unknown(_) => None,
 		}
 	}
 
@@ -2285,7 +2303,7 @@ impl<H: Copy + AsRef<[u8]>> CandidateDescriptorV2<H> {
 		v3_ever_seen: bool,
 	) -> Option<SessionIndex> {
 		match self.version_for_candidate_validation(v3_ever_seen) {
-			CandidateDescriptorVersion::V1 | CandidateDescriptorVersion::Unknown => None,
+			CandidateDescriptorVersion::V1 | CandidateDescriptorVersion::Unknown(_) => None,
 			CandidateDescriptorVersion::V2 | CandidateDescriptorVersion::V3 => {
 				Some(self.session_index)
 			},
@@ -2337,8 +2355,8 @@ where
 				.field("para_head", &self.para_head)
 				.field("validation_code_hash", &self.validation_code_hash)
 				.finish(),
-			CandidateDescriptorVersion::Unknown => {
-				write!(f, "CandidateDescriptorV2(unknown version={})", self.version)
+			CandidateDescriptorVersion::Unknown(raw_version) => {
+				write!(f, "CandidateDescriptorV2(unknown version={})", raw_version)
 			},
 		}
 	}
@@ -2388,6 +2406,7 @@ impl<H: Copy + AsRef<[u8]>> CandidateDescriptorV2<H> {
 		relay_parent: H,
 		core_index: CoreIndex,
 		session_index: SessionIndex,
+		scheduling_session_index: SessionIndex,
 		persisted_validation_data_hash: Hash,
 		pov_hash: Hash,
 		erasure_root: Hash,
@@ -2401,13 +2420,48 @@ impl<H: Copy + AsRef<[u8]>> CandidateDescriptorV2<H> {
 			version: 1,
 			core_index: core_index.0 as u16,
 			session_index,
-			scheduling_session_offset: 0,
+			scheduling_session_offset: scheduling_session_index
+				.saturating_sub(session_index)
+				.try_into()
+				.expect("scheduling session offset should fit in u8"),
 			reserved1: [0; 24],
 			persisted_validation_data_hash,
 			pov_hash,
 			erasure_root,
 			scheduling_parent,
 			reserved2: [0; 32],
+			para_head,
+			validation_code_hash,
+		}
+	}
+
+	/// Constructor for a V1-like candidate descriptor with non-zero collator
+	/// fields so that `version()` returns [`CandidateDescriptorVersion::V1`].
+	pub fn new_v1(
+		para_id: Id,
+		relay_parent: H,
+		persisted_validation_data_hash: Hash,
+		pov_hash: Hash,
+		erasure_root: Hash,
+		para_head: Hash,
+		validation_code_hash: ValidationCodeHash,
+	) -> Self
+	where
+		H: Default,
+	{
+		Self {
+			para_id,
+			relay_parent,
+			version: 0,
+			core_index: 0,
+			session_index: 0,
+			scheduling_session_offset: 0,
+			reserved1: [1u8; 24],
+			persisted_validation_data_hash,
+			pov_hash,
+			erasure_root,
+			scheduling_parent: H::default(),
+			reserved2: [1u8; 32],
 			para_head,
 			validation_code_hash,
 		}
@@ -2845,97 +2899,118 @@ impl<H: Copy + AsRef<[u8]>> CommittedCandidateReceiptV2<H> {
 		&self,
 		cores_per_para: &TransposedClaimQueue,
 	) -> Result<CandidateUMPSignals, CommittedCandidateReceiptError> {
-		let signals = self.commitments.ump_signals()?;
-
-		match self.descriptor.version() {
-			CandidateDescriptorVersion::V1 => {
-				// If the parachain runtime started sending ump signals, v1 descriptors are no
-				// longer allowed.
-				if !signals.is_empty() {
-					return Err(CommittedCandidateReceiptError::UMPSignalWithV1Descriptor);
-				} else {
-					// Nothing else to check for v1 descriptors.
-					return Ok(CandidateUMPSignals::default());
-				}
-			},
-			CandidateDescriptorVersion::V2 => {},
-			CandidateDescriptorVersion::Unknown => {
-				return Err(CommittedCandidateReceiptError::UnknownVersion(self.descriptor.version))
-			},
-			_ if signals.is_empty() => {
-				// V3 and above require UMP signals.
-				return Err(CommittedCandidateReceiptError::NoUMPSignalWithV3Descriptor);
-			},
-			_ => {},
-		}
-
-		// Check the core index
-		let (maybe_core_index_selector, cq_offset) = signals
-			.core_selector()
-			.map(|(selector, offset)| (Some(selector), offset))
-			.unwrap_or_else(|| (None, ClaimQueueOffset(DEFAULT_CLAIM_QUEUE_OFFSET)));
-
-		self.check_core_index(cores_per_para, maybe_core_index_selector, cq_offset)?;
-
-		// Nothing to further check for the approved peer. If everything passed so far, return the
-		// signals.
-		Ok(signals)
+		parse_ump_signals_for_commitments(
+			&self.commitments,
+			self.descriptor.version(),
+			cores_per_para,
+			self.descriptor.para_id(),
+			CoreIndex(self.descriptor.core_index as u32),
+		)
 	}
+}
 
-	/// Checks if descriptor core index is equal to the committed core index.
-	/// Input `cores_per_para` is a claim queue snapshot at the candidate's relay parent, stored as
-	/// a mapping between `ParaId` and the cores assigned per depth.
-	fn check_core_index(
-		&self,
-		cores_per_para: &TransposedClaimQueue,
-		maybe_core_index_selector: Option<CoreSelector>,
-		cq_offset: ClaimQueueOffset,
-	) -> Result<(), CommittedCandidateReceiptError> {
-		let assigned_cores = cores_per_para
-			.get(&self.descriptor.para_id())
-			.ok_or(CommittedCandidateReceiptError::NoAssignment)?
-			.get(&cq_offset.0)
-			.ok_or(CommittedCandidateReceiptError::NoAssignment)?;
+/// Performs the UMP-signal checks and returns the signals.
+///
+/// The check is on the commitments: it needs the claim queue plus the three descriptor
+/// fields the core-index check consumes, and nothing else from a receipt.
+/// [`CommittedCandidateReceiptV2::parse_ump_signals`] is the convenience wrapper for
+/// callers that already hold a receipt.
+pub fn parse_ump_signals_for_commitments(
+	commitments: &CandidateCommitments,
+	version: CandidateDescriptorVersion,
+	cores_per_para: &TransposedClaimQueue,
+	para_id: Id,
+	core_index: CoreIndex,
+) -> Result<CandidateUMPSignals, CommittedCandidateReceiptError> {
+	let signals = commitments.ump_signals()?;
 
-		if assigned_cores.is_empty() {
-			return Err(CommittedCandidateReceiptError::NoAssignment);
-		}
-
-		let descriptor_core_index = CoreIndex(self.descriptor.core_index as u32);
-
-		let core_index_selector = if let Some(core_index_selector) = maybe_core_index_selector {
-			// We have a committed core selector, we can use it.
-			core_index_selector
-		} else if assigned_cores.len() > 1 {
-			// We got more than one assigned core and no core selector. Special care is needed.
-			if !assigned_cores.contains(&descriptor_core_index) {
-				// core index in the descriptor is not assigned to the para. Error.
-				return Err(CommittedCandidateReceiptError::InvalidCoreIndex);
-			} else {
-				// the descriptor core index is indeed assigned to the para. This is the most we can
-				// check for now
-				return Ok(());
+	match version {
+		CandidateDescriptorVersion::V1 => {
+			// If the parachain runtime started sending ump signals, v1 descriptors are no
+			// longer allowed.
+			if !signals.is_empty() {
+				return Err(CommittedCandidateReceiptError::UMPSignalWithV1Descriptor);
 			}
-		} else {
-			// No core selector but there's only one assigned core, use it.
-			CoreSelector(0)
-		};
 
-		let core_index = assigned_cores
-			.iter()
-			.nth(core_index_selector.0 as usize % assigned_cores.len())
-			.ok_or(CommittedCandidateReceiptError::InvalidSelectedCore)
-			.copied()?;
-
-		if core_index != descriptor_core_index {
-			return Err(CommittedCandidateReceiptError::CoreIndexMismatch {
-				descriptor: descriptor_core_index,
-				commitments: core_index,
-			});
-		}
-
-		Ok(())
+			// Nothing else to check for v1 descriptors.
+			return Ok(CandidateUMPSignals::default());
+		},
+		CandidateDescriptorVersion::V2 => {},
+		CandidateDescriptorVersion::Unknown(version_raw) => {
+			return Err(CommittedCandidateReceiptError::UnknownVersion(version_raw))
+		},
+		_ if signals.is_empty() => {
+			// V3 and above require UMP signals.
+			return Err(CommittedCandidateReceiptError::NoUMPSignalWithV3Descriptor);
+		},
+		_ => {},
 	}
+
+	// Check the core index
+	let (maybe_core_index_selector, cq_offset) = signals
+		.core_selector()
+		.map(|(selector, offset)| (Some(selector), offset))
+		.unwrap_or_else(|| (None, ClaimQueueOffset(DEFAULT_CLAIM_QUEUE_OFFSET)));
+
+	check_core_index(cores_per_para, maybe_core_index_selector, cq_offset, para_id, core_index)?;
+
+	// Nothing to further check for the approved peer. If everything passed so far, return the
+	// signals.
+	Ok(signals)
+}
+
+/// Checks if descriptor core index is equal to the committed core index.
+/// Input `cores_per_para` is a claim queue snapshot at the candidate's relay parent, stored as
+/// a mapping between `ParaId` and the cores assigned per depth.
+fn check_core_index(
+	cores_per_para: &TransposedClaimQueue,
+	maybe_core_index_selector: Option<CoreSelector>,
+	cq_offset: ClaimQueueOffset,
+	para_id: Id,
+	descriptor_core_index: CoreIndex,
+) -> Result<(), CommittedCandidateReceiptError> {
+	let assigned_cores = cores_per_para
+		.get(&para_id)
+		.ok_or(CommittedCandidateReceiptError::NoAssignment)?
+		.get(&cq_offset.0)
+		.ok_or(CommittedCandidateReceiptError::NoAssignment)?;
+
+	if assigned_cores.is_empty() {
+		return Err(CommittedCandidateReceiptError::NoAssignment);
+	}
+
+	let core_index_selector = if let Some(core_index_selector) = maybe_core_index_selector {
+		// We have a committed core selector, we can use it.
+		core_index_selector
+	} else if assigned_cores.len() > 1 {
+		// We got more than one assigned core and no core selector. Special care is needed.
+		if !assigned_cores.contains(&descriptor_core_index) {
+			// core index in the descriptor is not assigned to the para. Error.
+			return Err(CommittedCandidateReceiptError::InvalidCoreIndex);
+		} else {
+			// the descriptor core index is indeed assigned to the para. This is the most we can
+			// check for now
+			return Ok(());
+		}
+	} else {
+		// No core selector but there's only one assigned core, use it.
+		CoreSelector(0)
+	};
+
+	let core_index = assigned_cores
+		.iter()
+		.nth(core_index_selector.0 as usize % assigned_cores.len())
+		.ok_or(CommittedCandidateReceiptError::InvalidSelectedCore)
+		.copied()?;
+
+	if core_index != descriptor_core_index {
+		return Err(CommittedCandidateReceiptError::CoreIndexMismatch {
+			descriptor: descriptor_core_index,
+			commitments: core_index,
+		});
+	}
+
+	Ok(())
 }
 
 /// A backed (or backable, depending on context) candidate.
@@ -3310,7 +3385,8 @@ pub mod tests {
 			Id::from(1u32),
 			Hash::repeat_byte(1),
 			CoreIndex(0),
-			1,
+			1, // session_index
+			1, // scheduling_session_index
 			Hash::repeat_byte(2),
 			Hash::repeat_byte(3),
 			Hash::repeat_byte(4),
@@ -3463,5 +3539,108 @@ pub mod tests {
 			desc.check_version_acceptance(true),
 			Err(CandidateDescriptorVersionCheckError::Inconsistency)
 		);
+	}
+
+	/// Codec index of the `ApprovalCheckingMultipleCandidates` variant (`#[codec(index = 4)]`).
+	const APPROVAL_MULTIPLE_CANDIDATES_INDEX: u8 = 4;
+
+	fn coalesced_candidate_hashes(n: usize) -> Vec<CandidateHash> {
+		(0..n).map(|i| CandidateHash(Hash::repeat_byte(i as u8))).collect()
+	}
+
+	/// SCALE bytes for the `ApprovalCheckingMultipleCandidates` variant with a plain
+	/// `Vec<CandidateHash>` body: the codec index byte followed by the `Vec` body (compact length
+	/// + elements).
+	fn approval_multiple_candidates_vec_bytes(hashes: &[CandidateHash]) -> Vec<u8> {
+		let mut bytes = vec![APPROVAL_MULTIPLE_CANDIDATES_INDEX];
+		bytes.extend(hashes.encode());
+		bytes
+	}
+
+	#[test]
+	fn approval_multiple_candidates_bounded_vec_encodes_like_vec() {
+		let limit = MAX_COALESCE_APPROVALS as usize;
+		for n in [0, 1, 2, 8, limit - 1, limit] {
+			let hashes = coalesced_candidate_hashes(n);
+			let bounded: BoundedVec<CandidateHash, ConstU32<{ MAX_COALESCE_APPROVALS }>> =
+				hashes.clone().try_into().expect("n <= MAX_COALESCE_APPROVALS; qed");
+
+			// The inner collections encode to identical bytes.
+			assert_eq!(hashes.encode(), bounded.encode(), "inner encoding differs for n = {n}");
+
+			// The full enum encodes identically to a plain `Vec` body.
+			assert_eq!(
+				ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(bounded).encode(),
+				approval_multiple_candidates_vec_bytes(&hashes),
+				"enum encoding differs from the plain Vec encoding for n = {n}",
+			);
+		}
+	}
+
+	#[test]
+	fn approval_multiple_candidates_decodes_vec_encoding() {
+		let limit = MAX_COALESCE_APPROVALS as usize;
+		for n in [0, 1, limit - 1, limit] {
+			let hashes = coalesced_candidate_hashes(n);
+			let vec_bytes = approval_multiple_candidates_vec_bytes(&hashes);
+
+			// A plain `Vec` encoding decodes into the `BoundedVec`-based variant.
+			let decoded = ValidDisputeStatementKind::decode(&mut &vec_bytes[..])
+				.expect("a Vec encoding within the limit must decode; qed");
+			let expected = ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(
+				hashes.clone().try_into().expect("n <= MAX_COALESCE_APPROVALS; qed"),
+			);
+			assert_eq!(decoded, expected, "decode mismatch for n = {n}");
+
+			// A full round-trip through the type is stable.
+			assert_eq!(
+				ValidDisputeStatementKind::decode(&mut &expected.encode()[..]).unwrap(),
+				expected,
+			);
+		}
+	}
+
+	#[test]
+	fn approval_multiple_candidates_rejects_above_limit() {
+		let limit = MAX_COALESCE_APPROVALS as usize;
+
+		// One past the limit is rejected at the length prefix, directly as the bounded collection.
+		let too_many = coalesced_candidate_hashes(limit + 1);
+		assert!(
+			BoundedVec::<CandidateHash, ConstU32<{ MAX_COALESCE_APPROVALS }>>::decode(
+				&mut &too_many.encode()[..]
+			)
+			.is_err(),
+			"BoundedVec must reject more than MAX_COALESCE_APPROVALS elements",
+		);
+
+		// Through the enum, using a plain `Vec` body carrying one too many candidates.
+		let vec_bytes = approval_multiple_candidates_vec_bytes(&too_many);
+		assert!(
+			ValidDisputeStatementKind::decode(&mut &vec_bytes[..]).is_err(),
+			"enum must reject more than MAX_COALESCE_APPROVALS coalesced candidates",
+		);
+
+		// The boundary value of exactly MAX_COALESCE_APPROVALS is accepted.
+		let at_limit = approval_multiple_candidates_vec_bytes(&coalesced_candidate_hashes(limit));
+		assert!(ValidDisputeStatementKind::decode(&mut &at_limit[..]).is_ok());
+	}
+
+	#[test]
+	fn approval_multiple_candidates_signing_payload_matches_vec() {
+		let session = 7;
+		for n in [1, 2, MAX_COALESCE_APPROVALS as usize] {
+			let hashes = coalesced_candidate_hashes(n);
+			let bounded: BoundedVec<CandidateHash, ConstU32<{ MAX_COALESCE_APPROVALS }>> =
+				hashes.clone().try_into().expect("n <= MAX_COALESCE_APPROVALS; qed");
+
+			// The signing payload is taken over a slice, so `Vec` and `BoundedVec` produce the
+			// same payload bytes for the same candidate set.
+			assert_eq!(
+				ApprovalVoteMultipleCandidates(&hashes).signing_payload(session),
+				ApprovalVoteMultipleCandidates(&bounded).signing_payload(session),
+				"signing payload differs for n = {n}",
+			);
+		}
 	}
 }

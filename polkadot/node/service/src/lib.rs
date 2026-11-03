@@ -77,7 +77,6 @@ pub use chain_spec::{GenericChainSpec, RococoChainSpec, WestendChainSpec};
 pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor};
 pub use sc_consensus::{BlockImport, LongestChain};
-pub use sc_executor::NativeExecutionDispatch;
 use sc_executor::WasmExecutor;
 pub use sc_service::{
 	config::{DatabaseSource, PrometheusConfig},

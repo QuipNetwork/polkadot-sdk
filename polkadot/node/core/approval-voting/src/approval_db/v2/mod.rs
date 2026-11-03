@@ -18,11 +18,9 @@
 
 use codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{v1::DelayTranche, v2::AssignmentCertV2};
-use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
-use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateIndex, CandidateReceiptV2 as CandidateReceipt, CoreIndex,
-	GroupIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateReceiptV2 as CandidateReceipt, CoreIndex, GroupIndex,
+	Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 
 use sp_consensus_slots::Slot;
@@ -30,11 +28,6 @@ use sp_consensus_slots::Slot;
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use std::collections::BTreeMap;
 
-use crate::backend::V1ReadBackend;
-
-use super::common::{block_entry_key, candidate_entry_key, load_decode, Config};
-
-pub mod migration_helpers;
 #[cfg(test)]
 pub mod tests;
 
@@ -128,26 +121,4 @@ impl From<Tick> for crate::Tick {
 	fn from(tick: Tick) -> crate::Tick {
 		tick.0
 	}
-}
-
-/// Load a candidate entry from the aux store in v1 format.
-pub fn load_candidate_entry_v1(
-	store: &dyn Database,
-	config: &Config,
-	candidate_hash: &CandidateHash,
-) -> SubsystemResult<Option<super::v1::CandidateEntry>> {
-	load_decode(store, config.col_approval_data, &candidate_entry_key(candidate_hash))
-		.map(|u: Option<super::v1::CandidateEntry>| u.map(|v| v.into()))
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-}
-
-/// Load a block entry from the aux store in v1 format.
-pub fn load_block_entry_v1(
-	store: &dyn Database,
-	config: &Config,
-	block_hash: &Hash,
-) -> SubsystemResult<Option<super::v1::BlockEntry>> {
-	load_decode(store, config.col_approval_data, &block_entry_key(block_hash))
-		.map(|u: Option<super::v1::BlockEntry>| u.map(|v| v.into()))
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }

@@ -1,0 +1,14 @@
+title: Added #[stored] macro for simplifying storage type definitions
+doc:
+- audience: Runtime Dev
+  description: |
+    # Description
+
+    This PR introduces a new `#[stored]` attribute macro that simplifies the definition of storage types in FRAME pallets. 
+    By automatically generating consistent field-based trait bounds for `Encode`, `Decode`, `MaxEncodedLen`, `Clone`, `Eq`, `PartialEq`, `Debug`, and `TypeInfo`, it reduces boilerplate and ensures robust trait implementations for generic storage structures.
+
+crates:
+- name: frame-support-procedural
+  bump: major
+- name: frame-support
+  bump: major

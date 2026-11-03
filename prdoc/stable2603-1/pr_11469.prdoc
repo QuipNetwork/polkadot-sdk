@@ -1,0 +1,18 @@
+title: 'Westend: Support Meta Transactions'
+doc:
+- audience: Runtime User
+  description: |-
+    Support Meta Transactions via meta-tx pallet for next Westend runtimes:
+    - Asset Hub
+    - Coretime
+    - People
+    - Collectives
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major
+- name: people-westend-runtime
+  bump: major

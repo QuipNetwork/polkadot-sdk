@@ -12,11 +12,15 @@
 use anyhow::anyhow;
 
 #[zombienet_sdk::subxt::subxt(
-	runtime_metadata_path = "metadata-files/coretime-westend-local.scale"
+	runtime_metadata_path = "metadata-files/coretime-westend-local.scale",
+	crate = "::zombienet_sdk::subxt::ext::subxt_core"
 )]
 mod coretime_westend {}
 
-#[zombienet_sdk::subxt::subxt(runtime_metadata_path = "metadata-files/westend-local.scale")]
+#[zombienet_sdk::subxt::subxt(
+	runtime_metadata_path = "metadata-files/westend-local.scale",
+	crate = "::zombienet_sdk::subxt::ext::subxt_core"
+)]
 mod westend {}
 
 use westend::runtime_types::{

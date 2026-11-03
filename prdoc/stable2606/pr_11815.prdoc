@@ -1,0 +1,7 @@
+title: 'Parachain disputes: Add some checks and tests'
+doc:
+- audience: Runtime Dev
+  description: Extend the parachain disputes logic with some extra plus some tests.
+crates:
+- name: polkadot-runtime-parachains
+  bump: patch

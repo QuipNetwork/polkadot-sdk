@@ -18,13 +18,13 @@
 
 //! Substrate Client data backend
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use parking_lot::RwLock;
 
 use sp_api::CallContext;
 use sp_consensus::BlockOrigin;
-use sp_core::offchain::OffchainStorage;
+use sp_core::{offchain::OffchainStorage, H256};
 use sp_runtime::{
 	traits::{Block as BlockT, HashingFor, NumberFor},
 	Justification, Justifications, StateVersion, Storage,
@@ -162,6 +162,16 @@ impl NewBlockState {
 	}
 }
 
+/// Out-of-band indexed-transaction data attached by upstream block-import wrappers.
+#[derive(Default, Debug, Clone)]
+pub struct PrefetchedIndexedTransactions {
+	/// Ops applied when the runtime produced none.
+	pub ops: Vec<IndexOperation>,
+
+	/// Payload bytes for `IndexOperation::Renew` hashes not yet in `TRANSACTION`.
+	pub renew_payloads: HashMap<H256, Vec<u8>>,
+}
+
 /// Block insertion operation.
 ///
 /// Keeps hold if the inserted block state and data.
@@ -253,6 +263,11 @@ pub trait BlockImportOperation<Block: BlockT> {
 
 	/// Add a transaction index operation.
 	fn update_transaction_index(&mut self, index: Vec<IndexOperation>)
+		-> sp_blockchain::Result<()>;
+
+	/// Provide payload bytes for `IndexOperation::Renew` hashes that are not yet present in the
+	/// `TRANSACTION` column.
+	fn set_renew_payloads(&mut self, payloads: HashMap<H256, Vec<u8>>)
 		-> sp_blockchain::Result<()>;
 
 	/// Configure whether to create a block gap if newly imported block is missing parent
@@ -536,7 +551,7 @@ pub enum TrieCacheContext {
 impl From<CallContext> for TrieCacheContext {
 	fn from(call_context: CallContext) -> Self {
 		match call_context {
-			CallContext::Onchain => TrieCacheContext::Trusted,
+			CallContext::Onchain { .. } => TrieCacheContext::Trusted,
 			CallContext::Offchain => TrieCacheContext::Untrusted,
 		}
 	}

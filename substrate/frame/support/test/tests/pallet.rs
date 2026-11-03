@@ -504,6 +504,7 @@ pub mod pallet {
 	)]
 	pub struct Origin<T>(PhantomData<T>);
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T>
 	where
@@ -1074,11 +1075,13 @@ fn inherent_expand() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn validate_unsigned_expand() {
 	use frame_support::pallet_prelude::{
 		InvalidTransaction, TransactionSource, TransactionValidityError, ValidTransaction,
 		ValidateUnsigned,
 	};
+
 	let call = pallet::Call::<Runtime>::foo_no_post_info {};
 
 	let validity = pallet::Pallet::validate_unsigned(TransactionSource::Local, &call).unwrap_err();

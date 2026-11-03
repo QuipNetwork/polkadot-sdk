@@ -27,12 +27,12 @@ use crate::{
 };
 use alloc::{vec, vec::Vec};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_revive::is_eth_derived;
+use pallet_revive::AddressMapper;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{crypto::get_public_from_string_or_panic, sr25519};
+use sp_core::{crypto::get_public_from_string_or_panic, sr25519, Get};
 use sp_genesis_builder::PresetId;
 use sp_keyring::Sr25519Keyring;
 use sp_mixnet::types::AuthorityId as MixnetId;
@@ -96,7 +96,17 @@ pub fn kitchensink_genesis(
 			min_join_bond: 1 * DOLLARS,
 		},
 		revive: ReviveConfig {
-			mapped_accounts: endowed_accounts.iter().filter(|x| ! is_eth_derived(x)).cloned().collect(),
+			mapped_accounts: if <crate::Runtime as pallet_revive::Config>::AutoMap::get() {
+				vec![]
+			} else {
+				endowed_accounts
+					.iter()
+					.filter(|x| {
+						!<crate::Runtime as pallet_revive::Config>::AddressMapper::is_eth_derived(x)
+					})
+					.cloned()
+					.collect()
+			},
 		},
 	})
 }

@@ -100,19 +100,19 @@ use polkadot_node_subsystem_util::{
 	self as util,
 	backing_implicit_view::View as ImplicitView,
 	request_claim_queue, request_disabled_validators, request_min_backing_votes,
-	request_node_features, request_session_executor_params, request_session_index_for_child,
-	request_validator_groups, request_validators,
+	request_node_features, request_session_index_for_child, request_validator_groups,
+	request_validators,
 	runtime::{self, ClaimQueueSnapshot},
-	Error as UtilError, Validator,
+	Validator,
 };
 use polkadot_parachain_primitives::primitives::IsSystem;
 use polkadot_primitives::{
-	node_features::FeatureIndex, BackedCandidate, CandidateCommitments, CandidateDescriptorV2,
-	CandidateHash, CandidateReceiptV2 as CandidateReceipt,
-	CommittedCandidateReceiptV2 as CommittedCandidateReceipt, CoreIndex, ExecutorParams,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec, NodeFeatures,
-	PersistedValidationData, SessionIndex, SigningContext, ValidationCode, ValidatorId,
-	ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	node_features::FeatureIndex, BackedCandidate, CandidateCommitments, CandidateHash,
+	CandidateReceiptV2 as CandidateReceipt,
+	CommittedCandidateReceiptV2 as CommittedCandidateReceipt, CoreIndex, GroupIndex,
+	GroupRotationInfo, Hash, Id as ParaId, IndexedVec, NodeFeatures, PersistedValidationData,
+	SessionIndex, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ValidityAttestation,
 };
 use polkadot_statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
@@ -236,8 +236,8 @@ struct PerSchedulingParentState {
 	claim_queue: ClaimQueueSnapshot,
 	/// The validator index -> group mapping at this scheduling parent.
 	validator_to_group: Arc<IndexedVec<ValidatorIndex, Option<GroupIndex>>>,
-	/// Session index for this scheduling parent. Used as fallback for V1 candidates
-	/// where session_index is not in the descriptor. For V1, scheduling_parent == relay_parent.
+	/// Session index for this scheduling parent. Passed to candidate-validation so it
+	/// can fetch session-scoped params without a runtime call for V1 descriptors.
 	session_index: SessionIndex,
 	/// The associated group rotation information.
 	group_rotation_info: GroupRotationInfo,
@@ -256,8 +256,6 @@ struct PerSessionCache {
 	validators_cache: LruMap<SessionIndex, Arc<Vec<ValidatorId>>>,
 	/// Cache for storing node features, retrieved from the runtime.
 	node_features_cache: LruMap<SessionIndex, NodeFeatures>,
-	/// Cache for storing executor parameters, retrieved from the runtime.
-	executor_params_cache: LruMap<SessionIndex, Arc<ExecutorParams>>,
 	/// Cache for storing the minimum backing votes threshold, retrieved from the runtime.
 	minimum_backing_votes_cache: LruMap<SessionIndex, u32>,
 	/// Cache for storing validator-to-group mappings, computed from validator groups.
@@ -281,7 +279,6 @@ impl PerSessionCache {
 		PerSessionCache {
 			validators_cache: LruMap::new(ByLength::new(capacity)),
 			node_features_cache: LruMap::new(ByLength::new(capacity)),
-			executor_params_cache: LruMap::new(ByLength::new(capacity)),
 			minimum_backing_votes_cache: LruMap::new(ByLength::new(capacity)),
 			validator_to_group_cache: LruMap::new(ByLength::new(capacity)),
 		}
@@ -339,41 +336,6 @@ impl PerSessionCache {
 		self.node_features_cache.insert(session_index, node_features.clone());
 
 		Ok(node_features)
-	}
-
-	/// Gets the executor parameters from the cache or
-	/// fetches them from the runtime if not present.
-	async fn executor_params(
-		&mut self,
-		session_index: SessionIndex,
-		parent: Hash,
-		sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
-	) -> Result<Arc<ExecutorParams>, RuntimeApiError> {
-		// Try to get the executor parameters from the cache.
-		if let Some(executor_params) = self.executor_params_cache.get(&session_index) {
-			return Ok(Arc::clone(executor_params));
-		}
-
-		// Fetch the executor parameters from the runtime since it was not in the cache.
-		let executor_params = request_session_executor_params(parent, session_index, sender)
-			.await
-			.await
-			.map_err(|err| RuntimeApiError::Execution {
-				runtime_api_name: "SessionExecutorParams",
-				source: Arc::new(err),
-			})??
-			.ok_or_else(|| RuntimeApiError::Execution {
-				runtime_api_name: "SessionExecutorParams",
-				source: Arc::new(Error::MissingExecutorParams),
-			})?;
-
-		// Wrap the executor parameters in an Arc to avoid a deep copy when storing it in the cache.
-		let executor_params = Arc::new(executor_params);
-
-		// Cache the fetched executor parameters for future use.
-		self.executor_params_cache.insert(session_index, Arc::clone(&executor_params));
-
-		Ok(executor_params)
 	}
 
 	/// Gets the minimum backing votes threshold from the
@@ -762,7 +724,7 @@ async fn request_candidate_validation(
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
-	executor_params: ExecutorParams,
+	session_index: SessionIndex,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 	let is_system = candidate_receipt.descriptor.para_id().is_system();
@@ -775,7 +737,7 @@ async fn request_candidate_validation(
 			validation_code,
 			candidate_receipt,
 			pov,
-			executor_params,
+			scheduling_session_index: session_index,
 			exec_kind: if is_system {
 				PvfExecKind::BackingSystemParas(scheduling_parent)
 			} else {
@@ -808,8 +770,8 @@ struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	/// the key for `per_scheduling_parent` lookup when sending results back.
 	/// For V1/V2, this equals the candidate's relay_parent.
 	scheduling_parent: Hash,
+	session_index: SessionIndex,
 	node_features: NodeFeatures,
-	executor_params: Arc<ExecutorParams>,
 	persisted_validation_data: PersistedValidationData,
 	pov: PoVData,
 	n_validators: usize,
@@ -828,8 +790,8 @@ async fn validate_and_make_available(
 		mut tx_command,
 		candidate,
 		scheduling_parent,
+		session_index,
 		node_features,
-		executor_params,
 		persisted_validation_data,
 		pov,
 		n_validators,
@@ -890,7 +852,7 @@ async fn validate_and_make_available(
 			validation_code,
 			candidate.clone(),
 			pov.clone(),
-			executor_params.as_ref().clone(),
+			session_index,
 		)
 		.await?
 	};
@@ -1417,30 +1379,6 @@ async fn handle_can_second_request<Context>(
 	let _ = tx.send(response);
 }
 
-/// Determine the session for executor_params lookup and fetch executor_params.
-///
-/// For V2/V3, session_index is in the descriptor. For V1, scheduling_parent ==
-/// relay_parent, so `sp_state.session_index` is the relay_parent's session.
-///
-/// Note: We use the scheduling parent (`sp_state.parent`) rather than the relay parent for
-/// the runtime API fetch. While the relay parent is the relevant parent for the execution
-/// environment, we only need the session index here (which is already determined). Using
-/// the relay parent would fail for old relay parents whose state may have been pruned. The
-/// scheduling parent is guaranteed to never be older than the relay parent and is always a
-/// recent relay chain block, making it safe for fetching session-indexed data.
-async fn get_executor_params(
-	per_session_cache: &mut PerSessionCache,
-	descriptor: &CandidateDescriptorV2,
-	sp_state: &PerSchedulingParentState,
-	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
-) -> Result<Arc<ExecutorParams>, Error> {
-	let session = descriptor.session_index().unwrap_or(sp_state.session_index);
-	per_session_cache
-		.executor_params(session, sp_state.parent, sender)
-		.await
-		.map_err(|e| Error::UtilError(UtilError::RuntimeApi(e)))
-}
-
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_validated_candidate_command<Context>(
 	ctx: &mut Context,
@@ -1591,21 +1529,12 @@ async fn handle_validated_candidate_command<Context>(
 								.get(&candidate_hash)
 								.map(|pc| pc.persisted_validation_data.clone())
 							{
-								let executor_params = get_executor_params(
-									&mut state.per_session_cache,
-									attesting.candidate.descriptor(),
-									sp_state,
-									ctx.sender(),
-								)
-								.await?;
-
 								kick_off_validation_work(
 									ctx,
 									sp_state,
 									pvd,
 									&state.background_validation_tx,
 									attesting,
-									executor_params,
 								)
 								.await?;
 							}
@@ -1876,7 +1805,6 @@ async fn kick_off_validation_work<Context>(
 	persisted_validation_data: PersistedValidationData,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	attesting: AttestingData,
-	executor_params: Arc<ExecutorParams>,
 ) -> Result<(), Error> {
 	// Do nothing if the local validator is disabled or not a validator at all
 	match sp_state.table_context.local_validator_is_disabled() {
@@ -1919,8 +1847,8 @@ async fn kick_off_validation_work<Context>(
 			tx_command: background_validation_tx.clone(),
 			candidate: attesting.candidate,
 			scheduling_parent,
+			session_index: sp_state.session_index,
 			node_features: sp_state.node_features.clone(),
-			executor_params,
 			persisted_validation_data,
 			pov,
 			n_validators: sp_state.table_context.validators.len(),
@@ -2040,7 +1968,6 @@ async fn maybe_validate_and_import<Context>(
 		};
 
 		// Skip validation if local validator is disabled or not a validator.
-		// Check this before fetching executor_params to avoid unnecessary runtime calls.
 		match sp_state.table_context.local_validator_is_disabled() {
 			Some(true) => return Ok(()),
 			None => return Ok(()),
@@ -2054,21 +1981,12 @@ async fn maybe_validate_and_import<Context>(
 			.get(&candidate_hash)
 			.map(|pc| pc.persisted_validation_data.clone())
 		{
-			let executor_params = get_executor_params(
-				&mut state.per_session_cache,
-				attesting.candidate.descriptor(),
-				sp_state,
-				ctx.sender(),
-			)
-			.await?;
-
 			kick_off_validation_work(
 				ctx,
 				sp_state,
 				pvd,
 				&state.background_validation_tx,
 				attesting,
-				executor_params,
 			)
 			.await?;
 		}
@@ -2085,7 +2003,6 @@ async fn validate_and_second<Context>(
 	candidate: &CandidateReceipt,
 	pov: Arc<PoV>,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
-	executor_params: Arc<ExecutorParams>,
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
@@ -2106,8 +2023,8 @@ async fn validate_and_second<Context>(
 			tx_command: background_validation_tx.clone(),
 			candidate: candidate.clone(),
 			scheduling_parent,
+			session_index: sp_state.session_index,
 			node_features: sp_state.node_features.clone(),
-			executor_params,
 			persisted_validation_data,
 			pov: PoVData::Ready(pov),
 			n_validators: sp_state.table_context.validators.len(),
@@ -2220,14 +2137,6 @@ async fn handle_second_message<Context>(
 	if !sp_state.issued_statements.contains(&candidate_hash) {
 		let pov = Arc::new(pov);
 
-		let executor_params = get_executor_params(
-			&mut state.per_session_cache,
-			candidate.descriptor(),
-			sp_state,
-			ctx.sender(),
-		)
-		.await?;
-
 		validate_and_second(
 			ctx,
 			sp_state,
@@ -2235,7 +2144,6 @@ async fn handle_second_message<Context>(
 			&candidate,
 			pov,
 			&state.background_validation_tx,
-			executor_params,
 		)
 		.await?;
 	}

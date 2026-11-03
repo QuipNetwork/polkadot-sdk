@@ -42,6 +42,7 @@ mod benchmarks {
 			reads: 0,
 			writes: 1,
 			whitelisted: false,
+			child_trie_key: None,
 		});
 
 		#[extrinsic_call]

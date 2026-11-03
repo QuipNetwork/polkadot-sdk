@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-collator-protocol"
-version = "29.1.0"
+version = "36.0.0"
 description = "Polkadot Collator Protocol subsystem. Allows collators and validators to talk to each other."
 authors.workspace = true
 edition.workspace = true
@@ -15,44 +15,53 @@ workspace = true
 async-trait = { workspace = true }
 bitvec = { features = ["alloc"], workspace = true }
 futures = { workspace = true }
-futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 schnellru = { workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-consensus-slots = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
+
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-consensus-slots = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
 
 codec = { workspace = true }
 fatality = { workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+polkadot-node-clock = { workspace = true, default-features = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
+futures-timer = { workspace = true }
 kvdb-memorydb = { workspace = true }
 rstest = { workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sp-tracing = { default-features = false, workspace = true }
+sc-network-types = { workspace = true, default-features = true }
+sp-tracing = { workspace = true }
 tokio = { features = ["macros"], workspace = true, default-features = true }
 
 codec = { features = ["std"], workspace = true, default-features = true }
-sc-keystore = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sp-core = { features = ["std"], default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sp-core = { features = ["std"], workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
 
 itertools = { workspace = true }
+polkadot-collator-protocol-test-sim-macros = { workspace = true }
+polkadot-node-clock = { workspace = true, default-features = true, features = ["test"] }
+polkadot-node-core-backing = { workspace = true, default-features = true }
+polkadot-node-core-prospective-parachains = { workspace = true, default-features = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
+polkadot-subsystem-test-sim = { workspace = true }
 
 [features]
 default = []

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-bridge-parachains"
-version = "0.26.0"
+version = "0.30.0"
 description = "Module that allows bridged relay chains to exchange information on their parachains' heads."
 authors.workspace = true
 edition.workspace = true
@@ -11,25 +11,29 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+codec = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+tracing = { workspace = true }
+
+# Bridge Dependencies
 bp-header-chain = { workspace = true }
 bp-parachains = { workspace = true }
 bp-polkadot-core = { workspace = true }
 bp-runtime = { workspace = true }
-codec = { workspace = true }
+pallet-bridge-grandpa = { workspace = true }
+
+# Substrate Dependencies
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-pallet-bridge-grandpa = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
-bp-header-chain = { default-features = true, workspace = true }
-bp-test-utils = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+bp-header-chain = { workspace = true, default-features = true }
+bp-test-utils = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

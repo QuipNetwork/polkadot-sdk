@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-client-parachain-inherent"
-version = "0.23.0"
+version = "0.30.0"
 authors.workspace = true
 edition.workspace = true
 description = "Inherent that needs to be present in every parachain block. Contains messages and a relay chain storage-proof."
@@ -11,16 +11,20 @@ repository.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 codec = { features = ["derive"], workspace = true, default-features = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-primitives-parachain-inherent = { default-features = true, workspace = true }
-cumulus-relay-chain-interface = { default-features = true, workspace = true }
-cumulus-test-relay-sproof-builder = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus-babe = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-storage = { default-features = true, workspace = true }
 tracing = { workspace = true, default-features = true }
+
+# Substrate
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus-babe = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-storage = { workspace = true, default-features = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-primitives-parachain-inherent = { workspace = true, default-features = true }
+cumulus-relay-chain-interface = { workspace = true, default-features = true }
+cumulus-test-relay-sproof-builder = { workspace = true, default-features = true }

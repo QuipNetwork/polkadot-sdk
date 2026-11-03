@@ -13,9 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{assets_balance_on, create_pool_with_wnd_on, foreign_balance_on, imports::*};
+use crate::{assets_balance_on, imports::*};
 use emulated_integration_tests_common::xcm_emulator::TestExt;
-use frame_support::assert_ok;
 use std::convert::Into;
 use xcm::latest::{Location, Xcm};
 
@@ -49,10 +48,9 @@ fn exchange_asset_from_penpal_via_asset_hub_back_to_penpal() {
 	);
 
 	// We create a pool between WND and USDT in AssetHub so we can do the exchange
-	create_pool_with_wnd_on!(
+	create_pool_with_relay_native_on!(
 		AssetHubWestend,
 		usdt_asset_hub_pov.clone(),
-		false,
 		AssetHubWestendSender::get(),
 		1_000_000_000_000,
 		20_000_000_000
@@ -60,7 +58,7 @@ fn exchange_asset_from_penpal_via_asset_hub_back_to_penpal() {
 
 	// Query initial balances
 	let sender_usdt_on_penpal_before =
-		foreign_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
+		assets_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
 	let sender_usdt_on_ah_before = assets_balance_on!(AssetHubWestend, USDT_ID, &sender);
 
 	let asset_hub_location_penpal_pov = PenpalA::sibling_location_of(AssetHubWestend::para_id());
@@ -176,8 +174,7 @@ fn exchange_asset_from_penpal_via_asset_hub_back_to_penpal() {
 
 	// Query final balances
 	let sender_usdt_on_ah_after = assets_balance_on!(AssetHubWestend, USDT_ID, &sender);
-	let sender_usdt_on_penpal_after =
-		foreign_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
+	let sender_usdt_on_penpal_after = assets_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
 
 	// Receiver's balance is increased by usdt amount we got from exchange
 	assert_eq!(

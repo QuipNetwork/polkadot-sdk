@@ -1,0 +1,11 @@
+title: 'statement-store: remove dead propagate_statement method'
+doc:
+- audience: Node Dev
+  description: |-
+    Removes the unused public method `StatementHandler::propagate_statement` from
+    `sc-network-statement`. It never had a caller since its introduction: it was copied
+    from the transactions protocol, whose controller plumbing was never brought over.
+    Statements continue to be propagated by the periodic propagation loop.
+crates:
+- name: sc-network-statement
+  bump: major

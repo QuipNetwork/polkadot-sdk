@@ -1,0 +1,14 @@
+title: 'sc-rpc-server: bound the cardinality of the RPC metrics `method` label'
+doc:
+  - audience: Node Operator
+    description: |
+      The `substrate_rpc_calls_*` metrics used the requested method name as the `method`
+      label without restricting it to registered methods, so the label could take an
+      unbounded number of values. The label is now bounded to the registered method set;
+      any other name is recorded as `unknown`, keeping the series count finite.
+
+      `RpcMetrics::with_known_methods` sets the allowlist and the RPC server wires it at
+      start; a metrics instance without it keeps the previous behaviour.
+crates:
+  - name: sc-rpc-server
+    bump: minor

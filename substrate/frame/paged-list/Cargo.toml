@@ -1,6 +1,6 @@
 [package]
 name = "pallet-paged-list"
-version = "0.24.0"
+version = "0.28.0"
 description = "FRAME pallet that provides a paged list data structure."
 authors.workspace = true
 homepage.workspace = true

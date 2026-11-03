@@ -712,7 +712,17 @@ where
 	///
 	/// If the tuple's error is None, the transaction will be forcibly removed from the view_store,
 	/// banned and included into the returned vector.
+	/// Removes the [`BanReason::Validation`] ban for a transaction across all active views.
 	///
+	/// This is called after mempool revalidation confirms that a viewless transaction is still
+	/// valid at the finalized block. Only bans with [`BanReason::Validation`] are cleared;
+	/// [`BanReason::LimitsEnforced`] bans are preserved.
+	pub(crate) fn unban_transaction(&self, tx_hash: &ExtrinsicHash<ChainApi>) {
+		for view in self.active_views.read().values() {
+			view.pool.validated_pool().unban_if_validation(tx_hash);
+		}
+	}
+
 	/// For every transaction removed from the view_store (excluding descendants) an Invalid event
 	/// is triggered.
 	///
@@ -877,7 +887,7 @@ where
 			active_views
 				.iter()
 				.chain(inactive_views.iter())
-				.filter(|(_, view)| view.is_imported(&replaced))
+				.filter(|(_, view)| view.imported_status(&replaced).is_imported())
 				.map(|(_, view)| {
 					self.replace_transaction_in_view(
 						view.clone(),
@@ -935,7 +945,7 @@ where
 			.read()
 			.iter()
 			.chain(self.inactive_views.read().iter())
-			.filter(|(_, view)| view.is_imported(&xt_hash))
+			.filter(|(_, view)| view.imported_status(&xt_hash).is_imported())
 			.flat_map(|(_, view)| view.remove_subtree(&[xt_hash], true, &listener_action))
 			.filter_map(|xt| seen.insert(xt.hash).then(|| xt.clone()))
 			.collect();

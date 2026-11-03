@@ -1,0 +1,31 @@
+title: 'network: Enable WebRTC by default on full nodes'
+doc:
+- audience: ['Node Dev', 'Node Operator']
+  description: |-
+    Accept WebRTC connections on the same UDP `--port` as used for TCP/WS connections.
+    Enabled by default on full nodes, can be force-enabled on validators & collators
+    with `--force-enable-webrtc`, or disabled by passing an explicit `--listen-addr`
+    without WebRTC addresses.
+    Only supported with litep2p network backend.
+
+    `--listen-addr` and `--public-addr` accept a `webrtc-direct` address as
+    `/<host>/udp/<port>/webrtc-direct` only. The node appends its own `/certhash/...`, being
+    the only party that knows the DTLS certificate it presents, and refuses to start on an
+    address that carries one already. Public addresses are completed where the configuration
+    is created, so that authority discovery and the parachain bootnode advertisement publish
+    the same dialable address the network backend advertises.
+
+crates:
+- name: sc-cli
+  bump: major
+- name: sc-network
+  bump: major
+# `litep2p` is a public dependency of both crates and moves 0.14 -> 0.15.
+- name: sc-network-types
+  bump: major
+- name: sc-network-bitswap
+  bump: major
+- name: sc-service
+  bump: patch
+- name: polkadot-omni-node-lib
+  bump: patch

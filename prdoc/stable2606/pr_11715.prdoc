@@ -1,0 +1,30 @@
+title: Reject delegatecall into precompiles via PrecompileDelegateDenied
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\n- Add delegatecall guard to the ERC20 assets precompile\
+    \ and XCM precompile, matching the existing pattern in the vesting and asset-conversion\
+    \ precompiles\n- Converge asset-conversion precompile from `Error::Revert(string)`\
+    \ to `Error::Error(PrecompileDelegateDenied)` for consistency across all precompiles\n\
+    - Add delegatecall rejection test for the XCM precompile\n\n## Motivation\n\n\
+    Delegatecall to precompiles allows a malicious contract to execute precompile\
+    \ logic in a misleading caller context. The precompiles derive caller identity\
+    \ from `env.caller()`, which during delegatecall returns the original caller \u2014\
+    \ letting the intermediary contract act on the caller's assets or send XCM on\
+    \ their behalf. There is no legitimate use case for delegatecalling into these\
+    \ precompiles.\n\n## Changes\n\n- `substrate/frame/assets/precompiles/src/lib.rs`\
+    \ \u2014 add `PrecompileDelegateDenied` guard\n- `substrate/frame/asset-conversion/precompiles/src/lib.rs`\
+    \ \u2014 replace `Error::Revert(ERR_DELEGATE_CALL)` with `PrecompileDelegateDenied`,\
+    \ remove unused const\n- `polkadot/xcm/pallet-xcm/precompiles/src/lib.rs` \u2014\
+    \ add `PrecompileDelegateDenied` guard\n- `polkadot/xcm/pallet-xcm/precompiles/src/tests.rs`\
+    \ \u2014 add `delegatecall_is_rejected` test\n- `polkadot/xcm/pallet-xcm/precompiles/Cargo.toml`\
+    \ \u2014 add `pallet-revive-fixtures` dev-dependency\n\n## Test plan\n\n- [x]\
+    \ `cargo test -p pallet-xcm-precompiles` \u2014 13 tests pass, including new `delegatecall_is_rejected`\n\
+    - [x] `cargo test -p pallet-asset-conversion-precompiles` \u2014 18 tests pass\n\
+    - [x] `cargo test -p pallet-assets-precompiles` \u2014 66 tests pass"
+crates:
+- name: pallet-xcm-precompiles
+  bump: minor
+- name: pallet-asset-conversion-precompiles
+  bump: minor
+- name: pallet-assets-precompiles
+  bump: minor

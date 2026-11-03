@@ -1,7 +1,7 @@
 [package]
 name = "snowbridge-pallet-system-frontend"
 description = "Snowbridge System Frontend Pallet"
-version = "0.8.0"
+version = "0.13.0"
 authors = ["Snowfork <contact@snowfork.com>"]
 edition.workspace = true
 repository.workspace = true
@@ -34,9 +34,9 @@ xcm = { workspace = true }
 xcm-executor = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
 snowbridge-test-utils = { workspace = true }
-sp-keyring = { workspace = true, default-features = false }
+sp-keyring = { workspace = true }
 
 [features]
 default = ["std"]

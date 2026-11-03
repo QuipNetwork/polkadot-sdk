@@ -1,6 +1,6 @@
 [package]
 name = "tracing-gum"
-version = "24.0.0"
+version = "27.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,6 +13,6 @@ workspace = true
 
 [dependencies]
 coarsetime = { workspace = true }
-gum-proc-macro = { default-features = true, workspace = true }
+gum-proc-macro = { workspace = true, default-features = true }
 polkadot-primitives = { features = ["std"], workspace = true, default-features = true }
 tracing = { workspace = true, default-features = true }

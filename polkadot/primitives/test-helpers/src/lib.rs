@@ -452,6 +452,7 @@ pub fn dummy_candidate_descriptor_v3<H: AsRef<[u8]> + Copy + Default>(
 		relay_parent,
 		CoreIndex(1),
 		1,
+		1,
 		invalid,
 		invalid,
 		invalid,
@@ -574,6 +575,44 @@ pub fn make_candidate_v2(
 	(candidate, pvd)
 }
 
+/// Create a meaningless v3 candidate, returning its receipt and PVD.
+pub fn make_candidate_v3(
+	relay_parent_hash: Hash,
+	relay_parent_number: u32,
+	scheduling_parent: Hash,
+	para_id: ParaId,
+	parent_head: HeadData,
+	head_data: HeadData,
+	validation_code_hash: ValidationCodeHash,
+) -> (CommittedCandidateReceiptV2, PersistedValidationData) {
+	let pvd = dummy_pvd(parent_head, relay_parent_number);
+	let commitments = CandidateCommitments {
+		head_data: head_data.clone(),
+		horizontal_messages: Default::default(),
+		upward_messages: Default::default(),
+		new_validation_code: None,
+		processed_downward_messages: 0,
+		hrmp_watermark: relay_parent_number,
+	};
+
+	let descriptor = CandidateDescriptorV2::new_v3(
+		para_id,
+		relay_parent_hash,
+		CoreIndex(0),
+		1, // session_index
+		1, // scheduling_session_index (offset = 0)
+		pvd.hash(),
+		Hash::repeat_byte(1), // pov_hash
+		Hash::repeat_byte(1), // erasure_root
+		head_data.hash(),
+		validation_code_hash,
+		scheduling_parent,
+	);
+	let candidate = CommittedCandidateReceiptV2 { descriptor, commitments };
+
+	(candidate, pvd)
+}
+
 /// Create a new candidate descriptor, and apply a valid signature
 /// using the provided `collator` key.
 pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
@@ -650,6 +689,7 @@ pub fn make_valid_candidate_descriptor_v3<H: AsRef<[u8]> + Copy + Default>(
 	relay_parent: H,
 	core_index: CoreIndex,
 	session_index: SessionIndex,
+	scheduling_session_index: SessionIndex,
 	persisted_validation_data_hash: Hash,
 	pov_hash: Hash,
 	validation_code_hash: impl Into<ValidationCodeHash>,
@@ -664,6 +704,7 @@ pub fn make_valid_candidate_descriptor_v3<H: AsRef<[u8]> + Copy + Default>(
 		relay_parent,
 		core_index,
 		session_index,
+		scheduling_session_index,
 		persisted_validation_data_hash,
 		pov_hash,
 		erasure_root,
@@ -702,6 +743,8 @@ pub struct TestCandidateBuilder {
 	pub relay_parent: Hash,
 	pub commitments_hash: Hash,
 	pub core_index: CoreIndex,
+	pub scheduling_parent: Hash,
+	pub para_head: Hash,
 }
 
 impl std::default::Default for TestCandidateBuilder {
@@ -713,6 +756,8 @@ impl std::default::Default for TestCandidateBuilder {
 			relay_parent: zeros,
 			commitments_hash: zeros,
 			core_index: CoreIndex(0),
+			scheduling_parent: zeros,
+			para_head: zeros,
 		}
 	}
 }
@@ -724,6 +769,17 @@ impl TestCandidateBuilder {
 		descriptor.set_para_id(self.para_id);
 		descriptor.set_pov_hash(self.pov_hash);
 		descriptor.set_core_index(self.core_index);
+		CandidateReceiptV2 { descriptor, commitments_hash: self.commitments_hash }
+	}
+
+	/// Build a `CandidateReceipt` with a V3 candidate descriptor.
+	pub fn build_v3(self) -> CandidateReceiptV2 {
+		let mut descriptor =
+			dummy_candidate_descriptor_v3(self.relay_parent, self.scheduling_parent);
+		descriptor.set_para_id(self.para_id);
+		descriptor.set_pov_hash(self.pov_hash);
+		descriptor.set_core_index(self.core_index);
+		descriptor.set_para_head(self.para_head);
 		CandidateReceiptV2 { descriptor, commitments_hash: self.commitments_hash }
 	}
 }
@@ -832,7 +888,10 @@ mod candidate_receipt_tests {
 		let new_ccr: CommittedCandidateReceiptV2 =
 			Decode::decode(&mut new_ccr.encode().as_slice()).unwrap();
 
-		assert_eq!(new_ccr.descriptor.version_old_rules(), CandidateDescriptorVersion::Unknown);
+		assert_eq!(
+			new_ccr.descriptor.version_old_rules(),
+			CandidateDescriptorVersion::Unknown(100)
+		);
 		assert_eq!(
 			new_ccr.parse_ump_signals(&std::collections::BTreeMap::new()),
 			Err(CommittedCandidateReceiptError::UnknownVersion(100))

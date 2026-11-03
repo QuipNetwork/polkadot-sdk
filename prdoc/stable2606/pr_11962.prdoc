@@ -1,0 +1,16 @@
+title: 'client/db, sp-transaction-storage-proof: preserve `MultiRenew` submit order'
+doc:
+- audience: Node Dev
+  description: |
+    #11474 changed `DbExtrinsic::MultiRenew::hashes` from `Vec<DbHash>` to `BTreeSet<DbHash>`,
+    which reordered hashes by sort order. The runtime indexes `TransactionInfo` in dispatch
+    order, so `build_proof` and the runtime resolved `selected_chunk_index` to different
+    chunks, causing `InvalidProof` and chain halt on the first proof block after a multi-renew.
+
+    Reverted `MultiRenew.hashes` to `Vec<DbHash>`, preserving submission order and duplicates
+    so column refcount inc/dec stays symmetric.
+crates:
+- name: sc-client-db
+  bump: patch
+- name: sp-transaction-storage-proof
+  bump: patch

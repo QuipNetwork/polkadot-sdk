@@ -14,38 +14,44 @@ workspace = true
 
 async-channel = { workspace = true }
 async-trait = { workspace = true }
-bp-header-chain = { default-features = true, workspace = true }
-bp-messages = { default-features = true, workspace = true }
-bp-polkadot-core = { default-features = true, workspace = true }
-bp-runtime = { default-features = true, workspace = true }
 codec = { workspace = true, default-features = true }
-finality-relay = { workspace = true }
-frame-support = { default-features = true, workspace = true }
 futures = { workspace = true }
 jsonrpsee = { features = ["macros", "ws-client"], workspace = true }
 num-traits = { workspace = true, default-features = true }
-pallet-transaction-payment = { default-features = true, workspace = true }
-pallet-transaction-payment-rpc-runtime-api = { default-features = true, workspace = true }
-pallet-utility = { default-features = true, workspace = true }
 quick_cache = { workspace = true }
 rand = { workspace = true, default-features = true }
-relay-utils = { workspace = true }
-sc-chain-spec = { default-features = true, workspace = true }
-sc-rpc-api = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
 scale-info = { features = ["derive"], workspace = true, default-features = true }
 serde_json = { workspace = true }
-sp-consensus-grandpa = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-rpc = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-std = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
 thiserror = { workspace = true }
 tokio = { features = ["rt-multi-thread"], workspace = true, default-features = true }
 tracing = { workspace = true }
-xcm = { default-features = true, workspace = true }
+
+# Bridge dependencies
+bp-header-chain = { workspace = true, default-features = true }
+bp-messages = { workspace = true, default-features = true }
+bp-polkadot-core = { workspace = true, default-features = true }
+bp-runtime = { workspace = true, default-features = true }
+finality-relay = { workspace = true }
+relay-utils = { workspace = true }
+
+# Substrate Dependencies
+frame-support = { workspace = true, default-features = true }
+pallet-transaction-payment = { workspace = true, default-features = true }
+pallet-transaction-payment-rpc-runtime-api = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
+sc-chain-spec = { workspace = true, default-features = true }
+sc-rpc-api = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sp-consensus-grandpa = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-rpc = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-std = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
+
+# Polkadot Dependencies
+xcm = { workspace = true, default-features = true }
 
 [features]
 default = []

@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-pallet-parachain-system"
-version = "0.26.0"
+version = "0.32.0"
 authors.workspace = true
 edition.workspace = true
 description = "Base pallet for cumulus-based parachains"
@@ -15,23 +15,19 @@ workspace = true
 array-bytes = { workspace = true }
 bytes = { workspace = true }
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-parachain-system-proc-macro = { workspace = true }
-cumulus-primitives-core = { workspace = true }
-cumulus-primitives-parachain-inherent = { workspace = true }
-cumulus-primitives-proof-size-hostfunction = { workspace = true }
 derive-where = { workspace = true }
 environmental = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 hashbrown = { workspace = true }
 impl-trait-for-tuples = { workspace = true }
 log = { workspace = true }
-pallet-message-queue = { workspace = true }
-polkadot-parachain-primitives = { features = ["wasm-api"], workspace = true }
-polkadot-primitives = { workspace = true }
-polkadot-runtime-parachains = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
+trie-db = { workspace = true }
+
+# Substrate
+frame-benchmarking = { optional = true, workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+pallet-message-queue = { workspace = true }
 sp-api = { workspace = true }
 sp-consensus-babe = { workspace = true }
 sp-core = { workspace = true }
@@ -44,9 +40,19 @@ sp-state-machine = { workspace = true }
 sp-std = { workspace = true }
 sp-trie = { workspace = true }
 sp-version = { workspace = true }
-trie-db = { workspace = true }
+
+# Polkadot
+polkadot-parachain-primitives = { features = ["wasm-api"], workspace = true }
+polkadot-primitives = { workspace = true }
+polkadot-runtime-parachains = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
+
+# Cumulus
+cumulus-pallet-parachain-system-proc-macro = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+cumulus-primitives-parachain-inherent = { workspace = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true }
 
 # For building docs
 docify = { workspace = true }
@@ -60,18 +66,18 @@ rstest = { workspace = true }
 trie-standardmap = { workspace = true }
 
 # Substrate
-frame-executive = { workspace = true, default-features = false }
-sc-consensus = { workspace = true, default-features = false }
-sp-api = { default-features = true, workspace = true }
-sp-consensus-slots = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+frame-executive = { workspace = true }
+sc-consensus = { workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-consensus-slots = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 
 # Cumulus
 cumulus-test-client = { workspace = true }
-cumulus-test-relay-sproof-builder = { default-features = true, workspace = true }
+cumulus-test-relay-sproof-builder = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -103,6 +109,7 @@ std = [
 	"sp-runtime/std",
 	"sp-state-machine/std",
 	"sp-std/std",
+	"sp-tracing/std",
 	"sp-trie/std",
 	"trie-db/std",
 	"xcm-builder/std",

@@ -1,0 +1,28 @@
+title: 'asset-hub-westend: deny value-moving calls to the `NonTransfer` proxy'
+doc:
+- audience: Runtime User
+  description: |-
+    On Asset Hub Westend, the `ProxyType::NonTransfer` call filter is a deny-list and so fails
+    open: any pallet added to the runtime is reachable by a `NonTransfer` proxy unless it is
+    listed explicitly. Several call families that move the delegator's funds or assets were not
+    listed, contradicting the documented policy that this proxy type can only execute calls that
+    do not transfer funds or assets.
+
+    The following are now denied to a `NonTransfer` proxy:
+
+    - `ForeignAssets` and `PoolAssets` (the other `pallet-assets` instances), which transfer
+      value exactly as `Assets` does
+    - `AssetConversion`, whose swaps and liquidity operations move the caller's assets
+    - `Psm`, whose mint and redeem swap the caller's stablecoins
+    - `PolkadotXcm`, whose `transfer_assets`/`teleport_assets` move assets to another chain and
+      whose `send`/`execute` can express the same as raw XCM
+    - `Revive`, whose contract calls and instantiations carry a `value` to transfer
+    - `Indices::transfer` and `Indices::force_transfer`, which repatriate the index's reserved
+      deposit to the new owner
+
+    Calls that do not move value are unaffected, including `Indices::claim`/`free`/`freeze` and
+    `Vesting::vest`, as are the call families backing the proxy types that `NonTransfer` declares
+    as its subsets.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch

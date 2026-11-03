@@ -1,6 +1,6 @@
 [package]
 name = "parachains-common-types"
-version = "0.2.0"
+version = "0.5.0"
 authors.workspace = true
 edition.workspace = true
 description = "Common types for parachains"

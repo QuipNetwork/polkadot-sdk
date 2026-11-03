@@ -1,0 +1,19 @@
+title: '[RWF] `pallet-membership`: Fix Downstream `change_key` Unchanged Prime'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Closes #12464
+
+    ## Problem
+
+    `change_key` in `pallet-membership` swaps a member's account key and calls `T::MembershipChanged::change_members_sorted(...)` to notify the configured `ChangeMembers` implementation of the swap. `change_members_sorted` "resets any previous value of prime" on the downstream consumer's side.
+
+    If the prime is any other, unaffected member, this branch is skipped entirely. Downstream `ChangeMembers` consumer never gets a `set_prime` call to restore what `change_members_sorted` just reset.
+
+
+    ## Solution
+
+    Call Self::rejig_prime(&members) in the else branch, i.e. whenever the account being swapped is not the prime itself:
+crates:
+- name: pallet-membership
+  bump: patch

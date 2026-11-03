@@ -1,6 +1,6 @@
 [package]
 name = "pallet-revive-uapi"
-version = "0.11.0"
+version = "0.15.4"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -21,13 +21,13 @@ codec = { features = [
 	"derive",
 	"max-encoded-len",
 ], optional = true, workspace = true }
-const-crypto = { version = "0.3.0", default-features = false }
-hex-literal = { version = "0.4.1", default-features = false }
+const-crypto = { workspace = true }
+hex-literal = { workspace = true }
 pallet-revive-proc-macro = { workspace = true }
 scale-info = { features = ["derive"], optional = true, workspace = true }
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
-polkavm-derive = { version = "0.30.0" }
+polkavm-derive = { workspace = true }
 
 [features]
 default = ["scale"]

@@ -1,6 +1,6 @@
 [package]
 name = "sp-arithmetic"
-version = "28.0.1"
+version = "29.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -33,7 +33,7 @@ static_assertions = { workspace = true, default-features = true }
 criterion = { workspace = true, default-features = true }
 primitive-types = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -42,6 +42,7 @@ std = [
 	"num-traits/std",
 	"scale-info/std",
 	"serde/std",
+	"sp-crypto-hashing/std",
 ]
 # Serde support without relying on std features.
 serde = ["dep:serde", "scale-info/serde"]

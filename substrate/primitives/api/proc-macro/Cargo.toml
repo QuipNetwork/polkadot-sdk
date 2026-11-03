@@ -1,6 +1,6 @@
 [package]
 name = "sp-api-proc-macro"
-version = "27.0.0"
+version = "15.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

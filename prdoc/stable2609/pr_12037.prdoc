@@ -1,0 +1,81 @@
+title: '[pallet-revive]: move eth-rpc-only types out of pallet-revive'
+doc:
+- audience: Runtime Dev
+  description: "# Description\n\nThis PR is part of the versioning effort https://github.com/paritytech/polkadot-sdk/issues/11923\
+    \ and closes https://github.com/paritytech/polkadot-sdk/issues/12045. This PR\
+    \ moves a number of types which used to be defined in `pallet-revive` over to\
+    \ the eth-rpc. A small set of byte wrapper types are now used from the `pallet-revive-types`\
+    \ crate.\n\nThe reason for this moving of types is that a lot of types were defined\
+    \ in `pallet-revive` but were not being used by `pallet-revive` in any way. They\
+    \ were defined there and were being used exclusively in the eth-rpc. Therefore,\
+    \ them being defined in `pallet-revive` did not make sense.\n\n<table>\n  <thead>\n\
+    \    <tr>\n      <th align=\"left\">Type</th>\n      <th align=\"left\">What was\
+    \ done</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td><code>InputOrData</code></td>\n\
+    \      <td rowspan=\"19\">Moved (definition + impls consolidated) into the new\
+    \ <code>pallet_revive::evm::api::transaction</code> module. Stays in <code>pallet-revive</code>.</td>\n\
+    \    </tr>\n    <tr><td><code>GenericTransaction</code></td></tr>\n    <tr><td><code>TransactionInfo</code></td></tr>\n\
+    \    <tr><td><code>TransactionUnsigned</code></td></tr>\n    <tr><td><code>TransactionSigned</code></td></tr>\n\
+    \    <tr><td><code>HashesOrTransactionInfos</code></td></tr>\n    <tr><td><code>AccessList</code></td></tr>\n\
+    \    <tr><td><code>AccessListEntry</code></td></tr>\n    <tr><td><code>AuthorizationListEntry</code></td></tr>\n\
+    \    <tr><td><code>TransactionLegacyUnsigned</code></td></tr>\n    <tr><td><code>TransactionLegacySigned</code></td></tr>\n\
+    \    <tr><td><code>Transaction1559Unsigned</code></td></tr>\n    <tr><td><code>Transaction1559Signed</code></td></tr>\n\
+    \    <tr><td><code>Transaction2930Unsigned</code></td></tr>\n    <tr><td><code>Transaction2930Signed</code></td></tr>\n\
+    \    <tr><td><code>Transaction4844Unsigned</code></td></tr>\n    <tr><td><code>Transaction4844Signed</code></td></tr>\n\
+    \    <tr><td><code>Transaction7702Unsigned</code></td></tr>\n    <tr><td><code>Transaction7702Signed</code></td></tr>\n\
+    \    <tr>\n      <td><code>Block</code></td>\n      <td rowspan=\"2\">Moved into\
+    \ the new <code>pallet_revive::evm::api::block</code> module. Stays in <code>pallet-revive</code>.</td>\n\
+    \    </tr>\n    <tr><td><code>Withdrawal</code></td></tr>\n    <tr>\n      <td><code>StateOverrideSet</code></td>\n\
+    \      <td rowspan=\"3\">Moved into the new <code>pallet_revive::evm::api::state_overrides</code>\
+    \ module. Stays in <code>pallet-revive</code>.</td>\n    </tr>\n    <tr><td><code>StateOverride</code></td></tr>\n\
+    \    <tr><td><code>StorageOverride</code></td></tr>\n    <tr>\n      <td><code>Log</code></td>\n\
+    \      <td rowspan=\"2\">Moved out of <code>pallet-revive</code> into the <code>pallet-revive-eth-rpc</code>\
+    \ crate (<code>types::log</code>).</td>\n    </tr>\n    <tr><td><code>FilterResults</code></td></tr>\n\
+    \    <tr>\n      <td><code>SyncingStatus</code></td>\n      <td rowspan=\"2\"\
+    >Moved out of <code>pallet-revive</code> into the <code>pallet-revive-eth-rpc</code>\
+    \ crate (<code>types::sync</code>).</td>\n    </tr>\n    <tr><td><code>SyncingProgress</code></td></tr>\n\
+    \    <tr>\n      <td><code>ReceiptInfo</code></td>\n      <td>Moved out of <code>pallet-revive</code>\
+    \ into the <code>pallet-revive-eth-rpc</code> crate (<code>types::receipt</code>).</td>\n\
+    \    </tr>\n    <tr>\n      <td><code>BlockHeader</code></td>\n      <td rowspan=\"\
+    7\">Moved out of <code>pallet-revive</code> into the <code>pallet-revive-eth-rpc</code>\
+    \ crate (<code>types::subscription</code>).</td>\n    </tr>\n    <tr><td><code>SubscriptionKind</code></td></tr>\n\
+    \    <tr><td><code>SubscriptionOptions</code></td></tr>\n    <tr><td><code>SubscriptionParameters</code></td></tr>\n\
+    \    <tr><td><code>SubscriptionItem</code></td></tr>\n    <tr><td><code>LogsSubscriptionFilter</code></td></tr>\n\
+    \    <tr><td><code>BoundedOneOrMany</code></td></tr>\n    <tr>\n      <td><code>FeeHistoryResult</code></td>\n\
+    \      <td>Moved out of <code>pallet-revive</code> into the <code>pallet-revive-eth-rpc</code>\
+    \ crate (<code>types::fee_history</code>).</td>\n    </tr>\n    <tr>\n      <td><code>TracerConfig</code></td>\n\
+    \      <td rowspan=\"3\">Moved out of <code>pallet-revive</code> (<code>debug_rpc_types</code>)\
+    \ into the <code>pallet-revive-eth-rpc</code> crate (<code>types::trace</code>).</td>\n\
+    \    </tr>\n    <tr><td><code>TraceCallConfig</code></td></tr>\n    <tr><td><code>TransactionTrace</code></td></tr>\n\
+    \    <tr>\n      <td><code>BlockNumberOrTagOrHash</code></td>\n      <td rowspan=\"\
+    8\">Removed from <code>pallet-revive</code> and replaced throughout by the equivalent\
+    \ <code>alloy_rpc_types</code> type:<br>\u2022 <code>BlockNumberOrTagOrHash</code>\
+    \ \u2192 <code>BlockId</code><br>\u2022 <code>BlockNumberOrTag</code> &amp; <code>BlockTag</code>\
+    \ \u2192 <code>BlockNumberOrTag</code><br>\u2022 <code>Filter</code>, <code>AddressOrAddresses</code>,\
+    \ <code>Addresses</code>, <code>FilterTopic</code>, <code>FilterTopics</code>\
+    \ \u2192 <code>Filter</code> / <code>FilterSet</code> / <code>Topic</code></td>\n\
+    \    </tr>\n    <tr><td><code>BlockNumberOrTag</code></td></tr>\n    <tr><td><code>BlockTag</code></td></tr>\n\
+    \    <tr><td><code>Filter</code></td></tr>\n    <tr><td><code>AddressOrAddresses</code></td></tr>\n\
+    \    <tr><td><code>Addresses</code></td></tr>\n    <tr><td><code>FilterTopic</code></td></tr>\n\
+    \    <tr><td><code>FilterTopics</code></td></tr>\n  </tbody>\n</table>\n\n## Integration\n\
+    \nDownstream code which imported eth-rpc-only response or request helper types\
+    \ from `pallet_revive::evm` should import them from `pallet-revive-eth-rpc` instead.\
+    \ The eth-rpc crate re-exports these through its crate root and also groups them\
+    \ under `pallet_revive_eth_rpc::types`.\n\nThe core pallet transaction, block,\
+    \ and state override types remain available through the existing `pallet_revive::evm::*`\
+    \ public re-exports. Their backing modules changed, but users of the public re-export\
+    \ path should not need source changes for those types.\n\nThe byte wrappers are\
+    \ now the canonical definitions from `pallet_revive_types::common`. `pallet_revive::evm::*`\
+    \ continues to re-export them for compatibility.\n\n## Review Notes\n\nThe main\
+    \ structure change is that `src/evm/api/rpc_types_gen.rs` was removed. Types which\
+    \ are still used by pallet execution/storage were moved into `src/evm/api/block.rs`,\
+    \ `src/evm/api/transaction.rs`, and `src/evm/api/state_override.rs`. This is intended\
+    \ to be a definition and impl move, while keeping the public `pallet_revive::evm::*`\
+    \ re-export surface stable for the pallet-owned types.\n\nThe eth-rpc-only types\
+    \ now live in `rpc/src/types/`, grouped by use: fee history, logs, receipts, subscriptions,\
+    \ sync status, and debug tracing. The eth-rpc crate re-exports `types::*`, so\
+    \ RPC users can continue importing these types from the RPC crate root."
+crates:
+- name: pallet-revive-eth-rpc
+  bump: major
+- name: pallet-revive
+  bump: major

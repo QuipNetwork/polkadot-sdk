@@ -1,6 +1,6 @@
 [package]
 name = "sp-crypto-ec-utils"
-version = "0.20.0"
+version = "0.24.0"
 authors.workspace = true
 description = "Host functions for common Arkworks elliptic curve operations"
 edition.workspace = true
@@ -26,6 +26,7 @@ ark-ed-on-bls12-377 = { optional = true, workspace = true }
 ark-ed-on-bls12-377-ext = { optional = true, workspace = true }
 ark-ed-on-bls12-381-bandersnatch = { optional = true, workspace = true }
 ark-ed-on-bls12-381-bandersnatch-ext = { optional = true, workspace = true }
+ark-ff = { optional = true, workspace = true }
 ark-pallas = { optional = true, workspace = true }
 ark-pallas-ext = { optional = true, workspace = true }
 ark-scale = { features = ["hazmat"], optional = true, workspace = true }
@@ -34,7 +35,6 @@ ark-vesta-ext = { optional = true, workspace = true }
 sp-runtime-interface = { optional = true, workspace = true }
 
 [dev-dependencies]
-ark-ff = { workspace = true }
 ark-std = { workspace = true }
 
 [features]
@@ -52,7 +52,7 @@ std = [
 	"ark-ed-on-bls12-377?/std",
 	"ark-ed-on-bls12-381-bandersnatch-ext?/std",
 	"ark-ed-on-bls12-381-bandersnatch?/std",
-	"ark-ff/std",
+	"ark-ff?/std",
 	"ark-pallas-ext?/std",
 	"ark-pallas?/std",
 	"ark-scale?/std",
@@ -61,7 +61,7 @@ std = [
 	"ark-vesta?/std",
 	"sp-runtime-interface?/std",
 ]
-common = ["ark-ec", "ark-scale", "sp-runtime-interface"]
+common = ["ark-ec", "ark-ff", "ark-scale", "sp-runtime-interface"]
 bls12-377 = ["ark-bls12-377", "ark-bls12-377-ext", "common"]
 bls12-381 = ["ark-bls12-381", "ark-bls12-381-ext", "common"]
 bw6-761 = ["ark-bw6-761", "ark-bw6-761-ext", "common"]

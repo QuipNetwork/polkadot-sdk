@@ -1,0 +1,38 @@
+title: Move era reward minting from staking to DAP
+doc:
+- audience: Runtime Dev
+  description: |-
+    Introduces dual-mode era rewards in `pallet-staking-async`, controlled by
+    `Config::DisableMinting`:
+    - `true` (non-minting): staking expects an external source to fund a general reward
+      pot. At era boundary, the balance is snapshotted into an era-specific pot. Payouts
+      transfer from the pot. Unclaimed rewards returned via `UnclaimedRewardHandler`.
+    - `false` (legacy minting): `EraPayout` computes inflation, tokens minted on payout,
+      remainder sent to `RewardRemainder`. Kept for Kusama compatibility.
+
+    Switching from legacy to non-minting is irreversible.
+
+    New config: `DisableMinting`, `UnclaimedRewardHandler`, `GeneralPots`, `EraPots`,
+    `StakerRewardCalculator`. New storage: `MaxCommission`, `DisableMintingGuard`.
+    New extrinsic: `set_max_commission`.
+
+    Runtimes using non-minting mode provide an `IssuanceCurve` impl to DAP and
+    register `StakerRewardRecipient` as a budget recipient. DAP storage version
+    bumped to V2 with migration.
+crates:
+- name: pallet-staking-async
+  bump: major
+- name: pallet-dap
+  bump: minor
+- name: sp-staking
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: major
+- name: pallet-staking-async-parachain-runtime
+  bump: major
+- name: pallet-ahm-test
+  bump: patch
+- name: kitchensink-runtime
+  bump: major
+- name: pallet-nomination-pools-test-delegate-stake
+  bump: patch

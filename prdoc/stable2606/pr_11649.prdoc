@@ -1,0 +1,15 @@
+title: 'Consolidate try-state warnings into summary counts'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Aggregates repetitive try-state warnings (min bond violations, pool ED imbalance, depositor
+    insufficient stake) into single summary lines with counts and up to 10 example accounts.
+    Reduces log noise from hundreds of expected per-item warnings on production runtimes.
+
+    Closes #11646.
+
+crates:
+- name: pallet-staking-async
+  bump: patch
+- name: pallet-nomination-pools
+  bump: patch

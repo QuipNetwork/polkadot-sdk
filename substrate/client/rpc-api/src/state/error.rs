@@ -50,10 +50,24 @@ pub enum Error {
 	/// Call to an unsafe RPC was denied.
 	#[error(transparent)]
 	UnsafeRpcCalled(#[from] crate::policy::UnsafeRpcError),
+	/// The node registers no proof-size recorder and so cannot service a recorded runtime call.
+	#[error("Recorded runtime calls are not supported by this node")]
+	CallRecordedUnsupported,
+	/// A recorded runtime call was denied because unsafe RPC methods are disabled on this node.
+	#[error("Recorded runtime calls are unsafe and disabled on this node")]
+	CallRecordedDenied,
 }
 
 /// Base code for all state errors.
 const BASE_ERROR: i32 = crate::error::base::STATE;
+
+/// Error code for [`Error::CallRecordedUnsupported`]. Stable wire contract matched by clients to
+/// decide fallback; do not renumber.
+pub const CALL_RECORDED_UNSUPPORTED_ERROR_CODE: i32 = BASE_ERROR + 4;
+
+/// Error code for [`Error::CallRecordedDenied`]. Stable wire contract matched by clients to decide
+/// fallback; do not renumber.
+pub const CALL_RECORDED_DENIED_ERROR_CODE: i32 = BASE_ERROR + 5;
 
 impl From<Error> for ErrorObjectOwned {
 	fn from(e: Error) -> ErrorObjectOwned {
@@ -63,6 +77,12 @@ impl From<Error> for ErrorObjectOwned {
 			},
 			Error::InvalidCount { .. } => {
 				ErrorObject::owned(BASE_ERROR + 2, e.to_string(), None::<()>)
+			},
+			Error::CallRecordedUnsupported => {
+				ErrorObject::owned(CALL_RECORDED_UNSUPPORTED_ERROR_CODE, e.to_string(), None::<()>)
+			},
+			Error::CallRecordedDenied => {
+				ErrorObject::owned(CALL_RECORDED_DENIED_ERROR_CODE, e.to_string(), None::<()>)
 			},
 			e => ErrorObject::owned(BASE_ERROR + 3, e.to_string(), None::<()>),
 		}

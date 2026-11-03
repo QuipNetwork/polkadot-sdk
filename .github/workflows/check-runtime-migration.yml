@@ -58,7 +58,7 @@ jobs:
       - name: Check if snapshot exists in cache
         id: cache-restore
         if: ${{ github.event_name != 'schedule' }}
-        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           lookup-only: true
           path: snapshot.raw
@@ -101,7 +101,7 @@ jobs:
 
       - name: Save snapshot to cache
         if: ${{ steps.cache-restore.outputs.cache-matched-key == '' }}
-        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: snapshot.raw
           key: try-runtime-snapshot-${{ matrix.network }}-${{ steps.get-date.outputs.today }}
@@ -134,22 +134,22 @@ jobs:
           - network: asset-hub-westend
             package: asset-hub-westend-runtime
             wasm: asset_hub_westend_runtime.compact.compressed.wasm
-            subcommand_extra_args: " --blocktime 6000"
+            subcommand_extra_args: " --blocktime 24000"
             command_extra_args: ""
           - network: bridge-hub-westend
             package: bridge-hub-westend-runtime
             wasm: bridge_hub_westend_runtime.compact.compressed.wasm
-            subcommand_extra_args: " --blocktime 6000"
+            subcommand_extra_args: " --blocktime 24000"
             command_extra_args: ""
           - network: collectives-westend
             package: collectives-westend-runtime
             wasm: collectives_westend_runtime.compact.compressed.wasm
             command_extra_args: "--disable-spec-name-check"
-            subcommand_extra_args: " --blocktime 6000"
+            subcommand_extra_args: " --blocktime 24000"
           - network: coretime-westend
             package: coretime-westend-runtime
             wasm: coretime_westend_runtime.compact.compressed.wasm
-            subcommand_extra_args: " --blocktime 6000"
+            subcommand_extra_args: " --blocktime 24000"
             command_extra_args: ""
     steps:
       - name: Checkout
@@ -163,7 +163,7 @@ jobs:
           ./try-runtime --version
 
       - name: Restore snapshot from cache
-        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: snapshot.raw
           key: try-runtime-snapshot-${{ matrix.network }}-

@@ -8,10 +8,10 @@
 
 use crate::utils::initialize_network;
 use anyhow::anyhow;
-use cumulus_test_runtime::slot_duration_18s::WASM_BINARY_BLOATY as WASM_WITH_SLOT_DURATION_18S;
+use cumulus_test_runtime::slot_duration_18s::WASM_BINARY as WASM_WITH_SLOT_DURATION_18S;
 use cumulus_zombienet_sdk_helpers::{
-	assert_blocks_are_being_finalized, assert_para_throughput, create_runtime_upgrade_call,
-	submit_extrinsic_and_wait_for_finalization_success, wait_for_runtime_upgrade,
+	assert_blocks_are_being_finalized, assert_para_throughput, submit_sudo_runtime_upgrade,
+	wait_for_pvf_prepare, wait_for_runtime_upgrade,
 };
 use futures::StreamExt;
 use polkadot_primitives::Id as ParaId;
@@ -45,9 +45,7 @@ async fn parachain_runtime_upgrade_slot_duration_18s() -> Result<(), anyhow::Err
 	let initial_slot_duration = get_slot_duration(&collator_client).await?;
 
 	log::info!("Performing runtime upgrade for parachain {}", PARA_ID);
-	let call = create_runtime_upgrade_call(wasm);
-	submit_extrinsic_and_wait_for_finalization_success(&collator_client, &call, &dev::alice())
-		.await?;
+	submit_sudo_runtime_upgrade(&collator_client, wasm, &dev::alice()).await?;
 
 	let block_hash_of_upgrade = wait_for_runtime_upgrade(&collator_client).await?;
 
@@ -78,12 +76,15 @@ async fn parachain_runtime_upgrade_slot_duration_18s() -> Result<(), anyhow::Err
 	);
 	log::info!("Slot duration verified: {} ms", slot_duration);
 
-	log::info!("Checking that relay chain is finalizing blocks...");
-	assert_blocks_are_being_finalized(&relay_client).await?;
-
 	log::info!("Checking that parachain continues producing blocks after upgrade...");
 
-	assert_para_throughput(&relay_client, 15, [(ParaId::from(PARA_ID), 10..30)]).await?;
+	// Wait for post-upgrade PVF preparation to complete.
+	wait_for_pvf_prepare(&network, 2).await?;
+
+	assert_para_throughput(&relay_client, 15, [(ParaId::from(PARA_ID), 10..30)], []).await?;
+
+	log::info!("Checking that relay chain is finalizing blocks...");
+	assert_blocks_are_being_finalized(&relay_client).await?;
 	Ok(())
 }
 

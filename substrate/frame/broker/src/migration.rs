@@ -328,6 +328,7 @@ pub mod v4 {
 					first_core: sale_info.first_core,
 					sellout_price: sale_info.sellout_price,
 					cores_sold: sale_info.cores_sold,
+					sale_index: 0,
 				};
 				SaleInfo::<T>::put(updated_sale_info);
 			}
@@ -402,6 +403,157 @@ pub mod v4 {
 	}
 }
 
+pub mod v5 {
+	use super::*;
+	use frame_support::traits::Get;
+
+	/// Pre-v5 `SaleInfo` storage: the `SaleInfoRecord` layout without `sale_index`.
+	pub(crate) mod old {
+		use super::*;
+		use codec::MaxEncodedLen;
+		use frame_support::{
+			pallet_prelude::{Debug, OptionQuery, TypeInfo},
+			storage_alias,
+		};
+
+		#[storage_alias]
+		pub type SaleInfo<T: Config> = StorageValue<Pallet<T>, SaleInfoRecordOf<T>, OptionQuery>;
+		pub type SaleInfoRecordOf<T> = SaleInfoRecord<BalanceOf<T>, RelayBlockNumberOf<T>>;
+
+		/// Pre-v5 `SaleInfoRecord`: the current layout without `sale_index`.
+		#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, MaxEncodedLen)]
+		pub struct SaleInfoRecord<Balance, RelayBlockNumber> {
+			pub sale_start: RelayBlockNumber,
+			pub leadin_length: RelayBlockNumber,
+			pub end_price: Balance,
+			pub region_begin: Timeslice,
+			pub region_end: Timeslice,
+			pub ideal_cores_sold: CoreIndex,
+			pub cores_offered: CoreIndex,
+			pub first_core: CoreIndex,
+			pub sellout_price: Option<Balance>,
+			pub cores_sold: CoreIndex,
+		}
+	}
+
+	/// Supplies the first sale's `region_begin` (timeslice), used to reconstruct `sale_index`.
+	/// Historical data, not recoverable from on-chain storage.
+	pub trait FirstSaleRegion {
+		fn region_begin() -> Timeslice;
+	}
+
+	/// Adds the `sale_index` field to `SaleInfoRecord`.
+	pub struct MigrateToV5Impl<T, F>(PhantomData<T>, PhantomData<F>);
+
+	impl<T: Config, F: FirstSaleRegion> UncheckedOnRuntimeUpgrade for MigrateToV5Impl<T, F> {
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, sp_runtime::TryRuntimeError> {
+			let sale_info_state = old::SaleInfo::<T>::get()
+				.map(|sale| (sale.sale_start, sale.region_begin, sale.region_end));
+			Ok(sale_info_state.encode())
+		}
+
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			let mut weight = T::DbWeight::get().reads(1);
+
+			if let Some(old_sale) = old::SaleInfo::<T>::get() {
+				let first_region_begin = F::region_begin();
+
+				// `region_length` from Configuration; defaults to 0 (sale_index 1) if absent, so
+				// the record is rewritten rather than the migration panicking.
+				let region_length = if let Some(config) = Configuration::<T>::get() {
+					config.region_length
+				} else {
+					log::error!(
+						target: LOG_TARGET,
+						"Migrating SaleInfo: Configuration missing while SaleInfo exists; \
+						defaulting region_length to 0 and sale_index to 1",
+					);
+					0
+				};
+				weight.saturating_accrue(T::DbWeight::get().reads(1));
+
+				// `region_begin` advances by `region_length` timeslices each sale with no gaps, so
+				// completed sales = `(region_begin - first_region_begin) / region_length` and the
+				// current index is that plus one. The bootstrap sale in `do_start_sales` is index
+				// 0, so the first stored sale is index 1. Counted in timeslices, which are
+				// exact.
+				let completed_regions = if region_length > 0 {
+					old_sale.region_begin.saturating_sub(first_region_begin) / region_length
+				} else {
+					0
+				};
+				let sale_index: SaleIndex = completed_regions.saturating_add(1);
+
+				log::info!(
+					target: LOG_TARGET,
+					"Migrating SaleInfo: first_region_begin={:?}, current_region_begin={:?}, \
+					region_length={:?}, sale_index={}",
+					first_region_begin,
+					old_sale.region_begin,
+					region_length,
+					sale_index,
+				);
+
+				let updated_sale = SaleInfoRecord {
+					sale_start: old_sale.sale_start,
+					leadin_length: old_sale.leadin_length,
+					end_price: old_sale.end_price,
+					region_begin: old_sale.region_begin,
+					region_end: old_sale.region_end,
+					ideal_cores_sold: old_sale.ideal_cores_sold,
+					cores_offered: old_sale.cores_offered,
+					first_core: old_sale.first_core,
+					sellout_price: old_sale.sellout_price,
+					cores_sold: old_sale.cores_sold,
+					sale_index,
+				};
+				SaleInfo::<T>::put(updated_sale);
+				weight.saturating_accrue(T::DbWeight::get().writes(1));
+
+				log::info!(
+					target: LOG_TARGET,
+					"Storage migration v5 for pallet-broker completed: added sale_index = {}",
+					sale_index,
+				);
+			} else {
+				log::info!(
+					target: LOG_TARGET,
+					"No SaleInfo found, skipping v5 migration",
+				);
+			}
+
+			weight
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(state: Vec<u8>) -> Result<(), sp_runtime::TryRuntimeError> {
+			let old_state: Option<(RelayBlockNumberOf<T>, Timeslice, Timeslice)> =
+				Decode::decode(&mut &state[..])
+					.map_err(|_| "Failed to decode pre_upgrade state")?;
+
+			// on_runtime_upgrade skips a missing SaleInfo, so only check when one existed.
+			if let Some((old_sale_start, old_region_begin, old_region_end)) = old_state {
+				let new_sale =
+					SaleInfo::<T>::get().ok_or("SaleInfo should still exist after migration")?;
+
+				ensure!(
+					old_sale_start == new_sale.sale_start &&
+						old_region_begin == new_sale.region_begin &&
+						old_region_end == new_sale.region_end,
+					"Core SaleInfo fields should not have changed during migration"
+				);
+				ensure!(
+					new_sale.sale_index >= 1,
+					"An existing sale must have a sale_index of at least 1"
+				);
+			}
+
+			Ok(())
+		}
+	}
+}
+
 /// Migrate the pallet storage from `0` to `1`.
 pub type MigrateV0ToV1<T> = frame_support::migrations::VersionedMigration<
 	0,
@@ -431,6 +583,14 @@ pub type MigrateV3ToV4<T, BlockConversion> = frame_support::migrations::Versione
 	3,
 	4,
 	v4::MigrateToV4Impl<T, BlockConversion>,
+	Pallet<T>,
+	<T as frame_system::Config>::DbWeight,
+>;
+
+pub type MigrateV4ToV5<T, FirstSaleRegion> = frame_support::migrations::VersionedMigration<
+	4,
+	5,
+	v5::MigrateToV5Impl<T, FirstSaleRegion>,
 	Pallet<T>,
 	<T as frame_system::Config>::DbWeight,
 >;

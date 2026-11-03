@@ -1,0 +1,7 @@
+disallowed-methods = [
+	{ path = "futures_timer::Delay::new", reason = "use Clock::delay() — see polkadot-node-clock" },
+	{ path = "sp_timestamp::Timestamp::current", reason = "use Clock::duration_since_epoch() — see polkadot-node-clock" },
+	{ path = "std::time::Instant::now", reason = "use Clock::now() — see polkadot-node-clock" },
+	{ path = "std::time::SystemTime::now", reason = "use Clock::duration_since_epoch() — see polkadot-node-clock" },
+	{ path = "tokio::time::sleep", reason = "use Clock::delay() — see polkadot-node-clock" },
+]

@@ -89,6 +89,7 @@ impl pallet_assets::Config<Instance1> for Test {
 	type Extra = ();
 	type WeightInfo = ();
 	type CallbackHandle = ();
+	type AssetIdAllocator = ();
 	pallet_assets::runtime_benchmarks_enabled! {
 		type BenchmarkHelper = ();
 	}
@@ -116,6 +117,7 @@ impl pallet_assets::Config<Instance2> for Test {
 	type Extra = ();
 	type WeightInfo = ();
 	type CallbackHandle = ();
+	type AssetIdAllocator = ();
 	pallet_assets::runtime_benchmarks_enabled! {
 		type BenchmarkHelper = ();
 	}
@@ -124,6 +126,8 @@ impl pallet_assets::Config<Instance2> for Test {
 parameter_types! {
 	pub const AssetConversionPalletId: PalletId = PalletId(*b"py/ascon");
 	pub const Native: NativeOrWithId<u32> = NativeOrWithId::Native;
+	pub LpFee: Permill = Permill::from_rational(3u32, 1_000u32); // 0.3%
+	pub MaxSwapFee: Permill = Permill::from_percent(10);
 	pub storage LiquidityWithdrawalFee: Permill = Permill::from_percent(0);
 }
 
@@ -153,7 +157,9 @@ impl Config for Test {
 	type PoolSetupFeeTarget = ResolveAssetTo<AssetConversionOrigin, Self::Assets>;
 	type PalletId = AssetConversionPalletId;
 	type WeightInfo = ();
-	type LPFee = ConstU32<3>; // means 0.3%
+	type LPFee = LpFee;
+	type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type MaxSwapFee = MaxSwapFee;
 	type LiquidityWithdrawalFee = LiquidityWithdrawalFee;
 	type MaxSwapPathLength = ConstU32<4>;
 	type MintMinLiquidity = ConstU128<100>; // 100 is good enough when the main currency has 12 decimals.

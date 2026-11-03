@@ -2,25 +2,28 @@
 name = "pallet-staking-async-ah-client"
 description = "Pallet handling the communication with staking-rc-client. It's role is to glue the staking pallet (on AssetHub chain) and session pallet (on Relay Chain) in a transparent way."
 license = "Apache-2.0"
-version = "0.8.0"
+version = "0.13.0"
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 
 [dependencies]
 codec = { workspace = true, features = ["derive"] }
-frame-benchmarking = { workspace = true, optional = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 log = { workspace = true }
-pallet-authorship = { workspace = true }
-pallet-session = { features = ["historical"], workspace = true }
-pallet-staking-async-rc-client = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
 serde = { features = ["alloc", "derive"], workspace = true }
+
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
+
+frame-benchmarking = { workspace = true, optional = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
+pallet-authorship = { workspace = true }
+pallet-session = { features = ["historical"], workspace = true }
+pallet-staking-async-rc-client = { workspace = true }
 
 [features]
 default = ["std"]
@@ -59,4 +62,4 @@ try-runtime = [
 ]
 
 [dev-dependencies]
-sp-io = { workspace = true, default-features = false }
+sp-io = { workspace = true }

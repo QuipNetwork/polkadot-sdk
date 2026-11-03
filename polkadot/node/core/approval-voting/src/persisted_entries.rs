@@ -283,24 +283,7 @@ impl ApprovalEntry {
 		}
 	}
 
-	// Convert an ApprovalEntry from v1 version to latest version
-	pub fn from_v1(
-		value: crate::approval_db::v1::ApprovalEntry,
-		candidate_index: CandidateIndex,
-	) -> Self {
-		ApprovalEntry {
-			tranches: value.tranches.into_iter().map(|tranche| tranche.into()).collect(),
-			backing_group: value.backing_group,
-			our_assignment: value.our_assignment.map(|assignment| assignment.into()),
-			our_approval_sig: value
-				.our_approval_sig
-				.map(|sig| OurApproval::from_v1(sig, candidate_index)),
-			assigned_validators: value.assignments,
-			approved: value.approved,
-		}
-	}
-
-	// Convert an ApprovalEntry from v1 version to latest version
+	// Convert an ApprovalEntry from v2 version to latest version
 	pub fn from_v2(
 		value: crate::approval_db::v2::ApprovalEntry,
 		candidate_index: CandidateIndex,
@@ -386,23 +369,6 @@ impl CandidateEntry {
 	/// Get the approval entry for this candidate under a specific block.
 	pub fn approval_entry(&self, block_hash: &Hash) -> Option<&ApprovalEntry> {
 		self.block_assignments.get(block_hash)
-	}
-
-	/// Convert a CandidateEntry from a v1 to its latest equivalent.
-	pub fn from_v1(
-		value: crate::approval_db::v1::CandidateEntry,
-		candidate_index: CandidateIndex,
-	) -> Self {
-		Self {
-			approvals: value.approvals,
-			block_assignments: value
-				.block_assignments
-				.into_iter()
-				.map(|(h, ae)| (h, ApprovalEntry::from_v1(ae, candidate_index)))
-				.collect(),
-			candidate: value.candidate,
-			session: value.session,
-		}
 	}
 
 	/// Convert a CandidateEntry from a v2 to its latest equivalent.
@@ -688,24 +654,6 @@ impl From<crate::approval_db::v3::BlockEntry> for BlockEntry {
 				.map(|(candidate_index, signing_context)| (candidate_index, signing_context.into()))
 				.collect(),
 			distributed_assignments: entry.distributed_assignments,
-		}
-	}
-}
-
-impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
-	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
-		BlockEntry {
-			block_hash: entry.block_hash,
-			parent_hash: entry.parent_hash,
-			block_number: entry.block_number,
-			session: entry.session,
-			slot: entry.slot,
-			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
-			candidates: entry.candidates,
-			approved_bitfield: entry.approved_bitfield,
-			children: entry.children,
-			distributed_assignments: Default::default(),
-			candidates_pending_signature: Default::default(),
 		}
 	}
 }

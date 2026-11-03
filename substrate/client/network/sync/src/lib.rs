@@ -18,6 +18,7 @@
 
 //! Blockchain syncing implementation in Substrate.
 
+pub use engine::{block_announces_legacy_protocol_name, block_announces_protocol_name};
 pub use schema::v1::*;
 pub use service::syncing_service::SyncingService;
 pub use strategy::warp::{WarpSyncConfig, WarpSyncPhase, WarpSyncProgress};

@@ -518,7 +518,9 @@ where
 		let nonce_begin = sp_std::cmp::max(entry.messages.begin, *received_range.start());
 		let nonce_end = sp_std::cmp::min(entry.messages.end, *received_range.end());
 		if nonce_end >= nonce_begin {
-			*relayers_rewards.entry(entry.relayer).or_default() += nonce_end - nonce_begin + 1;
+			let relayer_reward = relayers_rewards.entry(entry.relayer).or_default();
+			*relayer_reward =
+				relayer_reward.saturating_add((nonce_begin..=nonce_end).saturating_len());
 		}
 	}
 	relayers_rewards
@@ -575,6 +577,27 @@ mod tests {
 			last_confirmed_nonce: 0,
 		};
 		assert_eq!(lane_data.total_unrewarded_messages(), MessageNonce::MAX);
+	}
+
+	#[test]
+	fn calc_relayers_rewards_does_not_overflow() {
+		let relayers = vec![
+			UnrewardedRelayer {
+				relayer: 1,
+				messages: DeliveredMessages { begin: 0, end: MessageNonce::MAX },
+			},
+			UnrewardedRelayer {
+				relayer: 1,
+				messages: DeliveredMessages { begin: 0, end: MessageNonce::MAX },
+			},
+			UnrewardedRelayer { relayer: 2, messages: DeliveredMessages { begin: 0, end: 1 } },
+		]
+		.into_iter()
+		.collect();
+
+		let rewards = calc_relayers_rewards(relayers, &(0..=MessageNonce::MAX));
+		assert_eq!(rewards.get(&1), Some(&MessageNonce::MAX));
+		assert_eq!(rewards.get(&2), Some(&2));
 	}
 
 	#[test]

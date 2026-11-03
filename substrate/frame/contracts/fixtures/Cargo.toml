@@ -12,8 +12,8 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true, default-features = true }
-frame-system = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+frame-system = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 
 [build-dependencies]
 anyhow = { workspace = true, default-features = true }

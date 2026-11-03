@@ -47,7 +47,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	CandidateHash, ChunkIndex, CoreIndex, CoreState, ExecutorParams, GroupIndex, Hash,
+	ApprovalVotingParams, CandidateHash, ChunkIndex, CoreIndex, CoreState, GroupIndex, Hash,
 	Id as ParaId, NodeFeatures, ScheduledCore, SessionInfo, ValidatorIndex,
 };
 use test_helpers::mock::{make_ferdie_keystore, new_leaf};
@@ -320,10 +320,6 @@ impl TestState {
 							tx.send(Ok(Some(self.session_info.clone())))
 								.expect("Receiver should be alive.");
 						},
-						RuntimeApiRequest::SessionExecutorParams(_, tx) => {
-							tx.send(Ok(Some(ExecutorParams::default())))
-								.expect("Receiver should be alive.");
-						},
 						RuntimeApiRequest::AvailabilityCores(tx) => {
 							gum::trace!(target: LOG_TARGET, cores= ?self.cores[&hash], hash = ?hash, "Sending out cores for hash");
 							tx.send(Ok(self.cores[&hash].clone()))
@@ -331,6 +327,10 @@ impl TestState {
 						},
 						RuntimeApiRequest::NodeFeatures(_, tx) => {
 							tx.send(Ok(self.node_features.clone()))
+								.expect("Receiver should still be alive");
+						},
+						RuntimeApiRequest::ApprovalVotingParams(_, tx) => {
+							tx.send(Ok(ApprovalVotingParams::default()))
 								.expect("Receiver should still be alive");
 						},
 						_ => {

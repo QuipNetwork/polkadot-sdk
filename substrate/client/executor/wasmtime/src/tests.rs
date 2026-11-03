@@ -226,7 +226,9 @@ fn test_consume_under_1mb_of_stack_does_not_trap(instantiation_strategy: Instant
 	let wat = deep_call_stack_wat(CALL_DEPTH_LOWER_LIMIT);
 	let mut builder = RuntimeBuilder::new(instantiation_strategy).use_wat(wat);
 	let runtime = builder.build();
-	let mut instance = runtime.new_instance().expect("failed to instantiate a runtime");
+	let mut instance = runtime
+		.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY)
+		.expect("failed to instantiate a runtime");
 	instance.call_export("main", &[]).unwrap();
 }
 
@@ -235,7 +237,9 @@ fn test_consume_over_1mb_of_stack_does_trap(instantiation_strategy: Instantiatio
 	let wat = deep_call_stack_wat(CALL_DEPTH_UPPER_LIMIT + 1);
 	let mut builder = RuntimeBuilder::new(instantiation_strategy).use_wat(wat);
 	let runtime = builder.build();
-	let mut instance = runtime.new_instance().expect("failed to instantiate a runtime");
+	let mut instance = runtime
+		.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY)
+		.expect("failed to instantiate a runtime");
 	match instance.call_export("main", &[]).unwrap_err() {
 		Error::AbortedDueToTrap(error) => {
 			let expected = "wasm trap: call stack exhausted";
@@ -250,7 +254,9 @@ fn test_nan_canonicalization(instantiation_strategy: InstantiationStrategy) {
 	let mut builder = RuntimeBuilder::new(instantiation_strategy).canonicalize_nans(true);
 	let runtime = builder.build();
 
-	let mut instance = runtime.new_instance().expect("failed to instantiate a runtime");
+	let mut instance = runtime
+		.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY)
+		.expect("failed to instantiate a runtime");
 
 	/// A NaN with canonical payload bits.
 	const CANONICAL_NAN_BITS: u32 = 0x7fc00000;
@@ -292,7 +298,9 @@ fn test_stack_depth_reaching(instantiation_strategy: InstantiationStrategy) {
 		.deterministic_stack(true);
 
 	let runtime = builder.build();
-	let mut instance = runtime.new_instance().expect("failed to instantiate a runtime");
+	let mut instance = runtime
+		.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY)
+		.expect("failed to instantiate a runtime");
 
 	match instance.call_export("test-many-locals", &[]).unwrap_err() {
 		Error::AbortedDueToTrap(error) => {
@@ -348,7 +356,7 @@ fn test_max_memory_pages(
 			.precompile_runtime(precompile_runtime);
 
 		let runtime = builder.build();
-		let mut instance = runtime.new_instance().unwrap();
+		let mut instance = runtime.new_instance(heap_alloc_strategy).unwrap();
 		instance.call_export("main", &[])?;
 		Ok(())
 	}
@@ -483,7 +491,7 @@ fn test_instances_without_reuse_are_not_leaked() {
 	// so let's spawn 10k + 1 of them to make sure our code doesn't keep the `Store`
 	// alive longer than it is necessary. (And since we disabled instance reuse
 	// a new instance will be spawned on each call.)
-	let mut instance = runtime.new_instance().unwrap();
+	let mut instance = runtime.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY).unwrap();
 	for _ in 0..10001 {
 		instance.call_export("test_empty_return", &[0]).unwrap();
 	}

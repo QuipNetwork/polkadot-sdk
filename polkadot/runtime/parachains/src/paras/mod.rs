@@ -1365,6 +1365,7 @@ pub mod pallet {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -1470,6 +1471,11 @@ const INVALID_TX_UNAUTHORIZED_CODE: u8 = 4;
 /// communicate via offchain XCMP. Snowbridge will still work as it only cares about `BridgeHub`.
 pub const MAX_PARA_HEADS: usize = 1024;
 
+/// Minimum length for a parachain head to be included by [`Pallet::sorted_para_heads`]; shorter
+/// entries are skipped as a sanity bound. Encoded parachain headers are well above this, so no
+/// real parachain is affected.
+pub const MIN_PARA_HEAD_LEN: usize = 64;
+
 impl<T: Config> Pallet<T> {
 	/// This is a call to schedule code upgrades for parachains which is safe to be called
 	/// outside of this module. That means this function does all checks necessary to ensure
@@ -1543,8 +1549,11 @@ impl<T: Config> Pallet<T> {
 	/// Get a list of the first [`MAX_PARA_HEADS`] para heads sorted by para_id.
 	/// This method is likely to be removed in the future.
 	pub fn sorted_para_heads() -> Vec<(u32, Vec<u8>)> {
-		let mut heads: Vec<(u32, Vec<u8>)> =
-			Heads::<T>::iter().map(|(id, head)| (id.into(), head.0)).collect();
+		let mut heads: Vec<(u32, Vec<u8>)> = Heads::<T>::iter()
+			.map(|(id, head)| (id.into(), head.0))
+			// Skip undersized heads; see `MIN_PARA_HEAD_LEN`.
+			.filter(|(_id, head_data)| head_data.len() >= MIN_PARA_HEAD_LEN)
+			.collect();
 		heads.sort_by_key(|(id, _)| *id);
 		heads.truncate(MAX_PARA_HEADS);
 		heads

@@ -1,0 +1,16 @@
+title: '[pallet-assets-precompiles] add foreign assets instance to kitchensink'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    - Set `CallbackHandle = (pallet_assets_precompiles::ForeignAssetId<Runtime, Instance1>,)`
+      in `pallet_assets::Config<Instance1>` for the kitchensink runtime.
+    - Asset creation (`create`, `force_create`) now automatically populates a sequential
+      foreign asset index mapping. Asset destruction cleans it up.
+
+    ## Test plan
+
+    - [x] Run [end-to-end tests](https://github.com/paritytech/evm-test-suite/pull/142) (requires substrate-node, eth-rpc, node, cast)
+    - [x] Revert CallbackHandle to `()` and confirm end-to-end tests fail
+crates: []

@@ -755,16 +755,21 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	///   this asset.
 	/// * `min_balance`: The minimum balance a user is allowed to have of this asset before they are
 	///   considered dust and cleaned up.
+	/// * `enforce_allocator`: Whether `id` must be the one required by
+	///   [`Config::AssetIdAllocator`]. Only pass `false` for a `ForceOrigin` caller.
 	pub(super) fn do_force_create(
 		id: T::AssetId,
 		owner: T::AccountId,
 		is_sufficient: bool,
 		min_balance: T::Balance,
+		enforce_allocator: bool,
 	) -> DispatchResult {
 		ensure!(!Asset::<T, I>::contains_key(&id), Error::<T, I>::InUse);
 		ensure!(!min_balance.is_zero(), Error::<T, I>::MinBalanceZero);
-		if let Some(next_id) = NextAssetId::<T, I>::get() {
-			ensure!(id == next_id, Error::<T, I>::BadAssetId);
+		if enforce_allocator {
+			if let Some(next_id) = T::AssetIdAllocator::next() {
+				ensure!(id == next_id, Error::<T, I>::BadAssetId);
+			}
 		}
 
 		Asset::<T, I>::insert(
@@ -785,6 +790,8 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			},
 		);
 		ensure!(T::CallbackHandle::created(&id, &owner).is_ok(), Error::<T, I>::CallbackFailed);
+		T::AssetIdAllocator::advance_from(&id)
+			.map_err(|_| Error::<T, I>::AssetIdAllocationFailed)?;
 		Self::deposit_event(Event::ForceCreated { asset_id: id, owner: owner.clone() });
 		Ok(())
 	}
@@ -966,6 +973,32 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			amount,
 		});
 
+		Ok(())
+	}
+
+	/// Cancels an existing approval from `owner` to `delegate` for asset `id`.
+	///
+	/// Removes the approval entry and unreserves the deposit. Emits `ApprovalCancelled`.
+	pub fn do_cancel_approval(
+		id: &T::AssetId,
+		owner: &T::AccountId,
+		delegate: &T::AccountId,
+	) -> DispatchResult {
+		let mut asset_details = Asset::<T, I>::get(id).ok_or(Error::<T, I>::Unknown)?;
+		ensure!(asset_details.status == AssetStatus::Live, Error::<T, I>::AssetNotLive);
+
+		let approval =
+			Approvals::<T, I>::take((id.clone(), owner, delegate)).ok_or(Error::<T, I>::Unknown)?;
+		T::Currency::unreserve(owner, approval.deposit);
+
+		asset_details.approvals.saturating_dec();
+		Asset::<T, I>::insert(id, asset_details);
+
+		Self::deposit_event(Event::ApprovalCancelled {
+			asset_id: id.clone(),
+			owner: owner.clone(),
+			delegate: delegate.clone(),
+		});
 		Ok(())
 	}
 

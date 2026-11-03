@@ -1,6 +1,6 @@
 [package]
 name = "sc-sync-state-rpc"
-version = "0.56.0"
+version = "0.60.0"
 authors.workspace = true
 description = "A RPC handler to create sync states for light clients."
 edition.workspace = true
@@ -17,13 +17,13 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { workspace = true, default-features = true }
 jsonrpsee = { features = ["client-core", "macros", "server-core"], workspace = true }
-sc-chain-spec = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus-babe = { default-features = true, workspace = true }
-sc-consensus-epochs = { default-features = true, workspace = true }
-sc-consensus-grandpa = { default-features = true, workspace = true }
+sc-chain-spec = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus-babe = { workspace = true, default-features = true }
+sc-consensus-epochs = { workspace = true, default-features = true }
+sc-consensus-grandpa = { workspace = true, default-features = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 thiserror = { workspace = true }

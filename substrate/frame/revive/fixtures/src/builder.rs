@@ -198,18 +198,25 @@ pub fn invoke_build(current_dir: &Path) -> Result<()> {
 	let toolchain =
 		env::var(OVERRIDE_RUSTUP_TOOLCHAIN_ENV_VAR).or_else(|_| env::var("RUSTUP_TOOLCHAIN"));
 
-	// Detect rustc major.minor for the version-gated flags below.
-	let (major, minor) = {
-		let mut cmd = Command::new("rustc");
+	// Ask a tool of the toolchain we are about to build with what it supports.
+	let probe = |program: &str, args: &[&str]| -> Result<String> {
+		let mut cmd = Command::new(program);
+		// `-Z` flags are nightly-only, so make a stable toolchain answer as a nightly would.
+		cmd.env("RUSTC_BOOTSTRAP", "1");
 		if let Ok(toolchain) = &toolchain {
 			cmd.env("RUSTUP_TOOLCHAIN", toolchain);
 		}
-		let out = cmd.arg("--version").output().context("rustc --version failed")?;
-		let ver = String::from_utf8(out.stdout).context("utf8 from rustc --version failed")?;
+		let out = cmd.args(args).output().with_context(|| format!("{program} {args:?} failed"))?;
+		String::from_utf8(out.stdout).with_context(|| format!("{program} output is not utf8"))
+	};
+
+	// Detect the major.minor of a tool for the version-gated flags below.
+	let version = |program: &str| -> Result<(u32, u32)> {
+		let ver = probe(program, &["--version"])?;
 		let ver_num = ver
 			.split_whitespace()
 			.nth(1)
-			.ok_or_else(|| anyhow::anyhow!("unexpected rustc --version output: {ver}"))?;
+			.ok_or_else(|| anyhow::anyhow!("unexpected {program} --version output: {ver}"))?;
 		let mut parts = ver_num.split('.');
 		let major: u32 = parts
 			.next()
@@ -221,17 +228,24 @@ pub fn invoke_build(current_dir: &Path) -> Result<()> {
 			.ok_or_else(|| anyhow::anyhow!("missing minor version"))?
 			.parse()
 			.context("invalid minor version")?;
-		(major, minor)
+		Ok((major, minor))
 	};
 
+	// `rustc` and `cargo` ship together but a flag can land in one before the other, so gate
+	// each flag on the version of the binary that parses it.
 	// 1.92+: `-Cpanic=immediate-abort` is a stable rustflag.
-	let new_immediate_abort = major > 1 || (major == 1 && minor >= 92);
-	// 1.95+: `-Z json-target-spec` was added; later rustc requires it for any
-	// `--target=*.json` invocation. Pre-1.95 doesn't know the flag.
-	let needs_json_target_spec = major > 1 || (major == 1 && minor >= 95);
+	let rustc_immediate_abort = version("rustc")? >= (1, 92);
+	// Older toolchains request the same from cargo when it builds `core` instead.
+	let cargo_immediate_abort = version("cargo")? < (1, 92);
+
+	// `-Z json-target-spec` is a *cargo* flag: newer cargo requires it to be opted into for
+	// any `--target=*.json` invocation, older cargo rejects it as unknown. It landed partway
+	// through the 1.95 cycle, so a toolchain from early in that cycle reports 1.95 while its
+	// cargo does not know the flag yet: no version comparison can express this.
+	let supports_json_target_spec = probe("cargo", &["-Z", "help"])?.contains("json-target-spec");
 
 	// on newer version this is a stable compiler flag
-	let encoded_rustflags = if new_immediate_abort {
+	let encoded_rustflags = if rustc_immediate_abort {
 		["-Dwarnings", "-Zunstable-options", "-Cpanic=immediate-abort"].join("\x1f")
 	} else {
 		["-Dwarnings"].join("\x1f")
@@ -252,13 +266,13 @@ pub fn invoke_build(current_dir: &Path) -> Result<()> {
 		.arg("--target")
 		.arg(polkavm_linker::target_json_path(args).unwrap());
 
-	// 1.95+: opt into JSON target specs explicitly (required by recent rustc).
-	if needs_json_target_spec {
+	// opt into JSON target specs explicitly where cargo understands the flag
+	if supports_json_target_spec {
 		build_command.arg("-Zjson-target-spec");
 	}
 
 	// on older versions this is a unstable cargo cli argument
-	if !new_immediate_abort {
+	if cargo_immediate_abort {
 		build_command.arg("-Zbuild-std-features=panic_immediate_abort");
 	}
 

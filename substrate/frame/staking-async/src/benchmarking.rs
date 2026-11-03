@@ -59,6 +59,9 @@ pub(crate) fn create_validator_with_nominators<T: Config>(
 	// TODO: this can be replaced with `testing_utils` version?
 	// Clean up any existing state.
 	clear_validators_and_nominators::<T>();
+
+	// Disable legacy minting so benchmarks always exercise the reward-pot path.
+	DisableMintingGuard::<T>::put(0);
 	let mut points_total = 0;
 	let mut points_individual = Vec::new();
 
@@ -123,6 +126,35 @@ pub(crate) fn create_validator_with_nominators<T: Config>(
 		.saturating_mul(upper_bound.into())
 		.saturating_mul(1000u32.into());
 	<ErasValidatorReward<T>>::insert(planned_era, total_payout);
+
+	// Create and fund the era reward pot so payout_stakers can transfer from it.
+	let era_pot =
+		crate::reward::EraRewardManager::<T>::create(planned_era, RewardKind::StakerRewards);
+	let _ = asset::mint_creating::<T>(&era_pot, total_payout);
+
+	// Set up validator incentive so payout benchmarks include the incentive transfer cost.
+	OptimumSelfStake::<T>::put(BalanceOf::<T>::from(30_000u64));
+	HardCapSelfStake::<T>::put(BalanceOf::<T>::from(100_000u64));
+	SelfStakeSlopeFactor::<T>::put(Perbill::from_percent(50));
+
+	let incentive_payout = total_payout / 10u32.into(); // 10% of total as incentive budget
+	let incentive_pot =
+		crate::reward::EraRewardManager::<T>::create(planned_era, RewardKind::ValidatorSelfStake);
+	let _ = asset::mint_creating::<T>(&incentive_pot, incentive_payout);
+	ErasValidatorIncentiveBudget::<T>::insert(planned_era, incentive_payout);
+
+	// Single-validator benchmark setup: sum == this validator's weight.
+	let incentive_weight = BalanceOf::<T>::from(100u64);
+	ErasValidatorIncentiveWeight::<T>::insert(planned_era, &v_stash, incentive_weight);
+	ErasSumValidatorIncentiveWeight::<T>::insert(planned_era, incentive_weight);
+	// Populate the weighted-points denominator so the (default) weighted-points payout path
+	// finds a non-zero share and exercises the incentive transfer. Single validator with
+	// `validator_points` points: sum == weight × points.
+	let validator_points = BalanceOf::<T>::from(10u64);
+	ErasSumWeightedPoints::<T>::insert(
+		planned_era,
+		incentive_weight.saturating_mul(validator_points),
+	);
 
 	Ok((v_stash, nominators, planned_era))
 }
@@ -708,6 +740,14 @@ mod benchmarks {
 
 		let caller = whitelisted_caller();
 		let balance_before = asset::stakeable_balance::<T>(&validator);
+		// Incentive pot is funded in the setup; track it to ensure the worst-case payout
+		// actually performs the validator-incentive transfer (and so the benchmark weight
+		// covers it).
+		let incentive_pot = crate::reward::EraRewardManager::<T>::create(
+			current_era,
+			RewardKind::ValidatorSelfStake,
+		);
+		let incentive_pot_before = asset::stakeable_balance::<T>(&incentive_pot);
 		let mut nominator_balances_before = Vec::new();
 		for (stash, _) in &nominators {
 			let balance = asset::stakeable_balance::<T>(stash);
@@ -721,6 +761,11 @@ mod benchmarks {
 		ensure!(
 			balance_before < balance_after,
 			"Balance of validator stash should have increased after payout.",
+		);
+		ensure!(
+			asset::stakeable_balance::<T>(&incentive_pot) < incentive_pot_before,
+			"Incentive pot should have decreased: the validator-incentive transfer must run \
+			 so its cost is captured by this benchmark.",
 		);
 		for ((stash, _), balance_before) in nominators.iter().zip(nominator_balances_before.iter())
 		{
@@ -824,6 +869,7 @@ mod benchmarks {
 			ConfigOp::Set(Perbill::max_value()),
 			ConfigOp::Set(Percent::max_value()),
 			ConfigOp::Set(false),
+			ConfigOp::Set(10),
 		);
 
 		assert_eq!(MinNominatorBond::<T>::get(), BalanceOf::<T>::max_value());
@@ -834,6 +880,7 @@ mod benchmarks {
 		assert_eq!(MinCommission::<T>::get(), Perbill::from_percent(100));
 		assert_eq!(MaxStakedRewards::<T>::get(), Some(Percent::from_percent(100)));
 		assert_eq!(AreNominatorsSlashable::<T>::get(), false);
+		assert_eq!(ChillInactiveThreshold::<T>::get(), 10);
 	}
 
 	#[benchmark]
@@ -841,6 +888,7 @@ mod benchmarks {
 		#[extrinsic_call]
 		set_staking_configs(
 			RawOrigin::Root,
+			ConfigOp::Remove,
 			ConfigOp::Remove,
 			ConfigOp::Remove,
 			ConfigOp::Remove,
@@ -884,6 +932,7 @@ mod benchmarks {
 			ConfigOp::Set(Zero::zero()),
 			ConfigOp::Noop,
 			ConfigOp::Noop,
+			ConfigOp::Noop,
 		)?;
 
 		let caller = whitelisted_caller();
@@ -901,8 +950,9 @@ mod benchmarks {
 		// Clean up any existing state
 		clear_validators_and_nominators::<T>();
 
-		// Create a validator with a commission of 50%
-		let (stash, controller) = create_stash_controller::<T>(1, 1, RewardDestination::Staked)?;
+		// Create a validator with a commission of 50%. `balance_factor = 100` gives a bonded
+		// amount of `ED * 10`, above `min_chilled_bond` under the mock defaults.
+		let (stash, controller) = create_stash_controller::<T>(1, 100, RewardDestination::Staked)?;
 		let validator_prefs =
 			ValidatorPrefs { commission: Perbill::from_percent(50), ..Default::default() };
 		Staking::<T>::validate(RawOrigin::Signed(controller).into(), validator_prefs)?;
@@ -937,6 +987,31 @@ mod benchmarks {
 		_(RawOrigin::Root, min_commission);
 
 		assert_eq!(MinCommission::<T>::get(), Perbill::from_percent(100));
+	}
+
+	#[benchmark]
+	fn set_max_commission() {
+		let max_commission = Perbill::max_value();
+
+		#[extrinsic_call]
+		_(RawOrigin::Root, max_commission);
+
+		assert_eq!(MaxCommission::<T>::get(), Perbill::from_percent(100));
+	}
+
+	#[benchmark]
+	fn set_validator_self_stake_incentive_config() {
+		#[extrinsic_call]
+		_(
+			RawOrigin::Root,
+			ConfigOp::Set(30_000u32.into()),
+			ConfigOp::Set(100_000u32.into()),
+			ConfigOp::Set(Perbill::from_percent(50)),
+		);
+
+		assert_eq!(OptimumSelfStake::<T>::get(), 30_000u32.into());
+		assert_eq!(HardCapSelfStake::<T>::get(), 100_000u32.into());
+		assert_eq!(SelfStakeSlopeFactor::<T>::get(), Perbill::from_percent(50));
 	}
 
 	#[benchmark]
@@ -1149,7 +1224,9 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn rc_on_session_report() -> Result<(), BenchmarkError> {
+	fn rc_on_session_report(
+		v: Linear<1, { T::MaxValidatorSet::get() }>,
+	) -> Result<(), BenchmarkError> {
 		let initial_planned_era = Rotator::<T>::planned_era();
 		let initial_active_era = Rotator::<T>::active_era();
 
@@ -1167,9 +1244,24 @@ mod benchmarks {
 		);
 
 		//  receive a session report with timestamp that actives the previous one.
-		let validator_points = (0..T::MaxValidatorSet::get())
-			.map(|v| (account::<T::AccountId>("random", v, SEED), v))
+		// `v` is the number of active validators in the report — on Polkadot bounded by
+		// `MaxValidatorSet` since each must hold at least `MinValidatorBond` (~10k DOT).
+		let validator_points = (0..v)
+			.map(|i| (account::<T::AccountId>("random", i, SEED), i))
 			.collect::<Vec<_>>();
+
+		// Populate ErasValidatorIncentiveWeight for every account in the report so the
+		// incremental-denominator accumulation inside `reward_active_era` performs the
+		// worst-case lookup-and-add per validator.
+		let active_era = Rotator::<T>::active_era();
+		for (who, _) in &validator_points {
+			ErasValidatorIncentiveWeight::<T>::insert(
+				active_era,
+				who,
+				BalanceOf::<T>::from(100u64),
+			);
+		}
+
 		let activation_timestamp = Some((1u64, initial_planned_era + 1));
 		let report = rc_client::SessionReport {
 			end_index: 42,
@@ -1198,83 +1290,79 @@ mod benchmarks {
 		let active_era = era + history_depth + 1;
 		crate::ActiveEra::<T>::put(crate::ActiveEraInfo { index: active_era, start: Some(0) });
 
-		// Note: the number we are looking for here is not `MaxElectableVoters`, as these are unique
-		// nominators. One unique nominator can be exposed behind multiple validators. The right
-		// value is as follows:
 		let max_total_nominators_per_validator =
 			<T::ElectionProvider as ElectionProvider>::MaxBackersPerWinnerFinal::get();
 		let exposed_nominators_per_validator = max_total_nominators_per_validator / validators;
 
-		// `ValidatorPrefs`
-		for i in 0..validators {
-			let validator = account::<T::AccountId>("validator", i, SEED);
-			ErasValidatorPrefs::<T>::insert(era, validator.clone(), ValidatorPrefs::default())
-		}
-
-		// `ClaimedRewards`
 		let pages: WeakBoundedVec<_, _> = (0..crate::ClaimedRewardsBound::<T>::get())
 			.collect::<Vec<_>>()
 			.try_into()
 			.unwrap();
+
+		// 33% slashed — realistic worst-case under BFT assumptions.
+		let slashed_validators = validators / 3;
+
+		let mut reward_points_individual = BTreeMap::new();
+		let mut total_incentive_weight = BalanceOf::<T>::zero();
+
 		for i in 0..validators {
 			let validator = account::<T::AccountId>("validator", i, SEED);
-			ClaimedRewards::<T>::insert(era, validator.clone(), pages.clone())
+
+			// ValidatorPrefs
+			ErasValidatorPrefs::<T>::insert(era, validator.clone(), ValidatorPrefs::default());
+
+			// ClaimedRewards
+			ClaimedRewards::<T>::insert(era, validator.clone(), pages.clone());
+
+			// ErasStakersPaged + ErasStakersOverview
+			let exposure = sp_staking::Exposure::<T::AccountId, BalanceOf<T>> {
+				own: T::Currency::minimum_balance(),
+				total: T::Currency::minimum_balance() *
+					(exposed_nominators_per_validator + 1).into(),
+				others: (0..exposed_nominators_per_validator)
+					.map(|n| {
+						let nominator = account::<T::AccountId>("nominator", n, SEED);
+						IndividualExposure { who: nominator, value: T::Currency::minimum_balance() }
+					})
+					.collect::<Vec<_>>(),
+			};
+			Eras::<T>::upsert_exposure(era, &validator, exposure);
+
+			// ErasRewardPoints (individual)
+			reward_points_individual.insert(validator.clone(), 7u32);
+
+			// ValidatorSlashInEra (first 33%)
+			if i < slashed_validators {
+				crate::ValidatorSlashInEra::<T>::insert(
+					era,
+					validator.clone(),
+					(Perbill::from_percent(10), BalanceOf::<T>::max_value() / 10u32.into()),
+				);
+			}
+
+			// ErasValidatorIncentiveWeight
+			let incentive_weight = BalanceOf::<T>::from(100u64);
+			ErasValidatorIncentiveWeight::<T>::insert(era, validator, incentive_weight);
+			total_incentive_weight += incentive_weight;
 		}
 
-		// `ErasStakersPaged` + `ErasStakersOverview`
-		(0..validators)
-			.map(|validator_index| account::<T::AccountId>("validator", validator_index, SEED))
-			.for_each(|validator| {
-				let exposure = sp_staking::Exposure::<T::AccountId, BalanceOf<T>> {
-					own: T::Currency::minimum_balance(),
-					total: T::Currency::minimum_balance() *
-						(exposed_nominators_per_validator + 1).into(),
-					others: (0..exposed_nominators_per_validator)
-						.map(|n| {
-							let nominator = account::<T::AccountId>("nominator", n, SEED);
-							IndividualExposure {
-								who: nominator,
-								value: T::Currency::minimum_balance(),
-							}
-						})
-						.collect::<Vec<_>>(),
-				};
-				Eras::<T>::upsert_exposure(era, &validator, exposure);
-			});
-
-		// `ErasValidatorReward`
+		// Single-entry storages
 		ErasValidatorReward::<T>::insert(era, BalanceOf::<T>::max_value());
-
-		// `ErasRewardPoints`
-		let reward_points = crate::EraRewardPoints::<T> {
-			total: 77777,
-			individual: (0..validators)
-				.map(|v| account::<T::AccountId>("validator", v, SEED))
-				.map(|v| (v, 7))
-				.collect::<BTreeMap<_, _>>()
-				.try_into()
-				.unwrap(),
-		};
-		ErasRewardPoints::<T>::insert(era, reward_points);
-
-		// `ErasTotalStake`
+		ErasRewardPoints::<T>::insert(
+			era,
+			crate::EraRewardPoints::<T> {
+				total: 77777,
+				individual: reward_points_individual.try_into().unwrap(),
+			},
+		);
 		ErasTotalStake::<T>::insert(era, BalanceOf::<T>::max_value());
-
-		// `ValidatorSlashInEra` - add slash entries for validators.
-		// We benchmark with 33% of validators slashed, representing the realistic worst-case
-		// under BFT assumptions (beyond 1/3 Byzantine validators, consensus security breaks).
-		let slashed_validators = validators / 3;
-		for i in 0..slashed_validators {
-			let validator = account::<T::AccountId>("validator", i, SEED);
-			crate::ValidatorSlashInEra::<T>::insert(
-				era,
-				validator,
-				(Perbill::from_percent(10), BalanceOf::<T>::max_value() / 10u32.into()),
-			);
-		}
-
-		// `ErasNominatorsSlashable`
 		ErasNominatorsSlashable::<T>::insert(era, true);
+		ErasSumValidatorIncentiveWeight::<T>::insert(era, total_incentive_weight);
+		ErasSumWeightedPoints::<T>::insert(
+			era,
+			total_incentive_weight.saturating_mul(BalanceOf::<T>::from(7u32)),
+		);
+		ErasValidatorIncentiveBudget::<T>::insert(era, BalanceOf::<T>::from(1_000_000u64));
 
 		era
 	}
@@ -1468,6 +1556,84 @@ mod benchmarks {
 		}
 
 		validate_pruning_weight::<T>(&result, "ValidatorSlashInEra", v);
+
+		Ok(())
+	}
+
+	#[benchmark(pov_mode = Measured)]
+	fn prune_era_validator_incentive_weight(
+		v: Linear<1, { T::MaxValidatorSet::get() }>,
+	) -> Result<(), BenchmarkError> {
+		let era = setup_era_for_pruning::<T>(v);
+		EraPruningState::<T>::insert(era, PruningStep::ErasValidatorIncentiveWeight);
+
+		let caller: T::AccountId = whitelisted_caller();
+
+		let result;
+		#[block]
+		{
+			result = Pallet::<T>::prune_era_step(RawOrigin::Signed(caller).into(), era);
+		}
+
+		validate_pruning_weight::<T>(&result, "ErasValidatorIncentiveWeight", v);
+
+		Ok(())
+	}
+
+	#[benchmark(pov_mode = Measured)]
+	fn chill_inactive(
+		l: Linear<2, { ChillInactiveThreshold::<T>::get() }>,
+	) -> Result<(), BenchmarkError> {
+		let (stash, _, _) =
+			create_validator_with_nominators::<T>(0, 0, false, true, RewardDestination::Staked)?;
+		assert!(T::VoterList::contains(&stash));
+
+		Staking::<T>::set_staking_configs(
+			RawOrigin::Root.into(),
+			ConfigOp::Set(BalanceOf::<T>::max_value()),
+			ConfigOp::Set(BalanceOf::<T>::max_value()),
+			ConfigOp::Set(0),
+			ConfigOp::Set(0),
+			ConfigOp::Set(Percent::from_percent(0)),
+			ConfigOp::Set(Zero::zero()),
+			ConfigOp::Noop,
+			ConfigOp::Noop,
+			ConfigOp::Set(l),
+		)?;
+
+		let caller = whitelisted_caller();
+
+		// Proof eras `0..l` must sit in `[active_era - HistoryDepth, active_era)`. `l <=
+		// HistoryDepth`, so `active_era = l` keeps the lower bound at 0 while the most recent
+		// proof era (`l - 1`) stays below the active era.
+		set_active_era::<T>(l);
+
+		// Fill the `EraRewardPoints::individual` to hit the worst-case scenario.
+		let mut individual_points = BoundedBTreeMap::new();
+		for index in 0..T::MaxValidatorSet::get() {
+			individual_points
+				.try_insert(account::<T::AccountId>("validator", index, 0), 100)
+				.unwrap();
+		}
+
+		// Set the validator has been inactive for `l` eras.
+		let proof = (0..l)
+			.inspect(|&era| {
+				ErasRewardPoints::<T>::insert(
+					era,
+					EraRewardPoints { total: 0, individual: individual_points.clone() },
+				);
+				Eras::<T>::upsert_exposure(era, &stash, Exposure::default());
+			})
+			.collect::<Vec<_>>();
+		let proof = BoundedVec::truncate_from(proof);
+
+		assert!(Validators::<T>::contains_key(&stash));
+
+		#[extrinsic_call]
+		_(RawOrigin::Signed(caller), stash.clone(), proof);
+
+		assert!(!Validators::<T>::contains_key(&stash));
 
 		Ok(())
 	}

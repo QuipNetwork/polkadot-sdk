@@ -26,7 +26,7 @@ use crate::{
 	overhead::{
 		command::ChainType::{Parachain, Relaychain, Unknown},
 		fake_runtime_api,
-		remark_builder::SubstrateRemarkBuilder,
+		remark_builder::{RuntimeVersion, SubstrateRemarkBuilder},
 		template::TemplateData,
 	},
 	shared::{
@@ -71,7 +71,7 @@ use std::{
 	path::PathBuf,
 	sync::Arc,
 };
-use subxt::{client::RuntimeVersion, ext::futures, Metadata};
+use subxt::{ext::futures, Metadata};
 
 const DEFAULT_PARA_ID: u32 = 100;
 const LOG_TARGET: &'static str = "polkadot_sdk_frame::benchmark::overhead";
@@ -377,8 +377,7 @@ impl OverheadCmd {
 	{
 		self.run_with_extrinsic_builder_and_spec::<Block, ExtraHF>(
 			Box::new(|metadata, hash, version| {
-				let genesis = subxt::utils::H256::from(hash.to_fixed_bytes());
-				Box::new(SubstrateRemarkBuilder::new(metadata, genesis, version)) as Box<_>
+				Box::new(SubstrateRemarkBuilder::new(metadata, hash, version)) as Box<_>
 			}),
 			chain_spec,
 		)

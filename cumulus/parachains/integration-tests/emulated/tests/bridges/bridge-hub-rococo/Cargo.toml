@@ -11,30 +11,40 @@ publish = false
 workspace = true
 
 [dependencies]
-asset-hub-rococo-runtime = { workspace = true }
-bp-asset-hub-rococo = { workspace = true }
 codec = { workspace = true }
-cumulus-pallet-xcmp-queue = { workspace = true }
-emulated-integration-tests-common = { workspace = true }
-frame-support = { workspace = true }
 hex-literal = { workspace = true, default-features = true }
+scale-info = { features = ["derive"], workspace = true }
+
+# Substrate
+frame-support = { workspace = true }
 pallet-asset-conversion = { workspace = true }
 pallet-assets = { workspace = true }
 pallet-balances = { workspace = true }
-pallet-bridge-messages = { workspace = true }
-pallet-message-queue = { default-features = true, workspace = true }
-pallet-xcm = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
-rococo-westend-system-emulated-network = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-snowbridge-inbound-queue-primitives = { workspace = true }
-snowbridge-outbound-queue-primitives = { workspace = true }
-snowbridge-pallet-inbound-queue-fixtures = { default-features = true, workspace = true }
-snowbridge-pallet-outbound-queue = { workspace = true }
-snowbridge-pallet-system = { workspace = true }
+pallet-message-queue = { workspace = true, default-features = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
-testnet-parachains-constants = { features = ["rococo", "westend"], workspace = true, default-features = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
+
+# Bridges
+bp-asset-hub-rococo = { workspace = true }
+pallet-bridge-messages = { workspace = true }
+
+# Cumulus
+asset-hub-rococo-runtime = { workspace = true }
+cumulus-pallet-xcmp-queue = { workspace = true }
+emulated-integration-tests-common = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
+rococo-westend-system-emulated-network = { workspace = true }
+testnet-parachains-constants = { features = ["rococo", "westend"], workspace = true, default-features = true }
+
+# Snowbridge
+snowbridge-inbound-queue-primitives = { workspace = true }
+snowbridge-outbound-queue-primitives = { workspace = true }
+snowbridge-pallet-inbound-queue-fixtures = { workspace = true, default-features = true }
+snowbridge-pallet-outbound-queue = { workspace = true }
+snowbridge-pallet-system = { workspace = true }

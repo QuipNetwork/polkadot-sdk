@@ -217,7 +217,9 @@ where
 		// the parent cursor stays valid.
 		// Empty parent trie content only happens when all the response content
 		// is part of a single child trie.
-		if self.metadata.last_key.len() == 2 && response.entries[0].entries.is_empty() {
+		let first_entry_is_empty =
+			response.entries.first().is_some_and(|entry| entry.entries.is_empty());
+		if self.metadata.last_key.len() == 2 && first_entry_is_empty {
 			// Do not remove the parent trie position.
 			self.metadata.last_key.pop();
 		} else {
@@ -255,11 +257,10 @@ where
 {
 	///  Validate and import a state response.
 	fn import(&mut self, response: StateResponse) -> ImportResult<B> {
-		if response.entries.is_empty() && response.proof.is_empty() {
-			debug!(target: LOG_TARGET, "Bad state response");
+		if self.metadata.skip_proof && response.entries.is_empty() {
+			debug!(target: LOG_TARGET, "Missing state entries");
 			return ImportResult::BadResponse;
-		}
-		if !self.metadata.skip_proof && response.proof.is_empty() {
+		} else if !self.metadata.skip_proof && response.proof.is_empty() {
 			debug!(target: LOG_TARGET, "Missing proof");
 			return ImportResult::BadResponse;
 		}

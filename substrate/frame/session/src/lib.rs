@@ -731,20 +731,13 @@ pub mod pallet {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl<T: Config> Pallet<T> {
-		/// Mint enough funds into `who`, such that they can pay the session key setting deposit.
+		/// Mint the session key setting deposit into `who`, on top of any existing balance.
 		///
 		/// Meant to be used if any pallet's benchmarking code wishes to set session keys, and wants
-		/// to make sure it will succeed.
+		/// to make sure it will succeed without consuming funds `who` holds for other purposes.
 		pub fn ensure_can_pay_key_deposit(who: &T::AccountId) -> Result<(), DispatchError> {
-			use frame_support::traits::tokens::{Fortitude, Preservation};
-			let deposit = T::KeyDeposit::get();
-			let has = T::Currency::reducible_balance(who, Preservation::Protect, Fortitude::Force);
-			if let Some(deficit) = deposit.checked_sub(&has) {
-				T::Currency::mint_into(who, deficit.max(T::Currency::minimum_balance()))
-					.map(|_inc| ())
-			} else {
-				Ok(())
-			}
+			let amount = T::KeyDeposit::get().max(T::Currency::minimum_balance());
+			T::Currency::mint_into(who, amount).map(|_inc| ())
 		}
 	}
 }
@@ -924,7 +917,14 @@ impl<T: Config> Pallet<T> {
 		let who = T::ValidatorIdOf::convert(account.clone())
 			.ok_or(Error::<T>::NoAssociatedValidatorId)?;
 
-		ensure!(frame_system::Pallet::<T>::can_inc_consumer(account), Error::<T>::NoAccount);
+		// Only check consumer capacity when we will actually increment the consumer
+		// count: first-time local registration or external-to-local transition.
+		// Key rotation for an existing locally-managed validator does not need this.
+		let needs_new_consumer =
+			!NextKeys::<T>::contains_key(&who) || ExternallySetKeys::<T>::contains_key(account);
+		if needs_new_consumer {
+			ensure!(frame_system::Pallet::<T>::can_inc_consumer(account), Error::<T>::NoAccount);
+		}
 
 		let old_keys = Self::inner_set_keys(&who, keys)?;
 

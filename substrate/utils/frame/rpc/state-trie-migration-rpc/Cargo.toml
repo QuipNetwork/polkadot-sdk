@@ -1,6 +1,6 @@
 [package]
 name = "substrate-state-trie-migration-rpc"
-version = "49.0.0"
+version = "54.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -18,12 +18,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { workspace = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+
+sp-core = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 trie-db = { workspace = true, default-features = true }
 
 jsonrpsee = { features = ["client-core", "macros", "server-core"], workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-rpc-api = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+
+# Substrate Dependencies
+sc-client-api = { workspace = true, default-features = true }
+sc-rpc-api = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }

@@ -16,16 +16,16 @@
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 
-use polkadot_node_primitives::approval::{
-	v1::{AssignmentCert, AssignmentCertKind, VrfProof, VrfSignature, RELAY_VRF_MODULO_CONTEXT},
-	v2::VrfPreOutput,
+use polkadot_node_primitives::approval::v2::{
+	AssignmentCertKindV2, AssignmentCertV2, VrfPreOutput, VrfProof, VrfSignature,
+	RELAY_VRF_MODULO_CONTEXT,
 };
 
 pub fn make_bitvec(len: usize) -> BitVec<u8, BitOrderLsb0> {
 	bitvec::bitvec![u8, BitOrderLsb0; 0; len]
 }
 
-pub fn dummy_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
+pub fn dummy_assignment_cert(kind: AssignmentCertKindV2) -> AssignmentCertV2 {
 	let ctx = schnorrkel::signing_context(RELAY_VRF_MODULO_CONTEXT);
 	let msg = b"test-garbage";
 	let mut prng = rand_core::OsRng;
@@ -33,7 +33,7 @@ pub fn dummy_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let preout = inout.to_preout();
 
-	AssignmentCert {
+	AssignmentCertV2 {
 		kind,
 		vrf: VrfSignature { pre_output: VrfPreOutput(preout), proof: VrfProof(proof) },
 	}

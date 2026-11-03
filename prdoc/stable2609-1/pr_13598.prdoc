@@ -1,0 +1,15 @@
+title: 'asset-conversion: treat frozen or blocked pools as unusable'
+doc:
+  - audience: Runtime Dev
+    description: |
+      A pool frozen or blocked for one of its assets could still be used. A frozen pool was
+      one-way, and a blocked pool was still quoted although swaps through it failed.
+
+      Such pools are now rejected in both directions with a new `PoolUnavailable` error. Pools
+      that were drained to their minimum balance are not affected.
+crates:
+  - name: pallet-asset-conversion
+    bump: major
+    validate: false
+  - name: pallet-asset-conversion-precompiles
+    bump: patch

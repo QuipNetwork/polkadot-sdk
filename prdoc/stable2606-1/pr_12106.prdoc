@@ -1,0 +1,15 @@
+title: 'sp-database: aggregate same-key refcount ops within a transaction'
+doc:
+- audience: Node Dev
+  description: |
+    Fix a kvdb refcount-leak in `sp_database`: when one `Transaction` contains multiple
+    `Store`/`Reference`/`Release` ops on the same key, each op reads a stale on-disk
+    counter and writes back to the same counter key — the underlying `DBTransaction`
+    keeps only the last `put`, collapsing N ops to a single ±1. `commit_impl` now
+    replays per-`(col, key)` refcount ops in transaction order against one on-disk
+    counter read, then emits one final write per unique key.
+crates:
+- name: sc-client-db
+  bump: patch
+- name: sp-database
+  bump: patch

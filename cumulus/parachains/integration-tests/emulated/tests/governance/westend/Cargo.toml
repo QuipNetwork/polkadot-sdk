@@ -1,6 +1,6 @@
 [package]
 name = "governance-westend-integration-tests"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,17 +11,22 @@ publish = false
 workspace = true
 
 [dependencies]
-asset-hub-westend-runtime = { workspace = true }
 codec = { workspace = true, default-features = true }
-collectives-westend-runtime = { workspace = true }
+
+# Substrate
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
+pallet-whitelist = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+pallet-xcm = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+
 emulated-integration-tests-common = { workspace = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
-pallet-utility = { default-features = true, workspace = true }
-pallet-whitelist = { default-features = true, workspace = true }
-pallet-xcm = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-westend-runtime = { workspace = true }
+
+# Local
+asset-hub-westend-runtime = { workspace = true }
+collectives-westend-runtime = { workspace = true }
 westend-system-emulated-network = { workspace = true }
-xcm = { default-features = true, workspace = true }

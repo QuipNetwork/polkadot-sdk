@@ -1,0 +1,12 @@
+title: 'pallet-revive: fix eth_feeHistory reward percentile resolution'
+doc:
+- audience: Node Dev
+  description: |-
+    `eth_feeHistory` caches reward percentiles at half-percentile resolution (201 buckets
+    spanning `0.0..=100.0`), but the cache lookup rounded each requested percentile to the
+    nearest whole percentile before indexing. As a result the half-percentile buckets were
+    never returned and a request such as the 50.5th percentile yielded the reward for the
+    51st percentile. The requested percentile is now mapped to the matching bucket.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

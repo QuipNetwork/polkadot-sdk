@@ -127,6 +127,7 @@ help: the trait `TypeInfo` is not implemented for `Bar`
            and $N others
    = note: required for `Bar` to implement `StaticTypeInfo`
    = note: required for `frame_support::pallet_prelude::StorageValue<_GeneratedPrefixForStorageFoo<T>, Bar>` to implement `StorageEntryMetadataBuilder`
+   = note: consider using `--verbose` to print the full type name to the console
 
 error[E0277]: the trait bound `Bar: WrapperTypeDecode` is not satisfied
  --> tests/pallet_ui/storage_ensure_span_are_ok_on_wrong_gen_unnamed.rs:38:12

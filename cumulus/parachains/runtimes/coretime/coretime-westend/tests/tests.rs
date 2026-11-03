@@ -19,7 +19,7 @@
 use codec::Encode;
 use coretime_westend_runtime::{
 	xcm_config::{GovernanceLocation, LocationToAccountId},
-	Balances, Block, DapSatellite, Executive, ExistentialDeposit, Runtime, RuntimeCall,
+	AccumulateForward, Balances, Block, Executive, ExistentialDeposit, Runtime, RuntimeCall,
 	RuntimeOrigin, TxExtension, UncheckedExtrinsic,
 };
 use frame_support::{assert_err, assert_ok, traits::fungible::Inspect};
@@ -206,13 +206,13 @@ fn governance_authorize_upgrade_works() {
 		Runtime,
 		RuntimeOrigin,
 	>(GovernanceOrigin::Location(Location::new(1, Parachain(ASSET_HUB_ID)))));
-	// no - Collectives
+	// no - Collectives (passes barrier as system parachain, but not root)
 	assert_err!(
 		parachains_runtimes_test_utils::test_cases::can_governance_authorize_upgrade::<
 			Runtime,
 			RuntimeOrigin,
 		>(GovernanceOrigin::Location(Location::new(1, Parachain(COLLECTIVES_ID)))),
-		Either::Right(InstructionError { index: 0, error: XcmError::Barrier })
+		Either::Right(InstructionError { index: 1, error: XcmError::BadOrigin })
 	);
 	// no - Collectives Voice of Fellows plurality
 	assert_err!(
@@ -240,20 +240,22 @@ fn governance_authorize_upgrade_works() {
 }
 
 #[test]
-fn tx_fees_go_to_dap_satellite() {
+fn tx_fees_go_to_accumulation_account() {
 	let alice = AccountId::from(Sr25519Keyring::Alice);
-	let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+	let accumulation_account =
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 	let ed = ExistentialDeposit::get();
 
 	ExtBuilder::<Runtime>::default()
 		.with_collators(collator_session_keys().collators())
 		.with_session_keys(collator_session_keys().session_keys())
-		.with_balances(vec![(alice.clone(), 100 * ed), (satellite.clone(), ed)])
+		.with_balances(vec![(alice.clone(), 100 * ed), (accumulation_account.clone(), ed)])
 		.with_para_id(1005.into())
 		.build()
 		.execute_with(|| {
 			let alice_before = <Balances as Inspect<AccountId>>::balance(&alice);
-			let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+			let accumulation_before =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 			let issuance_before = <Balances as Inspect<AccountId>>::total_issuance();
 
 			let call = RuntimeCall::System(frame_system::Call::remark { remark: vec![] });
@@ -264,19 +266,21 @@ fn tx_fees_go_to_dap_satellite() {
 			let fee_paid = alice_before - alice_after;
 			assert!(fee_paid > 0, "a fee should have been paid");
 
-			let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
+			let accumulation_after =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 			let issuance_after = <Balances as Inspect<AccountId>>::total_issuance();
 
-			assert_eq!(satellite_after, satellite_before + fee_paid);
+			assert_eq!(accumulation_after, accumulation_before + fee_paid);
 			assert_eq!(issuance_before, issuance_after);
 		});
 }
 
 #[test]
-fn dust_removal_goes_to_dap_satellite() {
+fn dust_removal_goes_to_accumulation_account() {
 	let alice = AccountId::from(Sr25519Keyring::Alice);
 	let bob = AccountId::from(Sr25519Keyring::Bob);
-	let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+	let accumulation_account =
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 	let ed = ExistentialDeposit::get();
 	let dust = ed / 2;
 
@@ -286,12 +290,13 @@ fn dust_removal_goes_to_dap_satellite() {
 		.with_balances(vec![
 			(alice.clone(), 100 * ed),
 			(bob.clone(), ed + dust),
-			(satellite.clone(), ed),
+			(accumulation_account.clone(), ed),
 		])
 		.with_para_id(1005.into())
 		.build()
 		.execute_with(|| {
-			let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+			let accumulation_before =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 
 			// When: transfer ED away from bob, leaving dust < ED behind → account reaped.
 			assert_ok!(Balances::transfer_allow_death(
@@ -300,41 +305,48 @@ fn dust_removal_goes_to_dap_satellite() {
 				ed,
 			));
 
-			// Then: bob's account is killed, dust goes to satellite.
-			let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
-			assert_eq!(satellite_after, satellite_before + dust, "satellite should receive dust");
+			// Then: bob's account is killed, dust goes to accumulation account.
+			let accumulation_after =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
+			assert_eq!(
+				accumulation_after,
+				accumulation_before + dust,
+				"accumulation account should receive dust"
+			);
 			assert_eq!(<Balances as Inspect<AccountId>>::balance(&bob), 0, "bob should be reaped");
 		});
 }
 
 #[test]
-fn coretime_revenue_goes_to_dap_satellite() {
+fn coretime_revenue_goes_to_accumulation_account() {
 	use frame_support::traits::{fungible::Balanced, tokens::imbalance::OnUnbalanced};
 
-	// Given: satellite account funded with ED.
-	let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+	let accumulation_account =
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 	let ed = ExistentialDeposit::get();
 	let revenue = 1_000_000_000u128;
 
 	ExtBuilder::<Runtime>::default()
 		.with_collators(collator_session_keys().collators())
 		.with_session_keys(collator_session_keys().session_keys())
-		.with_balances(vec![(satellite.clone(), ed)])
+		.with_balances(vec![(accumulation_account.clone(), ed)])
 		.with_para_id(1005.into())
 		.build()
 		.execute_with(|| {
-			let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+			let accumulation_before =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 
 			// When: simulate coretime revenue via OnUnbalanced with an issued credit.
 			let credit = <Balances as Balanced<AccountId>>::issue(revenue);
-			<DapSatellite as OnUnbalanced<_>>::on_unbalanced(credit);
+			<AccumulateForward as OnUnbalanced<_>>::on_unbalanced(credit);
 
-			// Then: satellite receives the revenue.
-			let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
+			// Then: accumulation account receives the revenue.
+			let accumulation_after =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 			assert_eq!(
-				satellite_after,
-				satellite_before + revenue,
-				"satellite should receive coretime revenue"
+				accumulation_after,
+				accumulation_before + revenue,
+				"accumulation account should receive coretime revenue"
 			);
 		});
 }

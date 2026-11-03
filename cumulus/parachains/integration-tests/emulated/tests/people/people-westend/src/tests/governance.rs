@@ -19,9 +19,7 @@ use codec::Encode;
 use frame_support::sp_runtime::traits::Dispatchable;
 use parachains_common::AccountId;
 use people_westend_runtime::people::IdentityInfo;
-use westend_runtime::{
-	governance::pallet_custom_origins::Origin::GeneralAdmin as GeneralAdminOrigin, Dmp,
-};
+use westend_runtime::Dmp;
 use westend_system_emulated_network::people_westend_emulated_chain::people_westend_runtime;
 
 use pallet_identity::Data;
@@ -86,15 +84,10 @@ fn relay_commands_add_registrar() {
 fn relay_commands_add_registrar_wrong_origin() {
 	let people_westend_alice = PeopleWestend::account_id_of(ALICE);
 
-	let origins = vec![
-		(
-			OriginKind::SovereignAccount,
-			<Westend as Chain>::RuntimeOrigin::signed(people_westend_alice),
-		),
-		(OriginKind::Xcm, GeneralAdminOrigin.into()),
-	];
-
-	let mut signed_origin = true;
+	let origins = vec![(
+		OriginKind::SovereignAccount,
+		<Westend as Chain>::RuntimeOrigin::signed(people_westend_alice),
+	)];
 
 	for (origin_kind, origin) in origins {
 		let registrar: AccountId = [1; 32].into();
@@ -136,24 +129,13 @@ fn relay_commands_add_registrar_wrong_origin() {
 		PeopleWestend::execute_with(|| {
 			type RuntimeEvent = <PeopleWestend as Chain>::RuntimeEvent;
 
-			if signed_origin {
-				assert_expected_events!(
-					PeopleWestend,
-					vec![
-						RuntimeEvent::MessageQueue(pallet_message_queue::Event::Processed { success: false, .. }) => {},
-					]
-				);
-			} else {
-				assert_expected_events!(
-					PeopleWestend,
-					vec![
-						RuntimeEvent::MessageQueue(pallet_message_queue::Event::Processed { success: true, .. }) => {},
-					]
-				);
-			}
+			assert_expected_events!(
+				PeopleWestend,
+				vec![
+					RuntimeEvent::MessageQueue(pallet_message_queue::Event::Processed { success: false, .. }) => {},
+				]
+			);
 		});
-
-		signed_origin = false;
 	}
 }
 
@@ -244,13 +226,10 @@ fn relay_commands_kill_identity() {
 fn relay_commands_kill_identity_wrong_origin() {
 	let people_westend_alice = PeopleWestend::account_id_of(BOB);
 
-	let origins = vec![
-		(
-			OriginKind::SovereignAccount,
-			<Westend as Chain>::RuntimeOrigin::signed(people_westend_alice),
-		),
-		(OriginKind::Xcm, GeneralAdminOrigin.into()),
-	];
+	let origins = vec![(
+		OriginKind::SovereignAccount,
+		<Westend as Chain>::RuntimeOrigin::signed(people_westend_alice),
+	)];
 
 	for (origin_kind, origin) in origins {
 		Westend::execute_with(|| {
@@ -452,13 +431,10 @@ fn relay_commands_add_remove_username_authority() {
 fn relay_commands_add_remove_username_authority_wrong_origin() {
 	let people_westend_alice = PeopleWestend::account_id_of(ALICE);
 
-	let origins = vec![
-		(
-			OriginKind::SovereignAccount,
-			<Westend as Chain>::RuntimeOrigin::signed(people_westend_alice.clone()),
-		),
-		(OriginKind::Xcm, GeneralAdminOrigin.into()),
-	];
+	let origins = vec![(
+		OriginKind::SovereignAccount,
+		<Westend as Chain>::RuntimeOrigin::signed(people_westend_alice.clone()),
+	)];
 
 	for (origin_kind, origin) in origins {
 		Westend::execute_with(|| {

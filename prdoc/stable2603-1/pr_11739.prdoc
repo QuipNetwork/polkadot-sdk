@@ -1,0 +1,22 @@
+title: "Snowbridge: tighten receipt proof validation path check"
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Hardens Snowbridge receipt proof verification by only accepting the
+      `ValueMismatch { got: Some(_), expected: None }` extraction path when the
+      mismatch path equals the queried trie key.
+
+      This prevents malformed proofs from being interpreted as valid inclusion
+      proofs for a different key.
+
+      Adds regression coverage in both unit and integration tests to ensure
+      forged receipt proofs are rejected.
+
+crates:
+  - name: snowbridge-verification-primitives
+    bump: patch
+  - name: snowbridge-pallet-inbound-queue-v2
+    bump: none
+  - name: bridge-hub-westend-integration-tests
+    bump: none

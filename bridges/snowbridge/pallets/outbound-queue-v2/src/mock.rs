@@ -74,8 +74,19 @@ impl pallet_message_queue::Config for Test {
 // Mock verifier
 pub struct MockVerifier;
 
+std::thread_local! {
+	static VERIFIER_HALTED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+pub fn set_verifier_halted(halted: bool) {
+	VERIFIER_HALTED.with(|v| v.set(halted));
+}
+
 impl Verifier for MockVerifier {
 	fn verify(_: &Log, _: &Proof) -> Result<(), VerificationError> {
+		if VERIFIER_HALTED.with(|v| v.get()) {
+			return Err(VerificationError::Halted);
+		}
 		Ok(())
 	}
 }

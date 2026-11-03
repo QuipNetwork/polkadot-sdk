@@ -1,6 +1,6 @@
 [package]
 name = "sp-trie"
-version = "43.0.0"
+version = "47.0.0"
 authors.workspace = true
 description = "Patricia trie stuff using a parity-scale-codec node format"
 repository.workspace = true
@@ -22,7 +22,7 @@ harness = false
 
 [dependencies]
 ahash = { optional = true, workspace = true }
-codec = { workspace = true }
+codec = { features = ["derive"], workspace = true }
 foldhash = { workspace = true }
 hash-db = { workspace = true }
 hashbrown = { workspace = true }
@@ -43,7 +43,7 @@ trie-root = { workspace = true }
 [dev-dependencies]
 array-bytes = { workspace = true, default-features = true }
 criterion = { workspace = true, default-features = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-runtime = { workspace = true, default-features = true }
 trie-bench = { workspace = true }
 trie-standardmap = { workspace = true }
 
@@ -63,6 +63,7 @@ std = [
 	"schnellru",
 	"sp-core/std",
 	"sp-externalities/std",
+	"sp-runtime/std",
 	"thiserror",
 	"tracing",
 	"trie-db/std",

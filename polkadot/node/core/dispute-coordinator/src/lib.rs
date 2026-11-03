@@ -53,7 +53,7 @@ use polkadot_primitives::{
 use crate::{
 	error::{FatalResult, Result},
 	metrics::Metrics,
-	status::{get_active_with_status, SystemClock},
+	status::get_active_with_status,
 };
 use backend::{Backend, OverlayedBackend};
 use db::v1::DbBackend;
@@ -110,7 +110,7 @@ mod metrics;
 /// Status tracking of disputes (`DisputeStatus`).
 mod status;
 
-use crate::status::Clock;
+use polkadot_node_clock::Clock;
 
 #[cfg(test)]
 mod tests;
@@ -147,7 +147,7 @@ impl<Context: Send> DisputeCoordinatorSubsystem {
 				self.config.column_config(),
 				self.metrics.clone(),
 			);
-			self.run(ctx, backend, Box::new(SystemClock))
+			self.run(ctx, backend, polkadot_node_clock::system_clock())
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 		}
@@ -174,7 +174,7 @@ impl DisputeCoordinatorSubsystem {
 		self,
 		mut ctx: Context,
 		backend: B,
-		clock: Box<dyn Clock>,
+		clock: Arc<dyn Clock>,
 	) -> FatalResult<()>
 	where
 		B: Backend + 'static,
@@ -292,7 +292,7 @@ impl DisputeCoordinatorSubsystem {
 		initialized::OffchainDisabledValidators,
 		ControlledValidatorIndices,
 	)> {
-		let now = clock.now();
+		let now = clock.duration_since_epoch().as_secs();
 
 		// We assume the highest session is the passed leaf. If we can't get the session index
 		// we can't initialize the subsystem so we'll wait for a new leaf
@@ -430,7 +430,6 @@ impl DisputeCoordinatorSubsystem {
 						ParticipationRequest::new(
 							vote_state.votes().candidate_receipt.clone(),
 							session,
-							env.executor_params().clone(),
 							request_timer,
 						),
 					));
@@ -540,7 +539,7 @@ async fn send_dispute_messages<Context>(
 			gum::error!(
 				target: LOG_TARGET,
 				?validator_index,
-				session_index = ?env.session_index(),
+				session_index = ?env.scheduling_session(),
 				"Could not find our own key in `SessionInfo`"
 			);
 			continue;
@@ -548,7 +547,7 @@ async fn send_dispute_messages<Context>(
 		let our_vote_signed = SignedDisputeStatement::new_checked(
 			kind.clone(),
 			vote_state.votes().candidate_receipt.hash(),
-			env.session_index(),
+			env.scheduling_session(),
 			public_key,
 			sig.clone(),
 		);

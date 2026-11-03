@@ -221,82 +221,81 @@ fn unpaid_transact() {
 }
 
 #[test]
-fn deposit_assets_with_retry_burns_dust_and_deposits_rest() {
+fn deposit_assets_with_retry_aborts_on_failure_and_post_process_traps() {
 	// fund sender
 	add_asset(SENDER, (Here, 200u128));
 
-	// dust amount (< ED=2)
+	// sub-ED amount (< ED=2): this `DepositAsset` will fail and abort the program.
 	let dust: Asset = (Here, 1u128).into();
 
-	// non-dust amount (> ED=2)
+	// ≥ED amount: would succeed on its own — but the program aborts at the first error,
+	// so this instruction never runs.
 	let legit: Asset = (Here, 100u128).into();
 
 	let xcm = Xcm::<TestCall>(vec![
 		WithdrawAsset((Here, 101u128).into()),
-		DepositAsset {
-			assets: Definite(Assets::from(vec![dust.clone()])),
-			beneficiary: RECIPIENT.into(),
-		},
-		DepositAsset {
-			assets: Definite(Assets::from(vec![legit.clone()])),
-			beneficiary: RECIPIENT.into(),
-		},
+		DepositAsset { assets: Definite(Assets::from(vec![dust])), beneficiary: RECIPIENT.into() },
+		DepositAsset { assets: Definite(Assets::from(vec![legit])), beneficiary: RECIPIENT.into() },
 	]);
 
 	let (mut vm, weight) = instantiate_executor(SENDER, xcm.clone());
 
-	let result = vm.bench_process(xcm);
+	let err = vm
+		.bench_process(xcm)
+		.expect_err("a sub-ED `DepositAsset` must error out and abort the rest of the XCM");
+	vm.set_error(Some((err.index, err.xcm_error)));
 
-	assert!(result.is_ok(), "XCM execution must succeed even if one deposit is dust");
 	let outcome = vm.bench_post_process(weight);
-	assert!(matches!(outcome, Outcome::Complete { .. }), "Expected Complete, got {:?}", outcome);
+	assert!(
+		matches!(outcome, Outcome::Incomplete { .. }),
+		"Expected Incomplete, got {:?}",
+		outcome
+	);
 
+	// Nothing reached the recipient: the failing `DepositAsset` rolled back its own take,
+	// and the subsequent `DepositAsset(legit)` was never executed because the program is
+	// already in error state.
 	let here_assets = asset_list(RECIPIENT);
-	assert_eq!(here_assets, vec![legit], "only the ≥ED asset (100) should end up in `Here`");
+	assert!(here_assets.is_empty(), "no deposit should reach recipient when program aborts");
 
-	// dust is burned, so nothing lands in the trap account
+	// `post_process` trapped the leftover holding — the full 101 originally withdrawn.
 	let trapped = asset_list(TRAPPED_ASSETS);
-	assert!(trapped.is_empty(), "dust assets should be silently burned, not trapped");
+	assert_eq!(
+		trapped,
+		vec![(Here, 101u128).into()],
+		"the entire pre-instruction holding must be trapped (claimable later), not silently lost"
+	);
 }
 
 #[test]
-fn deposit_assets_with_retry_all_dust_are_burned() {
+fn deposit_assets_with_retry_all_failures_aborts_and_traps() {
 	// fund sender
 	add_asset(SENDER, (Here, 20u128));
 
-	// two dust amounts, both < ED=2
+	// two sub-ED amounts, both < ED=2
 	let d1: Asset = (Here, 1u128).into();
 	let d2: Asset = (Here, 1u128).into();
 
 	let xcm = Xcm::<TestCall>(vec![
-		// withdraw 1+1 so it succeeds
+		// withdraw 1+1 so the withdraw itself succeeds.
 		WithdrawAsset((Here, (1u128 + 1u128)).into()),
-		DepositAsset {
-			assets: Definite(Assets::from(vec![d1.clone()])),
-			beneficiary: RECIPIENT.into(),
-		},
-		DepositAsset {
-			assets: Definite(Assets::from(vec![d2.clone()])),
-			beneficiary: RECIPIENT2.into(),
-		},
+		DepositAsset { assets: Definite(Assets::from(vec![d1])), beneficiary: RECIPIENT.into() },
+		DepositAsset { assets: Definite(Assets::from(vec![d2])), beneficiary: RECIPIENT2.into() },
 	]);
 
 	let (mut vm, weight) = instantiate_executor(SENDER, xcm.clone());
-	let result = vm.bench_process(xcm);
+	let err = vm.bench_process(xcm).expect_err("first sub-ED `DepositAsset` must abort");
+	vm.set_error(Some((err.index, err.xcm_error)));
 
-	assert!(result.is_ok(), "all-dust deposit must not abort");
 	let outcome = vm.bench_post_process(weight);
-	assert!(matches!(outcome, Outcome::Complete { .. }));
+	assert!(matches!(outcome, Outcome::Incomplete { .. }));
 
-	// none of the two dust deposits should land in either recipient
-	let received = asset_list(RECIPIENT);
-	assert!(received.is_empty(), "no ≥ED assets, so recipient must get nothing");
+	// Neither recipient sees anything.
+	assert!(asset_list(RECIPIENT).is_empty(), "sub-ED deposit can't reach a fresh recipient");
+	assert!(asset_list(RECIPIENT2).is_empty(), "second instruction never runs after the abort");
 
-	// none of the two dust deposits should land in either recipient
-	let received = asset_list(RECIPIENT2);
-	assert!(received.is_empty(), "no ≥ED assets, so recipient must get nothing");
-
-	// all dust is burned, trap account stays empty
+	// `post_process` trapped the entire restored holding (2 from the original
+	// `WithdrawAsset`).
 	let trapped = asset_list(TRAPPED_ASSETS);
-	assert!(trapped.is_empty(), "all dust assets must be burned, not trapped");
+	assert_eq!(trapped, vec![(Here, 2u128).into()], "undeposited assets must be trapped, not lost");
 }

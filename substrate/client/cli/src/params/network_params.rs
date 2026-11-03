@@ -58,6 +58,10 @@ pub struct NetworkParams {
 	/// Public address that other nodes will use to connect to this node.
 	///
 	/// This can be used if there's a proxy in front of this node.
+	///
+	/// A `webrtc-direct` address must be given as
+	/// `/<ip4|ip6|dns|dns4|dns6>/<host>/udp/<port>/webrtc-direct`: the node appends its own
+	/// `/certhash/...` and `/p2p/...`, and doesn't start if either is supplied.
 	#[arg(long, value_name = "PUBLIC_ADDR", num_args = 1..)]
 	pub public_addr: Vec<Multiaddr>,
 
@@ -65,9 +69,22 @@ pub struct NetworkParams {
 	///
 	/// By default:
 	/// If `--validator` is passed: `/ip4/0.0.0.0/tcp/<port>` and `/ip6/[::]/tcp/<port>`.
-	/// Otherwise: `/ip4/0.0.0.0/tcp/<port>/ws` and `/ip6/[::]/tcp/<port>/ws`.
+	/// Otherwise: `/ip4/0.0.0.0/tcp/<port>/ws` and `/ip6/[::]/tcp/<port>/ws`, plus, on the
+	/// litep2p network backend, `/ip4/0.0.0.0/udp/<port>/webrtc-direct` and
+	/// `/ip6/[::]/udp/<port>/webrtc-direct`.
+	///
+	/// WebRTC addresses (`/ip4/<ip>/udp/<port>/webrtc-direct` and
+	/// `/ip6/<ip>/udp/<port>/webrtc-direct`) only work on the litep2p network backend.
 	#[arg(long, value_name = "LISTEN_ADDR", num_args = 1..)]
 	pub listen_addr: Vec<Multiaddr>,
+
+	/// Listen on WebRTC addresses even on a validator or collator (on para- &
+	/// relaychain side of the node depending on the position of the flag).
+	///
+	/// Only applies if no explicit `--listen-addr` is passed. Only works on the
+	/// litep2p network backend.
+	#[arg(long)]
+	pub force_enable_webrtc: bool,
 
 	/// Specify p2p protocol TCP port.
 	#[arg(long, value_name = "PORT", conflicts_with_all = &[ "listen_addr" ])]
@@ -103,7 +120,7 @@ pub struct NetworkParams {
 	pub in_peers: u32,
 
 	/// Maximum number of inbound light nodes peers.
-	#[arg(long, value_name = "COUNT", default_value_t = 100)]
+	#[arg(long, value_name = "COUNT", default_value_t = 500)]
 	pub in_peers_light: u32,
 
 	/// Disable mDNS discovery (default: true).
@@ -152,6 +169,10 @@ pub struct NetworkParams {
 	/// Join the IPFS network and serve transactions over bitswap protocol.
 	#[arg(long)]
 	pub ipfs_server: bool,
+
+	/// Specify a list of IPFS bootstrap nodes.
+	#[arg(long, value_name = "ADDR", num_args = 1.., requires = "ipfs_server")]
+	pub ipfs_bootnodes: Vec<MultiaddrWithPeerId>,
 
 	/// Blockchain syncing mode.
 	#[arg(
@@ -205,8 +226,16 @@ impl NetworkParams {
 	) -> NetworkConfiguration {
 		let port = self.port.unwrap_or(default_listen_port);
 
+		if self.force_enable_webrtc && !matches!(self.network_backend, NetworkBackendType::Litep2p)
+		{
+			log::warn!(
+				"`--force-enable-webrtc` has no effect: WebRTC is only supported by the litep2p \
+				 network backend",
+			);
+		}
+
 		let listen_addresses = if self.listen_addr.is_empty() {
-			if is_validator || is_dev {
+			let mut listen_addresses = if is_validator || is_dev {
 				vec![
 					Multiaddr::empty()
 						.with(Protocol::Ip6([0, 0, 0, 0, 0, 0, 0, 0].into()))
@@ -226,7 +255,24 @@ impl NetworkParams {
 						.with(Protocol::Tcp(port))
 						.with(Protocol::Ws(Cow::Borrowed("/"))),
 				]
+			};
+
+			if matches!(self.network_backend, NetworkBackendType::Litep2p) &&
+				(self.force_enable_webrtc || !is_validator)
+			{
+				listen_addresses.extend([
+					Multiaddr::empty()
+						.with(Protocol::Ip6([0, 0, 0, 0, 0, 0, 0, 0].into()))
+						.with(Protocol::Udp(port))
+						.with(Protocol::WebRTCDirect),
+					Multiaddr::empty()
+						.with(Protocol::Ip4([0, 0, 0, 0].into()))
+						.with(Protocol::Udp(port))
+						.with(Protocol::WebRTCDirect),
+				]);
 			}
+
+			listen_addresses
 		} else {
 			self.listen_addr.clone()
 		};
@@ -284,6 +330,7 @@ impl NetworkParams {
 			kademlia_disjoint_query_paths: self.kademlia_disjoint_query_paths,
 			kademlia_replication_factor: self.kademlia_replication_factor,
 			ipfs_server: self.ipfs_server,
+			ipfs_bootnodes: self.ipfs_bootnodes.clone(),
 			sync_mode: self.sync.into(),
 			network_backend: self.network_backend.into(),
 		}

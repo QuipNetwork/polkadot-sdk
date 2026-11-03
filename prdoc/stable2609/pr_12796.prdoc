@@ -1,0 +1,32 @@
+title: '[pallet-revive] Report untraced transactions instead of omitting them'
+doc:
+- audience:
+  - Node Dev
+  - Runtime Dev
+  description: |-
+    # Description
+
+    Follow-up to polkadot-sdk#12374. A block replay can drop a transaction's trace (the tail hits `ExhaustsResources`).
+    `trace_block` / `trace_tx` currently omit it and eth-rpc infers this from a block-level `degraded` flag.
+    This reshapes the V2 output of both to report each transaction's status from the runtime directly: traced, couldn't-trace, or nothing to trace.
+
+    # Integration
+
+    - New `TraceEntryV1 { Traced(TraceV2), NotTraced }` in `pallet-revive-types`: a trace, a couldn't-trace signal, or (absent entry / `None`) nothing to trace.
+    - The **V2** output of `trace_block_versioned` / `trace_tx_versioned` now returns `Vec<(u32, TraceEntryV1)>` / `Option<TraceEntryV1>` instead of `Vec<(u32, TraceV2)>` / `Option<TraceV2>`; V1 unchanged, `version_declarations` stays at 2.
+    - eth-rpc prefers V2: `debug_traceBlock*` renders `NotTraced` as a geth `{txHash, error}` and `debug_traceTransaction` returns a real error, not "not found"; it falls back to the `degraded` path on V1 nodes.
+
+    # Review Notes
+
+    - **V2 is redefined, not superseded.** Per the versioning policy, an unreleased wire format is not yet stabilized. V2 ships in no stable, unstable or published release, is absent from crates.io, and Westend Asset Hub declares `ReviveApi` v1 (no versioned surface at all), so no client can be speaking it. Reshaping V2 avoids a V3 rung that would exist only for a payload nobody consumed.
+    - **Classification.** The tracer loop builds `TraceEntry` once; V1 drops `NotTraced`, V2 keeps it. `TraceEntry::for_untraced` flags only `Err(ExhaustsResources)`.
+    - **Unit variant, not the drafted enum.** Drafted in [polkadot-sdk#12386](https://github.com/paritytech/polkadot-sdk/pull/12386#issuecomment-5052840014) as `NotTraced(NotTracedReasonV1)`. Shipped as a unit `NotTraced`: `ExhaustsResources` seems to be the only cause that drops a real transaction's trace on a faithful replay, so a reason enum would carry no information. Extensible if a second cause appears.
+    - **Wraps `TraceV2`.** The `V1` counts this wire type's own iterations, not the payload's, so it carries the newest trace payload.
+    - **Downgrade in eth-rpc.** eth-rpc serves `TraceV1`, so it keeps its own `TraceEntry { Traced(TraceV1), NotTraced }` and projects `TraceV2` -> `TraceV1` (`trace_v2_as_v1`), dropping `CallLogV2::index`. Not in `pallet-revive-types`, to keep a lossy conversion out of the shared crate. Serving V2 instead would mean synthesizing `index` for older runtimes.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: minor
+- name: pallet-revive
+  bump: minor
+- name: pallet-revive-types
+  bump: major

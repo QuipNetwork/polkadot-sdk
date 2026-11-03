@@ -1,6 +1,6 @@
 [package]
 name = "sp-consensus-sassafras"
-version = "0.3.4"
+version = "0.3.4-dev"
 authors.workspace = true
 description = "Primitives for Sassafras consensus"
 edition.workspace = true

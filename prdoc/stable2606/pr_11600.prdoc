@@ -1,0 +1,21 @@
+title: 'collator-proto/metrics: Fix blindspot in collation fetch latency metrics'
+doc:
+- audience: Node Dev
+  description: |-
+    The current implementation of the `collation_fetch_latency` metric contains a critical observability blindspot due to insufficient histogram bucket resolution.
+
+
+    Currently, the the collation fetching is capped at an upper bound of 5 seconds. This effectively creates a black box for investigating latency events. Any fetch operation exceeding the 5s threshold is aggregated into the final bucket, regardless if the fetching took 30s or 1h. This obscures the true distribution of network delays and prevents accurate performance profiling for high-latency scenarios.
+
+    The discrepancy was identified with https://github.com/lexnv/block-confidence-monitor and confirmed via manual analysis of the logs. Without granular visibility into these outliers, we cannot effectively measure the success of our block confidence / debug bottlenecks in validator-side protocols.
+
+    While at it, have increased the granularity of other buckets which might be relevant.
+
+    Part of the block confidence work:
+    - https://github.com/paritytech/polkadot-sdk/issues/11377
+
+
+    cc @sandreim @skunert
+crates:
+- name: polkadot-collator-protocol
+  bump: patch

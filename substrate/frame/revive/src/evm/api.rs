@@ -16,25 +16,27 @@
 // limitations under the License.
 //! JSON-RPC methods and types, for Ethereum.
 
-mod hex_serde;
-
-mod byte;
-pub use byte::*;
+pub use pallet_revive_types::common::{
+	Byte, Bytes, Bytes8, Bytes32, Bytes256, TYPE_EIP1559, TYPE_EIP2930, TYPE_EIP4844, TYPE_EIP7702,
+	TYPE_LEGACY, TypeEip1559, TypeEip2930, TypeEip4844, TypeEip7702, TypeLegacy,
+};
 
 mod rlp_codec;
 pub use rlp;
 
-mod type_id;
-pub use type_id::*;
-
 mod debug_rpc_types;
 pub use debug_rpc_types::*;
 
-mod rpc_types;
-pub use rpc_types::DryRunConfig;
+mod block;
+pub use block::*;
 
-mod rpc_types_gen;
-pub use rpc_types_gen::*;
+mod transaction;
+pub use transaction::*;
+
+mod state_overrides;
+pub use state_overrides::*;
+
+pub use ethereum_types::*;
 
 #[cfg(feature = "std")]
 mod account;

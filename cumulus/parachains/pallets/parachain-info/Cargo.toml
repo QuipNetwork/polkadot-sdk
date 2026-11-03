@@ -2,7 +2,7 @@
 authors.workspace = true
 edition.workspace = true
 name = "staging-parachain-info"
-version = "0.26.0"
+version = "0.29.0"
 license = "Apache-2.0"
 description = "Pallet to store the parachain ID"
 homepage.workspace = true
@@ -13,11 +13,14 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-primitives-core = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
+
 sp-runtime = { workspace = true }
+
+cumulus-primitives-core = { workspace = true }
 
 [features]
 default = ["std"]

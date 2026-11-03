@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_network_protocol::request_response::incoming;
-use polkadot_node_primitives::UncheckedSignedFullStatement;
 use polkadot_node_subsystem::{errors::SubsystemError, RuntimeApiError};
 use polkadot_node_subsystem_util::{backing_implicit_view, runtime};
 
@@ -46,9 +45,6 @@ pub enum Error {
 
 	#[error(transparent)]
 	ImplicitViewFetchError(backing_implicit_view::FetchError),
-
-	#[error("CollationSeconded contained statement with invalid signature")]
-	InvalidStatementSignature(UncheckedSignedFullStatement),
 }
 
 /// Utility for eating top level errors and log them.

@@ -15,17 +15,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Salary pallet benchmarking.
+//! Core Fellowship pallet benchmarking.
 
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use crate::Pallet as CoreFellowship;
+use crate::{BlockNumberFor as CoreFellowshipBlockNumberFor, Pallet as CoreFellowship};
 
 use alloc::{boxed::Box, vec};
 use frame_benchmarking::v2::*;
-use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
+use frame_system::RawOrigin;
 use sp_arithmetic::traits::Bounded;
+use sp_runtime::traits::BlockNumberProvider;
 
 const SEED: u32 = 0;
 
@@ -34,6 +35,10 @@ type BenchResult = Result<(), BenchmarkError>;
 #[instance_benchmarks]
 mod benchmarks {
 	use super::*;
+
+	fn set_block_number<T: Config<I>, I: 'static>(n: CoreFellowshipBlockNumberFor<T, I>) {
+		T::BlockNumberProvider::set_block_number(n);
+	}
 
 	fn ensure_evidence<T: Config<I>, I: 'static>(who: &T::AccountId) -> BenchResult {
 		let evidence = BoundedVec::try_from(vec![0; Evidence::<T, I>::bound()]).unwrap();
@@ -133,7 +138,7 @@ mod benchmarks {
 		let member = make_member::<T, I>(0)?;
 
 		// Set it to the max value to ensure that any possible auto-demotion period has passed.
-		frame_system::Pallet::<T>::set_block_number(BlockNumberFor::<T>::max_value());
+		set_block_number::<T, I>(CoreFellowshipBlockNumberFor::<T, I>::max_value());
 		ensure_evidence::<T, I>(&member)?;
 		assert!(Member::<T, I>::contains_key(&member));
 
@@ -154,7 +159,7 @@ mod benchmarks {
 		let member = make_member::<T, I>(initial_rank)?;
 
 		// Set it to the max value to ensure that any possible auto-demotion period has passed.
-		frame_system::Pallet::<T>::set_block_number(BlockNumberFor::<T>::max_value());
+		set_block_number::<T, I>(CoreFellowshipBlockNumberFor::<T, I>::max_value());
 		ensure_evidence::<T, I>(&member)?;
 
 		assert!(Member::<T, I>::contains_key(&member));
@@ -211,8 +216,8 @@ mod benchmarks {
 		// Set `to_rank` dynamically based on `max_rank`.
 		let to_rank = (current_rank + 1).min(max_rank); // Ensure `to_rank` <= `max_rank`.
 
-		// Set block number to avoid auto-demotion.
-		frame_system::Pallet::<T>::set_block_number(BlockNumberFor::<T>::max_value());
+		// Set it to the max value to ensure that any possible auto-demotion period has passed.
+		set_block_number::<T, I>(CoreFellowshipBlockNumberFor::<T, I>::max_value());
 		ensure_evidence::<T, I>(&member)?;
 
 		#[extrinsic_call]
@@ -299,9 +304,9 @@ mod benchmarks {
 	#[benchmark]
 	fn approve() -> Result<(), BenchmarkError> {
 		let member = make_member::<T, I>(1)?;
-		let then = frame_system::Pallet::<T>::block_number();
+		let then = T::BlockNumberProvider::current_block_number();
 		let now = then.saturating_plus_one();
-		frame_system::Pallet::<T>::set_block_number(now);
+		set_block_number::<T, I>(now);
 		ensure_evidence::<T, I>(&member)?;
 
 		assert_eq!(Member::<T, I>::get(&member).unwrap().last_proof, then);

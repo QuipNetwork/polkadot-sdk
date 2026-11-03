@@ -1,0 +1,39 @@
+title: 'Track nested memory used by `xcm::DoubleEncoded`: approach #2'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Resolves https://github.com/paritytech/polkadot-sdk/issues/8675
+    Follow-up for https://github.com/paritytech/polkadot-sdk/pull/10747 (approach # 1)
+
+    Different approach for tracking the nested memory used by `xcm::DoubleEncoded`
+
+    The idea is to decode the entire `xcm::DoubleEncoded<Call>` when possible. This can be done when the `Call` is the  `RuntimeCall` of our local Runtime. When the `Call` is `()` it means that it's a remote `RuntimeCall`, and it will be decoded on the destination chain.
+
+    This covers the XCMP/UMP/DMP pathways and the `pallet_xcm::execute()` extrinsic or any other extrinsic that accepts XCMs. For extrinsics we have the heap memory limit used for decoding the extrinsic (16 MB) and for XCMP/UMP/DMP we call `decode_with_constraints()` which uses a hardcoded 10MB limit now. We can adjust it or make it configurable. I hope I'm not missing any use cases.
+
+    Known issues (to be fixed in future PRs):
+    - dry-running: The methods defined in `RecordXcm` return `VersionedXcm<()>` directly. We should add the `RuntimeCall` as a generic type param (`RecordXcm<Call>`) and modify all the methods to return `VersionedXcm<Call>`
+    - `DoubleEncoded::transmute_encoded()` is used in some mocks. Not sure if it's needed outside of mocks. Maybe we can remove it with some cleanup.
+crates:
+- name: snowbridge-outbound-queue-primitives
+  bump: patch
+- name: staging-xcm
+  bump: major
+- name: staging-xcm-executor
+  bump: major
+- name: cumulus-pallet-xcmp-queue
+  bump: patch
+- name: pallet-xcm-precompiles
+  bump: patch
+- name: staging-xcm-builder
+  bump: patch
+- name: xcm-simulator
+  bump: minor
+- name: snowbridge-inbound-queue-primitives
+  bump: patch
+- name: cumulus-pallet-parachain-system
+  bump: patch
+- name: polkadot-runtime-common
+  bump: patch
+- name: pallet-contracts-mock-network
+  bump: patch

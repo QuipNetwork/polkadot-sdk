@@ -43,8 +43,8 @@ use polkadot_node_core_chain_selection::{
 };
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::{
-	peer_set::{PeerSet, PeerSetProtocolNames},
-	request_response::{IncomingRequest, ReqProtocolNames},
+	peer_set::{CollationVersion, PeerSet, PeerSetProtocolNames},
+	request_response::{IncomingRequest, Protocol, ReqProtocolNames},
 };
 use polkadot_node_subsystem_types::DefaultSubsystemClient;
 use polkadot_overseer::{Handle, OverseerConnector};
@@ -315,8 +315,18 @@ where
 		};
 
 		// validation/collation protocols are enabled only if `Overseer` is enabled
-		let peerset_protocol_names =
-			PeerSetProtocolNames::new(genesis_hash, config.chain_spec.fork_id());
+		let main_collation_version = if is_parachain_node.is_running_alongside_parachain_node() ||
+			experimental_collator_protocol
+		{
+			None
+		} else {
+			Some(CollationVersion::V3)
+		};
+		let peerset_protocol_names = PeerSetProtocolNames::new_with_main_collation_version(
+			genesis_hash,
+			config.chain_spec.fork_id(),
+			main_collation_version,
+		);
 
 		// If this is a validator or running alongside a parachain node, we need to enable the
 		// networking protocols.
@@ -347,10 +357,13 @@ where
 
 		let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
 
-		let (collation_req_v1_receiver, cfg) =
-			IncomingRequest::get_config_receiver::<_, Network>(&req_protocol_names);
+		let cfg = Protocol::CollationFetchingV1
+			.get_outbound_only_config::<_, Network>(&req_protocol_names);
 		net_config.add_request_response_protocol(cfg);
 		let (collation_req_v2_receiver, cfg) =
+			IncomingRequest::get_config_receiver::<_, Network>(&req_protocol_names);
+		net_config.add_request_response_protocol(cfg);
+		let (collation_req_v3_receiver, cfg) =
 			IncomingRequest::get_config_receiver::<_, Network>(&req_protocol_names);
 		net_config.add_request_response_protocol(cfg);
 		let (available_data_req_receiver, cfg) =
@@ -468,7 +481,7 @@ where
 			})
 		};
 
-		let (network, system_rpc_tx, tx_handler_controller, sync_service) =
+		let (network, system_rpc_tx, tx_handler_controller, sync_service, _bitswap_handle) =
 			sc_service::build_network(sc_service::BuildNetworkParams {
 				config: &config,
 				net_config,
@@ -481,6 +494,7 @@ where
 				warp_sync_config: Some(WarpSyncConfig::WithProvider(warp_sync)),
 				block_relay: None,
 				metrics,
+				gap_sync_body_policy: None,
 			})?;
 
 		if config.offchain_worker.enabled {
@@ -632,8 +646,8 @@ where
 						network_service: network.clone(),
 						sync_service: sync_service.clone(),
 						authority_discovery_service,
-						collation_req_v1_receiver,
 						collation_req_v2_receiver,
+						collation_req_v3_receiver,
 						available_data_req_receiver,
 						registry: prometheus_registry.as_ref(),
 						spawner,
@@ -685,13 +699,16 @@ where
 		};
 
 		if role.is_authority() {
-			let proposer = sc_basic_authorship::ProposerFactory::new(
+			let mut proposer = sc_basic_authorship::ProposerFactory::new(
 				task_manager.spawn_handle(),
 				client.clone(),
 				transaction_pool.clone(),
 				prometheus_registry.as_ref(),
 				telemetry.as_ref().map(|x| x.handle()),
 			);
+			// We allow `15MiB` on the node side, but the actual block size limit is defined by the
+			// runtime.
+			proposer.set_default_block_size_limit(15 * 1024 * 1024);
 
 			let client_clone = client.clone();
 			let overseer_handle =

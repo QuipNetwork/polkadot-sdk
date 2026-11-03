@@ -1,6 +1,6 @@
 [package]
 name = "pallet-treasury"
-version = "45.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -30,8 +30,8 @@ sp-core = { optional = true, workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-utility = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+pallet-utility = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -42,9 +42,11 @@ std = [
 	"frame-system/std",
 	"log/std",
 	"pallet-balances/std",
+	"pallet-utility/std",
 	"scale-info/std",
 	"serde",
 	"sp-core?/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 runtime-benchmarks = [

@@ -4,7 +4,7 @@ use sp_core::H256;
 use sp_io::hashing::sha2_256;
 
 /// Specified by <https://github.com/ethereum/consensus-specs/blob/fe9c1a8cbf0c2da8a4f349efdcd77dd7ac8445c4/specs/phase0/beacon-chain.md?plain=1#L742>
-/// with improvements from <https://github.com/ethereum/consensus-specs/blob/master/ssz/merkle-proofs.md>
+/// with improvements from <https://github.com/ethereum/consensus-specs/blob/802485ec74a6986542bd53bf153189623aab440c/ssz/merkle-proofs.md>
 pub fn verify_merkle_branch(
 	leaf: H256,
 	branch: &[H256],

@@ -31,8 +31,12 @@ use sc_transaction_pool_api::{
 	MaintainedTransactionPool, TransactionPool, TransactionStatus,
 };
 use sp_runtime::transaction_validity::{InvalidTransaction, TransactionValidityError};
-use substrate_test_runtime_client::Sr25519Keyring::*;
-use substrate_test_runtime_transaction_pool::uxt;
+use std::pin::Pin;
+use substrate_test_runtime_client::{
+	runtime::{Block, Hash},
+	Sr25519Keyring::*,
+};
+use substrate_test_runtime_transaction_pool::{uxt, TestApi};
 use tracing::debug;
 
 #[test]
@@ -670,4 +674,146 @@ fn fatp_invalid_tx_is_removed_from_the_pool2() {
 	assert_watcher_stream!(xt1_watcher, [TransactionStatus::Ready, TransactionStatus::Invalid]);
 	assert_watcher_stream!(xt2_watcher, [TransactionStatus::Ready]);
 	assert_watcher_stream!(xt3_watcher, [TransactionStatus::Ready]);
+}
+
+/// Helper: creates a scenario where a tx is banned and becomes viewless (zero ready views).
+///
+/// Pattern:
+/// 1. Create view at block 1. Submit tx — Ready.
+/// 2. Fork: create views at block 2a and 2b (from block 1). Tx is Ready in both.
+/// 3. Mark tx invalid (`add_invalid`).
+/// 4. Create block 3 (child of 2a) → view cloned from 2a, view revalidation finds tx invalid →
+///    banned in the rotator.
+/// 5. Finalize block 3 → views at 2a and 2b (number < 3) are dropped → ready_transaction_views
+///    becomes empty → Viewless event → needs_unban is set.
+///
+/// Returns (pool, api, last_finalized_hash, xt, watcher, executor) with the tx in mempool,
+/// banned, and viewless.
+fn setup_viewless_banned_tx() -> (
+	sc_transaction_pool::ForkAwareTxPool<TestApi, Block>,
+	std::sync::Arc<TestApi>,
+	Hash,
+	substrate_test_runtime_client::runtime::Extrinsic,
+	Pin<Box<dyn futures::Stream<Item = TransactionStatus<Hash, Hash>> + Send>>,
+	futures::executor::ThreadPool,
+) {
+	let (pool, api, executor) = pool();
+
+	// Block 1: create view, submit tx — it's ready.
+	let header01 = api.push_block(1, vec![], true);
+	block_on(pool.maintain(new_best_block_event(&pool, None, header01.hash())));
+
+	let xt = uxt(Alice, 200);
+	let watcher = block_on(pool.submit_and_watch(invalid_hash(), SOURCE, xt.clone())).unwrap();
+	assert_pool_status!(header01.hash(), &pool, 1, 0);
+
+	// Fork: block 2a and 2b from block 1. Tx is Ready in both views.
+	let header02a = api.push_block_with_parent(header01.hash(), vec![], true);
+	block_on(pool.maintain(new_best_block_event(&pool, Some(header01.hash()), header02a.hash())));
+	assert_pool_status!(header02a.hash(), &pool, 1, 0);
+
+	let header02b = api.push_block_with_parent(header01.hash(), vec![], true);
+	block_on(pool.maintain(new_best_block_event(&pool, Some(header02a.hash()), header02b.hash())));
+	assert_pool_status!(header02b.hash(), &pool, 1, 0);
+
+	// Mark tx invalid — view revalidation on new views will ban it.
+	api.add_invalid(&xt);
+
+	// Block 3: child of 2a. View cloned from 2a (tx in pool). View revalidation finds tx
+	// invalid → removed from view + banned in the rotator.
+	let header03 = api.push_block_with_parent(header02a.hash(), vec![], true);
+	block_on(pool.maintain(new_best_block_event(&pool, Some(header02b.hash()), header03.hash())));
+
+	// Make tx valid again before finalization. The ban is already in the rotator from
+	// view revalidation above. We need the tx to be valid at the finalized block so
+	// mempool revalidation doesn't remove it.
+	api.remove_invalid(&xt);
+
+	// Finalize block 3. Views at 2a (number=2) and 2b (number=2) have number < 3 → dropped.
+	// RemoveView for both → ready_transaction_views goes empty → Viewless event fires →
+	// dropped_monitor_task sets needs_unban.
+	block_on(pool.maintain(finalized_block_event(&pool, header01.hash(), header03.hash())));
+
+	// Only one active view remains (block 3), no inactive views, and the tx is not in it
+	// (banned).
+	assert_eq!(pool.active_views_count(), 1);
+	assert_eq!(pool.inactive_views_count(), 0);
+	assert_pool_status!(header03.hash(), &pool, 0, 0);
+
+	// Give the async dropped_monitor_task time to process the Viewless event.
+	std::thread::sleep(std::time::Duration::from_millis(50));
+
+	// Tx should still be in mempool — banned but not removed.
+	assert_eq!(block_on(pool.mempool_len()), (0, 1));
+
+	(pool, api, header03.hash(), xt, watcher, executor)
+}
+
+/// Transaction is banned and viewless. Make it valid again, then mempool revalidation at the
+/// finalized block confirms it's valid → unban → tx re-enters new views as ready.
+///
+/// This reproduces the scenario observed in production logs where a tx gets
+/// `Invalid(Payment)` on one fork but is valid on others.
+#[test]
+fn fatp_viewless_tx_unbanned_after_mempool_revalidation() {
+	sp_tracing::try_init_simple();
+
+	let (pool, api, last_finalized, xt, _watcher, _executor) = setup_viewless_banned_tx();
+
+	// Tx is already valid (setup called remove_invalid after banning).
+	// The ban is in the rotator but the tx is valid at finalized block.
+
+	// Advance blocks with maintain events. Each new view will attempt to submit the tx
+	// from mempool, but it will be rejected as TemporarilyBanned (visible in trace logs
+	// as `check_is_known ... result=Err(Error(TemporarilyBanned))`).
+	let mut prev = last_finalized;
+	for n in 4..=14 {
+		let header = api.push_block(n, vec![], true);
+		block_on(pool.maintain(new_best_block_event(&pool, Some(prev), header.hash())));
+		prev = header.hash();
+	}
+
+	// Finalize to trigger mempool revalidation.
+	// needs_unban is set, tx is valid at finalized → revalidate_inner unbans it.
+	// Note: unban happens in revalidate_inner which runs AFTER update_view_with_mempool,
+	// so the tx won't enter the view created in this cycle.
+	block_on(pool.maintain(finalized_block_event(&pool, last_finalized, prev)));
+
+	// Tx should still be in mempool.
+	assert_eq!(block_on(pool.mempool_len()), (0, 1));
+
+	// One more block — now the ban is cleared and update_view_with_mempool picks it up.
+	let header15 = api.push_block(15, vec![], true);
+	block_on(pool.maintain(new_best_block_event(&pool, Some(prev), header15.hash())));
+
+	// Verify the tx is on the ready iterator — it would be picked by the block author.
+	assert_pool_status!(header15.hash(), &pool, 1, 0);
+	assert_ready_iterator!(header15.hash(), pool, [xt]);
+}
+
+/// Transaction is banned and viewless. It stays invalid — mempool revalidation finds it
+/// STILL invalid at the finalized block → removed from mempool. Second chance failed.
+#[test]
+fn fatp_viewless_tx_dropped_if_invalid_at_finalized() {
+	sp_tracing::try_init_simple();
+
+	let (pool, api, last_finalized, xt, watcher, _executor) = setup_viewless_banned_tx();
+
+	// Mark tx invalid again — this time it's genuinely broken, not fork-specific.
+	api.add_invalid(&xt);
+
+	// Advance finalization to trigger mempool revalidation.
+	// tx has needs_unban but is invalid at finalized → removed from mempool.
+	let mut prev = last_finalized;
+	for n in 4..=14 {
+		let header = api.push_block(n, vec![], true);
+		prev = header.hash();
+	}
+	block_on(pool.maintain(finalized_block_event(&pool, last_finalized, prev)));
+
+	// Tx should be removed from mempool — genuinely invalid at finalized block.
+	assert_eq!(block_on(pool.mempool_len()), (0, 0));
+
+	// The user should have received the Invalid event.
+	assert_watcher_stream!(watcher, [TransactionStatus::Ready, TransactionStatus::Invalid]);
 }

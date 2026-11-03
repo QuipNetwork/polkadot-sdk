@@ -1,0 +1,11 @@
+title: Remove deprecated NegativeImbalance from polkadot-runtime-common
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removes `polkadot_runtime_common::NegativeImbalance`, deprecated in March 2024
+    in favor of `fungible::Credit`. No remaining in-repo usage.
+
+    Downstream: use `fungible::Credit` from `frame_support::traits` instead.
+crates:
+- name: polkadot-runtime-common
+  bump: major

@@ -24,7 +24,10 @@ use crate::{
 		peerstore::Peerstore,
 		shim::notification::peerset::{OpenResult, Peerset, PeersetCommand},
 	},
-	service::traits::{Direction, PeerStore, ValidationResult},
+	service::{
+		metrics::NotificationMetrics,
+		traits::{Direction, PeerStore, ValidationResult},
+	},
 	ProtocolName,
 };
 
@@ -94,6 +97,7 @@ async fn test_once() {
 			.collect(),
 		Default::default(),
 		Arc::clone(&peer_store_handle),
+		NotificationMetrics::new(None),
 	);
 
 	tokio::spawn(peerstore.run());

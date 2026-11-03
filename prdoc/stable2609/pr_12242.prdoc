@@ -1,0 +1,27 @@
+title: Introduce StorageChainBlockImport
+doc:
+- audience:
+  - Node Operator
+  - Node Dev
+  description: "Storage chains rely on Renew extrinsics to keep indexed transaction\
+    \ payloads alive past their original retention window. A node that tip-syncs past\
+    \ a Renew without ever having executed the original store ends up with an empty\
+    \ TRANSACTION column locally, and apply_index_ops fails. This PR adds StorageChainBlockImport,\
+    \ a block-import wrapper that intercepts this case during tip-sync, fetches the\
+    \ missing bytes over bitswap, and hands them to the backend through the PrefetchedIndexedTransactions\
+    \ carrier introduced in #12086.\n\n\nGap-sync (the same problem after warp-sync)\
+    \ is wired up but stays disabled in production \u2014 the sync layer doesn't yet\
+    \ fetch bodies inside the pruning window. The dispatch and its tests are already\
+    \ in place behind the existing origin filter, so flipping the gate is a one-line\
+    \ change once the sync-layer work lands."
+crates:
+- name: sc-storage-chain-sync
+  bump: minor
+- name: polkadot-omni-node-lib
+  bump: minor
+- name: sc-network
+  bump: minor
+- name: sp-transaction-storage-proof
+  bump: minor
+- name: polkadot-sdk
+  bump: minor

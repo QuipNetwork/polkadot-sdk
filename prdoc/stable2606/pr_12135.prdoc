@@ -1,0 +1,14 @@
+title: 'revive automap: batch map accounts for free'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Changes:
+    - Add TX to pallet revive to allow anyone to map accounts
+
+    The new TX `batch_map_accounts`:
+    - Maps a batch of accounts without taking a deposit
+    - Releases existing mapping deposits of accounts
+    - Is free to send when at least 90% of accounts were newly mapped or had an existing deposit released
+crates:
+- name: pallet-revive
+  bump: major

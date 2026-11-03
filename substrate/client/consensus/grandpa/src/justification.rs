@@ -125,6 +125,33 @@ impl<Block: BlockT> GrandpaJustification<Block> {
 		Ok(sp_consensus_grandpa::GrandpaJustification { round, commit, votes_ancestries }.into())
 	}
 
+	/// Decode a GRANDPA justification from its SCALE encoding.
+	pub fn decode(encoded: &[u8]) -> Result<Self, ClientError> {
+		GrandpaJustification::<Block>::decode_all(&mut &*encoded)
+			.map_err(|_| ClientError::JustificationDecode)
+	}
+
+	/// Validate that this justification finalizes the given block and that its
+	/// commit and ancestry proofs are valid for the given voter set.
+	pub fn verify_finalizes(
+		&self,
+		finalized_target: (Block::Hash, NumberFor<Block>),
+		set_id: u64,
+		voters: &VoterSet<AuthorityId>,
+	) -> Result<(), ClientError>
+	where
+		NumberFor<Block>: finality_grandpa::BlockNumberOps,
+	{
+		if (self.justification.commit.target_hash, self.justification.commit.target_number) !=
+			finalized_target
+		{
+			let msg = "invalid commit target in grandpa justification".to_string();
+			return Err(ClientError::BadJustification(msg));
+		}
+
+		self.verify_with_voter_set(set_id, voters)
+	}
+
 	/// Decode a GRANDPA justification and validate the commit and the votes'
 	/// ancestry proofs finalize the given block.
 	pub fn decode_and_verify_finalizes(
@@ -136,19 +163,9 @@ impl<Block: BlockT> GrandpaJustification<Block> {
 	where
 		NumberFor<Block>: finality_grandpa::BlockNumberOps,
 	{
-		let justification = GrandpaJustification::<Block>::decode_all(&mut &*encoded)
-			.map_err(|_| ClientError::JustificationDecode)?;
-
-		if (
-			justification.justification.commit.target_hash,
-			justification.justification.commit.target_number,
-		) != finalized_target
-		{
-			let msg = "invalid commit target in grandpa justification".to_string();
-			Err(ClientError::BadJustification(msg))
-		} else {
-			justification.verify_with_voter_set(set_id, voters).map(|_| justification)
-		}
+		let justification = Self::decode(encoded)?;
+		justification.verify_finalizes(finalized_target, set_id, voters)?;
+		Ok(justification)
 	}
 
 	/// Validate the commit and the votes' ancestry proofs.

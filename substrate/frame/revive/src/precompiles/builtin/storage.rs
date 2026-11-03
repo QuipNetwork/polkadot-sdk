@@ -16,7 +16,9 @@
 // limitations under the License.
 
 use crate::{
-	Config, Key, limits,
+	Config, Key,
+	access_list::StorageOp,
+	limits,
 	precompiles::{BuiltinAddressMatcher, BuiltinPrecompile, Error, Ext},
 	storage::WriteOutcome,
 	vm::RuntimeCosts,
@@ -60,18 +62,14 @@ impl<T: Config> BuiltinPrecompile for Storage<T> {
 			},
 
 			IStorageCalls::clearStorage(IStorage::clearStorageCall { flags, key, isFixedKey }) => {
-				let transient = is_transient(*flags)
-					.map_err(|_| Error::Revert("invalid storage flag".into()))?;
-				let costs = |len| {
-					if transient {
-						RuntimeCosts::ClearTransientStorage(len)
-					} else {
-						RuntimeCosts::ClearStorage(len)
-					}
-				};
-				let charged = env.frame_meter_mut().charge_weight_token(costs(max_size))?;
-				let key = decode_key(key.as_bytes_ref(), *isFixedKey)
-					.map_err(|_| Error::Revert("failed decoding key".into()))?;
+				let transient = is_transient(*flags)?;
+				let key = decode_key(key.as_bytes_ref(), *isFixedKey)?;
+				let access_kind = env.touch_storage_access(transient, &key, StorageOp::Write);
+				let charged =
+					env.frame_meter_mut().charge_weight_token(RuntimeCosts::ClearStorage {
+						len: max_size,
+						kind: access_kind,
+					})?;
 				let outcome = if transient {
 					env.set_transient_storage(&key, None, false)
 						.map_err(|_| Error::Revert("failed setting transient storage".into()))?
@@ -79,81 +77,97 @@ impl<T: Config> BuiltinPrecompile for Storage<T> {
 					env.set_storage(&key, None, false)
 						.map_err(|_| Error::Revert("failed setting storage".into()))?
 				};
-				let contained_key = outcome != WriteOutcome::New;
-				let ret = (contained_key, outcome.old_len());
-				env.frame_meter_mut().adjust_weight(charged, costs(outcome.old_len()));
-				Ok(ret.abi_encode())
+				env.frame_meter_mut().adjust_weight(
+					charged,
+					RuntimeCosts::ClearStorage { len: outcome.old_len(), kind: access_kind },
+				);
+				Ok((outcome != WriteOutcome::New, outcome.old_len()).abi_encode())
 			},
 			IStorageCalls::containsStorage(IStorage::containsStorageCall {
 				flags,
 				key,
 				isFixedKey,
 			}) => {
-				let transient = is_transient(*flags)
-					.map_err(|_| Error::Revert("invalid storage flag".into()))?;
-				let costs = |len| {
-					if transient {
-						RuntimeCosts::ContainsTransientStorage(len)
-					} else {
-						RuntimeCosts::ContainsStorage(len)
-					}
-				};
-				let charged = env.frame_meter_mut().charge_weight_token(costs(max_size))?;
-				let key = decode_key(key.as_bytes_ref(), *isFixedKey)
-					.map_err(|_| Error::Revert("failed decoding key".into()))?;
+				let transient = is_transient(*flags)?;
+				let key = decode_key(key.as_bytes_ref(), *isFixedKey)?;
+				let access_kind = env.touch_storage_access(transient, &key, StorageOp::Read);
+				let charged =
+					env.frame_meter_mut().charge_weight_token(RuntimeCosts::ContainsStorage {
+						len: max_size,
+						kind: access_kind,
+					})?;
 				let outcome = if transient {
 					env.get_transient_storage_size(&key)
 				} else {
 					env.get_storage_size(&key)
 				};
 				let value_len = outcome.unwrap_or(0);
-				let ret = (outcome.is_some(), value_len);
-				env.frame_meter_mut().adjust_weight(charged, costs(value_len));
-				Ok(ret.abi_encode())
+				env.frame_meter_mut().adjust_weight(
+					charged,
+					RuntimeCosts::ContainsStorage { len: value_len, kind: access_kind },
+				);
+				Ok((outcome.is_some(), value_len).abi_encode())
 			},
 			IStorageCalls::takeStorage(IStorage::takeStorageCall { flags, key, isFixedKey }) => {
-				let transient = is_transient(*flags)
-					.map_err(|_| Error::Revert("invalid storage flag".into()))?;
-				let costs = |len| {
-					if transient {
-						RuntimeCosts::TakeTransientStorage(len)
-					} else {
-						RuntimeCosts::TakeStorage(len)
-					}
-				};
-				let charged = env.frame_meter_mut().charge_weight_token(costs(max_size))?;
-				let key = decode_key(key.as_bytes_ref(), *isFixedKey)
-					.map_err(|_| Error::Revert("failed decoding key".into()))?;
+				let transient = is_transient(*flags)?;
+				let key = decode_key(key.as_bytes_ref(), *isFixedKey)?;
+				let access_kind = env.touch_storage_access(transient, &key, StorageOp::Write);
+				let charged =
+					env.frame_meter_mut().charge_weight_token(RuntimeCosts::TakeStorage {
+						len: max_size,
+						kind: access_kind,
+					})?;
 				let outcome = if transient {
 					env.set_transient_storage(&key, None, true)?
 				} else {
 					env.set_storage(&key, None, true)?
 				};
-
-				if let crate::storage::WriteOutcome::Taken(value) = outcome {
-					env.frame_meter_mut().adjust_weight(charged, costs(value.len() as u32));
-					Ok(value.abi_encode())
-				} else {
-					env.frame_meter_mut().adjust_weight(charged, costs(0));
-					Ok(Vec::<u8>::new().abi_encode())
-				}
+				let value = match outcome {
+					WriteOutcome::Taken(v) => v,
+					WriteOutcome::New => Vec::new(),
+					WriteOutcome::Overwritten(_) => {
+						log::error!(
+							target: crate::LOG_TARGET,
+							"takeStorage: unexpected WriteOutcome::Overwritten with take_old=true",
+						);
+						Vec::new()
+					},
+				};
+				env.frame_meter_mut().adjust_weight(
+					charged,
+					RuntimeCosts::TakeStorage { len: value.len() as u32, kind: access_kind },
+				);
+				Ok(value.abi_encode())
 			},
 		}
 	}
 }
 
-struct InvalidStorageFlag();
-fn is_transient(flags: u32) -> Result<bool, InvalidStorageFlag> {
+enum StorageArgError {
+	InvalidFlag,
+	InvalidKey,
+}
+
+impl From<StorageArgError> for Error {
+	fn from(err: StorageArgError) -> Self {
+		match err {
+			StorageArgError::InvalidFlag => Error::Revert("invalid storage flag".into()),
+			StorageArgError::InvalidKey => Error::Revert("failed decoding key".into()),
+		}
+	}
+}
+
+fn is_transient(flags: u32) -> Result<bool, StorageArgError> {
 	StorageFlags::from_bits(flags)
-		.ok_or_else(InvalidStorageFlag)
+		.ok_or(StorageArgError::InvalidFlag)
 		.map(|flags| flags.contains(StorageFlags::TRANSIENT))
 }
 
-fn decode_key(key_bytes: &[u8], is_fixed_key: bool) -> Result<Key, ()> {
+fn decode_key(key_bytes: &[u8], is_fixed_key: bool) -> Result<Key, StorageArgError> {
 	match is_fixed_key {
 		true => {
 			if key_bytes.len() != 32 {
-				return Err(());
+				return Err(StorageArgError::InvalidKey);
 			}
 			let mut decode_buf = [0u8; 32];
 			decode_buf[..32].copy_from_slice(&key_bytes[..32]);
@@ -161,9 +175,9 @@ fn decode_key(key_bytes: &[u8], is_fixed_key: bool) -> Result<Key, ()> {
 		},
 		false => {
 			if key_bytes.len() as u32 > crate::limits::STORAGE_KEY_BYTES {
-				return Err(());
+				return Err(StorageArgError::InvalidKey);
 			}
-			Key::try_from_var(key_bytes.to_vec())
+			Key::try_from_var(key_bytes.to_vec()).map_err(|_| StorageArgError::InvalidKey)
 		},
 	}
 }

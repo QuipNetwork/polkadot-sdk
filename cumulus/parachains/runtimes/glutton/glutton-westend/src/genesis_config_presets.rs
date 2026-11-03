@@ -23,9 +23,11 @@ use parachains_common::AuraId;
 use sp_genesis_builder::PresetId;
 use sp_keyring::Sr25519Keyring;
 
-/// Default value, unused in a testnet setup currently because
-/// we want to supply varying para-ids from the CLI for Glutton.
-/// However, the presets does not allow dynamic para-ids currently.
+/// Default para-id baked into the presets.
+///
+/// The preset API cannot take a dynamic para-id, so the presets are built with this fixed value.
+/// Callers that need a specific para-id (e.g. the `glutton-westend-*-<id>` CLI chain specs) patch
+/// `parachain_info.parachain_id` over the preset output instead of relying on this default.
 pub const DEFAULT_GLUTTON_PARA_ID: ParaId = ParaId::new(1300);
 
 pub fn glutton_westend_genesis(

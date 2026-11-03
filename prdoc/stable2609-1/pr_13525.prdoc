@@ -1,0 +1,14 @@
+title: 'relay-chain-rpc: go back to preferred connection'
+doc:
+- audience: Node Operator
+  description: |-
+    `--relay-chain-rpc-urls` is now a priority list. While on a fallback endpoint, the node checks
+    the endpoints listed before it every 5 minutes and switches back to the first one that is
+    reachable and has caught up with the best block, instead of staying on the fallback until that
+    connection fails. Reconnecting no longer waits for requests on the old connection, and an
+    endpoint whose subscriptions fail is skipped instead of stopping the node.
+crates:
+- name: cumulus-relay-chain-rpc-interface
+  bump: patch
+- name: cumulus-client-cli
+  bump: patch

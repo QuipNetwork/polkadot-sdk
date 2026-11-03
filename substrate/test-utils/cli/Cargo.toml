@@ -20,12 +20,12 @@ assert_cmd = { workspace = true }
 futures = { workspace = true }
 nix = { features = ["signal"], workspace = true }
 node-cli = { workspace = true }
-node-primitives = { default-features = true, workspace = true }
+node-primitives = { workspace = true, default-features = true }
 regex = { workspace = true }
-sc-cli = { default-features = false, workspace = true }
-sc-service = { default-features = false, workspace = true }
-sp-rpc = { default-features = true, workspace = true }
-substrate-rpc-client = { default-features = true, workspace = true }
+sc-cli = { workspace = true, default-features = false }
+sc-service = { workspace = true, default-features = false }
+sp-rpc = { workspace = true, default-features = true }
+substrate-rpc-client = { workspace = true, default-features = true }
 tokio = { features = ["full"], workspace = true, default-features = true }
 
 [features]

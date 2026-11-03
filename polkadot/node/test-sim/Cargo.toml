@@ -1,0 +1,33 @@
+[package]
+name = "polkadot-subsystem-test-sim"
+version = "0.1.0"
+description = "Subsystem-agnostic deterministic simulator for testing Polkadot subsystems."
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+codec = { features = ["std"], workspace = true, default-features = true }
+futures = { workspace = true }
+polkadot-node-clock = { workspace = true, default-features = true, features = ["test"] }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-test-helpers = { workspace = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true, features = ["test"] }
+polkadot-primitives-test-helpers = { workspace = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-consensus-slots = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

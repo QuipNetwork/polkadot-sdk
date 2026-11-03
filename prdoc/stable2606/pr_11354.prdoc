@@ -1,0 +1,10 @@
+title: 'Snowbridge: API to Check Inbound Nonce Consumption'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds a runtime API so off-chain callers can check whether an inbound message from Ethereum (by nonce) has already been relayed or consumed on Bridge Hub.
+crates:
+- name: snowbridge-pallet-inbound-queue-v2
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch

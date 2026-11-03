@@ -1,6 +1,6 @@
 [package]
 name = "pallet-staking-reward-fn"
-version = "24.0.1"
+version = "25.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

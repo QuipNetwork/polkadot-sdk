@@ -1,0 +1,19 @@
+title: '[eth-rpc] Handle event decode errors across runtime upgrades'
+doc:
+- audience: Runtime Dev
+  description: "### Motivation\nDuring backward sync, eth-rpc processes historical\
+    \ blocks using the current runtime's metadata. If the event layout differs between\
+    \ the current runtime and the runtime that produced those blocks (e.g., the Balances\
+    \ pallet gained new event variants in #7250), event decoding fails and receipts\
+    \ are lost.\n\n### Changes\nReplace events.has::<EthExtrinsicRevert>() with an\
+    \ event iterator that logs and skips decode errors, checks revert status by pallet/variant\
+    \ name, and collects ContractEmitted logs in a single pass \u2014 so that undecodable\
+    \ events no longer cause the entire receipt to be lost.\n\nBehavior change: Previously,\
+    \ any undecodable event in a block caused the entire receipt to be lost. Now,\
+    \ decode errors are logged and skipped \u2014 the receipt is stored with best-effort\
+    \ revert status and logs."
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch
+- name: pallet-revive-fixtures
+  bump: patch

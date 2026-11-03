@@ -1,0 +1,21 @@
+title: 'nomination-pools: allow permissionless full unbond of depositor in destroying state'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Previously, any attempt to permissionlessly unbond the pool depositor was unconditionally
+      rejected with `DoesNotHavePermission`, even in the valid case where the pool is in the
+      `Destroying` state and the depositor is the sole remaining member.
+
+      This fix allows a permissionless full unbond of the depositor when both conditions hold:
+      1. The unbond is a full unbond (all remaining active points).
+      2. The pool is in the `Destroying` state and the depositor is the only member left
+         (`is_destroying_and_only_depositor`).
+
+      Partial permissionless unbonds of the depositor continue to return
+      `PartialUnbondNotAllowedPermissionlessly`, and permissionless unbond attempts when the
+      depositor is not the sole member continue to return `DoesNotHavePermission`.
+
+crates:
+  - name: pallet-nomination-pools
+    bump: patch

@@ -1,0 +1,23 @@
+title: "[pallet-broker] Prevent auto-renewal from renewing another task's workload"
+doc:
+- audience: Runtime User
+  description: |-
+    `enable_auto_renew` previously renewed whatever renewable workload was found on the given
+    core index without checking that it belongs to the given task. Since a core index can be
+    assigned a different workload each bulk period, a task could end up paying to renew a
+    completely unrelated task's workload, and the stored auto-renewal record would keep charging
+    it every sale.
+
+    `enable_auto_renew` now only renews immediately if the expiring workload includes the task.
+    Otherwise it requires a `workload_end_hint` pointing at a renewal record that includes the
+    task, and fails with the new `TaskNotInWorkload` error if it does not. Automatic
+    renewal processing re-checks this before charging the task's sovereign account and emits
+    `AutoRenewalFailed` (dropping the record) on a mismatch. Additionally, when enabling triggers
+    an immediate renewal, `next_renewal` is now set to the end of the renewed period instead of
+    the `workload_end_hint`, which previously caused the next renewal to be skipped.
+crates:
+- name: pallet-broker
+  bump: major
+  validate: false
+- name: coretime-westend-runtime
+  bump: patch

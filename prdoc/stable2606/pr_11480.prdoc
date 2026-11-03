@@ -1,0 +1,8 @@
+title: 'Refactor statement store index locking: stage 1'
+doc:
+- audience: Node Dev
+  description: |-
+    Optimize statement store index operations by splitting the index into separate read and write indexes
+crates:
+- name: sc-statement-store
+  bump: patch

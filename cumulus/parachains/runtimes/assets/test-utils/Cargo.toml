@@ -1,6 +1,6 @@
 [package]
 name = "asset-test-utils"
-version = "30.0.0"
+version = "42.0.0"
 authors.workspace = true
 edition.workspace = true
 description = "Test utils for Asset Hub runtimes."
@@ -12,30 +12,38 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-assets-common = { workspace = true }
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-xcmp-queue = { workspace = true }
-cumulus-primitives-core = { workspace = true }
+
+# Substrate
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 pallet-asset-conversion = { workspace = true }
 pallet-assets = { workspace = true }
 pallet-balances = { workspace = true }
-pallet-collator-selection = { workspace = true }
 pallet-session = { workspace = true }
 pallet-timestamp = { workspace = true }
-pallet-xcm = { workspace = true }
-pallet-xcm-bridge-hub-router = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+
+# Cumulus
+assets-common = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-xcmp-queue = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+pallet-collator-selection = { workspace = true }
 parachain-info = { workspace = true }
 parachains-common = { workspace = true }
 parachains-runtimes-test-utils = { workspace = true }
-sp-io = { workspace = true }
-sp-runtime = { workspace = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
 xcm-runtime-apis = { workspace = true }
+
+# Bridges
+pallet-xcm-bridge-hub-router = { workspace = true }
 
 [features]
 default = ["std"]
@@ -65,6 +73,29 @@ std = [
 	"xcm-runtime-apis/std",
 	"xcm/std",
 ]
+runtime-benchmarks = [
+	"assets-common/runtime-benchmarks",
+	"cumulus-pallet-parachain-system/runtime-benchmarks",
+	"cumulus-pallet-xcmp-queue/runtime-benchmarks",
+	"cumulus-primitives-core/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-asset-conversion/runtime-benchmarks",
+	"pallet-assets/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-collator-selection/runtime-benchmarks",
+	"pallet-session/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+	"pallet-xcm-bridge-hub-router/runtime-benchmarks",
+	"pallet-xcm/runtime-benchmarks",
+	"parachains-common/runtime-benchmarks",
+	"parachains-runtimes-test-utils/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+	"xcm-executor/runtime-benchmarks",
+	"xcm-runtime-apis/runtime-benchmarks",
+	"xcm/runtime-benchmarks",
+]
 try-runtime = [
 	"assets-common/try-runtime",
 	"cumulus-pallet-parachain-system/try-runtime",
@@ -81,5 +112,6 @@ try-runtime = [
 	"pallet-xcm/try-runtime",
 	"parachain-info/try-runtime",
 	"parachains-common/try-runtime",
+	"parachains-runtimes-test-utils/try-runtime",
 	"sp-runtime/try-runtime",
 ]

@@ -1,0 +1,8 @@
+title: 'pallet-balances: Clean up empty reserves & do not send the same event twice'
+doc:
+- audience: Runtime Dev
+  description: |-
+    When reserves are cleared, the corresponding storage should be cleaned up as well. So, we do not run into `MaxReserves` with only empty reserves. This pull request also fixes the double sending of the same event when slashing a reserved amount.
+crates:
+- name: pallet-balances
+  bump: patch

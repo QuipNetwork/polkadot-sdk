@@ -1,0 +1,8 @@
+title: Fix can_inc_consumer check blocking session key rotation in pallet_session
+doc:
+- audience: Runtime Dev
+  description: |-
+    Check consumer capacity only when we  actually increment the consumer count (first-time local registration or external-to-local transition), not on key rotation.
+crates:
+- name: pallet-session
+  bump: patch

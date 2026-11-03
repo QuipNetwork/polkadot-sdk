@@ -40,7 +40,13 @@ rls*.log
 runtime/wasm/target/
 substrate.code-workspace
 target/
+target.noindex/
 *.scale
 rustc-ice-*
 /.claude/settings.local.json
 *.local.md
+# Generated release changelog outputs (scripts/release/build-changelogs.sh)
+scripts/release/RELEASE_DRAFT.md
+scripts/release/context.json
+scripts/release/CHANGELOG.md
+scripts/release/changelog.json

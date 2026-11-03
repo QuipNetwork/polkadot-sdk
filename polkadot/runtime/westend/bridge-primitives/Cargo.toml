@@ -1,7 +1,7 @@
 [package]
 name = "bp-westend"
 description = "Primitives of Westend runtime."
-version = "0.22.0"
+version = "0.25.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -14,9 +14,12 @@ exclude-from-umbrella = true
 workspace = true
 
 [dependencies]
+# Bridge Dependencies
 bp-header-chain = { workspace = true }
 bp-polkadot-core = { workspace = true }
 bp-runtime = { workspace = true }
+
+# Substrate Based Dependencies
 frame-support = { workspace = true }
 sp-api = { workspace = true }
 sp-std = { workspace = true }

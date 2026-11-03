@@ -1,0 +1,11 @@
+title: Remove deprecated cumulus-pallet-dmp-queue
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    - Removes the `cumulus-pallet-dmp-queue` crate (deprecated after November 2024).
+
+crates:
+- name: polkadot-sdk
+  bump: major

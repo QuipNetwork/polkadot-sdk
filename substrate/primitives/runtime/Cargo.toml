@@ -1,6 +1,6 @@
 [package]
 name = "sp-runtime"
-version = "46.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -46,10 +46,10 @@ tuplex = { workspace = true, default-features = false }
 [dev-dependencies]
 rand = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 zstd = { workspace = true }
 
@@ -70,11 +70,14 @@ std = [
 	"scale-info/std",
 	"serde/std",
 	"simple-mermaid",
+	"sp-api/std",
 	"sp-application-crypto/std",
 	"sp-arithmetic/std",
 	"sp-core/std",
 	"sp-io/std",
+	"sp-state-machine/std",
 	"sp-std/std",
+	"sp-tracing/std",
 	"sp-trie/std",
 	"sp-weights/std",
 	"strum/std",
@@ -99,4 +102,5 @@ bls-experimental = [
 	"sp-application-crypto/bls-experimental",
 	"sp-core/bls-experimental",
 	"sp-io/bls-experimental",
+	"substrate-test-runtime-client/bls-experimental",
 ]

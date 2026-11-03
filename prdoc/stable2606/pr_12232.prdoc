@@ -1,0 +1,19 @@
+title: 'litep2p: bitswap metrics added'
+doc:
+  - audience: Node Dev
+    description: |
+      Adds four Prometheus metrics to the litep2p bitswap inbound handler so we can observe bitswap-driven load:
+
+      - `substrate_sub_libp2p_bitswap_entries_total` — counter, label `outcome` one of: `block_served`, `have`, `dont_have`, `unsupported_cid`.
+      - `substrate_sub_libp2p_bitswap_request_errors_total` — counter, label `reason` one of: `too_many_entries`, `client`.
+      - `substrate_sub_libp2p_bitswap_inbound_request_duration_seconds` — histogram.
+      - `substrate_sub_libp2p_bitswap_response_bytes_total` — counter.
+
+      `NetworkBackend::bitswap_server` gains an `Option<Registry>` parameter (mirroring `peer_store`). The libp2p backend impl accepts and ignores it — bitswap isn't wired into its request-response framework. Bitswap remains gated by `--ipfs-server`.
+
+      Labels are pruned vs paritytech/polkadot-sdk#12083: `missing`/`bad_cid` outcomes and `decode`/`encode`/`invalid_wantlist` errors are absorbed by litep2p before reaching the shim.
+crates:
+  - name: sc-network
+    bump: major
+  - name: sc-service
+    bump: minor

@@ -1,6 +1,6 @@
 [package]
 name = "emulated-integration-tests-common"
-version = "29.0.0"
+version = "41.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -12,39 +12,133 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-asset-test-utils = { default-features = true, workspace = true }
-bp-messages = { default-features = true, workspace = true }
-bp-xcm-bridge-hub = { default-features = true, workspace = true }
 codec = { workspace = true }
-cumulus-pallet-parachain-system = { default-features = true, workspace = true }
-cumulus-pallet-xcmp-queue = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
 hex-literal = { workspace = true }
-pallet-asset-conversion = { default-features = true, workspace = true }
-pallet-assets = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-bridge-messages = { default-features = true, workspace = true }
-pallet-message-queue = { default-features = true, workspace = true }
-pallet-whitelist = { default-features = true, workspace = true }
-pallet-xcm = { features = ["test-utils"], workspace = true, default-features = true }
-pallet-xcm-bridge-hub = { default-features = true, workspace = true }
-parachains-common = { default-features = true, workspace = true }
 paste = { workspace = true, default-features = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
-sc-consensus-grandpa = { default-features = true, workspace = true }
-sp-authority-discovery = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-consensus-beefy = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-xcm = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-emulator = { default-features = true, workspace = true }
-xcm-executor = { default-features = true, workspace = true }
-xcm-runtime-apis = { default-features = true, workspace = true }
-xcm-simulator = { default-features = true, workspace = true }
+
+# Substrate
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-accumulate-and-forward = { workspace = true, default-features = true }
+pallet-asset-conversion = { workspace = true, default-features = true }
+pallet-assets = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-dap = { workspace = true, default-features = true }
+pallet-message-queue = { workspace = true, default-features = true }
+pallet-whitelist = { workspace = true, default-features = true }
+sc-consensus-grandpa = { workspace = true, default-features = true }
+sp-authority-discovery = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-consensus-beefy = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-dap = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+# Polkadot
+pallet-xcm = { features = ["test-utils"], workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }
+xcm-runtime-apis = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
+
+# Cumulus
+asset-test-utils = { workspace = true, default-features = true }
+cumulus-pallet-parachain-system = { workspace = true, default-features = true }
+cumulus-pallet-xcmp-queue = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+parachains-common = { workspace = true, default-features = true }
+xcm-emulator = { workspace = true, default-features = true }
+
+# Bridges
+bp-messages = { workspace = true, default-features = true }
+bp-xcm-bridge-hub = { workspace = true, default-features = true }
+pallet-bridge-messages = { workspace = true, default-features = true }
+pallet-xcm-bridge-hub = { workspace = true, default-features = true }
+
+[features]
+default = ["std"]
+std = [
+	"asset-test-utils/std",
+	"bp-messages/std",
+	"bp-xcm-bridge-hub/std",
+	"codec/std",
+	"cumulus-pallet-parachain-system/std",
+	"cumulus-pallet-xcmp-queue/std",
+	"cumulus-primitives-core/std",
+	"frame-support/std",
+	"frame-system/std",
+	"pallet-asset-conversion/std",
+	"pallet-assets/std",
+	"pallet-balances/std",
+	"pallet-bridge-messages/std",
+	"pallet-message-queue/std",
+	"pallet-whitelist/std",
+	"pallet-xcm-bridge-hub/std",
+	"pallet-xcm/std",
+	"parachains-common/std",
+	"polkadot-parachain-primitives/std",
+	"polkadot-primitives/std",
+	"polkadot-runtime-parachains/std",
+	"sp-authority-discovery/std",
+	"sp-consensus-babe/std",
+	"sp-consensus-beefy/std",
+	"sp-core/std",
+	"sp-keyring/std",
+	"sp-runtime/std",
+	"xcm-builder/std",
+	"xcm-executor/std",
+	"xcm-runtime-apis/std",
+	"xcm/std",
+]
+runtime-benchmarks = [
+	"asset-test-utils/runtime-benchmarks",
+	"cumulus-pallet-parachain-system/runtime-benchmarks",
+	"cumulus-pallet-xcmp-queue/runtime-benchmarks",
+	"cumulus-primitives-core/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-accumulate-and-forward/runtime-benchmarks",
+	"pallet-asset-conversion/runtime-benchmarks",
+	"pallet-assets/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-bridge-messages/runtime-benchmarks",
+	"pallet-dap/runtime-benchmarks",
+	"pallet-message-queue/runtime-benchmarks",
+	"pallet-whitelist/runtime-benchmarks",
+	"pallet-xcm-bridge-hub/runtime-benchmarks",
+	"pallet-xcm/runtime-benchmarks",
+	"parachains-common/runtime-benchmarks",
+	"polkadot-parachain-primitives/runtime-benchmarks",
+	"polkadot-primitives/runtime-benchmarks",
+	"polkadot-runtime-parachains/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+	"xcm-executor/runtime-benchmarks",
+	"xcm-runtime-apis/runtime-benchmarks",
+	"xcm/runtime-benchmarks",
+]
+try-runtime = [
+	"asset-test-utils/try-runtime",
+	"cumulus-pallet-parachain-system/try-runtime",
+	"cumulus-pallet-xcmp-queue/try-runtime",
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"pallet-accumulate-and-forward/try-runtime",
+	"pallet-asset-conversion/try-runtime",
+	"pallet-assets/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-bridge-messages/try-runtime",
+	"pallet-dap/try-runtime",
+	"pallet-message-queue/try-runtime",
+	"pallet-whitelist/try-runtime",
+	"pallet-xcm-bridge-hub/try-runtime",
+	"pallet-xcm/try-runtime",
+	"parachains-common/try-runtime",
+	"polkadot-runtime-parachains/try-runtime",
+	"sp-runtime/try-runtime",
+]

@@ -1,0 +1,20 @@
+title: 'xcmp-queue: Store the bytes in the channel status'
+doc:
+- audience: Runtime Dev
+  description: |-
+    This improves the performance of xcmp-queue by not requiring to check all pages individually.
+crates:
+- name: cumulus-pallet-xcmp-queue
+  bump: major
+- name: asset-hub-rococo-runtime
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: major
+- name: bridge-hub-rococo-runtime
+  bump: major
+- name: bridge-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major

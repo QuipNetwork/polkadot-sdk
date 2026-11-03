@@ -1,0 +1,74 @@
+title: "HOP: ephemeral data pool service for Substrate nodes"
+
+doc:
+  - audience: Node Dev
+    description: |
+      Adds the `sc-hop` crate implementing the Hand-Off Protocol (HOP)
+      node service. HOP enables peer-to-peer data sharing when recipients are
+      offline by holding data in a temporary node-side pool until it is either
+      claimed or promoted to on-chain storage via the `HopRuntimeApi` runtime
+      API defined in `sp-hop`.
+
+      **`sc-hop`** provides:
+      - Disk-backed data pool (`HopDataPool`) with 256-way sharded blob/meta storage
+        and crash-recovery from disk on restart.
+      - RPC interface: `hop_submit`, `hop_claim`, `hop_ack`, `hop_poolStatus`.
+      - Submission gated by two runtime API calls: `HopRuntimeApi::max_promotion_size`
+        sets the per-submission size cap (authoritative; no separate node-side
+        ceiling), and `HopRuntimeApi::can_account_promote(who, data_len)` defines
+        the per-account authorization policy.
+      - Recipient fan-out capped at `MAX_RECIPIENTS` (256) via a type-level
+        `BoundedVec` (`RecipientVec`) so oversized lists are rejected before
+        SCALE decoding and signature verification. Duplicate recipients are also
+        rejected.
+      - Per-user quota plus bounded per-recipient metadata overhead charged
+        against both pool capacity and per-user usage to close the
+        metadata-amplification DoS.
+      - Domain-separated signing contexts for submit / claim / ack
+        (`hop-submit-v1:`, `hop-claim-v1:`, `hop-ack-v1:`) so a signature issued
+        for one operation cannot be replayed as another.
+      - Per-account submit rate limiter (`RateLimiter`): two token buckets per
+        sender (requests + bandwidth), generous defaults sized for chat media.
+      - Background maintenance task (`HopMaintenanceTask`) that promotes near-expiry
+        entries to on-chain storage, garbage-collects expired ones, and evicts
+        stale per-sender rate-limit state.
+
+      Integration requires flattening `HopParams` into your CLI, constructing a
+      `HopDataPool`, and merging `HopRpcServer` into the RPC module. See `sc-hop`
+      crate docs for a step-by-step guide.
+
+      No runtime changes are required to deploy an HOP-enabled node:
+      `HopRuntimeApi` support is detected dynamically at startup via
+      `ApiExt::has_api_with`, and runtimes that do not implement it cause the
+      maintenance task to fall back to cleanup-only (no promotion). This lets
+      operators roll out HOP nodes ahead of the runtime upgrade that adds the API.
+
+  - audience: Node Operator
+    description: |
+      New `--enable-hop` flag activates the HOP data pool for ephemeral
+      peer-to-peer data exchange. Related flags:
+      - `--hop-max-pool-size <MiB>` — pool capacity (default: 10240 MiB / 10 GiB)
+      - `--hop-max-user-size <MiB>` — per-user hard cap (default: 256 MiB)
+      - `--hop-retention-secs <seconds>` — data lifetime (default: 86400, 24h)
+      - `--hop-check-interval <seconds>` — maintenance cycle (default: 300, 5 minutes)
+      - `--hop-promotion-buffer-secs <seconds>` — start promoting this many seconds
+        before expiry (default: 7200, 2h)
+      - `--hop-submit-rate-per-min <requests>` — sustained submit rate (default: 60)
+      - `--hop-submit-burst <requests>` — submit burst (default: 120)
+      - `--hop-bandwidth-per-min-mib <MiB>` — sustained bandwidth (default: 128)
+      - `--hop-bandwidth-burst-mib <MiB>` — bandwidth burst (default: 256)
+      - `--hop-disable-rate-limit` — turn off rate limiting (dev / tests)
+      - `--hop-data-dir <path>` — storage directory (default: `<chain-data>/hop`)
+
+      Pool state (blobs + metadata) persists across restarts. Orphan and corrupt
+      files are cleaned up automatically on startup.
+
+crates:
+  - name: sc-hop
+    bump: patch
+  - name: sp-hop
+    bump: patch
+  - name: polkadot-omni-node-lib
+    bump: major
+  - name: polkadot-sdk
+    bump: minor

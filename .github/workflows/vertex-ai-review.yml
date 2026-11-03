@@ -1,0 +1,31 @@
+name: Vertex AI Review
+
+# Comment "/aireview" on a pull request to get a review from Vertex AI (Gemini).
+# The reviewer reads the diff over the GitHub API and never checks out or runs
+# code from the pull request, which is what makes it safe to hold credentials
+# while reviewing a fork.
+#
+# Only a MEMBER, an OWNER or a COLLABORATOR can trigger it.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: vertex-ai-review-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    uses: paritytech/ci-actions/.github/workflows/vertex-ai-review.yaml@main # zizmor: ignore[unpinned-uses]
+    with:
+      comment_trigger: "/aireview"
+    secrets:
+      GCP_SA_VERTEX_AI_REVIEW: ${{ secrets.GCP_SA_VERTEX_AI_REVIEW }}
+      GCP_WIP_VERTEX_AI_REVIEW: ${{ secrets.GCP_WIP_VERTEX_AI_REVIEW }}

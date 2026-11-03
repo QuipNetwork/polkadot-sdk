@@ -48,6 +48,7 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
+use polkadot_primitives::ValidDisputeStatementKind;
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
@@ -75,6 +76,10 @@ const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a valid
 /// Invalid imports can be caused by flooding, e.g. by a disabled validator.
 const COST_INVALID_IMPORT: Rep =
 	Rep::CostMinor("Import was deemed invalid by dispute-coordinator.");
+
+/// A dispute vote coalesced more candidates than the runtime's `max_approval_coalesce_count`.
+const COST_EXCESSIVE_COALESCED_VOTES: Rep =
+	Rep::CostMajor("Dispute vote coalesces more candidates than the runtime allows.");
 
 /// How many votes must have arrived in the last `BATCH_COLLECTING_INTERVAL`
 ///
@@ -364,6 +369,30 @@ where
 			.runtime
 			.get_session_info_by_index(&mut self.sender, scheduling_parent, payload.0.session_index)
 			.await?;
+
+		if let ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(candidates) =
+			&payload.0.valid_vote.kind
+		{
+			let max_approval_coalesce_count =
+				info.approval_voting_params.max_approval_coalesce_count as usize;
+			if candidates.len() > max_approval_coalesce_count {
+				gum::debug!(
+					target: LOG_TARGET,
+					?peer,
+					num_candidates = candidates.len(),
+					max_approval_coalesce_count,
+					"Dropping dispute request: valid vote coalesces too many candidates",
+				);
+				pending_response
+					.send_outgoing_response(OutgoingResponse {
+						result: Err(()),
+						reputation_changes: vec![COST_EXCESSIVE_COALESCED_VOTES],
+						sent_feedback: None,
+					})
+					.map_err(|_| JfyiError::SetPeerReputation(peer))?;
+				return Err(From::from(JfyiError::ExcessiveCoalescedVotes(peer)));
+			}
+		}
 
 		let votes_result = payload.0.try_into_signed_votes(&info.session_info);
 

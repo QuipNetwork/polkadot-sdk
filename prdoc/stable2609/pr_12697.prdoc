@@ -1,0 +1,15 @@
+title: 'statement-store: replay subscriptions from persisted admission cursor'
+
+doc:
+- audience: Node Dev
+  description: |-
+    The statement store now persists a monotonic admission sequence for active statements in
+    parity-db (a new `ADMISSION_SEQ` column, created automatically on startup) and restores it
+    on restart. Subscription filters attached at runtime are replayed from a cursor up to a
+    registration watermark instead of materializing a full snapshot of statement hashes, with
+    replay batches bounded by raw statement bytes. Replay-before-live ordering and re-admission
+    semantics are preserved.
+
+crates:
+- name: sc-statement-store
+  bump: minor

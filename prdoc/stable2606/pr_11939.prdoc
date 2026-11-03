@@ -1,0 +1,12 @@
+title: Add TransactionStorageApi v2 with `indexed_transactions` function
+doc:
+- audience: Runtime Dev
+  description: |-
+    This bumps `TransactionStorageApi` to v2 and offers the option to query data referenced in the blocks via `indexed_transactions`.
+crates:
+- name: polkadot-omni-node-lib
+  bump: patch
+- name: pallet-transaction-storage
+  bump: minor
+- name: sp-transaction-storage-proof
+  bump: minor

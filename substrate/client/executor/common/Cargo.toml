@@ -1,6 +1,6 @@
 [package]
 name = "sc-executor-common"
-version = "0.44.0"
+version = "0.29.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -18,9 +18,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 polkavm = { workspace = true }
-sc-allocator = { default-features = true, workspace = true }
-sp-maybe-compressed-blob = { default-features = true, workspace = true }
-sp-wasm-interface = { default-features = true, workspace = true }
+sc-allocator = { workspace = true, default-features = true }
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
+sp-wasm-interface = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 wasm-instrument = { workspace = true, default-features = true }
 

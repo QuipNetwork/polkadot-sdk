@@ -151,7 +151,7 @@ where
 			})?;
 
 			let mut runtime_api = self.client.runtime_api();
-			runtime_api.set_call_context(sp_core::traits::CallContext::Onchain);
+			runtime_api.set_call_context(sp_core::traits::CallContext::Onchain { import: true });
 			let slot_duration =
 				runtime_api.slot_duration(parent_hash).map_err(|e| e.to_string())?;
 
@@ -306,7 +306,7 @@ mod test {
 	use super::*;
 	use codec::Encode;
 	use cumulus_test_client::{
-		runtime::Block, seal_block, Client, InitBlockBuilder, TestClientBuilder,
+		runtime::Block, seal_block, BuildBlockBuilder, Client, TestClientBuilder,
 		TestClientBuilderExt,
 	};
 	use cumulus_test_relay_sproof_builder::RelayStateSproofBuilder;
@@ -344,7 +344,11 @@ mod test {
 			..Default::default()
 		};
 
-		let block_builder = client.init_block_builder(Some(validation_data), sproof);
+		let block_builder = client
+			.init_block_builder_builder()
+			.with_validation_data(validation_data)
+			.with_relay_sproof_builder(sproof)
+			.build();
 		let block = block_builder.block_builder.build().unwrap();
 
 		let mut blocks = Vec::new();

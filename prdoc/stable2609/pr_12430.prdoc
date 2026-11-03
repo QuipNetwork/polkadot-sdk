@@ -1,0 +1,16 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: Accept ApprovalVoteMultipleCandidates dispute statements when max_approval_coalesce_count is 1
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      The disputes pallet no longer rejects `ApprovalCheckingMultipleCandidates` statements when
+      `max_approval_coalesce_count == 1`. All validators now support the coalesced vote format, so
+      single-candidate votes in this form are accepted instead of being dropped. The per-session
+      coalesce cap (`candidates.len() <= max_approval_coalesce_count`) is still enforced.
+
+crates:
+  - name: polkadot-runtime-parachains
+    bump: patch

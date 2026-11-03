@@ -560,6 +560,8 @@ where
 
 		if number <= self.inner.info().finalized_number {
 			// Importing an old block. Just save justifications and authority set changes
+			let mut pending_changes = None;
+
 			if self.check_new_change(&block.header, hash).is_some() {
 				if block.justifications.is_none() {
 					return Err(ConsensusError::ClientImport(
@@ -569,7 +571,12 @@ where
 					));
 				}
 				let mut authority_set = self.authority_set.inner_locked();
-				authority_set.authority_set_changes.insert(number);
+				let old_set = authority_set.clone();
+				authority_set
+					.authority_set_changes
+					.insert(number)
+					.map_err(|e| ConsensusError::ClientImport(e.to_string()))?;
+
 				crate::aux_schema::update_authority_set::<Block, _, _>(
 					&authority_set,
 					None,
@@ -579,8 +586,34 @@ where
 							.extend(insert.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
 					},
 				);
+
+				// The authority set remains locked until the block is imported.
+				// This ensures the in memory authority set cannot diverge from the DB one.
+				// If the block import fails, the authority set is not committed on the DB.
+				pending_changes = Some(PendingSetChanges::<Block> {
+					just_in_case: Some((old_set, authority_set.release_mutex())),
+					applied_changes: AppliedChanges::None,
+					do_pause: false,
+				});
 			}
-			return (&*self.inner).import_block(block).await;
+
+			let import_result = self.inner.import_block(block).await;
+			if let Some(pending_changes) = pending_changes {
+				match &import_result {
+					Ok(ImportResult::Imported(_)) => {
+						pending_changes.defuse();
+					},
+					other => {
+						debug!(
+							target: LOG_TARGET,
+							"Restoring old authority set after unsuccessful block import: {other:?}"
+						);
+						pending_changes.revert();
+					},
+				}
+			}
+
+			return import_result;
 		}
 
 		// on initial sync we will restrict logging under info to avoid spam.
@@ -782,7 +815,7 @@ where
 	///
 	/// If `enacts_change` is set to true, then finalizing this block *must*
 	/// enact an authority set change, the function will panic otherwise.
-	fn import_justification(
+	pub(crate) fn import_justification(
 		&self,
 		hash: Block::Hash,
 		number: NumberFor<Block>,
@@ -799,28 +832,29 @@ where
 			return Ok(());
 		}
 
-		let justification = GrandpaJustification::decode_and_verify_finalizes(
-			&justification.1,
-			(hash, number),
-			self.authority_set.set_id(),
-			&self.authority_set.current_authorities(),
-		);
+		// Decode without holding the authority-set lock; verification must happen
+		// under the lock so it is atomic with the finalization below.
+		let justification = GrandpaJustification::decode(&justification.1)
+			.map_err(|e| ConsensusError::ClientImport(e.to_string()))?;
 
-		let justification = match justification {
-			Err(e) => {
-				return match e {
-					sp_blockchain::Error::OutdatedJustification => {
-						Err(ConsensusError::OutdatedJustification)
-					},
-					_ => Err(ConsensusError::ClientImport(e.to_string())),
-				};
-			},
-			Ok(justification) => justification,
-		};
+		let authority_set = self.authority_set.inner();
+
+		justification
+			.verify_finalizes(
+				(hash, number),
+				authority_set.set_id,
+				&authority_set.current_voter_set(),
+			)
+			.map_err(|e| match e {
+				sp_blockchain::Error::OutdatedJustification => {
+					ConsensusError::OutdatedJustification
+				},
+				_ => ConsensusError::ClientImport(e.to_string()),
+			})?;
 
 		let result = environment::finalize_block(
 			self.inner.clone(),
-			&self.authority_set,
+			authority_set,
 			None,
 			hash,
 			number,
@@ -856,6 +890,9 @@ where
 				})
 			},
 			Ok(_) => {
+				// Verification above and finalization below share the same authority-set
+				// lock, so a competing finalizer cannot advance the set in between.
+				// Reaching this arm with `enacts_change` set would be a genuine bug.
 				assert!(
 					!enacts_change,
 					"returns Ok when no authority set change should be enacted; qed;"

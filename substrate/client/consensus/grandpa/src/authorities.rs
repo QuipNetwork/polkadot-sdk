@@ -110,11 +110,7 @@ where
 
 	/// Get the current authorities and their weights (for the current set ID).
 	pub fn current_authorities(&self) -> VoterSet<AuthorityId> {
-		VoterSet::new(self.inner().current_authorities.iter().cloned()).expect(
-			"current_authorities is non-empty and weights are non-zero; \
-			 constructor and all mutating operations on `AuthoritySet` ensure this; \
-			 qed.",
-		)
+		self.inner().current_voter_set()
 	}
 
 	/// Clone the inner `AuthoritySet`.
@@ -219,6 +215,15 @@ where
 	/// Get the current set id and a reference to the current authority set.
 	pub(crate) fn current(&self) -> (u64, &[(AuthorityId, u64)]) {
 		(self.set_id, &self.current_authorities[..])
+	}
+
+	/// Get the current authorities as a [`VoterSet`].
+	pub(crate) fn current_voter_set(&self) -> VoterSet<AuthorityId> {
+		VoterSet::new(self.current_authorities.iter().cloned()).expect(
+			"current_authorities is non-empty and weights are non-zero; \
+			 constructor and all mutating operations on `AuthoritySet` ensure this; \
+			 qed.",
+		)
 	}
 
 	/// Revert to a specified block given its `hash` and `number`.
@@ -682,6 +687,12 @@ impl<H, N: Add<Output = N> + Clone> PendingChange<H, N> {
 	}
 }
 
+/// Inserting a historical change would reuse a set id that is already
+/// tracked at a higher block.
+#[derive(Debug, thiserror::Error)]
+#[error("authority set change would duplicate set id {0}")]
+pub(crate) struct SetIdConflict(SetId);
+
 /// Tracks historical authority set changes. We store the block numbers for the last block
 /// of each authority set, once they have been finalized. These blocks are guaranteed to
 /// have a justification unless they were triggered by a forced change.
@@ -746,15 +757,23 @@ impl<N: Ord + Clone> AuthoritySetChanges<N> {
 		}
 	}
 
-	pub(crate) fn insert(&mut self, block_number: N) {
+	/// Insert a historical authority set change.
+	///
+	/// Set ids are derived from the position in the list,
+	/// so changes must be inserted in ascending block order.
+	pub(crate) fn insert(&mut self, block_number: N) -> Result<(), SetIdConflict> {
 		let idx = self
 			.0
 			.binary_search_by_key(&block_number, |(_, n)| n.clone())
 			.unwrap_or_else(|b| b);
 
 		let set_id = if idx == 0 { 0 } else { self.0[idx - 1].0 + 1 };
-		assert!(idx == self.0.len() || self.0[idx].0 != set_id);
+		if idx != self.0.len() && self.0[idx].0 == set_id {
+			return Err(SetIdConflict(set_id));
+		}
+
 		self.0.insert(idx, (set_id, block_number));
+		Ok(())
 	}
 
 	/// Returns an iterator over all historical authority set changes starting at the given block
@@ -1685,9 +1704,21 @@ mod tests {
 		authority_set_changes.append(1, 81);
 		authority_set_changes.append(4, 121);
 
-		authority_set_changes.insert(101);
+		authority_set_changes.insert(101).unwrap();
 		assert_eq!(authority_set_changes.get_set_id(100), AuthoritySetChangeId::Set(2, 101));
 		assert_eq!(authority_set_changes.get_set_id(101), AuthoritySetChangeId::Set(2, 101));
+	}
+
+	#[test]
+	fn authority_set_changes_insert_rejects_duplicate_set_id() {
+		let mut changes = AuthoritySetChanges::empty();
+		changes.insert(10).unwrap();
+		changes.insert(20).unwrap();
+		changes.insert(30).unwrap();
+
+		let before = changes.clone();
+		assert_eq!(changes.insert(25).unwrap_err().0, 2);
+		assert_eq!(changes, before);
 	}
 
 	#[test]

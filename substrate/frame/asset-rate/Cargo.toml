@@ -1,6 +1,6 @@
 [package]
 name = "pallet-asset-rate"
-version = "25.0.0"
+version = "29.0.0"
 description = "Whitelist non-native assets for treasury spending and provide conversion to native balance"
 authors.workspace = true
 homepage.workspace = true
@@ -24,9 +24,9 @@ sp-core = { optional = true, workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-sp-core = { workspace = true, default-features = false }
-sp-io = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -35,8 +35,10 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"pallet-balances/std",
 	"scale-info/std",
 	"sp-core?/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 runtime-benchmarks = [

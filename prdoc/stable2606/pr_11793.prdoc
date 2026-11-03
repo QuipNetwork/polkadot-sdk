@@ -1,0 +1,12 @@
+title: 'Updated wasmtime to 36.0.7'
+
+doc:
+  - audience: [Node Dev, Runtime Dev]
+    description: |
+      Wasmtime 35.0.0 → 36.0.7
+
+crates:
+  - name: sp-wasm-interface
+    bump: major
+  - name: sc-executor-wasmtime
+    bump: major

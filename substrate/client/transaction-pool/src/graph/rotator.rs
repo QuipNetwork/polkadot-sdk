@@ -36,6 +36,23 @@ const DEFAULT_EXPECTED_SIZE: usize = 2048;
 /// The default duration, in seconds, for which an extrinsic is banned.
 const DEFAULT_BAN_TIME_SECS: u64 = 30 * 60;
 
+/// Reason why a transaction was banned by the pool rotator.
+///
+/// The ban reason determines whether a ban can be automatically lifted by mempool revalidation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BanReason {
+	/// Transaction was banned because it failed runtime validation (e.g., `InvalidTransaction`).
+	///
+	/// This includes both direct validation failures and subtree removals caused by an invalid
+	/// ancestor. These bans can be lifted if mempool revalidation later confirms the transaction
+	/// is valid at the finalized block.
+	Validation,
+	/// Transaction was banned because it was evicted due to pool capacity limits.
+	///
+	/// These bans are never automatically lifted — the pool made a deliberate capacity decision.
+	LimitsEnforced,
+}
+
 /// Pool rotator is responsible to only keep fresh extrinsics in the pool.
 ///
 /// Extrinsics that occupy the pool for too long are culled and temporarily banned from entering
@@ -43,8 +60,8 @@ const DEFAULT_BAN_TIME_SECS: u64 = 30 * 60;
 pub struct PoolRotator<Hash> {
 	/// How long the extrinsic is banned for.
 	ban_time: Duration,
-	/// Currently banned extrinsics.
-	banned_until: RwLock<HashMap<Hash, Instant>>,
+	/// Currently banned extrinsics, with their expiry time and the reason for the ban.
+	banned_until: RwLock<HashMap<Hash, (Instant, BanReason)>>,
 	/// Expected size of the banned extrinsics cache.
 	expected_size: usize,
 }
@@ -85,12 +102,12 @@ impl<Hash: hash::Hash + Eq + Clone> PoolRotator<Hash> {
 		self.banned_until.read().contains_key(hash)
 	}
 
-	/// Bans given set of hashes.
-	pub fn ban(&self, now: &Instant, hashes: impl IntoIterator<Item = Hash>) {
+	/// Bans given set of hashes with the specified reason.
+	pub fn ban(&self, now: &Instant, hashes: impl IntoIterator<Item = Hash>, reason: BanReason) {
 		let mut banned = self.banned_until.write();
 
 		for hash in hashes {
-			banned.insert(hash, *now + self.ban_time);
+			banned.insert(hash, (*now + self.ban_time, reason));
 		}
 
 		if banned.len() > 2 * self.expected_size {
@@ -100,6 +117,23 @@ impl<Hash: hash::Hash + Eq + Clone> PoolRotator<Hash> {
 				}
 			}
 		}
+	}
+
+	/// Removes the ban for a transaction, but only if it was banned for [`BanReason::Validation`].
+	///
+	/// Bans with [`BanReason::LimitsEnforced`] are not affected — they represent deliberate
+	/// capacity decisions that should not be automatically overridden.
+	///
+	/// Returns `true` if the ban was removed.
+	pub fn unban_if_validation(&self, hash: &Hash) -> bool {
+		let mut banned = self.banned_until.write();
+		if let Some((_, reason)) = banned.get(hash) {
+			if *reason == BanReason::Validation {
+				banned.remove(hash);
+				return true;
+			}
+		}
+		false
 	}
 
 	/// Bans extrinsic if it's stale.
@@ -115,7 +149,7 @@ impl<Hash: hash::Hash + Eq + Clone> PoolRotator<Hash> {
 			return false;
 		}
 
-		self.ban(now, iter::once(xt.hash.clone()));
+		self.ban(now, iter::once(xt.hash.clone()), BanReason::Validation);
 		true
 	}
 
@@ -123,7 +157,7 @@ impl<Hash: hash::Hash + Eq + Clone> PoolRotator<Hash> {
 	pub fn clear_timeouts(&self, now: &Instant) {
 		let mut banned = self.banned_until.write();
 
-		banned.retain(|_, &mut v| v >= *now);
+		banned.retain(|_, (expiry, _)| *expiry >= *now);
 	}
 }
 
@@ -236,5 +270,33 @@ mod tests {
 		// trigger a garbage collection
 		assert!(rotator.ban_if_stale(&now, past_block, &tx));
 		assert_eq!(rotator.banned_until.read().len(), DEFAULT_EXPECTED_SIZE);
+	}
+
+	#[test]
+	fn ban_with_reason_and_unban_validation() {
+		let rotator = rotator();
+		let hash = 42u64;
+		rotator.ban(&Instant::now(), iter::once(hash), BanReason::Validation);
+		assert!(rotator.is_banned(&hash));
+
+		assert!(rotator.unban_if_validation(&hash));
+		assert!(!rotator.is_banned(&hash));
+	}
+
+	#[test]
+	fn ban_with_reason_limits_not_unbanned() {
+		let rotator = rotator();
+		let hash = 42u64;
+		rotator.ban(&Instant::now(), iter::once(hash), BanReason::LimitsEnforced);
+		assert!(rotator.is_banned(&hash));
+
+		assert!(!rotator.unban_if_validation(&hash));
+		assert!(rotator.is_banned(&hash));
+	}
+
+	#[test]
+	fn unban_nonexistent_is_noop() {
+		let rotator = rotator();
+		assert!(!rotator.unban_if_validation(&99u64));
 	}
 }

@@ -303,18 +303,6 @@ pub trait GetStorageVersion {
 	/// case that they wish to compare the in-code storage version to the on-chain storage version.
 	type InCodeStorageVersion;
 
-	#[deprecated(
-		note = "This method has been renamed to `in_code_storage_version` and will be removed after March 2024."
-	)]
-	/// DEPRECATED: Use [`Self::current_storage_version`] instead.
-	///
-	/// Returns the in-code storage version as specified in the
-	/// [`storage_version`](crate::pallet_macros::storage_version) attribute, or
-	/// [`NoStorageVersionSet`] if the attribute is missing.
-	fn current_storage_version() -> Self::InCodeStorageVersion {
-		Self::in_code_storage_version()
-	}
-
 	/// Returns the in-code storage version as specified in the
 	/// [`storage_version`](crate::pallet_macros::storage_version) attribute, or
 	/// [`NoStorageVersionSet`] if the attribute is missing.

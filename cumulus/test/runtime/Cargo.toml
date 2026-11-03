@@ -10,16 +10,17 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-aura-ext = { workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-weight-reclaim = { workspace = true }
-cumulus-primitives-aura = { workspace = true }
-cumulus-primitives-core = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+# Substrate
 frame-executive = { workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 frame-system-rpc-runtime-api = { workspace = true }
 pallet-aura = { workspace = true }
+pallet-authority-discovery = { workspace = true }
 pallet-authorship = { workspace = true }
 pallet-balances = { workspace = true }
 pallet-glutton = { workspace = true }
@@ -28,11 +29,9 @@ pallet-session = { workspace = true }
 pallet-sudo = { workspace = true }
 pallet-timestamp = { workspace = true }
 pallet-transaction-payment = { workspace = true }
-parachain-info = { workspace = true }
-polkadot-primitives = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-serde_json = { workspace = true }
+pallet-utility = { workspace = true }
 sp-api = { workspace = true }
+sp-authority-discovery = { workspace = true }
 sp-block-builder = { workspace = true }
 sp-consensus-aura = { workspace = true }
 sp-core = { workspace = true }
@@ -46,6 +45,18 @@ sp-session = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
 
+# Polkadot
+polkadot-primitives = { workspace = true }
+
+# Cumulus
+cumulus-pallet-aura-ext = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-weight-reclaim = { workspace = true }
+cumulus-primitives-aura = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+cumulus-primitives-storage-weight-reclaim = { workspace = true }
+parachain-info = { workspace = true }
+
 [build-dependencies]
 substrate-wasm-builder = { optional = true, workspace = true, default-features = true }
 
@@ -58,11 +69,13 @@ std = [
 	"cumulus-pallet-weight-reclaim/std",
 	"cumulus-primitives-aura/std",
 	"cumulus-primitives-core/std",
+	"cumulus-primitives-storage-weight-reclaim/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	"pallet-aura/std",
+	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
 	"pallet-glutton/std",
@@ -71,11 +84,13 @@ std = [
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
+	"pallet-utility/std",
 	"parachain-info/std",
 	"polkadot-primitives/std",
 	"scale-info/std",
 	"serde_json/std",
 	"sp-api/std",
+	"sp-authority-discovery/std",
 	"sp-block-builder/std",
 	"sp-consensus-aura/std",
 	"sp-core/std",
@@ -89,21 +104,47 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"tracing/std",
 ]
-increment-spec-version = []
-# A runtime which expects to build behind the relay chain tip.
-relay-parent-offset = []
-# A runtime with elastic-scaling configuration.
-elastic-scaling = []
-# A runtime with low slot duration of 500ms for low-latency testing with 12 cores.
-elastic-scaling-500ms = []
-# A runtime with a slot duration of 6s but parameters that allow multiple blocks per slot.
-elastic-scaling-multi-block-slot = []
-# A runtime with 12s slot duration which only authors one block per slot.
+
+# The default spec version is 2. The following features can be used to change this value:
+# Change the spec version to 3
+spec-version-3 = []
+# Change the spec version to 4
+spec-version-4 = []
+
+# The default parachain slot duration is 6s. The following features can be used to change this value:
+# Change the parachain slot duration to 12s
+12s-slot = []
+# Change the parachain slot duration to 18s
+18s-slot = []
+
+# Configure the runtime to use sync backing. More specifically, this leads to:
+# - setting `AllowMultipleBlocksPerSlot` to `false`
+# - setting the unincluded segment capacity to 1
 sync-backing = []
-# A runtime with 6s slot duration which only authors one block per slot.
-async-backing = []
-# An elastic scaling runtime with 12s slots.
-elastic-scaling-12s-slot = []
-# A runtime with 18s slot duration with increased spec version for runtime upgrade testing.
-slot-duration-18s = ["increment-spec-version"]
+
+# The default block processing velocity is 1. The following features can be used to change this value:
+# Change the block processing velocity to 3
+velocity-3 = []
+# Change the block processing velocity to 6
+velocity-6 = []
+# Change the block processing velocity to 12
+velocity-12 = []
+
+# The default relay parent offset is 0. The following features can be used to change this value:
+# Change the relay parent offset to 2
+relay-parent-offset-2 = []
+# Change the relay parent offset to 4
+relay-parent-offset-4 = []
+# Change the relay parent offset to 6
+relay-parent-offset-6 = []
+# Change the relay parent offset to 15
+relay-parent-offset-15 = []
+
+# Configure the runtime to use scheduling V3
+v3-descriptor = []
+
+# A runtime variant that enables pallet_session + pallet_authority_discovery and bumps
+# spec_version so that a set_code upgrade from the default runtime triggers migrations.
+with-authority-discovery = ["spec-version-4"]

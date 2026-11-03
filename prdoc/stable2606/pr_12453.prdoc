@@ -1,0 +1,17 @@
+title: Fix duplicate statement notifications for multi-topic MatchAll subscriptions
+
+doc:
+- audience: Node Dev
+  description: |-
+    Fixes a bug in the statement store subscription matcher where a multi-topic `MatchAll`
+    subscription could be notified of the same statement multiple times. Because such a
+    subscription is registered under each of its topics, the topic-combination loop in
+    `notify_match_all_subscribers_best` could select it across several combinations and
+    deliver the same statement once per combination. The matcher now tracks already-notified
+    subscriptions per statement (mirroring the `MatchAny` path), delivering each statement at
+    most once per subscription. This also avoids needlessly consuming a subscriber's bounded
+    channel capacity, which could otherwise lead to premature auto-unsubscription.
+
+crates:
+- name: sc-statement-store
+  bump: patch

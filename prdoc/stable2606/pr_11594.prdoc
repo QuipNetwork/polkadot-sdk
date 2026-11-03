@@ -1,0 +1,18 @@
+title: 'Bags-list on_idle: per-item weight consumption via WeightMeter'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Replaces the bulk `on_idle` benchmark with a per-item `on_idle_rebag` benchmark that
+    measures the worst-case cost of a single rebag. `on_idle` now consumes weight per
+    iteration via `WeightMeter` instead of reserving a single bulk weight upfront.
+    This decouples the benchmark from `MaxAutoRebagPerBlock` — changing the config no
+    longer requires re-running benchmarks.
+crates:
+- name: pallet-bags-list
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: pallet-staking-async-parachain-runtime
+  bump: patch
+- name: westend-runtime
+  bump: patch

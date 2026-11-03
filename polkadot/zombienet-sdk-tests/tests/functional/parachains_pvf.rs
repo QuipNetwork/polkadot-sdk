@@ -7,8 +7,9 @@
 //! It sets up a network with 8 validators and 8 parachains,
 
 use crate::utils::{
-	env_or_default, initialize_network, BLOCK_HEIGHT_FINALIZED_METRIC, COL_IMAGE_ENV,
-	INTEGRATION_IMAGE_ENV, NODE_ROLES_METRIC,
+	assert_nodes_are_validators, env_or_default, initialize_network,
+	maybe_enable_experimental_collator_protocol, BLOCK_HEIGHT_FINALIZED_METRIC, COL_IMAGE_ENV,
+	INTEGRATION_IMAGE_ENV,
 };
 use anyhow::anyhow;
 use cumulus_zombienet_sdk_helpers::assert_para_throughput;
@@ -29,16 +30,11 @@ async fn parachains_pvf_preparation_and_execution_test() -> Result<(), anyhow::E
 
 	let config = build_network_config()?;
 	let network = initialize_network(config).await?;
+	let validator_nodes = network.relaychain().nodes();
 
 	// Check authority status
 	log::info!("Checking validator node roles");
-	for name in VALIDATORS {
-		let validator = network.get_node(name)?;
-		validator
-			.wait_metric_with_timeout(NODE_ROLES_METRIC, |v| v == 4.0, 60u64)
-			.await
-			.map_err(|e| anyhow!("Validator {} role check failed: {}", name, e))?;
-	}
+	assert_nodes_are_validators(&validator_nodes).await?;
 	log::info!("All validators confirmed as authorities");
 
 	// Get a relay client for parachain throughput checks
@@ -49,7 +45,7 @@ async fn parachains_pvf_preparation_and_execution_test() -> Result<(), anyhow::E
 	// Using 60 relay blocks as window (~180 seconds with 3s block time)
 	log::info!("Checking parachain block production");
 	let para_throughput: [(ParaId, Range<u32>); 8] = PARAS.map(|id| (ParaId::from(id), 5..61));
-	assert_para_throughput(&relay_client, 60, para_throughput).await?;
+	assert_para_throughput(&relay_client, 60, para_throughput, []).await?;
 	log::info!("All parachains producing blocks");
 
 	relay_node
@@ -138,7 +134,9 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 			.with_chain("rococo-local")
 			.with_default_command("polkadot")
 			.with_default_image(polkadot_image.as_str())
-			.with_default_args(vec!["-lparachain=debug,runtime=debug".into()])
+			.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+				"-lparachain=debug,runtime=debug".into(),
+			]))
 			.with_default_resources(|r| {
 				r.with_limit_memory("4G")
 					.with_limit_cpu("2")

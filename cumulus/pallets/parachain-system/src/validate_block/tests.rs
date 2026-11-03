@@ -19,8 +19,8 @@ use codec::{Decode, DecodeAll, Encode};
 use cumulus_primitives_core::{
 	relay_chain,
 	relay_chain::{UMPSignal, UMP_SEPARATOR},
-	BundleInfo, ClaimQueueOffset, CoreInfo, CoreSelector, CumulusDigestItem, ParaId,
-	ParachainBlockData, PersistedValidationData,
+	BlockBundleInfo, ClaimQueueOffset, CollectCollationInfo, CoreInfo, CoreSelector,
+	CumulusDigestItem, ParaId, ParachainBlockData, PersistedValidationData,
 };
 use cumulus_test_client::{
 	generate_extrinsic, generate_extrinsic_with_pair,
@@ -28,8 +28,8 @@ use cumulus_test_client::{
 		self as test_runtime, Block, Hash, Header, SudoCall, SystemCall, TestPalletCall,
 		UncheckedExtrinsic, WASM_BINARY,
 	},
-	seal_block, transfer, BlockData, BlockOrigin, BuildParachainBlockData, Client,
-	DefaultTestClientBuilderExt, HeadData, InitBlockBuilder,
+	seal_block, transfer, BlockData, BlockOrigin, BuildBlockBuilder, BuildParachainBlockData,
+	Client, DefaultTestClientBuilderExt, HeadData,
 	Sr25519Keyring::{Alice, Bob, Charlie},
 	TestClientBuilder, TestClientBuilderExt, ValidationParams,
 };
@@ -43,6 +43,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, Header as HeaderT},
 	DigestItem,
 };
+use sp_tracing::capture_test_logs;
 use sp_trie::{proof_size_extension::ProofSizeExt, recorder::IgnoredNodes};
 use std::{env, process::Command};
 
@@ -154,7 +155,12 @@ fn build_block_with_witness(
 		mut block_builder,
 		persisted_validation_data,
 		..
-	} = client.init_block_builder_with_pre_digests(Some(validation_data), sproof_builder, pre_digests);
+	} = client
+		.init_block_builder_builder()
+		.with_validation_data(validation_data)
+		.with_relay_sproof_builder(sproof_builder)
+		.with_pre_digests(pre_digests)
+		.build();
 
 	extra_extrinsics.into_iter().for_each(|e| block_builder.push(e).unwrap());
 
@@ -171,6 +177,7 @@ fn build_multiple_blocks_with_witness(
 	mut sproof_builder: RelayStateSproofBuilder,
 	num_blocks: u32,
 	extra_extrinsics: impl Fn(u32) -> Vec<UncheckedExtrinsic>,
+	pre_digests: impl Fn(u32) -> Vec<DigestItem>,
 ) -> TestBlockData {
 	let parent_head_root = *parent_head.state_root();
 	sproof_builder.para_id = test_runtime::PARACHAIN_ID.into();
@@ -208,18 +215,15 @@ fn build_multiple_blocks_with_witness(
 			mut block_builder,
 			persisted_validation_data: p_v_data,
 			proof_recorder,
-		} = client.init_block_builder_with_ignored_nodes(
-			parent_head.hash(),
-			Some(validation_data.clone()),
-			sproof_builder.clone(),
-			timestamp,
-			ignored_nodes.clone(),
-			Some(vec![CumulusDigestItem::BundleInfo(BundleInfo {
-				index: i as u8,
-				maybe_last: i as u32 + 1 == num_blocks,
-			})
-			.to_digest_item()]),
-		);
+		} = client
+			.init_block_builder_builder()
+			.at(parent_head.hash())
+			.with_validation_data(validation_data.clone())
+			.with_relay_sproof_builder(sproof_builder.clone())
+			.with_timestamp(timestamp)
+			.with_ignored_nodes(ignored_nodes.clone())
+			.with_pre_digests((pre_digests)(i))
+			.build();
 
 		persisted_validation_data = Some(p_v_data);
 
@@ -254,11 +258,11 @@ fn build_multiple_blocks_with_witness(
 		})
 		.unwrap();
 
-		let new_proof = proof_recorder.drain_storage_proof();
+		let proof_new = proof_recorder.drain_storage_proof();
 
-		ignored_nodes.extend(IgnoredNodes::from_storage_proof::<BlakeTwo256>(&new_proof));
+		ignored_nodes.extend(IgnoredNodes::from_storage_proof::<BlakeTwo256>(&proof_new));
 		ignored_nodes.extend(IgnoredNodes::from_memory_db(built_block.storage_changes.transaction));
-		proof = StorageProof::merge([proof, new_proof]);
+		proof = StorageProof::merge([proof, proof_new]);
 
 		parent_head = built_block.block.header.clone();
 
@@ -268,7 +272,7 @@ fn build_multiple_blocks_with_witness(
 	let proof = proof.into_compact_proof::<BlakeTwo256>(parent_head_root).unwrap();
 
 	TestBlockData {
-		block: ParachainBlockData::new(blocks, proof),
+		block: ParachainBlockData::new(blocks, proof, None),
 		validation_data: persisted_validation_data.unwrap(),
 	}
 }
@@ -297,7 +301,7 @@ fn validate_block_works() {
 fn validate_multiple_blocks_work() {
 	sp_tracing::try_init_simple();
 
-	let blocks_per_pov = 4;
+	let blocks_per_pov = 4u32;
 	let (client, parent_head) = create_elastic_scaling_test_client();
 	let TestBlockData { block, validation_data } = build_multiple_blocks_with_witness(
 		&client,
@@ -311,6 +315,10 @@ fn validate_multiple_blocks_work() {
 				TestPalletCall::read_and_write_big_value {},
 				Some(i),
 			)]
+		},
+		|i| {
+			vec![BlockBundleInfo { index: i as u8, is_last: i + 1 == blocks_per_pov }
+				.to_digest_item()]
 		},
 	);
 
@@ -564,7 +572,7 @@ fn validate_block_works_with_child_tries() {
 fn state_changes_in_multiple_blocks_are_applied_in_exact_order() {
 	sp_tracing::try_init_simple();
 
-	let blocks_per_pov = 12;
+	let blocks_per_pov = 12u32;
 	let (client, genesis_head) = create_elastic_scaling_test_client();
 
 	// 1. Build the initial block that stores values in the map.
@@ -609,6 +617,10 @@ fn state_changes_in_multiple_blocks_are_applied_in_exact_order() {
 					TestPalletCall::remove_value_from_map { key: key_to_remove },
 					Some(i),
 				)]
+			},
+			|i| {
+				vec![BlockBundleInfo { index: i as u8, is_last: i + 1 == blocks_per_pov }
+					.to_digest_item()]
 			},
 		);
 
@@ -666,12 +678,17 @@ fn ensure_we_only_like_blockchains() {
 
 	if env::var("RUN_TEST").is_ok() {
 		let (client, parent_head) = create_elastic_scaling_test_client();
+		let num_blocks = 4u32;
 		let TestBlockData { mut block, validation_data } = build_multiple_blocks_with_witness(
 			&client,
 			parent_head.clone(),
 			Default::default(),
-			4,
+			num_blocks,
 			|_| Default::default(),
+			|i| {
+				vec![BlockBundleInfo { index: i as u8, is_last: i + 1 == num_blocks }
+					.to_digest_item()]
+			},
 		);
 
 		// Reference some non existing parent.
@@ -697,7 +714,9 @@ fn ensure_we_only_like_blockchains() {
 }
 
 #[test]
-fn rejects_multiple_blocks_per_pov_when_applying_runtime_upgrade() {
+fn rejects_blocks_in_bundle_after_block_marked_as_last() {
+	// Note: This test also covers the case where a runtime upgrade contains following blocks.
+	// A block with a runtime upgrade is considered last in bundle.
 	sp_tracing::try_init_simple();
 
 	if env::var("RUN_TEST").is_ok() {
@@ -748,13 +767,18 @@ fn rejects_multiple_blocks_per_pov_when_applying_runtime_upgrade() {
 		proof_builder.host_config.max_code_size = code_len * 2;
 
 		// 2. Build a PoV that consists of multiple blocks.
+		let num_blocks = 4u32;
 		let TestBlockData { block: pov_block_data, validation_data: pov_validation_data } =
 			build_multiple_blocks_with_witness(
 				&client,
 				initial_block_header.clone(), // Start building PoV from the initial block's header
 				proof_builder,
-				4,
+				num_blocks,
 				|_| Vec::new(),
+				|i| {
+					vec![BlockBundleInfo { index: i as u8, is_last: i + 1 == num_blocks }
+						.to_digest_item()]
+				},
 			);
 
 		// 3. Validate the PoV.
@@ -766,11 +790,7 @@ fn rejects_multiple_blocks_per_pov_when_applying_runtime_upgrade() {
 		.unwrap_err();
 	} else {
 		let output = Command::new(env::current_exe().unwrap())
-			.args([
-				"rejects_multiple_blocks_per_pov_when_applying_runtime_upgrade",
-				"--",
-				"--nocapture",
-			])
+			.args(["rejects_blocks_in_bundle_after_block_marked_as_last", "--", "--nocapture"])
 			.env("RUN_TEST", "1")
 			.output()
 			.expect("Runs the test");
@@ -778,7 +798,7 @@ fn rejects_multiple_blocks_per_pov_when_applying_runtime_upgrade() {
 		assert!(output.status.success());
 
 		assert!(dbg!(String::from_utf8(output.stderr).unwrap())
-			.contains("only one block per PoV is allowed"));
+			.contains("is marked as last block in core, but more blocks follow in the PoV"));
 	}
 }
 
@@ -819,6 +839,179 @@ fn validate_block_rejects_huge_header_single_block() {
 }
 
 #[test]
+fn validate_block_rejects_incomplete_bundle() {
+	// Required to have the global logging enabled, so we can capture it below.
+	sp_tracing::try_init_simple();
+
+	let (client, parent_head) = create_elastic_scaling_test_client();
+
+	// Build 2 blocks with BlockBundleInfo
+	let TestBlockData { block, validation_data } = build_multiple_blocks_with_witness(
+		&client,
+		parent_head.clone(),
+		Default::default(),
+		2,
+		|_| Vec::new(),
+		|i| vec![BlockBundleInfo { index: i as u8, is_last: i == 1 }.to_digest_item()],
+	);
+
+	// Validation with only first block should fail (incomplete bundle)
+	let first_block_only =
+		ParachainBlockData::new(vec![block.blocks()[0].clone()], block.proof().clone(), None);
+	let log_capture = capture_test_logs!({
+		call_validate_block_elastic_scaling(
+			parent_head.clone(),
+			first_block_only,
+			validation_data.relay_parent_storage_root,
+		)
+		.unwrap_err();
+	});
+	assert!(
+		log_capture.contains(
+			"Last block in PoV must include the digest that marks it as the last block in the core"
+		),
+		"Expected log about missing last block digest, got: {}",
+		log_capture.get_logs()
+	);
+
+	// Validation with both blocks should succeed
+	let header = block.blocks().last().unwrap().header().clone();
+	let res_header = call_validate_block_elastic_scaling(
+		parent_head,
+		block,
+		validation_data.relay_parent_storage_root,
+	)
+	.expect("Calls `validate_block`");
+	assert_eq!(header, res_header);
+}
+
+#[test]
+fn only_send_ump_signal_on_last_block_in_bundle() {
+	sp_tracing::try_init_simple();
+
+	let (client, parent_head) = create_elastic_scaling_test_client();
+
+	// Build 4 blocks with BlockBundleInfo and CoreInfo on all blocks
+	let TestBlockData { block, .. } = build_multiple_blocks_with_witness(
+		&client,
+		parent_head.clone(),
+		Default::default(),
+		4,
+		|_| Vec::new(),
+		|i| {
+			vec![
+				BlockBundleInfo { index: i as u8, is_last: i == 3 }.to_digest_item(),
+				CumulusDigestItem::CoreInfo(CoreInfo {
+					selector: CoreSelector(0),
+					claim_queue_offset: ClaimQueueOffset(0),
+					number_of_cores: 1.into(),
+				})
+				.to_digest_item(),
+			]
+		},
+	);
+
+	let blocks = block.blocks();
+
+	// Check CollectCollationInfo for each block
+	for (i, b) in blocks.iter().enumerate() {
+		let is_last = i == blocks.len() - 1;
+		let block_hash = b.header().hash();
+
+		let collation_info = client
+			.runtime_api()
+			.collect_collation_info(block_hash, b.header())
+			.expect("Failed to collect collation info");
+
+		let has_separator = collation_info.upward_messages.contains(&UMP_SEPARATOR);
+
+		if is_last {
+			assert!(
+				has_separator,
+				"Block {} (last) should have UMP_SEPARATOR, got: {:?}",
+				i, collation_info.upward_messages
+			);
+		} else {
+			assert!(
+				!has_separator,
+				"Block {} should NOT have UMP_SEPARATOR, got: {:?}",
+				i, collation_info.upward_messages
+			);
+		}
+	}
+}
+
+#[test]
+fn validate_block_accepts_single_block_with_use_full_core() {
+	sp_tracing::try_init_simple();
+
+	let (client, parent_head) = create_elastic_scaling_test_client();
+
+	// Build a single block with BlockBundleInfo (is_last=false) and UseFullCore set via
+	// extrinsic UseFullCore should make validation succeed even without is_last=true
+	let TestBlockData { block, validation_data } = build_block_with_witness(
+		&client,
+		vec![generate_extrinsic(&client, Alice, TestPalletCall::set_use_full_core {})],
+		parent_head.clone(),
+		Default::default(),
+		vec![BlockBundleInfo { index: 0, is_last: false }.to_digest_item()],
+	);
+
+	// Validation should succeed because UseFullCore marks it as last block
+	let header = block.blocks()[0].header().clone();
+	let res_header = call_validate_block_elastic_scaling(
+		parent_head,
+		block,
+		validation_data.relay_parent_storage_root,
+	)
+	.expect("Calls `validate_block`");
+	assert_eq!(header, res_header);
+}
+
+#[test]
+fn only_send_ump_signal_on_single_block_with_use_full_core() {
+	sp_tracing::try_init_simple();
+
+	let (client, parent_head) = create_elastic_scaling_test_client();
+
+	// Build a single block with BlockBundleInfo (is_last=false), CoreInfo, and UseFullCore set
+	// via extrinsic. UseFullCore makes this block the last block in the core.
+	let TestBlockData { block, .. } = build_multiple_blocks_with_witness(
+		&client,
+		parent_head.clone(),
+		Default::default(),
+		1,
+		|_| vec![generate_extrinsic(&client, Alice, TestPalletCall::set_use_full_core {})],
+		|_| {
+			vec![
+				BlockBundleInfo { index: 0, is_last: false }.to_digest_item(),
+				CumulusDigestItem::CoreInfo(CoreInfo {
+					selector: CoreSelector(0),
+					claim_queue_offset: ClaimQueueOffset(0),
+					number_of_cores: 1.into(),
+				})
+				.to_digest_item(),
+			]
+		},
+	);
+
+	let b = &block.blocks()[0];
+	let block_hash = b.header().hash();
+
+	let collation_info = client
+		.runtime_api()
+		.collect_collation_info(block_hash, b.header())
+		.expect("Failed to collect collation info");
+
+	// Block with UseFullCore should have UMP_SEPARATOR (it's the last block)
+	assert!(
+		collation_info.upward_messages.contains(&UMP_SEPARATOR),
+		"Single block with UseFullCore should have UMP_SEPARATOR, got: {:?}",
+		collation_info.upward_messages
+	);
+}
+
+#[test]
 fn validate_block_with_max_ump_messages_and_4_blocks_per_pov() {
 	sp_tracing::try_init_simple();
 
@@ -848,6 +1041,10 @@ fn validate_block_with_max_ump_messages_and_4_blocks_per_pov() {
 				Some(i),
 			)]
 		},
+		|i| {
+			vec![BlockBundleInfo { index: i as u8, is_last: i as u32 + 1 == blocks_per_pov }
+				.to_digest_item()]
+		},
 	);
 
 	let header = block.blocks().last().unwrap().header().clone();
@@ -872,8 +1069,9 @@ fn validate_block_with_max_hrmp_messages_and_4_blocks_per_pov() {
 	sp_tracing::try_init_simple();
 
 	let blocks_per_pov = 4;
-	let max_per_candidate = 100;
-	let recipient = ParaId::from(300);
+	let msgs_per_block: u32 = 25;
+	let max_per_candidate = msgs_per_block * blocks_per_pov;
+	let first_recipient = 300u32;
 	let (client, parent_head) = create_elastic_scaling_test_client();
 
 	let mut sproof_builder =
@@ -881,10 +1079,12 @@ fn validate_block_with_max_hrmp_messages_and_4_blocks_per_pov() {
 	sproof_builder.host_config.hrmp_max_message_num_per_candidate = max_per_candidate;
 	sproof_builder.para_id = ParaId::from(100);
 
-	let channel = sproof_builder.upsert_outbound_channel(recipient);
-	channel.max_capacity = blocks_per_pov;
-	channel.max_total_size = blocks_per_pov * max_per_candidate * 256;
-	channel.max_message_size = 256;
+	for i in 0..max_per_candidate {
+		let channel = sproof_builder.upsert_outbound_channel(ParaId::from(first_recipient + i));
+		channel.max_capacity = blocks_per_pov;
+		channel.max_total_size = blocks_per_pov * max_per_candidate * 256;
+		channel.max_message_size = 256;
+	}
 
 	let TestBlockData { block, validation_data } = build_multiple_blocks_with_witness(
 		&client,
@@ -892,12 +1092,20 @@ fn validate_block_with_max_hrmp_messages_and_4_blocks_per_pov() {
 		sproof_builder,
 		blocks_per_pov,
 		|i| {
+			let block_first_recipient = ParaId::from(first_recipient + i * msgs_per_block);
 			vec![generate_extrinsic_with_pair(
 				&client,
 				Charlie.into(),
-				TestPalletCall::queue_hrmp_messages { n: max_per_candidate, recipient },
+				TestPalletCall::queue_hrmp_messages_to_n_recipients {
+					n: msgs_per_block,
+					first_recipient: block_first_recipient,
+				},
 				Some(i),
 			)]
+		},
+		|i| {
+			vec![BlockBundleInfo { index: i as u8, is_last: i as u32 + 1 == blocks_per_pov }
+				.to_digest_item()]
 		},
 	);
 
@@ -915,6 +1123,156 @@ fn validate_block_with_max_hrmp_messages_and_4_blocks_per_pov() {
 	assert_eq!(header, res_header);
 
 	assert_eq!(result.horizontal_messages.len(), max_per_candidate as usize);
+}
+
+#[test]
+fn validate_block_hrmp_messages_sorted_across_blocks_in_bundle() {
+	sp_tracing::try_init_simple();
+
+	let blocks_per_pov = 2;
+	let recipient_a = ParaId::from(200);
+	let recipient_b = ParaId::from(300);
+	let (client, parent_head) = create_elastic_scaling_test_client();
+
+	let mut sproof_builder =
+		RelayStateSproofBuilder { current_slot: 1.into(), ..Default::default() };
+	sproof_builder.host_config.hrmp_max_message_num_per_candidate = 10;
+	sproof_builder.para_id = ParaId::from(100);
+
+	for recipient in [recipient_a, recipient_b] {
+		let channel = sproof_builder.upsert_outbound_channel(recipient);
+		channel.max_capacity = blocks_per_pov;
+		channel.max_total_size = blocks_per_pov * 10 * 256;
+		channel.max_message_size = 256;
+	}
+
+	let TestBlockData { block, validation_data } = build_multiple_blocks_with_witness(
+		&client,
+		parent_head.clone(),
+		sproof_builder,
+		blocks_per_pov,
+		|i| {
+			// Block 0 sends to recipient_b (300), block 1 sends to recipient_a (200).
+			// Naive concatenation would produce [300, 200] which violates the
+			// strictly-ascending-by-recipient requirement enforced by the relay chain.
+			let recipient = if i == 0 { recipient_b } else { recipient_a };
+			vec![generate_extrinsic_with_pair(
+				&client,
+				Charlie.into(),
+				TestPalletCall::queue_hrmp_messages { n: 1, recipient },
+				Some(i),
+			)]
+		},
+		|i| {
+			vec![BlockBundleInfo { index: i as u8, is_last: i as u32 + 1 == blocks_per_pov }
+				.to_digest_item()]
+		},
+	);
+
+	let result = call_validate_block_validation_result(
+		test_runtime::elastic_scaling_500ms::WASM_BINARY
+			.expect("You need to build the WASM binaries to run the tests!"),
+		parent_head,
+		block,
+		validation_data.relay_parent_storage_root,
+	)
+	.expect("Calls `validate_block`");
+
+	assert_eq!(result.horizontal_messages.len(), 2);
+
+	// The relay chain requires strictly ascending recipient order and at most one message
+	// per recipient (see `hrmp::Pallet::check_outbound_hrmp`).
+	assert!(
+		result.horizontal_messages[0].recipient < result.horizontal_messages[1].recipient,
+		"HRMP messages must be strictly sorted by recipient, got {:?} before {:?}",
+		result.horizontal_messages[0].recipient,
+		result.horizontal_messages[1].recipient,
+	);
+}
+
+#[test]
+fn validate_block_hrmp_duplicate_recipient_across_blocks_in_bundle() {
+	sp_tracing::try_init_simple();
+
+	let blocks_per_pov = 2;
+	let recipient = ParaId::from(300);
+	let (client, parent_head) = create_elastic_scaling_test_client();
+
+	let mut sproof_builder =
+		RelayStateSproofBuilder { current_slot: 1.into(), ..Default::default() };
+	sproof_builder.host_config.hrmp_max_message_num_per_candidate = 10;
+	sproof_builder.para_id = ParaId::from(100);
+
+	let channel = sproof_builder.upsert_outbound_channel(recipient);
+	channel.max_capacity = 10;
+	channel.max_total_size = 10 * 256;
+	channel.max_message_size = 256;
+
+	let TestBlockData { block: pov1_block, validation_data: pov1_vdata } =
+		build_multiple_blocks_with_witness(
+			&client,
+			parent_head.clone(),
+			sproof_builder.clone(),
+			blocks_per_pov,
+			|i| {
+				vec![generate_extrinsic_with_pair(
+					&client,
+					Charlie.into(),
+					TestPalletCall::queue_hrmp_messages { n: 1, recipient },
+					Some(i),
+				)]
+			},
+			|i| {
+				vec![BlockBundleInfo { index: i as u8, is_last: i as u32 + 1 == blocks_per_pov }
+					.to_digest_item()]
+			},
+		);
+
+	let pov1_result = call_validate_block_validation_result(
+		test_runtime::elastic_scaling_500ms::WASM_BINARY
+			.expect("You need to build the WASM binaries to run the tests!"),
+		parent_head,
+		pov1_block.clone(),
+		pov1_vdata.relay_parent_storage_root,
+	)
+	.expect("Calls `validate_block` for PoV 1");
+
+	assert_eq!(
+		pov1_result.horizontal_messages.len(),
+		1,
+		"PoV 1: expected 1 HRMP message, got {}",
+		pov1_result.horizontal_messages.len(),
+	);
+
+	let pov2_parent_head = pov1_block.blocks().last().unwrap().header().clone();
+	sproof_builder.current_slot = 2.into();
+	sproof_builder.included_para_head = Some(HeadData(pov2_parent_head.encode()));
+
+	let TestBlockData { block: pov2_block, validation_data: pov2_vdata } =
+		build_multiple_blocks_with_witness(
+			&client,
+			pov2_parent_head.clone(),
+			sproof_builder,
+			1,
+			|_| vec![],
+			|_| vec![],
+		);
+
+	let pov2_result = call_validate_block_validation_result(
+		test_runtime::elastic_scaling_500ms::WASM_BINARY
+			.expect("You need to build the WASM binaries to run the tests!"),
+		pov2_parent_head,
+		pov2_block,
+		pov2_vdata.relay_parent_storage_root,
+	)
+	.expect("Calls `validate_block` for PoV 2");
+
+	assert_eq!(
+		pov2_result.horizontal_messages.len(),
+		1,
+		"PoV 2: expected 1 HRMP message (the pending one from PoV 1), got {}",
+		pov2_result.horizontal_messages.len(),
+	);
 }
 
 #[test]
@@ -946,6 +1304,10 @@ fn validate_block_with_ump_size_constraint_and_4_blocks_per_pov() {
 				TestPalletCall::send_upward_message_of_size { size: msg_size },
 				Some(i),
 			)]
+		},
+		|i| {
+			vec![BlockBundleInfo { index: i as u8, is_last: i as u32 + 1 == blocks_per_pov }
+				.to_digest_item()]
 		},
 	);
 
@@ -996,6 +1358,10 @@ fn validate_block_with_ump_capacity_constraint_and_4_blocks_per_pov() {
 				TestPalletCall::send_upward_message_of_size { size: 100 },
 				Some(i),
 			)]
+		},
+		|i| {
+			vec![BlockBundleInfo { index: i as u8, is_last: i as u32 + 1 == blocks_per_pov }
+				.to_digest_item()]
 		},
 	);
 

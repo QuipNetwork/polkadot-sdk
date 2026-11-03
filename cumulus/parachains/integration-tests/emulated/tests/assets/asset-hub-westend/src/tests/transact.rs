@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{assets_balance_on, create_pool_with_wnd_on, foreign_balance_on, imports::*};
+use crate::{assets_balance_on, imports::*};
 use frame_support::traits::tokens::fungibles::Mutate;
 use xcm_builder::{DescribeAllTerminal, DescribeFamily, HashedDescription};
 use xcm_executor::traits::ConvertLocation;
@@ -113,28 +113,33 @@ fn transact_from_para_to_para_through_asset_hub() {
 
 	// We create a pool between WND and USDT in AssetHub.
 	let usdt = Location::new(0, [PalletInstance(ASSETS_PALLET_ID), GeneralIndex(USDT_ID.into())]);
-	create_pool_with_wnd_on!(
+	create_pool_with_relay_native_on!(
 		AssetHubWestend,
 		usdt,
-		false,
 		AssetHubWestendSender::get(),
 		1_000_000_000_000,
 		20_000_000_000
 	);
-	// We also need a pool between WND and USDT on PenpalA.
-	create_pool_with_wnd_on!(PenpalA, PenpalUsdtFromAssetHub::get(), true, PenpalAssetOwner::get());
-	// We also need a pool between WND and USDT on PenpalB.
-	create_pool_with_wnd_on!(PenpalB, PenpalUsdtFromAssetHub::get(), true, PenpalAssetOwner::get());
+	// We also need a pool between the native currency on PenpalA and USDT on PenpalA.
+	create_foreign_pool_with_native_on!(
+		PenpalA,
+		PenpalUsdtFromAssetHub::get(),
+		PenpalAssetOwner::get()
+	);
+	// We also need a pool between the native currency on PenpalB and USDT on PenpalB.
+	create_foreign_pool_with_native_on!(
+		PenpalB,
+		PenpalUsdtFromAssetHub::get(),
+		PenpalAssetOwner::get()
+	);
 
 	let usdt_from_asset_hub = PenpalUsdtFromAssetHub::get();
-	PenpalA::execute_with(|| {
-		type ForeignAssets = <PenpalA as PenpalAPallet>::ForeignAssets;
-		assert_ok!(<ForeignAssets as Mutate<_>>::mint_into(
-			usdt_from_asset_hub.clone(),
-			&sender,
-			fee_amount_to_send,
-		));
-	});
+	PenpalA::mint_foreign_asset(
+		<PenpalA as Chain>::RuntimeOrigin::signed(PenpalAssetOwner::get()),
+		usdt_from_asset_hub.clone(),
+		sender.clone(),
+		fee_amount_to_send,
+	);
 
 	// Give the sender enough Relay tokens to pay for local delivery fees.
 	PenpalA::mint_foreign_asset(
@@ -148,9 +153,9 @@ fn transact_from_para_to_para_through_asset_hub() {
 	let receiver = PenpalBReceiver::get();
 
 	// Query initial balances
-	let sender_assets_before = foreign_balance_on!(PenpalA, usdt_from_asset_hub.clone(), &sender);
+	let sender_assets_before = assets_balance_on!(PenpalA, usdt_from_asset_hub.clone(), &sender);
 	let receiver_assets_before =
-		foreign_balance_on!(PenpalB, usdt_from_asset_hub.clone(), &receiver);
+		assets_balance_on!(PenpalB, usdt_from_asset_hub.clone(), &receiver);
 
 	// Now register a new asset on PenpalB from PenpalA/sender account while paying fees using USDT
 	// (going through Asset Hub)
@@ -192,8 +197,8 @@ fn transact_from_para_to_para_through_asset_hub() {
 	});
 
 	// Query final balances
-	let sender_assets_after = foreign_balance_on!(PenpalA, usdt_from_asset_hub.clone(), &sender);
-	let receiver_assets_after = foreign_balance_on!(PenpalB, usdt_from_asset_hub, &receiver);
+	let sender_assets_after = assets_balance_on!(PenpalA, usdt_from_asset_hub.clone(), &sender);
+	let receiver_assets_after = assets_balance_on!(PenpalB, usdt_from_asset_hub, &receiver);
 
 	// Sender's balance is reduced by amount
 	assert_eq!(sender_assets_after, sender_assets_before - fee_amount_to_send);
@@ -242,10 +247,9 @@ fn transact_using_authorized_alias_from_para_to_asset_hub_and_back_to_para() {
 	);
 
 	// We create a pool between WND and USDT in AssetHub so we can do the exchange
-	create_pool_with_wnd_on!(
+	create_pool_with_relay_native_on!(
 		AssetHubWestend,
 		usdt_asset_hub_pov.clone(),
-		false,
 		AssetHubWestendSender::get(),
 		1_000_000_000_000,
 		20_000_000_000
@@ -263,7 +267,7 @@ fn transact_using_authorized_alias_from_para_to_asset_hub_and_back_to_para() {
 
 	// Query initial balances
 	let sender_usdt_on_penpal_before =
-		foreign_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
+		assets_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
 	let sender_usdt_on_ah_before = assets_balance_on!(AssetHubWestend, USDT_ID, &sender);
 
 	// Encoded `swap_tokens_for_exact_tokens` call to be executed in AH
@@ -408,8 +412,7 @@ fn transact_using_authorized_alias_from_para_to_asset_hub_and_back_to_para() {
 
 	// Query final balances
 	let sender_usdt_on_ah_after = assets_balance_on!(AssetHubWestend, USDT_ID, &sender);
-	let sender_usdt_on_penpal_after =
-		foreign_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
+	let sender_usdt_on_penpal_after = assets_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
 
 	// Receiver's balance is increased by usdt amount we got from exchange
 	assert_eq!(
@@ -464,10 +467,9 @@ fn transact_using_sov_account_from_para_to_asset_hub_and_back_to_para() {
 	);
 
 	// We create a pool between WND and USDT in AssetHub so we can do the exchange
-	create_pool_with_wnd_on!(
+	create_pool_with_relay_native_on!(
 		AssetHubWestend,
 		usdt_asset_hub_pov.clone(),
-		false,
 		AssetHubWestendSender::get(),
 		1_000_000_000_000,
 		20_000_000_000
@@ -475,7 +477,7 @@ fn transact_using_sov_account_from_para_to_asset_hub_and_back_to_para() {
 
 	// Query initial balances
 	let sender_usdt_on_penpal_before =
-		foreign_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
+		assets_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
 	let sender_usdt_on_ah_before =
 		assets_balance_on!(AssetHubWestend, USDT_ID, &sov_of_sender_on_asset_hub);
 
@@ -619,8 +621,7 @@ fn transact_using_sov_account_from_para_to_asset_hub_and_back_to_para() {
 	// Query final balances
 	let sender_usdt_on_ah_after =
 		assets_balance_on!(AssetHubWestend, USDT_ID, &sov_of_sender_on_asset_hub);
-	let sender_usdt_on_penpal_after =
-		foreign_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
+	let sender_usdt_on_penpal_after = assets_balance_on!(PenpalA, usdt_penpal_pov.clone(), &sender);
 
 	// Receiver's balance is increased by usdt amount we got from exchange
 	assert_eq!(
@@ -660,7 +661,7 @@ fn penpal_b_assertions(
 	assert_expected_events!(
 		PenpalB,
 		vec![
-			RuntimeEvent::ForeignAssets(
+			RuntimeEvent::Assets(
 				pallet_assets::Event::Created { asset_id, creator, owner }
 			) => {
 				asset_id: *asset_id == expected_asset,

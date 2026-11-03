@@ -1,0 +1,14 @@
+title: 'statement-store: add eviction priority ordering tests'
+doc:
+- audience: Node Dev
+  description: |-
+    # Description
+      Implement unit tests for "Eviction: verify the lowest-priority statements are evicted first, corner cases of priority ordering" #11534
+
+      ## Summary
+      - Extend the existing `constraints()` test with eviction priority ordering corner cases:
+        - Verify that equal priority statements are rejected with `AccountFull` when the account is full
+        - Verify that specific evicted statement hashes appear in the expired map
+crates:
+- name: sc-statement-store
+  bump: none

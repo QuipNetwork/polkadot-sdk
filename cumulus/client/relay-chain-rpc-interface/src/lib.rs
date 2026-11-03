@@ -38,7 +38,7 @@ use sp_storage::StorageKey;
 use sp_version::RuntimeVersion;
 use std::{collections::btree_map::BTreeMap, pin::Pin};
 
-use cumulus_primitives_core::relay_chain::BlockId;
+use cumulus_primitives_core::relay_chain::{vstaging::RelayParentInfo, BlockId, NodeFeatures};
 pub use url::Url;
 
 mod metrics;
@@ -305,5 +305,24 @@ impl RelayChainInterface for RelayChainRpcInterface {
 		relay_parent: RelayHash,
 	) -> RelayChainResult<Vec<CandidateEvent>> {
 		self.rpc_client.parachain_host_candidate_events(relay_parent).await
+	}
+
+	async fn max_relay_parent_session_age(&self, at: RelayHash) -> RelayChainResult<u32> {
+		self.rpc_client.parachain_host_max_relay_parent_session_age(at).await
+	}
+
+	async fn node_features(&self, at: RelayHash) -> RelayChainResult<NodeFeatures> {
+		self.rpc_client.parachain_host_node_features(at).await
+	}
+
+	async fn ancestor_relay_parent_info(
+		&self,
+		at: RelayHash,
+		session_index: SessionIndex,
+		relay_parent: RelayHash,
+	) -> RelayChainResult<Option<RelayParentInfo<RelayHash, BlockNumber>>> {
+		self.rpc_client
+			.parachain_host_ancestor_relay_parent_info(at, session_index, relay_parent)
+			.await
 	}
 }

@@ -1,0 +1,14 @@
+title: Check the validation data
+doc:
+- audience: Node Dev
+  description: |-
+    Candidate validation now ensures that the `PersistedValidationData` hash matches the
+    `persisted_validation_data_hash` in the candidate descriptor, which is the one checked
+    on chain. Candidates failing this check are rejected with the new
+    `InvalidCandidate::PersistedValidationDataMismatch`.
+crates:
+- name: polkadot-node-core-candidate-validation
+  bump: patch
+- name: polkadot-node-primitives
+  bump: major
+  validate: false

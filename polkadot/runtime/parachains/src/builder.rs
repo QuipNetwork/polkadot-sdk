@@ -691,6 +691,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 									relay_parent,
 									core_idx,
 									self.target_session,
+									self.target_session, // scheduling_session_index
 									persisted_validation_data_hash,
 									pov_hash,
 									Default::default(),
@@ -699,24 +700,26 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 									relay_parent, // scheduling_parent
 								)
 							},
-							CandidateDescriptorVersionConfig::V1 |
-							CandidateDescriptorVersionConfig::V2 => {
-								// V1 and V2 use the same constructor (new()).
-								// They differ in whether UMP signals are added to commitments
-								// and in the collator_id/collator_signature fields (real in V1,
-								// zeroed out in V2).
-								CandidateDescriptorV2::new(
-									para_id,
-									relay_parent,
-									core_idx,
-									self.target_session,
-									persisted_validation_data_hash,
-									pov_hash,
-									Default::default(),
-									head_data.hash(),
-									validation_code_hash,
-								)
-							},
+							CandidateDescriptorVersionConfig::V1 => CandidateDescriptorV2::new_v1(
+								para_id,
+								relay_parent,
+								persisted_validation_data_hash,
+								pov_hash,
+								Default::default(),
+								head_data.hash(),
+								validation_code_hash,
+							),
+							CandidateDescriptorVersionConfig::V2 => CandidateDescriptorV2::new(
+								para_id,
+								relay_parent,
+								core_idx,
+								self.target_session,
+								persisted_validation_data_hash,
+								pov_hash,
+								Default::default(),
+								head_data.hash(),
+								validation_code_hash,
+							),
 						};
 
 						let mut candidate = CommittedCandidateReceipt::<T::Hash> {

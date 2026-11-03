@@ -12,11 +12,9 @@ workspace = true
 
 [dependencies]
 assert_matches = { workspace = true }
-asset-test-utils = { default-features = true, workspace = true }
 codec = { workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-xcmp-queue = { workspace = true }
-emulated-integration-tests-common = { workspace = true }
+
+# Substrate
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 pallet-asset-conversion = { workspace = true }
@@ -25,16 +23,25 @@ pallet-assets = { workspace = true }
 pallet-balances = { workspace = true }
 pallet-message-queue = { workspace = true }
 pallet-treasury = { workspace = true }
-pallet-xcm = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
-polkadot-runtime-common = { default-features = true, workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
-westend-system-emulated-network = { workspace = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
+polkadot-runtime-common = { workspace = true, default-features = true }
+westend-runtime = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
 xcm-runtime-apis = { workspace = true }
 
+# Cumulus
+asset-test-utils = { workspace = true, default-features = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-xcmp-queue = { workspace = true }
+emulated-integration-tests-common = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
+westend-system-emulated-network = { workspace = true }
+
 [dev-dependencies]
-sp-tracing = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }

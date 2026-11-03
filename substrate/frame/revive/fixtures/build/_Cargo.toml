@@ -14,7 +14,7 @@ edition = "2021"
 [dependencies]
 uapi = { package = 'pallet-revive-uapi', default-features = false }
 hex-literal = { version = "0.4.1", default-features = false }
-polkavm-derive = { version = "0.30.0" }
+polkavm-derive = { version = "0.35.0" }
 
 [profile.release]
 opt-level = 3

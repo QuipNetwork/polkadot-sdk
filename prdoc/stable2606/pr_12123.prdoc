@@ -1,0 +1,22 @@
+title: Fix migrations for recovery & parachain-system pallets
+doc:
+- audience: Runtime Dev
+  description: |-
+    Changes:
+    - pallet-recovery: be more lenient towards broken accounts to keep their recovery config
+    - parachain-system: clear old storage value to prevent decoding error
+crates:
+- name: pallet-recovery
+  bump: patch
+- name: cumulus-pallet-parachain-system
+  bump: patch
+- name: pallet-assets
+  bump: patch
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch
+- name: collectives-westend-runtime
+  bump: patch
+- name: coretime-westend-runtime
+  bump: patch

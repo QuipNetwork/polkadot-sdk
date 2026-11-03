@@ -1,6 +1,6 @@
 [package]
 name = "frame-benchmarking-cli"
-version = "54.0.0"
+version = "64.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -17,69 +17,73 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 Inflector = { workspace = true }
+anyhow = { workspace = true, default-features = true }
 array-bytes = { workspace = true, default-features = true }
 chrono = { workspace = true }
 clap = { features = ["derive"], workspace = true }
 codec = { workspace = true, default-features = true }
 comfy-table = { workspace = true }
-cumulus-client-parachain-inherent = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-primitives-proof-size-hostfunction = { default-features = true, workspace = true }
+cumulus-client-parachain-inherent = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true, default-features = true }
 env_filter = { workspace = true }
-frame-benchmarking = { default-features = true, workspace = true }
-frame-storage-access-test-runtime = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
+frame-benchmarking = { workspace = true, default-features = true }
+frame-storage-access-test-runtime = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
 gethostname = { workspace = true }
 handlebars = { workspace = true }
 itertools = { workspace = true }
 linked-hash-map = { workspace = true }
 log = { workspace = true, default-features = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 rand = { features = ["small_rng"], workspace = true, default-features = true }
 rand_pcg = { workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
+sc-block-builder = { workspace = true, default-features = true }
 sc-chain-spec = { workspace = true }
-sc-cli = { default-features = false, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-client-db = { default-features = false, workspace = true }
-sc-executor = { default-features = true, workspace = true }
+sc-cli = { workspace = true, default-features = false }
+sc-client-api = { workspace = true, default-features = true }
+sc-client-db = { workspace = true, default-features = false }
+sc-executor = { workspace = true, default-features = true }
 sc-executor-common = { workspace = true }
 sc-executor-wasmtime = { workspace = true }
-sc-runtime-utilities = { default-features = true, workspace = true }
-sc-service = { default-features = false, workspace = true }
-sc-sysinfo = { default-features = true, workspace = true }
+sc-runtime-utilities = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = false }
+sc-sysinfo = { workspace = true, default-features = true }
+sc-virtualization = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-block-builder = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-database = { default-features = true, workspace = true }
-sp-externalities = { default-features = true, workspace = true }
-sp-genesis-builder = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-runtime-interface = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-storage = { default-features = true, workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
-sp-transaction-pool = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
-sp-wasm-interface = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-database = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-genesis-builder = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-runtime-interface = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-storage = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
+sp-transaction-pool = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
+sp-virtualization = { workspace = true, default-features = true }
+sp-wasm-interface = { workspace = true, default-features = true }
 subxt = { workspace = true, features = ["native"] }
 subxt-signer = { workspace = true, features = ["unstable-eth"] }
 thiserror = { workspace = true }
 thousands = { workspace = true }
 
 [dev-dependencies]
-cumulus-test-runtime = { default-features = true, workspace = true }
-substrate-test-runtime = { default-features = true, workspace = true }
-westend-runtime = { default-features = true, workspace = true }
+cumulus-test-runtime = { workspace = true, default-features = true }
+substrate-test-runtime = { workspace = true, default-features = true }
+westend-runtime = { workspace = true, default-features = true }
 
 [features]
 default = []

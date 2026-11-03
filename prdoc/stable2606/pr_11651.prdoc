@@ -1,0 +1,19 @@
+title: "Validator self-stake incentive curve (non-vested)"
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds a separate validator incentive reward track funded from a second DAP budget pot.
+    Each validator's share is determined by a sqrt-based piecewise weight function of their
+    self-stake, with governance-configurable parameters (optimum, cap, slope factor).
+    Payout is a direct liquid transfer from the era incentive pot.
+
+    New extrinsic: `set_validator_self_stake_incentive_config` (AdminOrigin).
+crates:
+- name: pallet-staking-async
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: pallet-ahm-test
+  bump: patch
+- name: pallet-dap
+  bump: patch

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-fast-unstake"
-version = "45.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -16,25 +16,28 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-election-provider-support = { workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 log = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
+
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
+frame-election-provider-support = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
 
+frame-benchmarking = { optional = true, workspace = true }
+
 docify = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-staking = { default-features = true, workspace = true }
-pallet-staking-reward-curve = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-sp-core = { workspace = true, default-features = false }
-sp-tracing = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-staking = { workspace = true, default-features = true }
+pallet-staking-reward-curve = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+sp-core = { workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -45,11 +48,15 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
+	"pallet-staking/std",
+	"pallet-timestamp/std",
 	"scale-info/std",
 	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-staking/std",
+	"sp-tracing/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

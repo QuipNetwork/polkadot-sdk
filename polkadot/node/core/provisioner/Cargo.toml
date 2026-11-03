@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-provisioner"
-version = "29.0.0"
+version = "36.0.0"
 description = "Responsible for assembling a relay chain block from a set of available parachain candidates"
 authors.workspace = true
 edition.workspace = true
@@ -16,18 +16,18 @@ bitvec = { features = ["alloc"], workspace = true }
 fatality = { workspace = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 sc-consensus-slots = { workspace = true }
 schnellru = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { workspace = true }
-polkadot-primitives = { features = ["test"], workspace = true, default-features = false }
+polkadot-primitives = { workspace = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }

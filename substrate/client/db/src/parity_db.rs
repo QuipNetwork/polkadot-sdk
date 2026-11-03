@@ -92,14 +92,16 @@ fn ref_counted_column(col: u32) -> bool {
 
 impl<H: Clone + AsRef<[u8]>> Database<H> for DbAdapter {
 	fn commit(&self, transaction: Transaction<H>) -> Result<(), DatabaseError> {
+		use parity_db::Operation;
+
 		let mut not_ref_counted_column = Vec::new();
-		let result = self.0.commit(transaction.0.into_iter().filter_map(|change| {
+		let result = self.0.commit_changes(transaction.0.into_iter().filter_map(|change| {
 			Some(match change {
-				Change::Set(col, key, value) => (col as u8, key, Some(value)),
-				Change::Remove(col, key) => (col as u8, key, None),
+				Change::Set(col, key, value) => (col as u8, Operation::Set(key, value)),
+				Change::Remove(col, key) => (col as u8, Operation::Dereference(key)),
 				Change::Store(col, key, value) => {
 					if ref_counted_column(col) {
-						(col as u8, key.as_ref().to_vec(), Some(value))
+						(col as u8, Operation::Set(key.as_ref().to_vec(), value))
 					} else {
 						if !not_ref_counted_column.contains(&col) {
 							not_ref_counted_column.push(col);
@@ -109,9 +111,7 @@ impl<H: Clone + AsRef<[u8]>> Database<H> for DbAdapter {
 				},
 				Change::Reference(col, key) => {
 					if ref_counted_column(col) {
-						// FIXME accessing value is not strictly needed, optimize this in parity-db.
-						let value = <Self as Database<H>>::get(self, col, key.as_ref());
-						(col as u8, key.as_ref().to_vec(), value)
+						(col as u8, Operation::Reference(key.as_ref().to_vec()))
 					} else {
 						if !not_ref_counted_column.contains(&col) {
 							not_ref_counted_column.push(col);
@@ -121,7 +121,7 @@ impl<H: Clone + AsRef<[u8]>> Database<H> for DbAdapter {
 				},
 				Change::Release(col, key) => {
 					if ref_counted_column(col) {
-						(col as u8, key.as_ref().to_vec(), None)
+						(col as u8, Operation::Dereference(key.as_ref().to_vec()))
 					} else {
 						if !not_ref_counted_column.contains(&col) {
 							not_ref_counted_column.push(col);

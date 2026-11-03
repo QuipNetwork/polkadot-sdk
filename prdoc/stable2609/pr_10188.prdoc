@@ -1,0 +1,21 @@
+title: Add `sale_index` field to Coretime `SaleInfoRecord`
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Adds a sequential `sale_index` field to `SaleInfoRecord` and the `SaleInitialized` event
+      in `pallet-broker`. It is `0` for the bootstrap sale from `do_start_sales` and increments
+      by `1` on each `rotate_sale`, giving every bulk Coretime sale a unique index. A `SaleIndex`
+      (`u32`) type alias is added in `types.rs`.
+
+      Migration `MigrateV4ToV5` back-fills `sale_index` for an existing on-chain `SaleInfoRecord`.
+      Implementors supply the first sale's `region_begin` (timeslices) via the `FirstSaleRegion`
+      trait; the index is reconstructed as `(region_begin - first_region_begin) / region_length + 1`.
+
+      `STORAGE_VERSION` is bumped from `4` to `5`.
+
+crates:
+  - name: pallet-broker
+    bump: major
+  - name: coretime-westend-runtime
+    bump: minor

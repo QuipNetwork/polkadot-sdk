@@ -1,0 +1,12 @@
+title: Add asset-conversion precompile
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds a precompile that exposes pallet-asset-conversion (Asset Hub DEX) to Solidity contracts running on pallet-revive. This enables smart contracts to swap tokens through the on-chain DEX and query swap prices.
+
+    The primary use case is W3S products (e.g. ticketing app) where contracts accept payment in one asset (e.g. USDC) and convert it to DOT/PUSD via the Asset Hub DEX, rather than holding arbitrary tokens directly.
+crates:
+- name: pallet-asset-conversion-precompiles
+  bump: minor
+- name: polkadot-sdk
+  bump: minor

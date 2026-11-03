@@ -1,6 +1,6 @@
 [package]
 name = "pallet-xcm"
-version = "26.0.0"
+version = "31.0.0"
 description = "A pallet for handling XCM programs."
 authors.workspace = true
 edition.workspace = true
@@ -14,28 +14,33 @@ workspace = true
 [dependencies]
 bounded-collections = { workspace = true }
 codec = { features = ["derive"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
-hex-literal = { workspace = true, default-features = false }
-pallet-balances = { optional = true, workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { optional = true, features = ["derive"], workspace = true, default-features = true }
+tracing = { workspace = true }
+
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
-tracing = { workspace = true }
+
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
 xcm-runtime-apis = { workspace = true }
 
+# marked optional, used in benchmarking
+frame-benchmarking = { optional = true, workspace = true }
+hex-literal = { workspace = true, default-features = false }
+pallet-balances = { optional = true, workspace = true }
+
 [dev-dependencies]
-pallet-assets = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-xcm-simulator = { default-features = true, workspace = true }
+pallet-assets = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -63,6 +68,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"pallet-assets/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"polkadot-parachain-primitives/runtime-benchmarks",
 	"polkadot-runtime-parachains/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
@@ -77,6 +83,7 @@ try-runtime = [
 	"frame-system/try-runtime",
 	"pallet-assets/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-utility/try-runtime",
 	"polkadot-runtime-parachains/try-runtime",
 	"sp-runtime/try-runtime",
 ]

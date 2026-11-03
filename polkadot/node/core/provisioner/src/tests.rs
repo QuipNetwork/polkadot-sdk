@@ -902,7 +902,7 @@ mod select_candidates {
 	}
 
 	#[test]
-	fn multiple_cores_per_para_elastic_scaling_mvp() {
+	fn multiple_cores_per_para_elastic_scaling() {
 		let mock_cores = mock_availability_cores_multiple_per_para();
 
 		// why those particular indices? see the comments on mock_availability_cores()

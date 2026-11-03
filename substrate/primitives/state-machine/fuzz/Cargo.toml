@@ -10,7 +10,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-sp-runtime = { workspace = true }
+sp-runtime = { path = "../../runtime" }
 
 [dependencies.sp-state-machine]
 features = ["fuzzing"]

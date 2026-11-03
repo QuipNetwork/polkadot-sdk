@@ -52,12 +52,19 @@ pub struct TrackedStorageKey {
 	pub reads: u32,
 	pub writes: u32,
 	pub whitelisted: bool,
+	/// If set, this key belongs to a child trie identified by this storage key.
+	pub child_trie_key: Option<Vec<u8>>,
 }
 
 impl TrackedStorageKey {
-	/// Create a default `TrackedStorageKey`
+	/// Create a default `TrackedStorageKey` for main storage.
 	pub fn new(key: Vec<u8>) -> Self {
-		Self { key, reads: 0, writes: 0, whitelisted: false }
+		Self { key, reads: 0, writes: 0, whitelisted: false, child_trie_key: None }
+	}
+
+	/// Create a `TrackedStorageKey` for a child trie.
+	pub fn new_child(child_trie_key: Vec<u8>, key: Vec<u8>) -> Self {
+		Self { key, reads: 0, writes: 0, whitelisted: false, child_trie_key: Some(child_trie_key) }
 	}
 	/// Check if this key has been "read", i.e. it exists in the memory overlay.
 	///
@@ -89,7 +96,7 @@ impl TrackedStorageKey {
 // Easily convert a key to a `TrackedStorageKey` that has been whitelisted.
 impl From<Vec<u8>> for TrackedStorageKey {
 	fn from(key: Vec<u8>) -> Self {
-		Self { key, reads: 0, writes: 0, whitelisted: true }
+		Self { key, reads: 0, writes: 0, whitelisted: true, child_trie_key: None }
 	}
 }
 

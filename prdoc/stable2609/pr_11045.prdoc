@@ -1,0 +1,19 @@
+title: '[pallet-bounties]: add `reclaim_bounty_funds` to reclaim stranded funds from
+  closed bounty accounts'
+doc:
+- audience: Runtime Dev
+  description: |-
+    fixes https://github.com/paritytech/polkadot-sdk/issues/10996
+
+    This PR adds a permissionless `reclaim_bounty_funds` extrinsic that moves all
+    funds stranded in a closed bounty's account back to the treasury in a single
+    call. It reclaims both the native token and any fungible assets configured via
+    the `TransferAllAssets` associated type. Native funds are moved using
+    `transfer_all` semantics (reducible balance with `Expendable` preservation) so
+    locks and freezes are respected. The call is free on success and paid on a no-op,
+    so it cannot be used to grief the network.
+crates:
+- name: pallet-bounties
+  bump: major
+- name: rococo-runtime
+  bump: major

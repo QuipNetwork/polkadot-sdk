@@ -7,7 +7,7 @@ license = "Apache-2.0"
 name = "pallet-collator-selection"
 readme = "README.md"
 repository.workspace = true
-version = "27.0.0"
+version = "31.0.0"
 
 [lints]
 workspace = true
@@ -17,26 +17,28 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-session-benchmarking = { optional = true, workspace = true, default-features = false }
-frame-benchmarking = { optional = true, workspace = true }
+log = { workspace = true }
+rand = { features = ["std_rng"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-log = { workspace = true }
 pallet-authorship = { workspace = true }
 pallet-balances = { workspace = true }
 pallet-session = { workspace = true }
-rand = { features = ["std_rng"], workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
 
+cumulus-pallet-session-benchmarking = { default-features = false, optional = true, workspace = true }
+frame-benchmarking = { optional = true, workspace = true }
+
 [dev-dependencies]
-pallet-aura = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-sp-consensus-aura = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+pallet-aura = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+sp-consensus-aura = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

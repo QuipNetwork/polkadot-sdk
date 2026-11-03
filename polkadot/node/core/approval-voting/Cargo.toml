@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-approval-voting"
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -24,17 +24,18 @@ codec = { features = ["bit-vec", "derive"], workspace = true }
 derive_more = { workspace = true, default-features = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 itertools = { workspace = true }
 merlin = { workspace = true, default-features = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
 schnellru = { workspace = true }
 schnorrkel = { workspace = true, default-features = true }
 thiserror = { workspace = true }
+
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 
 rand = { workspace = true, default-features = true }
 rand_chacha = { workspace = true, default-features = true }
@@ -51,13 +52,13 @@ assert_matches = { workspace = true }
 kvdb-memorydb = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
-polkadot-primitives = { features = ["test"], workspace = true, default-features = false }
+polkadot-primitives = { workspace = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-tracing = { workspace = true, default-features = false }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-tracing = { workspace = true }
 
 polkadot-subsystem-bench = { workspace = true }
 

@@ -1,0 +1,16 @@
+title: Remove `pallet-scarcity`
+doc:
+- audience: Runtime Dev
+  description: |-
+    `pallet-scarcity` and its `AsScarcity` transaction extension have been removed
+    from the Polkadot SDK. The pallet was added in #12730 and has not been part of
+    any release. It now lives in the `individuality-community` repository.
+
+    The development (`kitchensink`) runtime no longer includes the pallet, and its
+    `TxExtension` no longer wraps `AuthorizeCall` with `AsScarcity`.
+
+    Users of the `polkadot-sdk` umbrella crate should remove the `pallet-scarcity`
+    feature from their dependency declaration.
+crates:
+- name: polkadot-sdk
+  bump: major

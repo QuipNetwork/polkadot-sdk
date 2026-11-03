@@ -1,0 +1,44 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: Add `remove_registrar` extrinsic to `pallet-identity`
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Adds a `remove_registrar(index)` extrinsic to `pallet-identity`, gated by the same
+      `RegistrarOrigin` as `add_registrar`. Until now there was no on-chain way to disable a
+      compromised or malicious registrar; the only remedy was a runtime upgrade with a bespoke
+      storage migration.
+
+      The registrar's slot is tombstoned (set to `None`) rather than removed from the vector, so
+      every existing `RegistrarIndex` — and any judgements already recorded against other
+      registrars — stays stable. The freed index is not reused by `add_registrar`. Because the
+      `Registrars` storage is already `BoundedVec<Option<RegistrarInfo>, MaxRegistrars>` and all
+      read sites already handle `None`, no storage migration and no `Config` change are required.
+
+      A new `RegistrarRemoved { registrar_index }` event is emitted on success. The call returns
+      `InvalidIndex` for an out-of-range index and `EmptyIndex` for an already-empty (tombstoned)
+      slot, consistent with `request_judgement`.
+
+  - audience: Runtime User
+    description: |
+      `pallet-identity` exposes a new `removeRegistrar(index)` call and a new
+      `RegistrarRemoved { registrar_index }` event. Wallets, explorers, and indexers should index
+      the new call and event. Note that removing a registrar does not refund deposits reserved by
+      pending `requestJudgement` calls against that registrar; affected users must reclaim them
+      manually with `cancelRequest`.
+
+crates:
+    # `pallet-identity`'s `WeightInfo` trait gains a required `remove_registrar` method. Adding a
+    # required trait method is a breaking change for any downstream impl, so this is a major bump.
+  - name: pallet-identity
+    bump: major
+    # The relay/parachain runtimes that carry their own `pallet_identity` weights only gain the new
+    # `remove_registrar` weight function (an internal, additive change) — hence a patch bump.
+  - name: rococo-runtime
+    bump: patch
+  - name: westend-runtime
+    bump: patch
+  - name: people-westend-runtime
+    bump: patch

@@ -68,6 +68,7 @@ where
 }
 
 /// Parameters passed into [`relay_era_payout`] function.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EraPayoutParams {
 	/// Total staked amount.
 	pub total_staked: Balance,

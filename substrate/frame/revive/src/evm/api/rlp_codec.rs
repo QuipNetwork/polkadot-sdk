@@ -649,8 +649,13 @@ mod test {
 			let raw_tx = alloy_core::hex::decode(tx).unwrap();
 			let tx = TransactionSigned::decode(&raw_tx).unwrap();
 			assert_eq!(tx.signed_payload(), raw_tx);
-			let expected_tx = serde_json::from_str(json).unwrap();
-			assert_eq!(tx, expected_tx);
+			let expected_tx =
+				serde_json::from_str::<pallet_revive_types::runtime_api::TransactionSignedV1>(json)
+					.unwrap();
+			assert_eq!(
+				pallet_revive_types::runtime_api::TransactionSignedV1::from(tx),
+				expected_tx
+			);
 		}
 	}
 

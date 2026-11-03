@@ -1085,9 +1085,18 @@ macro_rules! impl_benchmark {
 					$crate::benchmarking::commit_db();
 
 					// Access all whitelisted keys to get them into the proof recorder since the
-					// recorder does now have a whitelist.
-					for key in &whitelist {
-						$crate::__private::storage::unhashed::get_raw(&key.key);
+					// recorder does not have a whitelist.
+					// NOTE: We read from the global whitelist
+					// because the benchmark setup code may have added additional keys via
+					// add_to_whitelist() or add_to_whitelist_child().
+					let current_whitelist = $crate::benchmarking::get_whitelist();
+					for key in &current_whitelist {
+						if let Some(child_trie_key) = &key.child_trie_key {
+							let child_info = $crate::__private::storage::ChildInfo::new_default(child_trie_key);
+							$crate::__private::storage::child::get_raw(&child_info, &key.key);
+						} else {
+							$crate::__private::storage::unhashed::get_raw(&key.key);
+						}
 					}
 
 					// Reset the read/write counter so we don't count operations in the setup process.

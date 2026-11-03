@@ -75,6 +75,7 @@
 //! 	// Other config items here
 //!     ...
 //! 	type RelayParentOffset = ConstU32<RELAY_PARENT_OFFSET>;
+//! 	type SchedulingSignatureVerifier = ();
 //! }
 //! ```
 //! 3. Implement the `RelayParentOffsetApi` runtime API for your runtime.

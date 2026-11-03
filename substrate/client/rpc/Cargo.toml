@@ -1,6 +1,6 @@
 [package]
 name = "sc-rpc"
-version = "51.0.0"
+version = "56.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -22,37 +22,37 @@ futures = { workspace = true }
 jsonrpsee = { features = ["server"], workspace = true }
 log = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
-sc-block-builder = { default-features = true, workspace = true }
-sc-chain-spec = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-mixnet = { default-features = true, workspace = true }
-sc-rpc-api = { default-features = true, workspace = true }
-sc-statement-store = { default-features = true, workspace = true }
-sc-tracing = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
-sc-utils = { default-features = true, workspace = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-chain-spec = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-mixnet = { workspace = true, default-features = true }
+sc-rpc-api = { workspace = true, default-features = true }
+sc-statement-store = { workspace = true, default-features = true }
+sc-tracing = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sc-utils = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-offchain = { default-features = true, workspace = true }
-sp-rpc = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-session = { default-features = true, workspace = true }
-sp-statement-store = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-offchain = { workspace = true, default-features = true }
+sp-rpc = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-session = { workspace = true, default-features = true }
+sp-statement-store = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 tokio = { workspace = true, default-features = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
 futures-timer = { workspace = true }
 pretty_assertions = { workspace = true }
-sc-keystore = { workspace = true, default-features = false }
-sc-network = { default-features = true, workspace = true }
-sc-transaction-pool = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
+sc-keystore = { workspace = true }
+sc-network = { workspace = true, default-features = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 tempfile = { workspace = true }
 

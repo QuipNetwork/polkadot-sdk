@@ -1,0 +1,41 @@
+title: '[pallet-revive]: Version the `trace_block` runtime API function'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR is a follow up from the various discussions we have had as a team around versioning of the runtime API and the approach that we should take.
+
+    This PR versions a single runtime API function in pallet-revive: the `trace_block` function. In the process, I also implemented https://github.com/paritytech/polkadot-sdk/pull/11532 to demonstrate how the various pieces connect together when we want to version a specific runtime API function as the last commit in the PR.
+
+    This PR is meant to show case how everything in versioning works e2e before we go ahead and version the rest of the runtime API using this strategy.
+
+    All of the wire types we use for tracing have been added to the `types` crate. It houses the wire types and the payload types that we use for the runtime APIs.
+
+    The following concepts were added to the codebase:
+    - On the wire types:
+        - `${name}V${version}` - A version of a specific type. For example `CallLogV1`.
+        - `${name}InputPayloadV${version}` - A specific version of the input payload for some runtime API function. For example `TraceBlockInputPayloadV1`.
+        - `${name}OutputPayloadV${version}` - A specific version of the output payload for some runtime API function. For example `TraceBlockOutputPayloadV1`.
+        - `${name}VersionedInputPayload` - An enum of all of the possible versions that the input payload for some runtime API function can have.
+        - `${name}VersionedOutputPayload` - An enum of all of the possible versions that the output payload for some runtime API function can have.
+    - On the execution types:
+        - `${name}InputPayload` - Execution type input payload of some runtime API function.
+        - `${name}OutputPayload` - Execution type output payload of some runtime API function.
+
+    There are a few things worth noting:
+    - In the process of working on this I needed to move some of the JSON functionality from `pallet-revive` and into the `types` crate.
+    - Some of the execution models for tracing no longer implement SCALE which is done to ensure that these types never cross the wire and are indeed internal to pallet-revive (and anybody who imports pallet-revive as a direct dependency)
+
+    # Tests
+
+    The new `test_trace_block_returns_v1_trace_on_v1_input_and_v2_trace_on_v2_input` test is probably the best test for this functionality. It shows that the versioned runtime API function for `trace_block` functions exactly in the way that we expect it to do: given a V1 input we get a V1 output back and given a V2 input we get a V2 output back. It shows that versioning works end to end.
+crates:
+- name: pallet-revive-types
+  bump: minor
+- name: polkadot-sdk
+  bump: minor
+- name: pallet-revive
+  bump: major
+- name: pallet-revive-eth-rpc
+  bump: major

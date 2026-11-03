@@ -164,20 +164,21 @@ impl SlotDuration {
 	pub const fn from_millis(millis: u64) -> Self {
 		Self(millis)
 	}
-}
 
-impl SlotDuration {
+	/// Returns `self` as [`core::time::Duration`].
+	pub const fn as_duration(&self) -> core::time::Duration {
+		core::time::Duration::from_millis(self.0)
+	}
+
 	/// Returns `self` as a `u64` representing the duration in milliseconds.
 	pub const fn as_millis(&self) -> u64 {
 		self.0
 	}
 }
 
-#[cfg(feature = "std")]
-impl SlotDuration {
-	/// Returns `self` as [`core::time::Duration`].
-	pub const fn as_duration(&self) -> core::time::Duration {
-		core::time::Duration::from_millis(self.0)
+impl From<core::time::Duration> for SlotDuration {
+	fn from(duration: core::time::Duration) -> Self {
+		Self::from_millis(duration.as_millis() as u64)
 	}
 }
 

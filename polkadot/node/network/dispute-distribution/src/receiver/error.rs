@@ -46,6 +46,9 @@ pub enum Error {
 	#[error("Dispute request with invalid signatures, from peer {0}.")]
 	InvalidSignature(PeerId),
 
+	#[error("Dispute request from peer {0} coalesces more candidates than the runtime allows.")]
+	ExcessiveCoalescedVotes(PeerId),
+
 	#[error("Received votes from peer {0} have been completely redundant.")]
 	RedundantMessage(PeerId),
 

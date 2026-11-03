@@ -1,0 +1,18 @@
+title: Add issuance/budget traits
+doc:
+- audience: Runtime Dev
+  description: |-
+    Moves `EraPayout` trait from `pallet-staking` and `pallet-staking-async` to `sp-staking`,
+    eliminating duplicate definitions. Adds a new `budget` module with stake independent
+    traits for issuance computation (`IssuanceCurve`) and budget distribution
+    (`BudgetRecipient`, `BudgetRecipientList`). Also adds `StakerRewardCalculator` trait for
+    customizing validator incentive weights and staker reward splits.
+
+    No behavior changes. Existing `EraPayout` re-exports from both staking pallets are preserved.
+crates:
+- name: sp-staking
+  bump: minor
+- name: pallet-staking
+  bump: patch
+- name: pallet-staking-async
+  bump: patch

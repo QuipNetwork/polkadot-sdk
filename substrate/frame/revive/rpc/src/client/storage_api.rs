@@ -22,16 +22,18 @@ use crate::{
 		runtime_types::pallet_revive::storage::{AccountType, ContractInfo},
 	},
 };
-use subxt::{OnlineClient, storage::Storage};
+use subxt::client::OnlineClientAtBlock;
 
-/// A wrapper around the Substrate Storage API.
+/// A wrapper around the Substrate Storage API for a given block.
 #[derive(Clone)]
-pub struct StorageApi(Storage<SrcChainConfig, OnlineClient<SrcChainConfig>>);
+pub struct StorageApi {
+	at_block: OnlineClientAtBlock<SrcChainConfig>,
+}
 
 impl StorageApi {
-	/// Create a new instance of the StorageApi.
-	pub fn new(api: Storage<SrcChainConfig, OnlineClient<SrcChainConfig>>) -> Self {
-		Self(api)
+	/// Create a new instance of the StorageApi anchored at `at_block`.
+	pub fn new(at_block: OnlineClientAtBlock<SrcChainConfig>) -> Self {
+		Self { at_block }
 	}
 
 	/// Get the contract info for the given contract address.
@@ -39,14 +41,14 @@ impl StorageApi {
 		&self,
 		contract_address: &H160,
 	) -> Result<ContractInfo, ClientError> {
-		// TODO: remove once subxt is updated
 		let contract_address: subxt::utils::H160 = contract_address.0.into();
 
-		let query =
-			subxt_client::storage().revive().account_info_of(contract_address).unvalidated();
-		let Some(info) = self.0.fetch(&query).await? else {
+		let query = subxt_client::storage().revive().account_info_of().unvalidated();
+		let entry = self.at_block.storage().entry(query)?;
+		let Some(info) = entry.try_fetch((contract_address,)).await? else {
 			return Err(ClientError::ContractNotFound);
 		};
+		let info = info.decode()?;
 
 		let AccountType::Contract(contract_info) = info.account_type else {
 			return Err(ClientError::ContractNotFound);

@@ -1,0 +1,12 @@
+title: 'statement-store: bound inbound statement batch size'
+
+doc:
+- audience: Node Dev
+  description: |-
+    An inbound statement notification declaring more statements than a notification can hold is
+    now rejected from its length prefix, drawing the same bad-message reputation penalty as any
+    other decode failure.
+
+crates:
+- name: sc-network-statement
+  bump: minor

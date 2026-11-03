@@ -1,0 +1,15 @@
+title: '[pallet-assets] Reject delegatecall into pallet-assets ERC20 precompile'
+doc:
+- audience: Runtime Dev
+  description: "There is no legitimate use case for delegatecalling into the asset\
+    \ precompile. This matches the precedent set by the Storage precompile, which\
+    \ already enforces a delegatecall check (in the opposite direction \u2014 it *requires*\
+    \ delegatecall).\n\n## Changes\n\n- `lib.rs`: Add `ERR_DELEGATECALL_DENIED` const\
+    \ and `is_delegate_call()` guard before any dispatch logic\n- `tests.rs`: Add\
+    \ `delegatecall_is_rejected` test using the `Caller.sol` fixture\n\n## Test plan\n\
+    \n- [x] `cargo test -p pallet-assets-precompiles` \u2014 all 67 tests pass\n-\
+    \ [x] `delegatecall_is_rejected` verifies the guard rejects delegatecall via the\
+    \ `Caller` fixture contract"
+crates:
+- name: pallet-assets-precompiles
+  bump: minor

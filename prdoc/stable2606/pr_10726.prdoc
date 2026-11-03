@@ -1,0 +1,33 @@
+title: '[Penpal] cleanup XCM config setup regarding assets'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Closes #7314 by implementing all the subtasks mentioned in https://github.com/paritytech/polkadot-sdk/issues/7314#issuecomment-2792437373.
+
+    ## Changes
+    Essentially, the main driver of all changes is that we adjust the Penpal runtime as follows:
+    * Make the native token the base token for buying weight (before it was a hybrid set up, probably not 100% intentional).
+    * Merge the `Assets` and the `ForeignAssets` pallet into one pallet called `Assets`, as the local assets can also be identified with a location starting with `parents: 0`.
+    * Give the pallet-asset-conversion a genesis config so that we can easily set up pools at genesis instead of redundantly calling the setup macro with the same args.
+
+
+    ### Test Changes
+    I tried to keep the changes minimal in the tests in order to not harm any previously established invariants. Hence, in most cases I just did:
+
+    * Add a PEN<>WND pool in order to be able to pay xcm execution fees in WND
+    * Replaced the Penpal's teleportable asset with it's new location based version.
+    * In very few cases, I switched from WND to PEN to make the tests easier, when I was sure that no invariants would be harmed.
+    * The rest should only be renamings.
+crates:
+- name: penpal-runtime
+  bump: major
+- name: frame-support
+  bump: minor
+- name: parachains-common
+  bump: minor
+- name: emulated-integration-tests-common
+  bump: major
+- name: xcm-emulator
+  bump: minor
+- name: pallet-asset-conversion
+  bump: minor

@@ -1021,11 +1021,7 @@ impl<T: Config> Pallet<T> {
 					set.session,
 					statement,
 					signature,
-					// This is here to prevent malicious nodes of generating
-					// `ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates` before that
-					// is enabled, via setting `max_approval_coalesce_count` in the parachain host
-					// config.
-					config.approval_voting_params.max_approval_coalesce_count > 1,
+					config.approval_voting_params.max_approval_coalesce_count,
 				) {
 					log::warn!("Failed to check dispute signature");
 
@@ -1273,7 +1269,7 @@ fn check_signature(
 	session: SessionIndex,
 	statement: &DisputeStatement,
 	validator_signature: &ValidatorSignature,
-	approval_multiple_candidates_enabled: bool,
+	max_approval_coalesce_count: u32,
 ) -> Result<(), ()> {
 	let payload = match statement {
 		DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) => {
@@ -1297,7 +1293,9 @@ fn check_signature(
 		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalCheckingMultipleCandidates(
 			candidates,
 		)) => {
-			if approval_multiple_candidates_enabled && candidates.contains(&candidate_hash) {
+			if candidates.len() <= max_approval_coalesce_count as usize &&
+				candidates.contains(&candidate_hash)
+			{
 				ApprovalVoteMultipleCandidates(candidates).signing_payload(session)
 			} else {
 				return Err(());

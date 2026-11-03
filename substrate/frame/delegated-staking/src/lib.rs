@@ -409,6 +409,11 @@ pub mod pallet {
 			// ensure agent is sane.
 			ensure!(Self::is_agent(&agent), Error::<T>::NotAgent);
 
+			// nothing to delegate.
+			if amount.is_zero() {
+				return Ok(());
+			}
+
 			// and has enough delegated balance to migrate.
 			let proxy_delegator = Self::generate_proxy_delegator(Agent::from(agent));
 			let balance_remaining = Self::held_balance_of(proxy_delegator.clone());
@@ -441,6 +446,11 @@ pub mod pallet {
 
 			// ensure agent is sane.
 			ensure!(Self::is_agent(&agent), Error::<T>::NotAgent);
+
+			// nothing to delegate, and nothing to bond.
+			if amount.is_zero() {
+				return Ok(());
+			}
 
 			// add to delegation.
 			Self::do_delegate(Delegator::from(delegator), Agent::from(agent.clone()), amount)?;
@@ -810,6 +820,7 @@ impl<T: Config> Pallet<T> {
 		let mut delegation_aggregation = BTreeMap::<T::AccountId, BalanceOf<T>>::new();
 		for (delegator, delegation) in delegations.iter() {
 			ensure!(!Self::is_agent(delegator), "delegator cannot be an agent");
+			ensure!(!delegation.amount.is_zero(), "delegation amount must be non-zero");
 
 			delegation_aggregation
 				.entry(delegation.agent.clone())

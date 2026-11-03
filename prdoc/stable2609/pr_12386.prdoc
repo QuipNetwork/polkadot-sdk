@@ -1,0 +1,12 @@
+title: '[pallet-revive] Omit empty traces uniformly across tracer types'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    The tracer types produced non-uniform results for empty traces. `Tracer::collect_trace` returns `Option<Trace>`, but `None` meant different things: `CallTracer` returned `None` when nothing was traced, while `ExecutionTracer` and `PrestateTracer` always returned `Some` with a zero/default trace.
+
+    This makes them uniform: a collected trace equal to the tracer's `empty_trace()` is reported as `None` for every tracer type.
+crates:
+- name: pallet-revive
+  bump: patch

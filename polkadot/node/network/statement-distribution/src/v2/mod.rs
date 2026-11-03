@@ -772,7 +772,7 @@ pub(crate) fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 				});
 
 			// clean up requests related to this scheduling parent.
-			state.request_manager.remove_by_scheduling_parent(*leaf);
+			state.request_manager.remove_by_scheduling_parent(pruned_rp);
 		}
 	}
 
@@ -3375,5 +3375,379 @@ pub(crate) async fn respond_task(
 				active_peers.remove(&peer);
 			},
 		}
+	}
+}
+
+#[cfg(test)]
+mod deactivation_tests {
+	//! Unit tests for [`handle_deactivate_leaves`] covering all cleanup responsibilities:
+	//! implicit view pruning, `per_scheduling_parent` cleanup, request-manager cleanup keyed by
+	//! pruned scheduling parent (not by leaf), `per_session` retention, and `unused_topologies`
+	//! retention including the "keep last session's topology" edge case.
+	//!
+	//! Tests run without the full subsystem harness: they construct a `State` directly and
+	//! drive `ImplicitView::activate_leaf` via a mock subsystem context, which lets us make
+	//! precise assertions on private state fields after deactivation.
+	use super::*;
+	use assert_matches::assert_matches;
+	use futures::future::join;
+	use polkadot_node_network_protocol::grid_topology::SessionGridTopology;
+	use polkadot_node_subsystem::{
+		messages::{ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest},
+		AllMessages, SubsystemContext,
+	};
+	use polkadot_node_subsystem_test_helpers::{
+		make_subsystem_context, TestSubsystemContextHandle,
+	};
+	use polkadot_primitives::{BlockNumber, CandidateHash, Header, IndexedVec, SessionInfo};
+	use sc_keystore::LocalKeystore;
+	use sp_core::testing::TaskExecutor;
+	use std::sync::Arc;
+
+	type VirtualOverseer = TestSubsystemContextHandle<AllMessages>;
+
+	const SCHEDULING_LOOKAHEAD: u32 = 3;
+
+	/// Build an empty `State` with an in-memory keystore.
+	fn new_state() -> State {
+		State::new(Arc::new(LocalKeystore::in_memory()) as KeystorePtr)
+	}
+
+	/// Build a minimal `SessionInfo` with a single validator group containing a single validator.
+	/// Enough for `PerSessionState::new` to succeed; no other session-dependent logic is exercised
+	/// by these tests.
+	fn dummy_session_info() -> SessionInfo {
+		SessionInfo {
+			validators: IndexedVec::from(vec![]),
+			discovery_keys: vec![],
+			assignment_keys: vec![],
+			validator_groups: IndexedVec::from(vec![vec![ValidatorIndex(0)]]),
+			n_cores: 1,
+			zeroth_delay_tranche_width: 0,
+			relay_vrf_modulo_samples: 0,
+			n_delay_tranches: 0,
+			no_show_slots: 0,
+			needed_approvals: 0,
+			active_validator_indices: vec![],
+			dispute_period: 6,
+			random_seed: [0u8; 32],
+		}
+	}
+
+	/// Build a `PerSchedulingParentState` with no local-validator state. Enough for
+	/// `handle_deactivate_leaves` to traverse it without panicking.
+	fn dummy_per_sp_state(session: SessionIndex) -> PerSchedulingParentState {
+		let groups = Groups::new(
+			dummy_session_info().validator_groups.clone(),
+			// backing_threshold
+			1,
+		);
+		PerSchedulingParentState {
+			local_validator: None,
+			statement_store: StatementStore::new(&groups),
+			session,
+			transposed_cq: TransposedClaimQueue::default(),
+			groups_per_para: HashMap::new(),
+			disabled_validators: HashSet::new(),
+			assignments_per_group: HashMap::new(),
+		}
+	}
+
+	fn dummy_per_session_state(keystore: &KeystorePtr) -> PerSessionState {
+		PerSessionState::new(dummy_session_info(), keystore, /* backing_threshold */ 1)
+	}
+
+	fn dummy_topology() -> NewGossipTopology {
+		NewGossipTopology {
+			session: 0,
+			topology: SessionGridTopology::new(Vec::new(), Vec::new()),
+			local_index: None,
+		}
+	}
+
+	/// Answer the sequence of `ChainApi`/`RuntimeApi` messages produced by
+	/// `ImplicitView::activate_leaf` for a single leaf with `SCHEDULING_LOOKAHEAD` ancestors,
+	/// all in `session`.
+	///
+	/// `chain` is `[leaf, parent, grandparent, ...]` — leaf first, then ancestors in
+	/// descending block-number order. `leaf_number` is the absolute block number of the leaf;
+	/// ancestor numbers decrement by 1 going deeper.
+	///
+	/// `already_cached` tracks blocks that prior activations have already placed in the view's
+	/// `block_info_storage`; those don't trigger `BlockHeader` requests. Updated in-place.
+	async fn answer_implicit_view_activation(
+		ctx_handle: &mut VirtualOverseer,
+		chain: &[Hash],
+		leaf_number: BlockNumber,
+		session: SessionIndex,
+		already_cached: &mut HashSet<Hash>,
+	) {
+		let leaf = chain[0];
+		let ancestors_len = (SCHEDULING_LOOKAHEAD as usize).saturating_sub(1).min(chain.len() - 1);
+		let ancestors: Vec<Hash> = chain[1..=ancestors_len].to_vec();
+
+		// 1. SessionIndexForChild(leaf).
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::SessionIndexForChild(tx),
+			)) if hash == leaf => {
+				tx.send(Ok(session)).unwrap();
+			}
+		);
+
+		// 2. SchedulingLookahead(session).
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::SchedulingLookahead(_, tx),
+			)) => {
+				tx.send(Ok(SCHEDULING_LOOKAHEAD)).unwrap();
+			}
+		);
+
+		// 3. Ancestors(leaf, k = lookahead - 1).
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel,
+			}) if hash == leaf && k == ancestors_len => {
+				response_channel.send(Ok(ancestors.clone())).unwrap();
+			}
+		);
+
+		// 4. SessionIndexForChild(ancestor) for each ancestor (same session → no truncation).
+		for ancestor in &ancestors {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					hash,
+					RuntimeApiRequest::SessionIndexForChild(tx),
+				)) if hash == *ancestor => {
+					tx.send(Ok(session)).unwrap();
+				}
+			);
+		}
+
+		// 5. BlockHeader for each ancestry block NOT already in the view's block_info_storage.
+		//    `fetch_fresh_leaf_and_insert_ancestry` iterates `iter::once(leaf).chain(ancestors)`
+		//    and skips `Occupied` entries.
+		let full_chain: Vec<Hash> =
+			std::iter::once(leaf).chain(ancestors.iter().copied()).collect();
+		for (depth, block) in full_chain.iter().enumerate() {
+			if already_cached.contains(block) {
+				continue;
+			}
+			let expected_number = leaf_number - depth as BlockNumber;
+			let parent_hash = full_chain.get(depth + 1).copied().unwrap_or_default();
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(hash, tx)) if hash == *block => {
+					tx.send(Ok(Some(Header {
+						parent_hash,
+						number: expected_number,
+						state_root: Hash::zero(),
+						extrinsics_root: Hash::zero(),
+						digest: Default::default(),
+					}))).unwrap();
+				}
+			);
+			already_cached.insert(*block);
+		}
+	}
+
+	/// Drive the full implicit-view activation for each leaf in `leaves_with_chains`, in order.
+	/// Each entry is `(chain, leaf_number, session)` where `chain[0]` is the leaf and subsequent
+	/// entries are its ancestors, `leaf_number` is the leaf's absolute block number.
+	fn activate_leaves_in_view(
+		view: &mut ImplicitView,
+		leaves_with_chains: &[(&[Hash], BlockNumber, SessionIndex)],
+	) {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut ctx_handle) = make_subsystem_context::<AllMessages, _>(pool);
+		let mut cached = HashSet::new();
+
+		futures::executor::block_on(async {
+			for (chain, leaf_number, session) in leaves_with_chains {
+				let activation = view.activate_leaf(ctx.sender(), chain[0]);
+				let answering = answer_implicit_view_activation(
+					&mut ctx_handle,
+					chain,
+					*leaf_number,
+					*session,
+					&mut cached,
+				);
+				let (result, _) = join(activation, answering).await;
+				result.expect("activation should succeed");
+			}
+		});
+	}
+
+	// --------------------------------------------------------------------------------------------
+	// Scenario A: deactivate the only leaf in the view.
+	//
+	// After deactivation the implicit view has no leaves, so *all* block info is pruned. Every
+	// `per_scheduling_parent` entry (for leaf and ancestors), all requests keyed by any of those
+	// scheduling parents, and the corresponding `per_session` entry should disappear.
+	// `unused_topologies` for the (former) last session is kept per the inline-documented edge
+	// case.
+	// --------------------------------------------------------------------------------------------
+	#[test]
+	fn deactivate_last_leaf_prunes_everything_but_keeps_last_session_topology() {
+		const SESSION: SessionIndex = 7;
+		let leaf = Hash::repeat_byte(0x0A);
+		let parent = Hash::repeat_byte(0x09);
+		let grandparent = Hash::repeat_byte(0x08);
+		let chain = [leaf, parent, grandparent];
+		const LEAF_NUMBER: BlockNumber = 10;
+
+		let mut state = new_state();
+		activate_leaves_in_view(&mut state.implicit_view, &[(&chain, LEAF_NUMBER, SESSION)]);
+
+		// Seed `per_scheduling_parent` for every block in the implicit view, `per_session` for
+		// the active session, and `unused_topologies` for both an active and an older session
+		// so we can see which ones are retained.
+		const OLDER_SESSION: SessionIndex = 6;
+		for rp in &chain {
+			state.per_scheduling_parent.insert(*rp, dummy_per_sp_state(SESSION));
+		}
+		state
+			.per_session
+			.insert(SESSION, dummy_per_session_state(&state.keystore.clone()));
+		state.unused_topologies.insert(SESSION, dummy_topology());
+		state.unused_topologies.insert(OLDER_SESSION, dummy_topology());
+
+		// Seed requests against the leaf, an ancestor, and an unrelated scheduling parent that
+		// isn't in the view. The unrelated one should survive — deactivation must only clean up
+		// things reachable from the deactivated leaf's implicit view.
+		let unrelated_sp = Hash::repeat_byte(0xFF);
+		let c_leaf = CandidateHash(Hash::repeat_byte(0xA1));
+		let c_parent = CandidateHash(Hash::repeat_byte(0xA2));
+		let c_unrelated = CandidateHash(Hash::repeat_byte(0xA3));
+		state.request_manager.get_or_insert(leaf, c_leaf, GroupIndex(0));
+		state.request_manager.get_or_insert(parent, c_parent, GroupIndex(0));
+		state.request_manager.get_or_insert(unrelated_sp, c_unrelated, GroupIndex(0));
+		assert_eq!(state.request_manager.total_requests_count(), 3);
+
+		handle_deactivate_leaves(&mut state, &[leaf]);
+
+		// Implicit view is empty: all blocks were pruned.
+		assert_eq!(state.implicit_view.leaves().count(), 0);
+
+		// `per_scheduling_parent` lost entries for all blocks in the pruned view.
+		for rp in &chain {
+			assert!(
+				!state.per_scheduling_parent.contains_key(rp),
+				"per_scheduling_parent should not contain pruned block {:?}",
+				rp,
+			);
+		}
+
+		// Requests for pruned scheduling parents are gone; unrelated requests survive.
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(leaf), 0);
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(parent), 0);
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(grandparent), 0);
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(unrelated_sp), 1);
+		assert_eq!(state.request_manager.total_requests_count(), 1);
+
+		// `per_session` is dropped because no `per_scheduling_parent` entry still references it.
+		assert!(state.per_session.is_empty());
+
+		// `unused_topologies`: the last-seen session's topology is retained (per inline comment
+		// at the cleanup site — we might still need it if PP APIs come online later), older
+		// topologies are dropped.
+		assert!(state.unused_topologies.contains_key(&SESSION));
+		assert!(!state.unused_topologies.contains_key(&OLDER_SESSION));
+	}
+
+	// --------------------------------------------------------------------------------------------
+	// Scenario B: deactivate one of two leaves sharing the same chain + session.
+	//
+	// The surviving leaf's retain-minimum keeps some ancestors alive in the implicit view, so
+	// deactivation only partially prunes. This is the scenario where the pre-fix bug was
+	// observable: requests tied to *pruned ancestors* (not the deactivated leaf) must be cleaned
+	// up. Before the fix, `remove_by_scheduling_parent(*leaf)` was called once per pruned RP,
+	// which is wrong on both axes — wrong key, and called more times than needed.
+	// --------------------------------------------------------------------------------------------
+	#[test]
+	fn deactivate_one_of_two_leaves_prunes_only_unreachable_ancestors() {
+		const SESSION: SessionIndex = 5;
+
+		// Chain: leaf_b (n=5) <- leaf_a (n=4) <- a1 (n=3) <- a2 (n=2) <- a3 (n=1).
+		// Both leaves share the same chain, so activating leaf_a first, then leaf_b, gives us
+		// a view where both leaves are active. Deactivating leaf_a shouldn't prune any blocks
+		// that are still inside leaf_b's retain window.
+		let leaf_b = Hash::repeat_byte(0x05);
+		let leaf_a = Hash::repeat_byte(0x04);
+		let a1 = Hash::repeat_byte(0x03);
+		let a2 = Hash::repeat_byte(0x02);
+		let a3 = Hash::repeat_byte(0x01);
+
+		let chain_a = [leaf_a, a1, a2];
+		let chain_b = [leaf_b, leaf_a, a1];
+		const LEAF_A_NUMBER: BlockNumber = 4;
+		const LEAF_B_NUMBER: BlockNumber = 5;
+
+		let mut state = new_state();
+		activate_leaves_in_view(
+			&mut state.implicit_view,
+			&[(&chain_a, LEAF_A_NUMBER, SESSION), (&chain_b, LEAF_B_NUMBER, SESSION)],
+		);
+
+		// Seed per_scheduling_parent for every block that's in the combined view.
+		for rp in [leaf_b, leaf_a, a1, a2] {
+			state.per_scheduling_parent.insert(rp, dummy_per_sp_state(SESSION));
+		}
+		state
+			.per_session
+			.insert(SESSION, dummy_per_session_state(&state.keystore.clone()));
+		state.unused_topologies.insert(SESSION, dummy_topology());
+
+		// Seed a request for every scheduling parent and for an unrelated hash.
+		let unrelated_sp = Hash::repeat_byte(0xFF);
+		let ch = |b: u8| CandidateHash(Hash::repeat_byte(b));
+		state.request_manager.get_or_insert(leaf_b, ch(0xB0), GroupIndex(0));
+		state.request_manager.get_or_insert(leaf_a, ch(0xA0), GroupIndex(0));
+		state.request_manager.get_or_insert(a1, ch(0xA1), GroupIndex(0));
+		state.request_manager.get_or_insert(a2, ch(0xA2), GroupIndex(0));
+		state.request_manager.get_or_insert(a3, ch(0xA3), GroupIndex(0));
+		state.request_manager.get_or_insert(unrelated_sp, ch(0xFE), GroupIndex(0));
+		assert_eq!(state.request_manager.total_requests_count(), 6);
+
+		handle_deactivate_leaves(&mut state, &[leaf_a]);
+
+		// leaf_b is still active.
+		assert!(state.implicit_view.contains_leaf(&leaf_b));
+		assert!(!state.implicit_view.contains_leaf(&leaf_a));
+
+		// Ancestors reachable from leaf_b (leaf_a, a1) survive in the implicit view; older
+		// ones (a2, a3) are pruned.
+		assert!(
+			state.per_scheduling_parent.contains_key(&leaf_b),
+			"leaf_b's per-scheduling-parent entry must remain",
+		);
+		assert!(
+			!state.per_scheduling_parent.contains_key(&a2),
+			"a2 falls outside leaf_b's retain window and should be pruned",
+		);
+
+		// Request cleanup must follow the same "pruned = gone" rule, keyed on the *pruned*
+		// scheduling parent, not on the deactivated leaf. In particular: requests tied to
+		// ancestors of the deactivated leaf that were pruned (a2) must be removed; requests
+		// tied to still-referenced blocks (leaf_b, leaf_a, a1) must survive.
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(a2), 0);
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(leaf_b), 1);
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(unrelated_sp), 1);
+		// a3 was never in the implicit view at all — its request survives, because cleanup
+		// only targets blocks that were actually pruned from the view.
+		assert_eq!(state.request_manager.requests_count_by_scheduling_parent(a3), 1);
+
+		// `per_session` survives because leaf_b still references SESSION.
+		assert!(state.per_session.contains_key(&SESSION));
+		assert!(state.unused_topologies.contains_key(&SESSION));
 	}
 }

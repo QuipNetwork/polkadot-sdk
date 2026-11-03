@@ -1,6 +1,6 @@
 [package]
 name = "pallet-nfts"
-version = "40.0.0"
+version = "44.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -28,8 +28,8 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -40,9 +40,11 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
 	"scale-info/std",
 	"sp-core/std",
 	"sp-io/std",
+	"sp-keystore/std",
 	"sp-runtime/std",
 ]
 runtime-benchmarks = [

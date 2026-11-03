@@ -22,20 +22,30 @@ use sp_api::{ApiExt, Core, Metadata, ProvideRuntimeApi};
 use sp_runtime::{traits::Block as BlockT, OpaqueExtrinsic};
 use std::sync::Arc;
 use subxt::{
-	client::RuntimeVersion as SubxtRuntimeVersion,
-	config::{substrate::SubstrateExtrinsicParamsBuilder, HashFor},
-	Config, OfflineClient, SubstrateConfig,
+	client::{OfflineClient, OfflineClientAtBlock},
+	config::substrate::{SpecVersionForRange, SubstrateExtrinsicParamsBuilder},
+	utils::H256,
+	SubstrateConfig,
 };
 
-pub type SubstrateRemarkBuilder = DynamicRemarkBuilder<SubstrateConfig>;
-
-/// Remark builder that can be used to build simple extrinsics for
-/// FRAME-based runtimes.
-pub struct DynamicRemarkBuilder<C: Config> {
-	offline_client: OfflineClient<C>,
+/// Spec and transaction version information required to construct extrinsics offline.
+#[derive(Clone, Copy, Debug)]
+pub struct RuntimeVersion {
+	/// The runtime spec version.
+	pub spec_version: u32,
+	/// The runtime transaction version.
+	pub transaction_version: u32,
 }
 
-impl<C: Config> DynamicRemarkBuilder<C> {
+pub type SubstrateRemarkBuilder = DynamicRemarkBuilder;
+
+/// Remark builder that can be used to build simple extrinsics for FRAME-based runtimes
+/// configured with [`SubstrateConfig`].
+pub struct DynamicRemarkBuilder {
+	offline_client_at_block: OfflineClientAtBlock<SubstrateConfig>,
+}
+
+impl DynamicRemarkBuilder {
 	/// Initializes a new remark builder from a client.
 	///
 	/// This will first fetch metadata and runtime version from the runtime and then
@@ -74,30 +84,49 @@ impl<C: Config> DynamicRemarkBuilder<C> {
 		};
 
 		let version = api.version(genesis).unwrap();
-		let runtime_version = SubxtRuntimeVersion {
+		let runtime_version = RuntimeVersion {
 			spec_version: version.spec_version,
 			transaction_version: version.transaction_version,
 		};
 		let metadata = subxt::Metadata::decode(&mut (*opaque_metadata).as_slice())?;
-		let genesis = HashFor::<C>::decode(&mut &genesis.encode()[..])
-			.map_err(|_| "Incompatible hash types?")?;
+		let genesis_bytes: [u8; 32] =
+			genesis.encode().as_slice().try_into().map_err(|_| {
+				"Incompatible hash types: expected 32-byte genesis hash".to_string()
+			})?;
+		let genesis_hash = H256::from(genesis_bytes);
 
-		Ok(Self { offline_client: OfflineClient::new(genesis, runtime_version, metadata) })
+		Ok(Self::new(metadata, genesis_hash, runtime_version))
 	}
-}
 
-impl<C: Config> DynamicRemarkBuilder<C> {
-	/// Constructs a new remark builder.
+	/// Constructs a new remark builder for a [`SubstrateConfig`] chain.
 	pub fn new(
 		metadata: subxt::Metadata,
-		genesis_hash: HashFor<C>,
-		runtime_version: SubxtRuntimeVersion,
+		genesis_hash: H256,
+		runtime_version: RuntimeVersion,
 	) -> Self {
-		Self { offline_client: OfflineClient::new(genesis_hash, runtime_version, metadata) }
+		let config = SubstrateConfig::builder()
+			.set_genesis_hash(genesis_hash)
+			.set_metadata_for_spec_versions(std::iter::once((
+				runtime_version.spec_version,
+				metadata.into(),
+			)))
+			.set_spec_version_for_block_ranges(std::iter::once(SpecVersionForRange {
+				block_range: 0..u64::MAX,
+				spec_version: runtime_version.spec_version,
+				transaction_version: runtime_version.transaction_version,
+			}))
+			.build();
+		let offline_client = OfflineClient::<SubstrateConfig>::new_with_config(config);
+		// The block number here is only used to look up the spec version. Any number in the
+		// configured range works; we use 0 since the range is `0..u64::MAX`.
+		let offline_client_at_block = offline_client
+			.at_block(0u64)
+			.expect("range was configured to span all block numbers; qed");
+		Self { offline_client_at_block }
 	}
 }
 
-impl ExtrinsicBuilder for DynamicRemarkBuilder<SubstrateConfig> {
+impl ExtrinsicBuilder for DynamicRemarkBuilder {
 	fn pallet(&self) -> &str {
 		"system"
 	}
@@ -110,15 +139,18 @@ impl ExtrinsicBuilder for DynamicRemarkBuilder<SubstrateConfig> {
 		let signer = subxt_signer::sr25519::dev::alice();
 		let dynamic_tx = subxt::dynamic::tx("System", "remark", vec![Vec::<u8>::new()]);
 
-		let params = SubstrateExtrinsicParamsBuilder::new().nonce(nonce.into()).build();
+		let params = SubstrateExtrinsicParamsBuilder::<SubstrateConfig>::new()
+			.nonce(nonce.into())
+			.build();
 
 		// Default transaction parameters assume a nonce of 0.
 		let transaction = self
-			.offline_client
+			.offline_client_at_block
 			.tx()
-			.create_partial_offline(&dynamic_tx, params)
-			.unwrap()
-			.sign(&signer);
+			.create_signable_offline(&dynamic_tx, params)
+			.map_err(|_| "Unable to create signable transaction")?
+			.sign(&signer)
+			.map_err(|_| "Unable to sign transaction")?;
 		let mut encoded = transaction.into_encoded();
 
 		OpaqueExtrinsic::try_from_encoded_extrinsic(&mut encoded)

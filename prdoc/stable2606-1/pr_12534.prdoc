@@ -1,0 +1,14 @@
+title: 'pallet-utility: fix dispatch class of empty `batch`/`batch_all`/`force_batch`'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `Utility::batch`, `Utility::batch_all` and `Utility::force_batch` derive their
+    `DispatchClass` by folding over the dispatch classes of the wrapped calls, starting
+    from an `Operational` accumulator so that the batch is only `Operational` if every
+    wrapped call is `Operational`. When called with an empty list of calls, the fold had
+    nothing to iterate over and returned the initial `Operational` value unchanged,
+    making empty batches incorrectly `Operational` instead of `Normal`. Empty batches now
+    explicitly resolve to `DispatchClass::Normal`.
+crates:
+- name: pallet-utility
+  bump: patch

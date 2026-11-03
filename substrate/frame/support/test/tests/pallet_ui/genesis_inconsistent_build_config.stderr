@@ -1,5 +1,11 @@
-error: `#[pallet::genesis_config]` and `#[pallet::genesis_build]` attributes must be either both used or both not used, instead genesis_config is unused and genesis_build is used
-  --> tests/pallet_ui/genesis_inconsistent_build_config.rs:19:1
+error: Invalid genesis builder: expected `BuildGenesisConfig`
+  --> tests/pallet_ui/genesis_inconsistent_build_config.rs:36:18
    |
-19 | mod pallet {
-   | ^^^
+36 |     impl<T: Config> GenesisBuild<T> for GenesisConfig {}
+   |                     ^^^^^^^^^^^^
+
+error: expected `BuildGenesisConfig`
+  --> tests/pallet_ui/genesis_inconsistent_build_config.rs:36:18
+   |
+36 |     impl<T: Config> GenesisBuild<T> for GenesisConfig {}
+   |                     ^^^^^^^^^^^^

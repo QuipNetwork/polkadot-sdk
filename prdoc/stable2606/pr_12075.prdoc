@@ -1,0 +1,34 @@
+title: 'frame-benchmarking: allow 2-point slope fits in `min_squares_iqr`'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    a33b7c2e36 short-circuits `min_squares_iqr` to `median_value` whenever `r.len() <= 2` to avoid OLS panics on `--steps=1 --repeats=1`. That fallback also catches the case where two samples sit at different x-values, where the slope is exactly determined. However, benchmarks whose valid sample set is narrowed to two values (e.g. by `BenchmarkError::Skip` filtering a `Linear<lo, hi>` parameter) lose their linear component.
+
+    Route the `r.len() <= 2` fallback through `median_slopes` instead, which fits a slope exactly from two samples at different x-values. The degenerate "all samples share one x" case now surfaces an explicit error from `median_slopes`'s own check.
+
+    ## Integration
+
+    No API or storage changes. Downstream runtimes do not need to update code.
+
+    Regenerating weights may produce different values for benchmarks whose valid sample set is exactly 2 points at distinct x-values. The resulting weight expression will now include a linear component fitted via `median_slopes` instead of falling back to the constant median.
+
+    Benchmarks whose 2 remaining samples share an x-value will now fail with an explicit `median_slopes` error rather than returning the median. If you see this, broaden the parameter range or increase `--steps`/`--repeats` so more than one distinct x-value is sampled.
+
+    ## Review Notes
+
+    `min_squares_iqr` had a single guard combining two unrelated short-circuits:
+
+    ```rust
+    if r[0].components.is_empty() || r.len() <= 2 {
+        return Self::median_value(r, selector);
+    }
+    ```
+
+    The `components.is_empty()` branch is correct: a benchmark with no parameters has no slope to fit, so a constant median should be returned. The `r.len() <= 2` branch was a workaround for `linregress`'s OLS fit, which is under-determined with two samples and one intercept + one slope variable. Both cases fell through to the same `median_value` call, which drops slopes entirely.
+
+    The no-components fallback is kept on `median_value`, while `r.len() <= 2` is routed to `median_slopes` instead. `median_slopes` is well-suited: it forms the pairwise slope list `(y_i - y_j) / (x_i - x_j)` over samples with distinct x-values, takes the median, then derives the intercept from per-sample offsets. With exactly two distinct-x samples the slope list has length 1, so the median is the exact slope. No regression is needed.
+crates:
+- name: frame-benchmarking
+  bump: major

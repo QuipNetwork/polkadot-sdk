@@ -35,13 +35,11 @@
 //! `ReserveAssetTransferDeposited` message but that will but the intension will be to support this
 //! soon.
 use super::{
-	AccountId, AllPalletsWithSystem, AssetId as AssetIdPalletAssets, Assets, Authorship, Balance,
-	Balances, CollatorSelection, ForeignAssets, ForeignAssetsInstance, NonZeroIssuance,
+	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, CollatorSelection,
 	ParachainInfo, ParachainSystem, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent,
 	RuntimeHoldReason, RuntimeOrigin, WeightToFee, XcmpQueue,
 };
 use crate::{BaseDeliveryFee, FeeAssetId, TransactionByteFee};
-use assets_common::TrustBackedAssetsAsLocation;
 use core::marker::PhantomData;
 use frame_support::{
 	parameter_types,
@@ -55,28 +53,27 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_xcm::{AuthorizedAliasers, XcmPassthrough};
 use parachains_common::{
-	xcm_config::{AssetFeeAsExistentialDepositMultiplier, ConcreteAssetFromSystem},
-	TREASURY_PALLET_ID,
+	impls::NonZeroIssuance, xcm_config::ConcreteAssetFromSystem, TREASURY_PALLET_ID,
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::{impls::ToAuthor, xcm_sender::ExponentialPrice};
-use sp_runtime::traits::{AccountIdConversion, ConvertInto, Identity, TryConvertInto};
+use sp_runtime::traits::{AccountIdConversion, Identity, TryConvertInto};
 use testnet_parachains_constants::westend::currency::deposit;
 use xcm::latest::{prelude::*, WESTEND_GENESIS_HASH};
 use xcm_builder::{
 	AccountId32Aliases, AliasChildLocation, AliasOriginRootUsingFilter,
 	AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	AsPrefixedGeneralIndex, ConvertedConcreteId, DescribeAllTerminal, DescribeFamily,
-	DescribeTerminus, EnsureXcmOrigin, ExternalConsensusLocationsConverterFor, FixedWeightBounds,
-	FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter, HashedDescription, IsConcrete,
-	LocalMint, NativeAsset, NoChecking, ParentAsSuperuser, ParentIsPreset, RelayChainAsNative,
-	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
-	SignedAccountId32AsNative, SignedToAccountId32, SingleAssetExchangeAdapter,
-	SovereignSignedViaLocation, StartsWith, TakeWeightCredit, TrailingSetTopicAsId,
-	UsingComponents, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
+	DescribeAllTerminal, DescribeFamily, DescribeTerminus, EnsureXcmOrigin,
+	ExternalConsensusLocationsConverterFor, FixedWeightBounds, FrameTransactionalProcessor,
+	FungibleAdapter, FungiblesAdapter, HashedDescription, IsConcrete, LocalMint, NativeAsset,
+	NoChecking, ParentAsSuperuser, ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount,
+	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
+	SignedToAccountId32, SingleAssetExchangeAdapter, SovereignSignedViaLocation, StartsWith,
+	TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
+	XcmFeeManagerFromComponents,
 };
-use xcm_executor::{traits::JustTry, XcmExecutor};
+use xcm_executor::XcmExecutor;
 
 parameter_types! {
 	pub const RelayLocation: Location = Location::parent();
@@ -94,9 +91,9 @@ parameter_types! {
 	].into();
 	pub TreasuryAccount: AccountId = TREASURY_PALLET_ID.into_account_truncating();
 	pub StakingPot: AccountId = CollatorSelection::account_id();
-	pub TrustBackedAssetsPalletIndex: u8 = <Assets as PalletInfoAccess>::index() as u8;
-	pub TrustBackedAssetsPalletLocation: Location =
-		PalletInstance(TrustBackedAssetsPalletIndex::get()).into();
+	pub AssetsPalletIndex: u8 = <Assets as PalletInfoAccess>::index() as u8;
+	pub AssetsPalletLocation: Location =
+		PalletInstance(AssetsPalletIndex::get()).into();
 }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`. This is used
@@ -129,29 +126,13 @@ pub type FungibleTransactor = FungibleAdapter<
 	(),
 >;
 
-/// Means for transacting assets besides the native currency on this chain.
-pub type FungiblesTransactor = FungiblesAdapter<
+/// Means for transacting assets besides the native currency on this chain that start with a local
+/// location pattern.
+pub type LocalFungiblesTransactor = FungiblesAdapter<
 	// Use this fungibles implementation:
 	Assets,
-	// Use this currency when it is a fungible asset matching the given location or name:
-	(
-		ConvertedConcreteId<
-			AssetIdPalletAssets,
-			Balance,
-			AsPrefixedGeneralIndex<AssetsPalletLocation, AssetIdPalletAssets, JustTry>,
-			JustTry,
-		>,
-		ConvertedConcreteId<
-			AssetIdPalletAssets,
-			Balance,
-			AsPrefixedGeneralIndex<
-				SystemAssetHubAssetsPalletLocation,
-				AssetIdPalletAssets,
-				JustTry,
-			>,
-			JustTry,
-		>,
-	),
+	// Only allow locations that are local.
+	LocalAssetsConvertedConcreteId,
 	// Convert an XCM Location into a local account id:
 	LocationToAccountId,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -164,7 +145,7 @@ pub type FungiblesTransactor = FungiblesAdapter<
 >;
 
 // Using the latest `Location`, we don't need to worry about migrations for Penpal.
-pub type ForeignAssetsAssetId = Location;
+pub type AssetsAssetId = Location;
 pub type ForeignAssetsConvertedConcreteId = xcm_builder::MatchedConvertedConcreteId<
 	Location,
 	Balance,
@@ -179,10 +160,25 @@ pub type ForeignAssetsConvertedConcreteId = xcm_builder::MatchedConvertedConcret
 	TryConvertInto,
 >;
 
+pub type LocalAssetsConvertedConcreteId = xcm_builder::MatchedConvertedConcreteId<
+	Location,
+	Balance,
+	// Only allow patterns with local
+	(
+		// Here we rely on fact that something like this works:
+		// assert!(Location::new(1,
+		// [Parachain(100)]).starts_with(&Location::parent()));
+		// assert!([Parachain(100)].into().starts_with(&Here));
+		StartsWith<assets_common::matching::LocalLocationPattern>,
+	),
+	Identity,
+	TryConvertInto,
+>;
+
 /// Means for transacting foreign assets from different global consensus.
 pub type ForeignFungiblesTransactor = FungiblesAdapter<
 	// Use this fungibles implementation:
-	ForeignAssets,
+	Assets,
 	// Use this currency when it is a fungible asset matching the given location or name:
 	ForeignAssetsConvertedConcreteId,
 	// Convert an XCM Location into a local account id:
@@ -196,7 +192,8 @@ pub type ForeignFungiblesTransactor = FungiblesAdapter<
 >;
 
 /// Means for transacting assets on this chain.
-pub type AssetTransactors = (FungibleTransactor, ForeignFungiblesTransactor, FungiblesTransactor);
+pub type AssetTransactors =
+	(FungibleTransactor, ForeignFungiblesTransactor, LocalFungiblesTransactor);
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
@@ -249,7 +246,10 @@ pub type Barrier = TrailingSetTopicAsId<(
 			// allow it.
 			AllowTopLevelPaidExecutionFrom<Everything>,
 			// Parent and its pluralities (i.e. governance bodies) get free execution.
-			AllowExplicitUnpaidExecutionFrom<(ParentOrParentsExecutivePlurality,)>,
+			AllowExplicitUnpaidExecutionFrom<
+				(ParentOrParentsExecutivePlurality,),
+				CheapTrustedAliasers,
+			>,
 			// Subscriptions for version tracking are OK.
 			AllowSubscriptionsFrom<Everything>,
 			// HRMP notifications from the relay chain are OK.
@@ -283,30 +283,43 @@ type AssetsFrom<T> = AssetPrefixFrom<T, T>;
 // This asset can be added to AH as Asset and reserved transfer between Penpal and AH
 pub const RESERVABLE_ASSET_ID: u32 = 1;
 // This asset can be added to AH as ForeignAsset and teleported between Penpal and AH
-pub const TELEPORTABLE_ASSET_ID: u32 = 2;
+pub const PEN2_TELEPORTABLE_GENERAL_INDEX: u32 = 2;
 
-pub const ASSETS_PALLET_ID: u8 = 50;
+pub const ASSET_HUB_ASSETS_PALLET_ID: u8 = 50;
 pub const ASSET_HUB_ID: u32 = 1000;
 
+pub const PENPAL_ASSETS_PALLET_ID: u8 = 50;
+
 pub const USDT_ASSET_ID: u128 = 1984;
+
+pub const SEPOLIA_ID: u64 = 11155111;
+// The minimum balance for assets pre-registered in emulated tests.
+pub const ETHER_MIN_BALANCE: u128 = 1000;
+pub const USDT_ED: Balance = 70_000;
 
 parameter_types! {
 	/// The location that this chain recognizes as the Relay network's Asset Hub.
 	pub SystemAssetHubLocation: Location = Location::new(1, [Parachain(ASSET_HUB_ID)]);
 	// the Relay Chain's Asset Hub's Assets pallet index
 	pub SystemAssetHubAssetsPalletLocation: Location =
-		Location::new(1, [Parachain(ASSET_HUB_ID), PalletInstance(ASSETS_PALLET_ID)]);
-	pub AssetsPalletLocation: Location =
-		Location::new(0, [PalletInstance(ASSETS_PALLET_ID)]);
+		Location::new(1, [Parachain(ASSET_HUB_ID), PalletInstance(ASSET_HUB_ASSETS_PALLET_ID)]);
 	pub CheckingAccount: AccountId = PolkadotXcm::check_account();
 	pub LocalReservableFromAssetHub: Location = Location::new(
 		1,
-		[Parachain(ASSET_HUB_ID), PalletInstance(ASSETS_PALLET_ID), GeneralIndex(RESERVABLE_ASSET_ID.into())]
+		[Parachain(ASSET_HUB_ID), PalletInstance(ASSET_HUB_ASSETS_PALLET_ID), GeneralIndex(RESERVABLE_ASSET_ID.into())]
 	);
 	pub UsdtFromAssetHub: Location = Location::new(
 		1,
-		[Parachain(ASSET_HUB_ID), PalletInstance(ASSETS_PALLET_ID), GeneralIndex(USDT_ASSET_ID)],
+		[Parachain(ASSET_HUB_ID), PalletInstance(ASSET_HUB_ASSETS_PALLET_ID), GeneralIndex(USDT_ASSET_ID)],
 	);
+
+	pub EthFromEthereum: Location = Location::new(
+		2,
+		[GlobalConsensus(Ethereum { chain_id: SEPOLIA_ID})],
+	);
+
+	/// A PEN2 test asset.
+	pub LocalPen2Asset: Location = Location::new(0, [PalletInstance(PENPAL_ASSETS_PALLET_ID), GeneralIndex(PEN2_TELEPORTABLE_GENERAL_INDEX.into())]);
 
 	/// The Penpal runtime is utilized for testing with various environment setups.
 	/// This storage item provides the opportunity to customize testing scenarios
@@ -314,10 +327,7 @@ parameter_types! {
 	///
 	/// By default, it is configured as a `SystemAssetHubLocation` and can be modified using `System::set_storage`.
 	pub storage CustomizableAssetFromSystemAssetHub: Location = SystemAssetHubLocation::get();
-	pub storage LocalTeleportableToAssetHub: Location = Location::new(
-		0,
-		[PalletInstance(ASSETS_PALLET_ID), GeneralIndex(TELEPORTABLE_ASSET_ID.into())]
-	);
+	pub storage LocalTeleportableToAssetHub: Location = LocalPen2Asset::get();
 
 	pub const NativeAssetId: AssetId = AssetId(Location::here());
 	pub const NativeAssetFilter: AssetFilter = Wild(AllOf { fun: WildFungible, id: NativeAssetId::get() });
@@ -344,27 +354,31 @@ pub type TrustedReserves = (
 );
 
 pub type TrustedTeleporters = (
+	AssetFromChain<PenpalNativeCurrency, SystemAssetHubLocation>,
 	AssetFromChain<LocalTeleportableToAssetHub, SystemAssetHubLocation>,
 	// This is used in the `IsTeleporter` configuration, meaning it accepts
 	// native tokens teleported from Asset Hub.
 	xcm_builder::Case<AssetHubTrustedTeleporter>,
 );
 
-/// Defines origin aliasing rules for this chain.
+/// Aliasing rules that are pure computation and thus cheap enough to also be evaluated by
+/// barriers, before any payment is taken.
 ///
 /// - Allow any origin to alias into a child sub-location (equivalent to DescendOrigin),
-/// - Allow AssetHub root to alias into anything,
+/// - Allow AssetHub root to alias into anything.
+///
+/// `AuthorizedAliasers` is deliberately NOT part of this: it reads storage, which is more than a
+/// barrier is allowed to cost.
+pub type CheapTrustedAliasers =
+	(AliasChildLocation, AliasOriginRootUsingFilter<SystemAssetHubLocation, Everything>);
+
+/// Defines origin aliasing rules for this chain. Used by the executor.
+///
+/// - Allow all the cheap aliasing rules also used by the barriers,
 /// - Allow origins explicitly authorized by the alias target location.
-pub type TrustedAliasers = (
-	AliasChildLocation,
-	AliasOriginRootUsingFilter<SystemAssetHubLocation, Everything>,
-	AuthorizedAliasers<Runtime>,
-);
+pub type TrustedAliasers = (CheapTrustedAliasers, AuthorizedAliasers<Runtime>);
 
 pub type WaivedLocations = Equals<RootLocation>;
-/// `AssetId`/`Balance` converter for `TrustBackedAssets`.
-pub type TrustBackedAssetsConvertedConcreteId =
-	assets_common::TrustBackedAssetsConvertedConcreteId<AssetsPalletLocation, Balance>;
 
 /// Asset converter for pool assets.
 /// Used to convert assets in pools to the asset required for fee payment.
@@ -373,14 +387,7 @@ pub type TrustBackedAssetsConvertedConcreteId =
 pub type PoolAssetsExchanger = SingleAssetExchangeAdapter<
 	crate::AssetConversion,
 	crate::NativeAndAssets,
-	(
-		TrustBackedAssetsAsLocation<
-			TrustBackedAssetsPalletLocation,
-			Balance,
-			xcm::latest::Location,
-		>,
-		ForeignAssetsConvertedConcreteId,
-	),
+	(LocalAssetsConvertedConcreteId, ForeignAssetsConvertedConcreteId),
 	AccountId,
 >;
 
@@ -399,22 +406,16 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = (
-		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>,
 		// Allow native asset to pay the execution fee
 		UsingComponents<WeightToFee, PenpalNativeCurrency, AccountId, Balances, ToAuthor<Runtime>>,
+		// This trader allows to pay with any assets exchangeable to native asset with
+		// [`AssetConversion`].
 		cumulus_primitives_utility::SwapFirstAssetTrader<
-			RelayLocation,
+			PenpalNativeCurrency,
 			crate::AssetConversion,
 			WeightToFee,
 			crate::NativeAndAssets,
-			(
-				TrustBackedAssetsAsLocation<
-					TrustBackedAssetsPalletLocation,
-					Balance,
-					xcm::latest::Location,
-				>,
-				ForeignAssetsConvertedConcreteId,
-			),
+			(LocalAssetsConvertedConcreteId, ForeignAssetsConvertedConcreteId),
 			ResolveAssetTo<StakingPot, crate::NativeAndAssets>,
 			AccountId,
 		>,
@@ -441,15 +442,6 @@ impl xcm_executor::Config for XcmConfig {
 	type HrmpChannelClosingHandler = ();
 	type XcmRecorder = PolkadotXcm;
 }
-
-/// Multiplier used for dedicated `TakeFirstAssetTrader` with `ForeignAssets` instance.
-pub type ForeignAssetFeeAsExistentialDepositMultiplierFeeCharger =
-	AssetFeeAsExistentialDepositMultiplier<
-		Runtime,
-		WeightToFee,
-		pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, ForeignAssetsInstance>,
-		ForeignAssetsInstance,
-	>;
 
 /// Converts a local signed origin into an XCM location. Forms the basis for local origins
 /// sending/executing XCMs.

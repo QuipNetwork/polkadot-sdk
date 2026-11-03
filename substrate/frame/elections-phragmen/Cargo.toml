@@ -1,6 +1,6 @@
 [package]
 name = "pallet-elections-phragmen"
-version = "47.0.0"
+version = "51.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -29,9 +29,9 @@ sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-utils = { workspace = true }
 
 [features]
@@ -42,12 +42,14 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
 	"scale-info/std",
 	"sp-core/std",
 	"sp-io/std",
 	"sp-npos-elections/std",
 	"sp-runtime/std",
 	"sp-staking/std",
+	"sp-tracing/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

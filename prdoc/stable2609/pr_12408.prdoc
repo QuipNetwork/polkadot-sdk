@@ -1,0 +1,11 @@
+title: 'fix(asset-conversion): use full balances for pool prices'
+doc:
+- audience: Runtime Dev
+  description: |
+    `pallet-asset-conversion` now reads full pool account balances when calculating
+    pool prices and liquidity amounts. Previously, these calculations used reducible
+    balances, which could understate pool reserves when protected funds or unrelated
+    non-sufficient assets were held in the pool account.
+crates:
+- name: pallet-asset-conversion
+  bump: patch

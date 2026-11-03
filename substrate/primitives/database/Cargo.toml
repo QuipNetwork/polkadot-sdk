@@ -1,6 +1,6 @@
 [package]
 name = "sp-database"
-version = "10.0.1"
+version = "10.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

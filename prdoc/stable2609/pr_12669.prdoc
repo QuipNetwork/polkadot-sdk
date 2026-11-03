@@ -1,0 +1,20 @@
+title: Remove deprecated NativeElseWasmExecutor, NativeVersion, and GetNativeVersion.
+doc:
+- audience: Node Dev
+  description: |-
+    Remove the deprecated `NativeElseWasmExecutor` and `NativeExecutionDispatch` from `sc-executor`, as well as `NativeVersion` and `GetNativeVersion` from `sp-version`.
+    ## Integration
+
+    Downstream users should:
+    - replace `NativeElseWasmExecutor` with `WasmExecutor`
+    - stop implementing / reexporting `NativeExecutionDispatch`
+    - remove references to `NativeVersion`, `GetNativeVersion`, and `native_version()`
+crates:
+- name: polkadot-service
+  bump: patch
+- name: sc-executor
+  bump: major
+- name: sc-service
+  bump: patch
+- name: sp-version
+  bump: major

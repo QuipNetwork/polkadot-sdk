@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-primitives-aura"
-version = "0.22.0"
+version = "0.25.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -12,6 +12,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+# Substrate
 sp-api = { workspace = true }
 sp-consensus-aura = { workspace = true }
 

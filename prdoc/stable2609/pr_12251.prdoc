@@ -1,0 +1,10 @@
+title: Remove deprecated RelaychainBlockNumberProvider type alias
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes deprecated `cumulus_pallet_parachain_system::RelaychainBlockNumberProvider`,
+      a type alias for `RelaychainDataProvider`. Use `RelaychainDataProvider` directly.
+
+crates:
+  - name: cumulus-pallet-parachain-system
+    bump: major

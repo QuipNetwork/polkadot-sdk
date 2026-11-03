@@ -22,6 +22,7 @@ use super::*;
 use frame_benchmarking::v2::*;
 use frame_support::traits::OriginTrait;
 use pallet_broker::CoreIndex as BrokerCoreIndex;
+use polkadot_primitives::Id as ParaId;
 
 #[benchmarks]
 mod benchmarks {
@@ -95,6 +96,29 @@ mod benchmarks {
 			assignments,
 			Some(BlockNumberFor::<T>::from(20u32)),
 		)
+	}
+
+	#[benchmark]
+	fn queue_on_demand_batch(s: Linear<0, 100>) {
+		// Setup
+		let root_origin = <T as frame_system::Config>::RuntimeOrigin::root();
+
+		on_demand::Pallet::<T>::populate_queue(
+			ParaId::from(111u32),
+			polkadot_primitives::ON_DEMAND_MAX_QUEUE_MAX_SIZE - s,
+		);
+
+		// Use parameterized order count
+		let batch: Vec<(ParaId, BlockNumberFor<T>)> = vec![0u32; s as usize]
+			.into_iter()
+			.enumerate()
+			.map(|(index, block_number)| {
+				(ParaId::from(index as u32), BlockNumberFor::<T>::from(block_number))
+			})
+			.collect();
+
+		#[extrinsic_call]
+		_(root_origin as <T as frame_system::Config>::RuntimeOrigin, batch)
 	}
 
 	#[benchmark]

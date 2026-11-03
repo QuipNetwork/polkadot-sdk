@@ -67,6 +67,11 @@ impl<Hash> DroppedTransaction<Hash> {
 	pub fn new_invalid(tx_hash: Hash) -> Self {
 		Self { reason: DroppedReason::Invalid, tx_hash }
 	}
+
+	/// Creates a new instance with reason set to `DroppedReason::Viewless`.
+	pub fn new_viewless(tx_hash: Hash) -> Self {
+		Self { reason: DroppedReason::Viewless, tx_hash }
+	}
 }
 
 /// Provides reason of why transactions was dropped.
@@ -78,6 +83,14 @@ pub enum DroppedReason<Hash> {
 	LimitsEnforced,
 	/// Transaction was dropped because of being invalid.
 	Invalid,
+	/// Transaction lost all referencing views but remains in the mempool.
+	///
+	/// This is not a true drop — the transaction is still in the mempool. This signal indicates
+	/// that no active view currently considers this transaction ready, typically because the
+	/// transaction was banned in views due to a fork-specific validation error. The
+	/// `dropped_monitor_task` should mark this transaction for unbanning so that mempool
+	/// revalidation can clear stale bans.
+	Viewless,
 }
 
 /// Dropped-logic related event from the single view.
@@ -149,8 +162,9 @@ where
 	/// For each transaction hash we keep the set of hashes representing the views that see this
 	/// transaction as ready or in_block.
 	///
-	/// Even if all views referencing a ready transactions are removed, we still want to keep
-	/// transaction, there can be a fork which sees the transaction as ready.
+	/// When all views referencing a ready transaction are removed, a [`DroppedReason::Viewless`]
+	/// event is emitted so the transaction can be considered for unbanning. The transaction
+	/// itself is not dropped from the mempool.
 	///
 	/// Once transaction is dropped, dropping view is removed from the set.
 	ready_transaction_views: HashMap<ExtrinsicHash<ChainApi>, HashSet<BlockHash<ChainApi>>>,
@@ -164,6 +178,10 @@ where
 
 	/// Transactions that need to be notified as dropped.
 	pending_dropped_transactions: Vec<ExtrinsicHash<ChainApi>>,
+
+	/// Ready transactions that lost all referencing views and need a
+	/// [`DroppedReason::Viewless`] notification.
+	pending_viewless_transactions: Vec<ExtrinsicHash<ChainApi>>,
 }
 
 impl<C> MultiViewDropWatcherContext<C>
@@ -214,6 +232,9 @@ where
 						views
 					);
 					views.remove(&key);
+					if views.is_empty() {
+						self.pending_viewless_transactions.push(*tx_hash);
+					}
 				});
 
 				self.future_transaction_views.iter_mut().for_each(|(tx_hash, views)| {
@@ -334,6 +355,23 @@ where
 		None
 	}
 
+	/// Gets pending viewless transactions if any.
+	///
+	/// These are ready transactions that lost all referencing views. They are not dropped
+	/// from the mempool — instead a [`DroppedReason::Viewless`] event is emitted so the
+	/// `dropped_monitor_task` can mark them for unbanning.
+	fn get_pending_viewless_transaction(&mut self) -> Option<DroppedTransaction<ExtrinsicHash<C>>> {
+		while let Some(tx_hash) = self.pending_viewless_transactions.pop() {
+			// Only emit Viewless if the tx is still tracked as ready and still has no views.
+			if let Some(views) = self.ready_transaction_views.get(&tx_hash) {
+				if views.is_empty() {
+					return Some(DroppedTransaction::new_viewless(tx_hash));
+				}
+			}
+		}
+		None
+	}
+
 	/// Creates a new `StreamOfDropped` and its associated event stream controller.
 	///
 	/// This method initializes the internal structures and unfolds the stream of dropped
@@ -353,6 +391,7 @@ where
 			ready_transaction_views: Default::default(),
 			future_transaction_views: Default::default(),
 			pending_dropped_transactions: Default::default(),
+			pending_viewless_transactions: Default::default(),
 		};
 
 		let stream_map = futures::stream::unfold(ctx, |mut ctx| async move {
@@ -360,6 +399,10 @@ where
 				if let Some(dropped) = ctx.get_pending_dropped_transaction() {
 					trace!("dropped_watcher: sending out (pending): {dropped:?}");
 					return Some((dropped, ctx));
+				}
+				if let Some(viewless) = ctx.get_pending_viewless_transaction() {
+					trace!("dropped_watcher: sending out (viewless): {viewless:?}");
+					return Some((viewless, ctx));
 				}
 				tokio::select! {
 					biased;
@@ -543,8 +586,16 @@ mod dropped_watcher_tests {
 		watcher.remove_view(block_hash0);
 
 		watcher.add_view(block_hash1, view_stream1);
-		let handle = tokio::spawn(async move { output_stream.take(1).collect::<Vec<_>>().await });
-		assert_eq!(handle.await.unwrap(), vec![DroppedTransaction::new_enforced_by_limts(tx_hash)]);
+		let handle = tokio::spawn(async move { output_stream.take(2).collect::<Vec<_>>().await });
+		assert_eq!(
+			handle.await.unwrap(),
+			vec![
+				// Viewless fires first: view0 was removed, ready_views briefly empty.
+				DroppedTransaction::new_viewless(tx_hash),
+				// Then view1's Dropped event produces LimitsEnforced.
+				DroppedTransaction::new_enforced_by_limts(tx_hash),
+			]
+		);
 	}
 
 	#[tokio::test]

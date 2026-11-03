@@ -41,7 +41,8 @@ use sc_client_api::{
 	execution_extensions::ExecutionExtensions,
 	notifications::{StorageEventStream, StorageNotifications},
 	CallExecutor, ExecutorProvider, KeysIter, OnFinalityAction, OnImportAction, PairsIter,
-	ProofProvider, StaleBlock, TrieCacheContext, UnpinWorkerMessage, UsageProvider,
+	PrefetchedIndexedTransactions, ProofProvider, StaleBlock, TrieCacheContext, UnpinWorkerMessage,
+	UsageProvider,
 };
 use sc_consensus::{
 	BlockCheckParams, BlockImportParams, ForkChoiceStrategy, ImportResult, StateAction,
@@ -62,6 +63,7 @@ use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedSender};
 use sp_core::{
 	storage::{ChildInfo, ChildType, PrefixedStorageKey, StorageChild, StorageData, StorageKey},
 	traits::{CallContext, SpawnNamed},
+	H256,
 };
 use sp_runtime::{
 	generic::{BlockId, SignedBlock},
@@ -482,12 +484,18 @@ where
 			intermediates,
 			import_existing,
 			create_gap,
+			prefetched_indexed_transactions,
 			..
 		} = import_block;
 
 		if !intermediates.is_empty() {
 			return Err(Error::IncompletePipeline);
 		}
+
+		let PrefetchedIndexedTransactions { ops: prefetched_index_ops, renew_payloads } =
+			prefetched_indexed_transactions;
+		operation.op.set_renew_payloads(renew_payloads)?;
+		operation.op.update_transaction_index(prefetched_index_ops)?;
 
 		let fork_choice = fork_choice.ok_or(Error::IncompletePipeline)?;
 
@@ -603,76 +611,67 @@ where
 		};
 
 		let storage_changes = match storage_changes {
-			Some(storage_changes) => {
-				let storage_changes = match storage_changes {
-					sc_consensus::StorageChanges::Changes(storage_changes) => {
-						self.backend.begin_state_operation(&mut operation.op, parent_hash)?;
-						let (main_sc, child_sc, offchain_sc, tx, _, tx_index) =
-							storage_changes.into_inner();
+			Some(sc_consensus::StorageChanges::Changes(storage_changes)) => {
+				self.backend.begin_state_operation(&mut operation.op, parent_hash)?;
+				let (main_sc, child_sc, offchain_sc, tx, _, tx_index) =
+					storage_changes.into_inner();
 
-						if self.config.offchain_indexing_api {
-							operation.op.update_offchain_storage(offchain_sc)?;
+				if self.config.offchain_indexing_api {
+					operation.op.update_offchain_storage(offchain_sc)?;
+				}
+
+				operation.op.update_db_storage(tx)?;
+				operation.op.update_storage(main_sc.clone(), child_sc.clone())?;
+				operation.op.update_transaction_index(tx_index)?;
+
+				Some((main_sc, child_sc))
+			},
+			Some(sc_consensus::StorageChanges::Import(changes)) => {
+				let mut storage = sp_storage::Storage::default();
+				for state in changes.state.0.into_iter() {
+					if state.parent_storage_keys.is_empty() && state.state_root.is_empty() {
+						for (key, value) in state.key_values.into_iter() {
+							storage.top.insert(key, value);
 						}
-
-						operation.op.update_db_storage(tx)?;
-						operation.op.update_storage(main_sc.clone(), child_sc.clone())?;
-						operation.op.update_transaction_index(tx_index)?;
-
-						Some((main_sc, child_sc))
-					},
-					sc_consensus::StorageChanges::Import(changes) => {
-						let mut storage = sp_storage::Storage::default();
-						for state in changes.state.0.into_iter() {
-							if state.parent_storage_keys.is_empty() && state.state_root.is_empty() {
-								for (key, value) in state.key_values.into_iter() {
-									storage.top.insert(key, value);
-								}
-							} else {
-								for parent_storage in state.parent_storage_keys {
-									let storage_key = PrefixedStorageKey::new_ref(&parent_storage);
-									let storage_key =
-										match ChildType::from_prefixed_key(storage_key) {
-											Some((ChildType::ParentKeyId, storage_key)) => {
-												storage_key
-											},
-											None => {
-												return Err(Error::Backend(
-													"Invalid child storage key.".to_string(),
-												))
-											},
-										};
-									let entry = storage
-										.children_default
-										.entry(storage_key.to_vec())
-										.or_insert_with(|| StorageChild {
-											data: Default::default(),
-											child_info: ChildInfo::new_default(storage_key),
-										});
-									for (key, value) in state.key_values.iter() {
-										entry.data.insert(key.clone(), value.clone());
-									}
-								}
+					} else {
+						for parent_storage in state.parent_storage_keys {
+							let storage_key = PrefixedStorageKey::new_ref(&parent_storage);
+							let storage_key = match ChildType::from_prefixed_key(storage_key) {
+								Some((ChildType::ParentKeyId, storage_key)) => storage_key,
+								None => {
+									return Err(Error::Backend(
+										"Invalid child storage key.".to_string(),
+									))
+								},
+							};
+							let entry = storage
+								.children_default
+								.entry(storage_key.to_vec())
+								.or_insert_with(|| StorageChild {
+									data: Default::default(),
+									child_info: ChildInfo::new_default(storage_key),
+								});
+							for (key, value) in state.key_values.iter() {
+								entry.data.insert(key.clone(), value.clone());
 							}
 						}
+					}
+				}
 
-						// This is use by fast sync for runtime version to be resolvable from
-						// changes.
-						let state_version = resolve_state_version_from_wasm::<_, HashingFor<Block>>(
-							&storage,
-							&self.executor,
-						)?;
-						let state_root = operation.op.reset_storage(storage, state_version)?;
-						if state_root != *import_headers.post().state_root() {
-							// State root mismatch when importing state. This should not happen in
-							// safe fast sync mode, but may happen in unsafe mode.
-							warn!("Error importing state: State root mismatch.");
-							return Err(Error::InvalidStateRoot);
-						}
-						None
-					},
-				};
-
-				storage_changes
+				// This is use by fast sync for runtime version to be resolvable from
+				// changes.
+				let state_version = resolve_state_version_from_wasm::<_, HashingFor<Block>>(
+					&storage,
+					&self.executor,
+				)?;
+				let state_root = operation.op.reset_storage(storage, state_version)?;
+				if state_root != *import_headers.post().state_root() {
+					// State root mismatch when importing state. This should not happen in
+					// safe fast sync mode, but may happen in unsafe mode.
+					warn!("Error importing state: State root mismatch.");
+					return Err(Error::InvalidStateRoot);
+				}
+				None
 			},
 			None => None,
 		};
@@ -846,7 +845,7 @@ where
 			// block.
 			(true, None, Some(ref body)) => {
 				let mut runtime_api = self.runtime_api();
-				let call_context = CallContext::Onchain;
+				let call_context = CallContext::Onchain { import: true };
 				runtime_api.set_call_context(call_context);
 
 				if self.config.enable_import_proof_recording {
@@ -1391,7 +1390,7 @@ where
 		sp_trie::decode_compact::<sp_state_machine::LayoutV0<HashingFor<Block>>, _, _>(
 			&mut db,
 			proof.iter_compact_encoded_nodes(),
-			Some(&root),
+			&root,
 		)
 		.map_err(|e| sp_blockchain::Error::from_state(Box::new(e)))?;
 		let proving_backend = sp_state_machine::TrieBackendBuilder::new(db, root).build();
@@ -1993,12 +1992,16 @@ where
 		self.backend.blockchain().hash(number)
 	}
 
-	fn indexed_transaction(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<Vec<u8>>> {
+	fn indexed_transaction(&self, hash: H256) -> sp_blockchain::Result<Option<Vec<u8>>> {
 		self.backend.blockchain().indexed_transaction(hash)
 	}
 
-	fn has_indexed_transaction(&self, hash: Block::Hash) -> sp_blockchain::Result<bool> {
+	fn has_indexed_transaction(&self, hash: H256) -> sp_blockchain::Result<bool> {
 		self.backend.blockchain().has_indexed_transaction(hash)
+	}
+
+	fn block_indexed_hashes(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<Vec<H256>>> {
+		self.backend.blockchain().block_indexed_hashes(hash)
 	}
 
 	fn block_indexed_body(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<Vec<Vec<u8>>>> {

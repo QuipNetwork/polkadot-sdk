@@ -3,6 +3,7 @@
 
 // Test we are producing 12-second parachain blocks if using an old collator, pre async-backing.
 
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
 
 use cumulus_zombienet_sdk_helpers::{assert_finality_lag, assert_para_throughput};
@@ -27,7 +28,9 @@ async fn sync_backing_test() -> Result<(), anyhow::Error> {
 				.with_chain("rococo-local")
 				.with_default_command("polkadot")
 				.with_default_image(images.polkadot.as_str())
-				.with_default_args(vec![("-lparachain=debug").into()])
+				.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+					("-lparachain=debug").into(),
+				]))
 				.with_genesis_overrides(json!({
 					"configuration": {
 						"config": {
@@ -65,7 +68,7 @@ async fn sync_backing_test() -> Result<(), anyhow::Error> {
 
 	let relay_client: OnlineClient<PolkadotConfig> = relay_node.wait_client().await?;
 
-	assert_para_throughput(&relay_client, 15, [(ParaId::from(2500), 5..9)]).await?;
+	assert_para_throughput(&relay_client, 15, [(ParaId::from(2500), 5..9)], []).await?;
 
 	// Assert the parachain finalized block height is also on par with the number of backed
 	// candidates.

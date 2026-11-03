@@ -1,6 +1,6 @@
 [package]
 name = "node-rpc"
-version = "3.0.0"
+version = "3.0.0-dev"
 authors.workspace = true
 description = "Substrate node rpc methods."
 edition.workspace = true
@@ -17,29 +17,29 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 jsonrpsee = { features = ["server"], workspace = true }
-mmr-rpc = { default-features = true, workspace = true }
-node-primitives = { default-features = true, workspace = true }
-pallet-transaction-payment-rpc = { default-features = true, workspace = true }
-sc-chain-spec = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus-babe = { default-features = true, workspace = true }
-sc-consensus-babe-rpc = { default-features = true, workspace = true }
-sc-consensus-beefy = { default-features = true, workspace = true }
-sc-consensus-beefy-rpc = { default-features = true, workspace = true }
-sc-consensus-grandpa = { default-features = true, workspace = true }
-sc-consensus-grandpa-rpc = { default-features = true, workspace = true }
-sc-mixnet = { default-features = true, workspace = true }
-sc-rpc = { default-features = true, workspace = true }
-sc-sync-state-rpc = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-block-builder = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-consensus-beefy = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-substrate-frame-rpc-system = { default-features = true, workspace = true }
-substrate-state-trie-migration-rpc = { default-features = true, workspace = true }
+mmr-rpc = { workspace = true, default-features = true }
+node-primitives = { workspace = true, default-features = true }
+pallet-transaction-payment-rpc = { workspace = true, default-features = true }
+sc-chain-spec = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus-babe = { workspace = true, default-features = true }
+sc-consensus-babe-rpc = { workspace = true, default-features = true }
+sc-consensus-beefy = { workspace = true, default-features = true }
+sc-consensus-beefy-rpc = { workspace = true, default-features = true }
+sc-consensus-grandpa = { workspace = true, default-features = true }
+sc-consensus-grandpa-rpc = { workspace = true, default-features = true }
+sc-mixnet = { workspace = true, default-features = true }
+sc-rpc = { workspace = true, default-features = true }
+sc-sync-state-rpc = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-consensus-beefy = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+substrate-frame-rpc-system = { workspace = true, default-features = true }
+substrate-state-trie-migration-rpc = { workspace = true, default-features = true }

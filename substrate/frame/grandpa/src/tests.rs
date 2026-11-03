@@ -661,6 +661,7 @@ fn report_equivocation_invalid_equivocation_proof() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn report_equivocation_validate_unsigned_prevents_duplicates() {
 	use sp_runtime::transaction_validity::{
 		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,

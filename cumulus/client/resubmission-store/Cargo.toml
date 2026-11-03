@@ -1,0 +1,25 @@
+[package]
+authors.workspace = true
+name = "cumulus-client-resubmission-store"
+version = "0.2.0"
+edition.workspace = true
+description = "Per-block proof store for unincluded segment resubmission."
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+codec = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
+
+[dev-dependencies]
+sc-client-db = { workspace = true, default-features = true }
+substrate-test-runtime = { workspace = true }
+tempfile = { workspace = true }

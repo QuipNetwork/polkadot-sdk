@@ -107,3 +107,30 @@ fn custom_rollback_is_invoked_on_error() {
 	// the fees register would be empty. The custom rollback ensures it was reset.
 	assert!(get_first_fungible(vm.fees()).is_some());
 }
+
+/// On error, `TransferReserveAsset` rolls back holding and fees, including the delivery fee
+/// it already took from the fees register.
+#[test]
+fn transfer_reserve_asset_error_rolls_back_holding_and_fees() {
+	add_asset(SENDER, (Here, 100u128));
+
+	let setup = Xcm::<TestCall>(vec![
+		WithdrawAsset((Here, 20u128).into()),
+		PayFees { asset: (Here, 10u128).into() },
+	]);
+	let (mut vm, _weight) = instantiate_executor(SENDER, setup.clone());
+	assert!(vm.bench_process(setup).is_ok());
+	let holding_before = get_first_fungible(vm.holding());
+	let fees_before = get_first_fungible(vm.fees());
+
+	// Delivery fails after the delivery fee was taken from the fees register.
+	let transfer = Xcm::<TestCall>(vec![TransferReserveAsset {
+		assets: (Here, 5u128).into(),
+		dest: undeliverable_destination(),
+		xcm: Xcm(vec![]),
+	}]);
+	assert!(vm.bench_process(transfer).is_err());
+
+	assert_eq!(get_first_fungible(vm.holding()), holding_before);
+	assert_eq!(get_first_fungible(vm.fees()), fees_before);
+}

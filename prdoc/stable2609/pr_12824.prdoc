@@ -1,0 +1,15 @@
+title: '[pallet-revive] eth-rpc: decide reorgs by block canonicality, not by finalized
+  height'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ### Summary
+    Adjust `update_latest` to distinguish a reconnect replay from a reorg by checking whether the cached best block is still canonical: a block that is neither higher than the cached one nor the cached one itself is accepted only when the cached block is no longer canonical. The best block is also kept at or above the finalized block.
+
+    - Keep the cached block when the lookup fails, so a failed request during a reconnect cannot move the head back.
+    - Reject a best block below the finalized block, or a different block at the finalized block's number.
+    - Set the best block to the finalized block whenever the finalized number is at or above it.
+    - Add unit tests for `SubxtBlockInfoProvider` using subxt's `MockRpcClient` (new `subxt-rpcs` dev-dependency).
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

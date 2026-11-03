@@ -1,0 +1,18 @@
+title: Fix panic on `sc-rpc-server` `start_server` error paths
+
+doc:
+- audience: [Node Dev, Node Operator]
+  description: |-
+    `start_server` took ownership of the dedicated RPC `tokio::runtime::Runtime` and dropped it as
+    an ordinary local on its two error paths (a non-optional endpoint failing to bind, and no
+    listen address). Since `start_server` is awaited from within a runtime
+    context, that drop panicked with "Cannot drop a runtime in a context where blocking is not
+    allowed", masking the underlying error.
+
+    The runtime is now held in a guard for the duration of `start_server`, so every exit path
+    shuts it down with `shutdown_background()`, the same approach `Server::drop` already used,
+    and the original error is returned to the caller instead of being replaced by a panic.
+
+crates:
+- name: sc-rpc-server
+  bump: patch

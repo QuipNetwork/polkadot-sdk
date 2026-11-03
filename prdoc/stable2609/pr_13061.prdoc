@@ -1,0 +1,13 @@
+title: 'feat(sc-consensus-babe): expose build_verifier like Aura'
+doc:
+  - audience: Node Dev
+    description: |
+      BABE cannot be used with a custom import queue today, because `BabeVerifier` is only
+      constructed inside `import_queue` and immediately wrapped in `BasicQueue`.
+
+      This change adds `build_verifier` and `BuildVerifierParams`, matching Aura, so a node
+      can compose `BabeVerifier` into its own `ImportQueue`. Existing `import_queue` callers
+      are unchanged: it still builds a `BasicQueue` and still spawns the epoch-data worker.
+crates:
+  - name: sc-consensus-babe
+    bump: minor

@@ -59,8 +59,7 @@ fn read_mmr_leaf(ext: &mut TestExternalities, key: Vec<u8>) -> MmrLeaf {
 
 #[test]
 fn should_contain_mmr_digest() {
-	let mut ext = new_test_ext(vec![1, 2, 3, 4]);
-	ext.execute_with(|| {
+	build_and_execute(vec![1, 2, 3, 4], || {
 		init_block(1, None);
 		assert_eq!(
 			System::digest().logs,
@@ -69,8 +68,8 @@ fn should_contain_mmr_digest() {
 					ValidatorSet::new(vec![mock_beefy_id(1), mock_beefy_id(2)], 1).unwrap()
 				)),
 				beefy_log(ConsensusLog::MmrRoot(H256::from_slice(&[
-					117, 0, 56, 25, 185, 195, 71, 232, 67, 213, 27, 178, 64, 168, 137, 220, 64,
-					184, 64, 240, 83, 245, 18, 93, 185, 202, 125, 205, 17, 254, 18, 143
+					173, 241, 162, 161, 65, 69, 21, 229, 31, 108, 53, 148, 216, 188, 0, 176, 115,
+					165, 143, 151, 91, 233, 129, 93, 235, 171, 5, 201, 206, 160, 27, 22
 				])))
 			]
 		);
@@ -84,8 +83,8 @@ fn should_contain_mmr_digest() {
 					ValidatorSet::new(vec![mock_beefy_id(3), mock_beefy_id(4)], 2).unwrap()
 				)),
 				beefy_log(ConsensusLog::MmrRoot(H256::from_slice(&[
-					193, 246, 48, 7, 89, 204, 186, 109, 167, 226, 188, 211, 8, 243, 203, 154, 234,
-					235, 136, 210, 245, 7, 209, 27, 241, 90, 156, 113, 137, 65, 191, 139
+					6, 76, 16, 37, 40, 27, 157, 217, 207, 77, 66, 97, 27, 167, 7, 210, 179, 3, 209,
+					245, 24, 108, 70, 169, 172, 67, 201, 117, 203, 0, 249, 138
 				]))),
 			]
 		);
@@ -114,7 +113,7 @@ fn should_contain_valid_leaf_data() {
 				id: 2,
 				len: 2,
 				keyset_commitment: array_bytes::hex_n_into_unchecked(
-					"9c6b2c1b0d0b25a008e6c882cc7b415f309965c72ad2b944ac0931048ca31cd5"
+					"d4eb50bacc74545046503f26b678fb8e71031a1b5fb6659576eab17521c64d34"
 				)
 			},
 			leaf_extra: array_bytes::hex2bytes_unchecked(
@@ -139,7 +138,7 @@ fn should_contain_valid_leaf_data() {
 				id: 3,
 				len: 2,
 				keyset_commitment: array_bytes::hex_n_into_unchecked(
-					"9c6b2c1b0d0b25a008e6c882cc7b415f309965c72ad2b944ac0931048ca31cd5"
+					"d4eb50bacc74545046503f26b678fb8e71031a1b5fb6659576eab17521c64d34"
 				)
 			},
 			leaf_extra: array_bytes::hex2bytes_unchecked(
@@ -151,7 +150,7 @@ fn should_contain_valid_leaf_data() {
 
 #[test]
 fn should_update_authorities() {
-	new_test_ext(vec![1, 2, 3, 4]).execute_with(|| {
+	build_and_execute(vec![1, 2, 3, 4], || {
 		let auth_set = BeefyMmr::authority_set_proof();
 		let next_auth_set = BeefyMmr::next_authority_set_proof();
 
@@ -159,7 +158,7 @@ fn should_update_authorities() {
 		assert_eq!(0, auth_set.id);
 		assert_eq!(2, auth_set.len);
 		let want = array_bytes::hex_n_into_unchecked::<_, H256, 32>(
-			"176e73f1bf656478b728e28dd1a7733c98621b8acf830bff585949763dca7a96",
+			"8db0d5104b090776e5812e995875ba50ff47886f4ba9b6a221596443f01cb258",
 		);
 		assert_eq!(want, auth_set.keyset_commitment);
 
@@ -179,7 +178,7 @@ fn should_update_authorities() {
 		// check next auth set
 		assert_eq!(2, next_auth_set.id);
 		let want = array_bytes::hex_n_into_unchecked::<_, H256, 32>(
-			"9c6b2c1b0d0b25a008e6c882cc7b415f309965c72ad2b944ac0931048ca31cd5",
+			"d4eb50bacc74545046503f26b678fb8e71031a1b5fb6659576eab17521c64d34",
 		);
 		assert_eq!(2, next_auth_set.len);
 		assert_eq!(want, next_auth_set.keyset_commitment);
@@ -195,7 +194,7 @@ fn should_update_authorities() {
 		// check next auth set
 		assert_eq!(3, next_auth_set.id);
 		let want = array_bytes::hex_n_into_unchecked::<_, H256, 32>(
-			"9c6b2c1b0d0b25a008e6c882cc7b415f309965c72ad2b944ac0931048ca31cd5",
+			"d4eb50bacc74545046503f26b678fb8e71031a1b5fb6659576eab17521c64d34",
 		);
 		assert_eq!(2, next_auth_set.len);
 		assert_eq!(want, next_auth_set.keyset_commitment);
@@ -218,7 +217,7 @@ fn extract_validation_context_should_work_correctly() {
 
 		// Check the MMR root log
 		let expected_mmr_root: [u8; 32] = array_bytes::hex_n_into_unchecked(
-			"322c6a46ac00d3455c87bd9af42ebafb388f589a1b562f5e39b1d0d71bcbe8e0",
+			"9c26423184ad4f1c978df3b60294ad63b67b52b8e3bb8d831cabac40d98f7fb7",
 		);
 
 		assert_eq!(
@@ -388,4 +387,22 @@ fn is_non_canonical_should_work_correctly() {
 			)
 		}
 	});
+}
+
+#[test]
+fn ecdsa_to_eth_falls_back_to_zero_address_on_invalid_key() {
+	use sp_runtime::traits::Convert;
+
+	// Malformed ECDSA public key — `to_eth_address` fails on this input.
+	let malformed = BeefyId::from(sp_core::ecdsa::Public::from_raw([0xFF; 33]));
+	assert_eq!(
+		crate::BeefyEcdsaToEthereum::convert(malformed),
+		crate::FAILED_BEEFY_TO_ETH_ADDRESS.to_vec(),
+	);
+
+	// Valid keys still convert to non-zero, distinct Ethereum addresses.
+	let addr1 = crate::BeefyEcdsaToEthereum::convert(mock_beefy_id(1));
+	let addr2 = crate::BeefyEcdsaToEthereum::convert(mock_beefy_id(2));
+	assert_ne!(addr1, crate::FAILED_BEEFY_TO_ETH_ADDRESS.to_vec());
+	assert_ne!(addr1, addr2);
 }

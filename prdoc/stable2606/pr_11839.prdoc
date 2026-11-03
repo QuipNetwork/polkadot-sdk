@@ -1,0 +1,7 @@
+title: 'pallet_revive:  Fix dispatch_as_fallback_account'
+doc:
+- audience: Runtime Dev
+  description: Without this fix we stripped any call filters existing on the origin.
+crates:
+- name: pallet-revive
+  bump: patch

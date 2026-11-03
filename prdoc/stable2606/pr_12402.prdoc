@@ -1,0 +1,13 @@
+title: 'nomination-pools: benchmark against staking-async, enable on Asset Hub Westend'
+doc:
+- audience: Runtime Dev
+  description: "Make `pallet-nomination-pools-benchmarking` depend on `pallet-staking-async`\
+    \ instead of the deprecated `pallet-staking`, so nomination pools can be benchmarked\
+    \ on Asset Hub.\r\n"
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: westend-runtime
+  bump: major
+- name: pallet-nomination-pools-benchmarking
+  bump: major

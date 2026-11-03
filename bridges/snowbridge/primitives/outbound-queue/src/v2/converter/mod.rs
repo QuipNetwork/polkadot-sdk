@@ -31,6 +31,7 @@ pub struct EthereumBlobExporter<
 	OutboundQueue,
 	ConvertAssetId,
 	AssetHubParaId,
+	AllowedAliasOrigin,
 >(
 	PhantomData<(
 		UniversalLocation,
@@ -38,16 +39,25 @@ pub struct EthereumBlobExporter<
 		OutboundQueue,
 		ConvertAssetId,
 		AssetHubParaId,
+		AllowedAliasOrigin,
 	)>,
 );
 
-impl<UniversalLocation, EthereumNetwork, OutboundQueue, ConvertAssetId, AssetHubParaId> ExportXcm
+impl<
+		UniversalLocation,
+		EthereumNetwork,
+		OutboundQueue,
+		ConvertAssetId,
+		AssetHubParaId,
+		AllowedAliasOrigin,
+	> ExportXcm
 	for EthereumBlobExporter<
 		UniversalLocation,
 		EthereumNetwork,
 		OutboundQueue,
 		ConvertAssetId,
 		AssetHubParaId,
+		AllowedAliasOrigin,
 	>
 where
 	UniversalLocation: Get<InteriorLocation>,
@@ -55,6 +65,7 @@ where
 	OutboundQueue: SendMessage,
 	ConvertAssetId: MaybeConvert<TokenId, Location>,
 	AssetHubParaId: Get<ParaId>,
+	AllowedAliasOrigin: Contains<Location>,
 {
 	type Ticket = (Vec<u8>, XcmHash);
 
@@ -135,7 +146,8 @@ where
 		);
 		ensure!(result.is_err(), SendError::NotApplicable);
 
-		let mut converter = XcmConverter::<ConvertAssetId, ()>::new(&message, expected_network);
+		let mut converter =
+			XcmConverter::<ConvertAssetId, (), AllowedAliasOrigin>::new(&message, expected_network);
 		let message = converter.convert().map_err(|err| {
 			tracing::error!(target: TARGET, error=?err, "unroutable due to pattern matching.");
 			SendError::Unroutable

@@ -1,0 +1,18 @@
+title: '[DAP] Catch-up drip on V1->V2 migration'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The DAP V2 migration seeded `LastIssuanceTimestamp` to a point in the past
+    (typically the active era start) so the next regular drip would credit
+    elapsed time back to that point. That elapsed is then clamped by
+    `MaxElapsedPerDrip`, so only up to one cap's worth of inflation is actually
+    credited on the first drip, and the rest is silently dropped.
+
+    This migration now performs a one-shot catch-up drip for the full
+    `[last_inflation, now]` window and seeds `LastIssuanceTimestamp` to `now`, so
+    regular drips start a fresh cadence from this point.
+crates:
+- name: pallet-dap
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: patch

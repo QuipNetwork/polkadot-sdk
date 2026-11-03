@@ -175,59 +175,42 @@ impl CoretimeInterface for CoretimeAllocator {
 		// Add 5% to each component and round to 2 significant figures.
 		let call_weight = Weight::from_parts(980_000_000, 3800);
 
-		// The relay chain currently only allows `assign_core` to be called with a complete mask
-		// and only ever with increasing `begin`. The assignments must be truncated to avoid
-		// dropping that core's assignment completely.
+		// A maximum of 28 assignments fit in one message, so we split the assignments and send as
+		// multiple messages. This will get reassembled into a full list of assignments on the
+		// relay chain side.
 
-		// This shadowing of `assignment` is temporary and can be removed when the relay can accept
-		// multiple messages to assign a single core.
-		let assignment = if assignment.len() > 28 {
-			let mut total_parts = 0u16;
-			// Account for missing parts with a new `Idle` assignment at the start as
-			// `assign_core` on the relay assumes this is sorted. We'll add the rest of the
-			// assignments and sum the parts in one pass, so this is just initialized to 0.
-			let mut assignment_truncated = vec![(CoreAssignment::Idle, 0)];
-			// Truncate to first 27 non-idle assignments.
-			assignment_truncated.extend(
-				assignment
-					.into_iter()
-					.filter(|(a, _)| *a != CoreAssignment::Idle)
-					.take(27)
-					.inspect(|(_, parts)| total_parts += *parts)
-					.collect::<Vec<_>>(),
-			);
+		for chunk in assignment.chunks(28) {
+			let partial_assignment = chunk.to_vec();
 
-			// Set the parts of the `Idle` assignment we injected at the start of the vec above.
-			assignment_truncated[0].1 = 57_600u16.saturating_sub(total_parts);
-			assignment_truncated
-		} else {
-			assignment
-		};
+			let assign_core_call = RelayRuntimePallets::Coretime(AssignCore(
+				core,
+				begin,
+				partial_assignment,
+				end_hint,
+			));
 
-		let assign_core_call =
-			RelayRuntimePallets::Coretime(AssignCore(core, begin, assignment, end_hint));
+			let message = Xcm(vec![
+				Instruction::UnpaidExecution {
+					weight_limit: WeightLimit::Unlimited,
+					check_origin: None,
+				},
+				Instruction::Transact {
+					origin_kind: OriginKind::Native,
+					call: assign_core_call.encode().into(),
+					fallback_max_weight: Some(call_weight),
+				},
+			]);
 
-		let message = Xcm(vec![
-			Instruction::UnpaidExecution {
-				weight_limit: WeightLimit::Unlimited,
-				check_origin: None,
-			},
-			Instruction::Transact {
-				origin_kind: OriginKind::Native,
-				call: assign_core_call.encode().into(),
-				fallback_max_weight: Some(call_weight),
-			},
-		]);
-
-		match PolkadotXcm::send_xcm(Here, Location::parent(), message.clone()) {
-			Ok(_) => tracing::debug!(
-				target: "runtime::coretime",
-				"Core assignment sent successfully."
-			),
-			Err(e) => tracing::error!(
-				target: "runtime::coretime", error=?e,
-				"Core assignment failed to send"
-			),
+			match PolkadotXcm::send_xcm(Here, Location::parent(), message) {
+				Ok(_) => tracing::debug!(
+					target: "runtime::coretime",
+					"Core assignment sent successfully."
+				),
+				Err(e) => tracing::error!(
+					target: "runtime::coretime", error=?e,
+					"Core assignment failed to send"
+				),
+			}
 		}
 	}
 }
@@ -244,7 +227,7 @@ impl MaybeConvert<TaskId, AccountId> for SovereignAccountOf {
 impl pallet_broker::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type OnRevenue = DapSatellite;
+	type OnRevenue = AccumulateForward;
 	type TimeslicePeriod = ConstU32<{ coretime::TIMESLICE_PERIOD }>;
 	type MaxLeasedCores = ConstU32<50>;
 	type MaxReservedCores = ConstU32<50>;

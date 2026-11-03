@@ -26,7 +26,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use polkadot_parachain_primitives::primitives::Id as ParaId;
 use sp_runtime::{
-	traits::{Convert, IdentityLookup},
+	traits::{Convert, Identity, IdentityLookup, TryConvertInto},
 	AccountId32, BuildStorage,
 };
 use xcm::prelude::*;
@@ -36,10 +36,7 @@ use xcm_builder::{
 	EnsureDecodableXcm, FixedWeightBounds, FungibleAdapter, FungiblesAdapter, HashedDescription,
 	IsConcrete, MatchedConvertedConcreteId, NoChecking, TakeWeightCredit,
 };
-use xcm_executor::{
-	traits::{Identity, JustTry},
-	XcmExecutor,
-};
+use xcm_executor::XcmExecutor;
 use xcm_simulator::helpers::derive_topic_id;
 
 use crate::XcmPrecompile;
@@ -146,6 +143,9 @@ impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
+	type FreezeIdentifier = RuntimeFreezeReason;
+	type MaxFreezes = frame_support::traits::VariantCountOf<RuntimeFreezeReason>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -196,7 +196,7 @@ pub type ForeignAssetsConvertedConcreteId = MatchedConvertedConcreteId<
 	// Excludes relay/parent chain currency
 	EverythingBut<(Equals<RelayLocation>,)>,
 	Identity,
-	JustTry,
+	TryConvertInto,
 >;
 
 pub type AssetTransactors = (

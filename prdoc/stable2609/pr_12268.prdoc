@@ -1,0 +1,16 @@
+title: 'remote-ext: fix silent state corruption from lagging RPC providers'
+doc:
+- audience: Node Dev
+  description: |-
+    Fixes #12264. Remote-externalities could silently produce an incomplete or corrupted
+    state snapshot when talking to lagging or flaky RPC providers. This is fixed by:
+    - treating per-item RPC errors inside a batch as a batch failure (and retrying) instead
+      of substituting empty values, which previously dropped storage entries;
+    - verifying the computed storage root against the block header's state root before
+      caching a snapshot of a complete scrape; the new `OnlineConfig::disable_root_check`
+      flag bypasses the check when deliberately overwriting the state version;
+    - dropping an RPC provider on demand when it reports `UnknownBlock` for the target block,
+      so a provider that lags or prunes mid-scrape no longer stalls or corrupts the snapshot.
+crates:
+- name: frame-remote-externalities
+  bump: major

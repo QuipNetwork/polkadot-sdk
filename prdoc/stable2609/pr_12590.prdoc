@@ -1,0 +1,15 @@
+title: 'pallet-society: return funds of discarded payouts to the pot'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Funds backing pending payouts are moved into the payouts sub-account when scheduled, and must be returned whenever a payout is discarded. Four paths failed to do so, leaving balance stranded in the sub-account with no `Payouts` entry left to claim it:
+
+    - `waive_repay` cleared the member's pending payouts without unreserving their backing funds
+    - `slash_payout` deducted from pending payouts without unreserving the deducted amount
+    - `bump_payout` reserved funds even when the payment was discarded because the member was already at `MaxPayouts` capacity
+    - `dissolve` cleared all payout records without returning the payouts sub-account balance to the society account
+
+    A `try_state` invariant now asserts that the payouts sub-account balance equals the total of all pending payouts. Deployments whose sub-account balance has already drifted — e.g. through the paths above, or through the `v0` migration, which carries payout records over without moving balances (the case of Kusama Asset Hub, for example) — can restore the invariant by adding the new unversioned, idempotent `pallet_society::migrations::ReconcilePayoutsAccount` migration to their runtime's migration tuple; until then, `try-runtime` checks will fail.
+crates:
+- name: pallet-society
+  bump: minor

@@ -4,7 +4,7 @@ description = "Examples of xcm-simulator usage."
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-version = "27.0.0"
+version = "33.0.0"
 homepage.workspace = true
 repository.workspace = true
 
@@ -13,27 +13,30 @@ workspace = true
 
 [dependencies]
 codec = { workspace = true, default-features = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-message-queue = { default-features = true, workspace = true }
-pallet-uniques = { default-features = true, workspace = true }
-pallet-xcm = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
 scale-info = { features = ["derive"], workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
 tracing = { workspace = true }
-xcm = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-executor = { default-features = true, workspace = true }
-xcm-simulator = { default-features = true, workspace = true }
+
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-message-queue = { workspace = true, default-features = true }
+pallet-uniques = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
+
+pallet-xcm = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
 
 [dev-dependencies]
-sp-tracing = { workspace = true, default-features = false }
+sp-tracing = { workspace = true }
 
 [features]
 default = []

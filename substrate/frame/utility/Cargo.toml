@@ -1,6 +1,6 @@
 [package]
 name = "pallet-utility"
-version = "46.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -26,10 +26,10 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-collective = { default-features = true, workspace = true }
-pallet-root-testing = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-collective = { workspace = true, default-features = true }
+pallet-root-testing = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

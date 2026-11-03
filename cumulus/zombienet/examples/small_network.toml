@@ -22,4 +22,4 @@ name = "charlie"
 validator = true
 image = "parity/polkadot-parachain:latest"
 command = "polkadot-parachain"
-args = ["--force-authoring"]
+args = ["--force-authoring", "--authoring=slot-based"]

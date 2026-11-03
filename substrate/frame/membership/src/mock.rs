@@ -93,16 +93,28 @@ impl Config for Test {
 	type WeightInfo = ();
 }
 
-pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
-	// We use default for brevity, but you can configure as desired if needed.
-	pallet_membership::GenesisConfig::<Test> {
-		members: bounded_vec![10, 20, 30],
-		..Default::default()
+#[derive(Default)]
+pub struct ExtBuilder;
+
+impl ExtBuilder {
+	pub fn build(self) -> sp_io::TestExternalities {
+		let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+		// We use default for brevity, but you can configure as desired if needed.
+		pallet_membership::GenesisConfig::<Test> {
+			members: bounded_vec![10, 20, 30],
+			..Default::default()
+		}
+		.assimilate_storage(&mut t)
+		.unwrap();
+		t.into()
 	}
-	.assimilate_storage(&mut t)
-	.unwrap();
-	t.into()
+
+	pub fn build_and_execute(self, test: impl FnOnce() -> ()) {
+		self.build().execute_with(|| {
+			test();
+			Membership::do_try_state().expect("All invariants must hold after a test");
+		})
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]

@@ -1,0 +1,302 @@
+{
+  "gen": "srtool v0.18.3",
+  "src": "git",
+  "version": "0.1.0",
+  "commit": "48004f09eaa1ca17a14d2e5bb0ec32409f7aa9a4",
+  "tag": "polkadot--rc1",
+  "branch": "stable2509",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "pkg": "coretime-westend-runtime",
+  "tmsp": "2025-09-09T15:16:58Z",
+  "size": "1488597",
+  "prop": "0xd03e1b074b359af150d663a5ea8f65c1fb98095084d9fc458b3866e24dc74650",
+  "authorize_upgrade_prop": "0x69e45ff3f02476116ac0d608537a590f508d6540574944870bcd638b04e5d412",
+  "ipfs": "Qme2dAiYQXbnApo7Zt3ni99veS44Mz7AsY5YypHwmNWtBW",
+  "sha256": "0x30819b75e33a67d0d1981e1ef246c1ba3789df4540bf0d3ac299b28fa88a317c",
+  "wasm": "cumulus/parachains/runtimes/coretime/coretime-westend/target/srtool/production/wbuild/coretime-westend-runtime/coretime_westend_runtime.compact.compressed.wasm",
+  "info": {
+    "generator": {
+      "name": "srtool",
+      "version": "0.18.3"
+    },
+    "src": "git",
+    "version": "0.1.0",
+    "git": {
+      "commit": "48004f09eaa1ca17a14d2e5bb0ec32409f7aa9a4",
+      "tag": "",
+      "branch": "stable2509"
+    },
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "pkg": "coretime-westend-runtime",
+    "profile": "production"
+  },
+  "context": {
+    "package": "coretime-westend-runtime",
+    "runtime_dir": "cumulus/parachains/runtimes/coretime/coretime-westend",
+    "docker": {
+      "image": "paritytech/srtool",
+      "tag": "1.88.0"
+    },
+    "profile": "production"
+  },
+  "runtimes": {
+    "compact": {
+      "tmsp": "2025-09-09T15:12:27Z",
+      "size": "6007611",
+      "prop": "0x2e2fde0ef7d1e9e483552664831f6585a64b58795beefe9c8b5c041325dc46bb",
+      "authorize_upgrade_prop": "0x7d64b211b677778de03a82fde578d2fd758bf57df521ea99c26a5c5fd3035574",
+      "blake2_256": "0xf516e8e93bed76acd287b38486f195861c505667a54da73f221224153c2baff3",
+      "ipfs": "Qmb89bYStHnUrvPDjfkxMRjXJKAVh1zUFzG4vDofVpKUi2",
+      "sha256": "0xfcdd5bda5e8ed3de03d397efc128fbcd1e35b76142c06779fc97ac3a1f893c7f",
+      "wasm": "cumulus/parachains/runtimes/coretime/coretime-westend/target/srtool/production/wbuild/coretime-westend-runtime/coretime_westend_runtime.compact.wasm",
+      "subwasm": {
+        "size": 6007611,
+        "compression": {
+          "size_compressed": 6007611,
+          "size_decompressed": 6007611,
+          "compressed": false
+        },
+        "reserved_meta": [
+          109,
+          101,
+          116,
+          97
+        ],
+        "reserved_meta_valid": true,
+        "metadata_version": 14,
+        "core_version": {
+          "specName": "coretime-westend",
+          "implName": "coretime-westend",
+          "authoringVersion": 1,
+          "specVersion": 1020000,
+          "implVersion": 0,
+          "apis": [
+            [
+              "0xdd718d5cc53262d4",
+              1
+            ],
+            [
+              "0x04e70521a0d3d2f8",
+              1
+            ],
+            [
+              "0xd7bdd8a272ca0d65",
+              2
+            ],
+            [
+              "0xdf6acb689907609b",
+              5
+            ],
+            [
+              "0x37e397fc7c91f5e4",
+              2
+            ],
+            [
+              "0x40fe3ad401f8959a",
+              6
+            ],
+            [
+              "0xd2bc9897eed08f15",
+              3
+            ],
+            [
+              "0xf78b278be53f454c",
+              2
+            ],
+            [
+              "0xab3c0572291feb8b",
+              1
+            ],
+            [
+              "0xbc9d89904f5b923f",
+              1
+            ],
+            [
+              "0x8af4e57b0413f89e",
+              1
+            ],
+            [
+              "0x37c8bb1350a9a2a8",
+              4
+            ],
+            [
+              "0xf3ff14d5ab527059",
+              3
+            ],
+            [
+              "0x6ff52ee858e6c5bd",
+              1
+            ],
+            [
+              "0x91b1c8b16328eb92",
+              2
+            ],
+            [
+              "0x9ffb505aa738d69c",
+              1
+            ],
+            [
+              "0x2609be83ac4468dc",
+              1
+            ],
+            [
+              "0x12c8e3d4d7e06de0",
+              1
+            ],
+            [
+              "0xea93e3f16f3d6962",
+              3
+            ],
+            [
+              "0x695c80446b8b3d4e",
+              1
+            ],
+            [
+              "0xfbc577b9d747efd6",
+              1
+            ],
+            [
+              "0xa2ddb6a58477bf63",
+              1
+            ]
+          ],
+          "transactionVersion": 2,
+          "stateVersion": 1
+        },
+        "proposal_hash": "0x2e2fde0ef7d1e9e483552664831f6585a64b58795beefe9c8b5c041325dc46bb",
+        "parachain_authorize_upgrade_hash": "0x7d64b211b677778de03a82fde578d2fd758bf57df521ea99c26a5c5fd3035574",
+        "ipfs_hash": "Qmb89bYStHnUrvPDjfkxMRjXJKAVh1zUFzG4vDofVpKUi2",
+        "blake2_256": "0xf516e8e93bed76acd287b38486f195861c505667a54da73f221224153c2baff3"
+      }
+    },
+    "compressed": {
+      "tmsp": "2025-09-09T15:01:42Z",
+      "size": "1488597",
+      "prop": "0xd03e1b074b359af150d663a5ea8f65c1fb98095084d9fc458b3866e24dc74650",
+      "authorize_upgrade_prop": "0x69e45ff3f02476116ac0d608537a590f508d6540574944870bcd638b04e5d412",
+      "blake2_256": "0x0dc6ef63fd46675c706a6e41426337182628c119c93d7cf37c140a35d05e1ee7",
+      "ipfs": "Qme2dAiYQXbnApo7Zt3ni99veS44Mz7AsY5YypHwmNWtBW",
+      "sha256": "0x30819b75e33a67d0d1981e1ef246c1ba3789df4540bf0d3ac299b28fa88a317c",
+      "wasm": "cumulus/parachains/runtimes/coretime/coretime-westend/target/srtool/production/wbuild/coretime-westend-runtime/coretime_westend_runtime.compact.compressed.wasm",
+      "subwasm": {
+        "size": 1488597,
+        "compression": {
+          "size_compressed": 1488597,
+          "size_decompressed": 6007611,
+          "compressed": true
+        },
+        "reserved_meta": [
+          109,
+          101,
+          116,
+          97
+        ],
+        "reserved_meta_valid": true,
+        "metadata_version": 14,
+        "core_version": {
+          "specName": "coretime-westend",
+          "implName": "coretime-westend",
+          "authoringVersion": 1,
+          "specVersion": 1020000,
+          "implVersion": 0,
+          "apis": [
+            [
+              "0xdd718d5cc53262d4",
+              1
+            ],
+            [
+              "0x04e70521a0d3d2f8",
+              1
+            ],
+            [
+              "0xd7bdd8a272ca0d65",
+              2
+            ],
+            [
+              "0xdf6acb689907609b",
+              5
+            ],
+            [
+              "0x37e397fc7c91f5e4",
+              2
+            ],
+            [
+              "0x40fe3ad401f8959a",
+              6
+            ],
+            [
+              "0xd2bc9897eed08f15",
+              3
+            ],
+            [
+              "0xf78b278be53f454c",
+              2
+            ],
+            [
+              "0xab3c0572291feb8b",
+              1
+            ],
+            [
+              "0xbc9d89904f5b923f",
+              1
+            ],
+            [
+              "0x8af4e57b0413f89e",
+              1
+            ],
+            [
+              "0x37c8bb1350a9a2a8",
+              4
+            ],
+            [
+              "0xf3ff14d5ab527059",
+              3
+            ],
+            [
+              "0x6ff52ee858e6c5bd",
+              1
+            ],
+            [
+              "0x91b1c8b16328eb92",
+              2
+            ],
+            [
+              "0x9ffb505aa738d69c",
+              1
+            ],
+            [
+              "0x2609be83ac4468dc",
+              1
+            ],
+            [
+              "0x12c8e3d4d7e06de0",
+              1
+            ],
+            [
+              "0xea93e3f16f3d6962",
+              3
+            ],
+            [
+              "0x695c80446b8b3d4e",
+              1
+            ],
+            [
+              "0xfbc577b9d747efd6",
+              1
+            ],
+            [
+              "0xa2ddb6a58477bf63",
+              1
+            ]
+          ],
+          "transactionVersion": 2,
+          "stateVersion": 1
+        },
+        "proposal_hash": "0xd03e1b074b359af150d663a5ea8f65c1fb98095084d9fc458b3866e24dc74650",
+        "parachain_authorize_upgrade_hash": "0x69e45ff3f02476116ac0d608537a590f508d6540574944870bcd638b04e5d412",
+        "ipfs_hash": "Qme2dAiYQXbnApo7Zt3ni99veS44Mz7AsY5YypHwmNWtBW",
+        "blake2_256": "0x0dc6ef63fd46675c706a6e41426337182628c119c93d7cf37c140a35d05e1ee7"
+      }
+    }
+  }
+}

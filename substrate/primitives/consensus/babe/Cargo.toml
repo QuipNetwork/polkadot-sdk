@@ -1,6 +1,6 @@
 [package]
 name = "sp-consensus-babe"
-version = "0.47.0"
+version = "0.50.0"
 authors.workspace = true
 description = "Primitives for BABE consensus"
 edition.workspace = true

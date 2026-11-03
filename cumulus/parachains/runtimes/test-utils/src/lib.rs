@@ -463,33 +463,6 @@ impl<
 		AllPalletsWithoutSystem,
 	> RuntimeHelper<Runtime, AllPalletsWithoutSystem>
 {
-	#[deprecated(
-		note = "Will be removed after Aug 2025; It uses hard-coded `Location::parent()`, \
-		use `execute_as_governance_call` instead."
-	)]
-	pub fn execute_as_governance(call: Vec<u8>) -> Outcome {
-		// prepare xcm as governance will do
-		let xcm = Xcm(vec![
-			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-			Transact {
-				origin_kind: OriginKind::Superuser,
-				call: call.into(),
-				fallback_max_weight: None,
-			},
-			ExpectTransactStatus(MaybeErrorCode::Success),
-		]);
-
-		// execute xcm as parent origin
-		let mut hash = xcm.using_encoded(sp_io::hashing::blake2_256);
-		<<Runtime as pallet_xcm::Config>::XcmExecutor>::prepare_and_execute(
-			Location::parent(),
-			xcm,
-			&mut hash,
-			Self::xcm_max_weight(XcmReceivedFrom::Parent),
-			Weight::zero(),
-		)
-	}
-
 	pub fn execute_as_governance_call<Call: Dispatchable + Encode>(
 		call: Call,
 		governance_origin: GovernanceOrigin<Call::RuntimeOrigin>,
@@ -763,7 +736,7 @@ impl<HrmpChannelSource: cumulus_primitives_core::XcmpMessageSource, AllPalletsWi
 	RuntimeHelper<HrmpChannelSource, AllPalletsWithoutSystem>
 {
 	pub fn take_xcm(sent_to_para_id: ParaId) -> Option<VersionedXcm<()>> {
-		match HrmpChannelSource::take_outbound_messages(10)[..] {
+		match HrmpChannelSource::take_outbound_messages(10, &[])[..] {
 			[(para_id, ref mut xcm_message_data)] if para_id.eq(&sent_to_para_id.into()) => {
 				let mut xcm_message_data = &xcm_message_data[..];
 				// decode

@@ -48,7 +48,7 @@ use hex_literal::hex;
 use parachains_common::{AccountId, AssetIdForTrustBackedAssets, AuraId, Balance};
 use sp_consensus_aura::SlotDuration;
 use sp_core::crypto::Ss58Codec;
-use sp_runtime::traits::MaybeEquivalence;
+use sp_runtime::traits::{MaybeEquivalence, TryConvertInto};
 use std::convert::Into;
 use testnet_parachains_constants::rococo::{consensus::*, currency::UNITS, fee::WeightToFee};
 use xcm::latest::{
@@ -56,7 +56,7 @@ use xcm::latest::{
 	WESTEND_GENESIS_HASH,
 };
 use xcm_builder::WithLatestLocationConverter;
-use xcm_executor::traits::{JustTry, TransactAsset, WeightTrader};
+use xcm_executor::traits::{TransactAsset, WeightTrader};
 use xcm_runtime_apis::conversions::LocationToAccountHelper;
 
 const ALICE: [u8; 32] = [1u8; 32];
@@ -224,8 +224,13 @@ fn test_buy_and_refund_weight_with_swap_local_asset_xcm_trader() {
 			// prepare input to buy weight.
 			let weight = Weight::from_parts(4_000_000_000, 0);
 			let fee = WeightToFee::weight_to_fee(&weight);
-			let asset_fee =
-				AssetConversion::get_amount_in(&fee, &pool_liquidity, &pool_liquidity).unwrap();
+			let asset_fee = AssetConversion::get_amount_in(
+				<Runtime as pallet_asset_conversion::Config>::LPFee::get(),
+				&fee,
+				&pool_liquidity,
+				&pool_liquidity,
+			)
+			.unwrap();
 			let extra_amount = 100;
 			let ctx = XcmContext { origin: None, message_id: XcmHash::default(), topic: None };
 			let payment: Asset = (asset_1_location.clone(), asset_fee + extra_amount).into();
@@ -252,8 +257,13 @@ fn test_buy_and_refund_weight_with_swap_local_asset_xcm_trader() {
 				Location::try_from(asset_1_location.clone()).expect("conversion works"),
 			)
 			.unwrap();
-			let asset_refund =
-				AssetConversion::get_amount_out(&refund, &reserve1, &reserve2).unwrap();
+			let asset_refund = AssetConversion::get_amount_out(
+				<Runtime as pallet_asset_conversion::Config>::LPFee::get(),
+				&refund,
+				&reserve1,
+				&reserve2,
+			)
+			.unwrap();
 
 			// refund.
 			let actual_refund = trader.refund_weight(refund_weight, &ctx).unwrap();
@@ -331,8 +341,13 @@ fn test_buy_and_refund_weight_with_swap_foreign_asset_xcm_trader() {
 			// prepare input to buy weight.
 			let weight = Weight::from_parts(4_000_000_000, 0);
 			let fee = WeightToFee::weight_to_fee(&weight);
-			let asset_fee =
-				AssetConversion::get_amount_in(&fee, &pool_liquidity, &pool_liquidity).unwrap();
+			let asset_fee = AssetConversion::get_amount_in(
+				<Runtime as pallet_asset_conversion::Config>::LPFee::get(),
+				&fee,
+				&pool_liquidity,
+				&pool_liquidity,
+			)
+			.unwrap();
 			let extra_amount = 100;
 			let ctx = XcmContext { origin: None, message_id: XcmHash::default(), topic: None };
 			let payment: Asset = (foreign_location.clone(), asset_fee + extra_amount).into();
@@ -359,8 +374,13 @@ fn test_buy_and_refund_weight_with_swap_foreign_asset_xcm_trader() {
 			let refund = WeightToFee::weight_to_fee(&refund_weight);
 			let (reserve1, reserve2) =
 				AssetConversion::get_reserves(native_location, foreign_location.clone()).unwrap();
-			let asset_refund =
-				AssetConversion::get_amount_out(&refund, &reserve1, &reserve2).unwrap();
+			let asset_refund = AssetConversion::get_amount_out(
+				<Runtime as pallet_asset_conversion::Config>::LPFee::get(),
+				&refund,
+				&reserve1,
+				&reserve2,
+			)
+			.unwrap();
 
 			// refund.
 			let actual_refund = trader.refund_weight(refund_weight, &ctx).unwrap();
@@ -742,7 +762,7 @@ asset_test_utils::include_asset_transactor_transfer_with_pallet_assets_instance_
 	XcmConfig,
 	ForeignAssetsInstance,
 	Location,
-	JustTry,
+	TryConvertInto,
 	collator_session_keys(),
 	ExistentialDeposit::get(),
 	Location::new(1, [Junction::Parachain(1313), Junction::GeneralIndex(12345)]),
@@ -813,7 +833,7 @@ fn limited_reserve_transfer_assets_for_native_asset_over_bridge_works(
 		}),
 		bridging_configuration,
 		WeightLimit::Unlimited,
-		Some(xcm_config::bridging::XcmBridgeHubRouterFeeAssetId::get()),
+		None,
 		Some(xcm_config::TreasuryAccount::get()),
 	)
 }

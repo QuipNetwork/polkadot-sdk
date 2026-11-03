@@ -104,7 +104,7 @@ where
 		protocol_id: ProtocolId::from("bench-request-response-protocol"),
 		fork_id: None,
 		metrics_registry: None,
-		bitswap_config: None,
+		ipfs_config: None,
 		notification_metrics: NotificationMetrics::new(None),
 	})
 	.unwrap();

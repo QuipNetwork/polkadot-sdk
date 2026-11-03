@@ -1,6 +1,8 @@
 ## Rust compiler versions
 
-This release was built and tested against the following versions of `rustc`.
-Other versions may work.
+The crates and node binaries in this release were built and tested with the following `rustc` toolchain; other versions may work.
 
 - Rust Stable: `{{ env.RUSTC_STABLE }}`
+{% if env.NO_RUNTIMES == "false" and env.CRATES_ONLY == "false" %}
+The WASM runtimes are built separately with the `rustc` version pinned by srtool (see the Runtimes section below).
+{% endif -%}

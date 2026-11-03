@@ -1,0 +1,14 @@
+title: 'staking-async / WAH: use div_ceil for VoterSnapshotPerBlock'
+doc:
+- audience: Runtime Dev
+  description: |
+    Floor division could undersize the paged voter snapshot relative to
+    `MaxElectingVoters`. Switch to `div_ceil` so
+    `VoterSnapshotPerBlock * Pages >= MaxElectingVoters` holds for any
+    configured values, and add invariant tests for both fake presets.
+
+    Aligns AH-Westend and the fake DOT/KSM presets with PAH and KAH in the
+    runtimes repo, which already use `div_ceil`.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch

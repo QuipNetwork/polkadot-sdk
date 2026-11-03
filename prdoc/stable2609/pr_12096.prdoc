@@ -1,0 +1,20 @@
+title: Bump subxt to 0.50
+
+doc:
+  - audience: Node Dev
+    description: |
+      Bumps the workspace `subxt`, `subxt-metadata`, and `subxt-signer` dependencies from 0.44 to 0.50.
+
+      subxt 0.50 introduces a block-anchored client API and splits `subxt::Error` into per-operation sub-errors. Affected crates were updated to the new API; no JSON-RPC or CLI surface changed.
+
+crates:
+  - name: pallet-revive-eth-rpc
+    bump: major
+  - name: frame-benchmarking-cli
+    bump: major
+  - name: polkadot-omni-node-lib
+    bump: minor
+  - name: sc-statement-store
+    bump: minor
+  - name: pallet-revive
+    bump: minor

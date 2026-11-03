@@ -52,6 +52,14 @@ use scale_info::TypeInfo;
 
 pub use pallet::*;
 
+/// The Block number that we use to measure time.
+///
+/// Deferral expirations are tracked against this provider rather than the local system block,
+/// so on a parachain it can be the relay chain block number. All `DeferredDispatch` `expire_at`
+/// values and the [`Config::DeferredDispatchExpiration`] window are denominated in it.
+pub type ProvidedBlockNumberFor<T> =
+	<<T as Config>::BlockNumberProvider as BlockNumberProvider>::BlockNumber;
+
 #[frame::pallet]
 pub mod pallet {
 	use super::*;
@@ -80,6 +88,12 @@ pub mod pallet {
 		/// The handler of pre-images.
 		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
 
+		/// The number of provided blocks after which a deferred dispatch expires.
+		type DeferredDispatchExpiration: Get<ProvidedBlockNumberFor<Self>>;
+
+		/// Provider for the block number.
+		type BlockNumberProvider: BlockNumberProvider;
+
 		/// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
 	}
@@ -90,9 +104,33 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		CallWhitelisted { call_hash: T::Hash },
-		WhitelistedCallRemoved { call_hash: T::Hash },
-		WhitelistedCallDispatched { call_hash: T::Hash, result: DispatchResultWithPostInfo },
+		CallWhitelisted {
+			call_hash: T::Hash,
+		},
+		WhitelistedCallRemoved {
+			call_hash: T::Hash,
+		},
+		WhitelistedCallDispatched {
+			call_hash: T::Hash,
+			result: DispatchResultWithPostInfo,
+		},
+		/// A call dispatch has been deferred to a future provided block.
+		DispatchDeferred {
+			call_hash: T::Hash,
+		},
+		/// A deferred dispatch entry has been removed after expiration.
+		DeferredDispatchRemoved {
+			call_hash: T::Hash,
+		},
+		/// A relayer (signed origin) executed a deferred dispatch.
+		///
+		/// Emitted whenever the deferred entry is consumed by a relayer, regardless of whether the
+		/// inner call itself succeeded; the inner call's outcome is reported separately by
+		/// [`Event::WhitelistedCallDispatched`].
+		DeferredDispatchExecuted {
+			call_hash: T::Hash,
+			who: T::AccountId,
+		},
 	}
 
 	#[pallet::error]
@@ -107,10 +145,24 @@ pub mod pallet {
 		CallIsNotWhitelisted,
 		/// The call was already whitelisted; No-Op.
 		CallAlreadyWhitelisted,
+		/// No deferred dispatch entry exists for this call hash.
+		DeferredDispatchNotFound,
+		/// The deferred dispatch entry has not yet expired.
+		DeferredDispatchNotExpired,
+		/// The dispatch has already been deferred.
+		AlreadyDeferred,
+		/// The deferred dispatch has expired.
+		DeferredDispatchExpired,
 	}
 
 	#[pallet::storage]
 	pub type WhitelistedCall<T: Config> = StorageMap<_, Twox64Concat, T::Hash, (), OptionQuery>;
+
+	/// Deferred dispatches, mapping a call hash to the provided block number at which the deferral
+	/// expires and the entry can be permissionlessly removed.
+	#[pallet::storage]
+	pub type DeferredDispatch<T: Config> =
+		StorageMap<_, Twox64Concat, T::Hash, ProvidedBlockNumberFor<T>, OptionQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -128,7 +180,6 @@ pub mod pallet {
 			T::Preimages::request(&call_hash);
 
 			Self::deposit_event(Event::<T>::CallWhitelisted { call_hash });
-
 			Ok(())
 		}
 
@@ -157,19 +208,23 @@ pub mod pallet {
 			call_encoded_len: u32,
 			call_weight_witness: Weight,
 		) -> DispatchResultWithPostInfo {
-			T::DispatchWhitelistedOrigin::ensure_origin(origin)?;
+			let relayer = match T::DispatchWhitelistedOrigin::try_origin(origin) {
+				Ok(_) if WhitelistedCall::<T>::contains_key(call_hash) => None,
+				Ok(_) => {
+					Self::defer_dispatch(call_hash)?;
+					return Ok(Some(T::WeightInfo::defer_dispatch(0)).into());
+				},
+				Err(dispatch_origin) => {
+					Some(Self::ensure_signed_deferred_dispatch(dispatch_origin, call_hash)?)
+				},
+			};
 
-			ensure!(
-				WhitelistedCall::<T>::contains_key(call_hash),
-				Error::<T>::CallIsNotWhitelisted,
-			);
-
-			let call = T::Preimages::fetch(&call_hash, Some(call_encoded_len))
+			let call_data = T::Preimages::fetch(&call_hash, Some(call_encoded_len))
 				.map_err(|_| Error::<T>::UnavailablePreImage)?;
 
 			let call = <T as Config>::RuntimeCall::decode_all_with_depth_limit(
 				frame::deps::frame_support::MAX_EXTRINSIC_DEPTH,
-				&mut &call[..],
+				&mut &call_data[..],
 			)
 			.map_err(|_| Error::<T>::UndecodableCall)?;
 
@@ -178,18 +233,24 @@ pub mod pallet {
 				Error::<T>::InvalidCallWeightWitness
 			);
 
-			let actual_weight = Self::clean_and_dispatch(call_hash, call).map(|w| {
+			// Relayer isn't charged; the privileged direct path still pays.
+			let pays_fee = if relayer.is_some() { Pays::No } else { Pays::Yes };
+
+			let call_actual_weight = Self::clean_and_dispatch(call_hash, call);
+			if let Some(who) = relayer {
+				Self::deposit_event(Event::<T>::DeferredDispatchExecuted { call_hash, who });
+			}
+
+			let actual_weight = call_actual_weight.map(|w| {
 				w.saturating_add(T::WeightInfo::dispatch_whitelisted_call(call_encoded_len))
 			});
-
-			Ok(actual_weight.into())
+			Ok(PostDispatchInfo { actual_weight, pays_fee })
 		}
 
 		#[pallet::call_index(3)]
 		#[pallet::weight({
 			let call_weight = call.get_dispatch_info().call_weight;
 			let call_len = call.encoded_size() as u32;
-
 			T::WeightInfo::dispatch_whitelisted_call_with_preimage(call_len)
 				.saturating_add(call_weight)
 		})]
@@ -197,33 +258,116 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			call: Box<<T as Config>::RuntimeCall>,
 		) -> DispatchResultWithPostInfo {
-			T::DispatchWhitelistedOrigin::ensure_origin(origin)?;
-
 			let call_hash = T::Hashing::hash_of(&call).into();
-
-			ensure!(
-				WhitelistedCall::<T>::contains_key(call_hash),
-				Error::<T>::CallIsNotWhitelisted,
-			);
-
 			let call_len = call.encoded_size() as u32;
-			let actual_weight = Self::clean_and_dispatch(call_hash, *call).map(|w| {
+
+			let relayer = match T::DispatchWhitelistedOrigin::try_origin(origin) {
+				Ok(_) if WhitelistedCall::<T>::contains_key(call_hash) => None,
+				Ok(_) => {
+					Self::defer_dispatch(call_hash)?;
+					return Ok(Some(T::WeightInfo::defer_dispatch(call_len)).into());
+				},
+				Err(dispatch_origin) => {
+					Some(Self::ensure_signed_deferred_dispatch(dispatch_origin, call_hash)?)
+				},
+			};
+
+			// Relayer isn't charged; the privileged direct path still pays.
+			let pays_fee = if relayer.is_some() { Pays::No } else { Pays::Yes };
+
+			let call_actual_weight = Self::clean_and_dispatch(call_hash, *call);
+			if let Some(who) = relayer {
+				Self::deposit_event(Event::<T>::DeferredDispatchExecuted { call_hash, who });
+			}
+
+			let actual_weight = call_actual_weight.map(|w| {
 				w.saturating_add(T::WeightInfo::dispatch_whitelisted_call_with_preimage(call_len))
 			});
+			Ok(PostDispatchInfo { actual_weight, pays_fee })
+		}
 
-			Ok(actual_weight.into())
+		#[pallet::call_index(4)]
+		#[pallet::weight(T::WeightInfo::remove_deferred_dispatch())]
+		pub fn remove_deferred_dispatch(
+			origin: OriginFor<T>,
+			call_hash: T::Hash,
+		) -> DispatchResultWithPostInfo {
+			ensure_signed(origin)?;
+
+			let expire_at = DeferredDispatch::<T>::get(call_hash)
+				.ok_or(Error::<T>::DeferredDispatchNotFound)?;
+
+			let now = T::BlockNumberProvider::current_block_number();
+
+			ensure!(now >= expire_at, Error::<T>::DeferredDispatchNotExpired);
+
+			DeferredDispatch::<T>::remove(call_hash);
+
+			Self::deposit_event(Event::<T>::DeferredDispatchRemoved { call_hash });
+
+			Ok(Pays::No.into())
 		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
+	/// Defer the dispatch of a whitelisted call to a future block.
+	///
+	/// This function stores the call hash for later execution by any signed origin
+	/// before the expiration block.
+	fn defer_dispatch(call_hash: T::Hash) -> DispatchResult {
+		let now = T::BlockNumberProvider::current_block_number();
+
+		let expire_at = now.saturating_add(T::DeferredDispatchExpiration::get());
+
+		ensure!(!DeferredDispatch::<T>::contains_key(call_hash), Error::<T>::AlreadyDeferred);
+
+		DeferredDispatch::<T>::insert(call_hash, expire_at);
+
+		Self::deposit_event(Event::<T>::DispatchDeferred { call_hash });
+
+		Ok(())
+	}
+
+	/// Deferred dispatch sanity check.
+	///
+	/// Validates that:
+	/// - The origin is a signed account.
+	/// - A deferred dispatch entry exists for the call hash.
+	/// - The deferred dispatch has not yet expired.
+	/// - The call is still whitelisted.
+	///
+	/// The whitelist is always re-checked so that revoking the whitelist (via
+	/// [`Pallet::remove_whitelisted_call`]) prevents a relayer from executing a still-deferred
+	/// call.
+	///
+	/// Returns the signed account ID if all checks pass.
+	fn ensure_signed_deferred_dispatch(
+		origin: T::RuntimeOrigin,
+		call_hash: T::Hash,
+	) -> Result<T::AccountId, DispatchError> {
+		let who = ensure_signed(origin)?;
+
+		let expire_at =
+			DeferredDispatch::<T>::get(call_hash).ok_or(Error::<T>::DeferredDispatchNotFound)?;
+
+		ensure!(
+			T::BlockNumberProvider::current_block_number() < expire_at,
+			Error::<T>::DeferredDispatchExpired
+		);
+
+		ensure!(WhitelistedCall::<T>::contains_key(call_hash), Error::<T>::CallIsNotWhitelisted);
+
+		Ok(who)
+	}
+
 	/// Clean whitelisting/preimage and dispatch call.
 	///
-	/// Return the call actual weight of the dispatched call if there is some.
+	/// Returns the inner call's actual weight.
 	fn clean_and_dispatch(call_hash: T::Hash, call: <T as Config>::RuntimeCall) -> Option<Weight> {
 		WhitelistedCall::<T>::remove(call_hash);
-
 		T::Preimages::unrequest(&call_hash);
+		DeferredDispatch::<T>::remove(call_hash);
 
 		let result = call.dispatch(frame_system::Origin::<T>::Root.into());
 
@@ -231,7 +375,6 @@ impl<T: Config> Pallet<T> {
 			Ok(call_post_info) => call_post_info.actual_weight,
 			Err(call_err) => call_err.post_info.actual_weight,
 		};
-
 		Self::deposit_event(Event::<T>::WhitelistedCallDispatched { call_hash, result });
 
 		call_actual_weight

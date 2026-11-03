@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-metrics"
 description = "Subsystem metric helpers"
-version = "29.0.0"
+version = "34.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,11 +18,12 @@ futures-timer = { workspace = true }
 bs58 = { features = ["alloc"], workspace = true, default-features = true }
 codec = { workspace = true, default-features = true }
 metered = { features = ["futures_channel"], workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-cli = { default-features = false, workspace = true }
-sc-service = { default-features = false, workspace = true }
-sc-tracing = { default-features = true, workspace = true }
+polkadot-primitives = { workspace = true, default-features = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+# Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
+sc-cli = { workspace = true, default-features = false }
+sc-service = { workspace = true, default-features = false }
+sc-tracing = { workspace = true, default-features = true }
 
 [dev-dependencies]
 http-body-util = { workspace = true }
@@ -30,8 +31,8 @@ hyper = { workspace = true }
 hyper-util = { features = ["client-legacy", "tokio"], workspace = true }
 polkadot-test-service = { features = ["runtime-metrics"], workspace = true }
 prometheus-parse = { workspace = true }
-sc-service = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
+sc-service = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
 tokio = { workspace = true, default-features = true }
 
 [features]

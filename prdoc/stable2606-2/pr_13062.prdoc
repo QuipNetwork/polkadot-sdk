@@ -1,0 +1,11 @@
+title: 'pallet-psm: use recorded decimals when minting'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Keeps PSM mint conversions and external-asset registration tied to the decimal
+    snapshots captured when the PSM and external asset are registered, matching redemption
+    behavior. Changes to live asset metadata no longer stop minting or alter the debt
+    conversion rate.
+crates:
+- name: pallet-psm
+  bump: patch

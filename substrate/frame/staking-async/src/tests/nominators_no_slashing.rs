@@ -110,7 +110,11 @@ fn nominators_can_unbond_in_next_era() {
 		assert_ok!(Staking::unbond(RuntimeOrigin::signed(101), 200));
 		assert_eq!(
 			staking_events_since_last_call(),
-			vec![Event::Unbonded { stash: 101, amount: 200 }]
+			vec![Event::Unbonded {
+				stash: 101,
+				amount: 200,
+				era: active_era() + NominatorFastUnbondDuration::get()
+			}]
 		);
 
 		// Unlocking should be set to active_era + NominatorFastUnbondDuration (not active_era +
@@ -180,7 +184,11 @@ fn validators_still_have_full_bonding_duration() {
 		assert_ok!(Staking::unbond(RuntimeOrigin::signed(11), 200));
 		assert_eq!(
 			staking_events_since_last_call(),
-			vec![Event::Unbonded { stash: 11, amount: 200 }]
+			vec![Event::Unbonded {
+				stash: 11,
+				amount: 200,
+				era: active_era() + BondingDuration::get()
+			}]
 		);
 
 		// Unlocking should be set to active_era + BondingDuration (not active_era +
@@ -569,14 +577,14 @@ fn mixed_era_offences_processed_based_on_era_specific_setting() {
 
 			let nominator_stake_before = Staking::ledger(101.into()).unwrap().active;
 
-			// Report offence from era 1 (slashable) - nominator should be slashed
-			add_slash_in_era(11, 1, Perbill::from_percent(5));
+			// Report offence from era 2 (slashable) - nominator should be slashed
+			add_slash_in_era(11, 2, Perbill::from_percent(5));
 			Session::roll_next();
 
-			let nominator_stake_after_era1_slash = Staking::ledger(101.into()).unwrap().active;
+			let nominator_stake_after_era2_slash = Staking::ledger(101.into()).unwrap().active;
 			assert!(
-				nominator_stake_after_era1_slash < nominator_stake_before,
-				"Nominator should be slashed for era 1 offence"
+				nominator_stake_after_era2_slash < nominator_stake_before,
+				"Nominator should be slashed for era 2 offence"
 			);
 
 			// Report offence from era 3 (NOT slashable) - nominator should NOT be slashed
@@ -585,7 +593,7 @@ fn mixed_era_offences_processed_based_on_era_specific_setting() {
 
 			let nominator_stake_after_era3_slash = Staking::ledger(101.into()).unwrap().active;
 			assert_eq!(
-				nominator_stake_after_era3_slash, nominator_stake_after_era1_slash,
+				nominator_stake_after_era3_slash, nominator_stake_after_era2_slash,
 				"Nominator should NOT be slashed for era 3 offence"
 			);
 		});
@@ -642,11 +650,17 @@ fn validator_cannot_switch_to_nominator_to_avoid_slashing() {
 			assert!(!Validators::<Test>::contains_key(&alice));
 			assert!(Nominators::<Test>::contains_key(&alice));
 
-			// Step 3: Alice (now a nominator) unbonds partially
-			assert_ok!(Staking::unbond(RuntimeOrigin::signed(alice), 999));
+			// Step 3: Alice (now a nominator) unbonds partially. We leave `active` exactly at
+			// `MinNominatorBond` (= ED + 1 under the default builder) so the unbond passes the
+			// per-role guard.
+			assert_ok!(Staking::unbond(RuntimeOrigin::signed(alice), 998));
 			assert_eq!(
 				staking_events_since_last_call(),
-				[Event::Unbonded { stash: alice, amount: 999 }]
+				[Event::Unbonded {
+					stash: alice,
+					amount: 998,
+					era: active_era() + BondingDuration::get()
+				}]
 			);
 
 			// Alice should still be a nominator
@@ -671,8 +685,8 @@ fn validator_cannot_switch_to_nominator_to_avoid_slashing() {
 				StakingLedgerInspect {
 					stash: alice,
 					total: 1000,
-					active: 1,
-					unlocking: bounded_vec![UnlockChunk { value: 999, era: validator_unbond_era }],
+					active: 2,
+					unlocking: bounded_vec![UnlockChunk { value: 998, era: validator_unbond_era }],
 				}
 			);
 
@@ -711,17 +725,19 @@ fn validator_cannot_switch_to_nominator_to_avoid_slashing() {
 			// Now Alice can withdraw - the full bonding duration has elapsed
 			assert_ok!(Staking::withdraw_unbonded(RuntimeOrigin::signed(alice), 0));
 
-			// Verify Alice was slashed and stash was reaped (fell below minimum after slash)
-			// Total was reduced to ~900 by the slash, so withdrawn amount is ~900
+			// Alice was slashed (10% of 1000 = 100). The slash is proportional across `active`
+			// and the unlocking chunk: with `active = 2` and `unlocking = 998` it takes 1 from
+			// active and 99 from the chunk (rounded up). The chunk becomes 899 and that's what
+			// `withdraw_unbonded` releases here; `active = 1` remains in the ledger, so the
+			// stash is NOT reaped (kept above ED).
 			assert_eq!(
 				staking_events_since_last_call(),
-				[
-					Event::StakerRemoved { stash: alice },
-					Event::Withdrawn { stash: alice, amount: 900 }
-				]
+				[Event::Withdrawn { stash: alice, amount: 899 }]
 			);
 
-			// Ledger should be fully reaped
-			assert!(Staking::ledger(alice.into()).is_err(), "Ledger should be reaped");
+			let ledger_after_withdraw = Staking::ledger(alice.into()).expect("ledger remains");
+			assert_eq!(ledger_after_withdraw.active, 1);
+			assert_eq!(ledger_after_withdraw.total, 1);
+			assert!(ledger_after_withdraw.unlocking.is_empty());
 		});
 }

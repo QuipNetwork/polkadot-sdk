@@ -55,6 +55,8 @@ pub struct CallSetup<T: Config> {
 	data: Vec<u8>,
 	transient_storage_size: u32,
 	exec_config: ExecConfig<T>,
+	read_only: bool,
+	delegate_call: bool,
 }
 
 impl<T> Default for CallSetup<T>
@@ -106,6 +108,8 @@ where
 			data: vec![],
 			transient_storage_size: 0,
 			exec_config: ExecConfig::new_substrate_tx(),
+			read_only: false,
+			delegate_call: false,
 		}
 	}
 
@@ -138,6 +142,16 @@ where
 		self.transient_storage_size = size;
 	}
 
+	/// Set the read-only flag on the call stack frame.
+	pub fn set_read_only(&mut self, read_only: bool) {
+		self.read_only = read_only;
+	}
+
+	/// Mark the call as a delegate call.
+	pub fn set_delegate_call(&mut self, delegate: bool) {
+		self.delegate_call = delegate;
+	}
+
 	/// Get the call's input data.
 	pub fn data(&self) -> Vec<u8> {
 		self.data.clone()
@@ -156,6 +170,8 @@ where
 			&mut self.transaction_meter,
 			self.value,
 			&self.exec_config,
+			self.read_only,
+			self.delegate_call,
 		);
 		if self.transient_storage_size > 0 {
 			Self::with_transient_storage(&mut ext.0, self.transient_storage_size).unwrap();

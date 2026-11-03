@@ -365,6 +365,46 @@ impl NotificationMetrics {
 				.observe(size as f64);
 		}
 	}
+
+	/// Update the number of connected peers per direction and reservation status.
+	pub fn set_peerset_num_connected(
+		&self,
+		protocol: &ProtocolName,
+		in_reserved: usize,
+		in_non_reserved: usize,
+		out_reserved: usize,
+		out_non_reserved: usize,
+		num_disconnected: usize,
+		num_backoff: usize,
+	) {
+		if let Some(metrics) = &self.metrics {
+			metrics
+				.peerset_num_connected
+				.with_label_values(&["in", "reserved", protocol])
+				.set(in_reserved as u64);
+			metrics
+				.peerset_num_connected
+				.with_label_values(&["in", "non-reserved", protocol])
+				.set(in_non_reserved as u64);
+			metrics
+				.peerset_num_connected
+				.with_label_values(&["out", "reserved", protocol])
+				.set(out_reserved as u64);
+			metrics
+				.peerset_num_connected
+				.with_label_values(&["out", "non-reserved", protocol])
+				.set(out_non_reserved as u64);
+
+			metrics
+				.peerset_num_state
+				.with_label_values(&["disconnected", protocol])
+				.set(num_disconnected as u64);
+			metrics
+				.peerset_num_state
+				.with_label_values(&["backoff", protocol])
+				.set(num_backoff as u64);
+		}
+	}
 }
 
 /// Notification metrics.
@@ -378,6 +418,12 @@ struct InnerNotificationMetrics {
 
 	/// In/outbound notification sizes.
 	pub notifications_sizes: HistogramVec,
+
+	/// Number of connected peers per direction, reservation status and protocol.
+	pub peerset_num_connected: GaugeVec<U64>,
+
+	/// Number of disconnected and backed off peers.
+	pub peerset_num_state: GaugeVec<U64>,
 }
 
 impl InnerNotificationMetrics {
@@ -414,6 +460,26 @@ impl InnerNotificationMetrics {
 						"Total number of notification substreams that have been opened",
 					),
 					&["protocol"],
+				)?,
+				registry,
+			)?,
+			peerset_num_connected: prometheus::register(
+				GaugeVec::new(
+					Opts::new(
+						"substrate_sub_libp2p_peerset_num_connected",
+						"Number of connected peers per direction, reservation status and protocol",
+					),
+					&["direction", "kind", "protocol"],
+				)?,
+				registry,
+			)?,
+			peerset_num_state: prometheus::register(
+				GaugeVec::new(
+					Opts::new(
+						"substrate_sub_libp2p_peerset_num_state",
+						"Number of peers per state in the peerset manager",
+					),
+					&["state", "protocol"],
 				)?,
 				registry,
 			)?,

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-xcm-precompiles"
-version = "0.4.0"
+version = "0.11.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -16,33 +16,45 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
+tracing = { workspace = true }
+
 frame-support = { workspace = true }
 pallet-revive = { workspace = true }
 pallet-xcm = { workspace = true }
-tracing = { workspace = true }
+
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
 
 [dev-dependencies]
-frame-system = { default-features = true, workspace = true }
-pallet-assets = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
+frame-system = { workspace = true, default-features = true }
+pallet-assets = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-revive-fixtures = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
 scale-info = { workspace = true, default-features = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-simulator = { default-features = true, workspace = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
 	"frame-support/std",
+	"frame-system/std",
+	"pallet-assets/std",
+	"pallet-balances/std",
 	"pallet-revive/std",
+	"pallet-timestamp/std",
 	"pallet-xcm/std",
+	"polkadot-parachain-primitives/std",
+	"scale-info/std",
+	"sp-io/std",
+	"sp-runtime/std",
 	"tracing/std",
+	"xcm-builder/std",
 	"xcm-executor/std",
 	"xcm/std",
 ]

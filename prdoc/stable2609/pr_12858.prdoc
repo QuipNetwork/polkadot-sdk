@@ -1,0 +1,24 @@
+title: '[RWF] pallet-beefy: return the correct future voting proof error'
+doc:
+- audience:
+  - Runtime Dev
+  - Runtime User
+  description: |-
+    # Description
+
+    Fixes #12784.
+
+    Invalid signatures in `FutureBlockVotingProof` were rejected as `InvalidForkVotingProof`. This changes that failure path to return `InvalidFutureBlockVotingProof` and adds a regression test that tampers with the signed payload. The invalid proof remains rejected.
+
+    ## Integration
+
+    No storage migration, weight change, call index change, or error enum ordinal change is required. The observable module error code for an invalid signature in this specific future-block-voting proof path changes from 2 (`InvalidForkVotingProof`) to 3 (`InvalidFutureBlockVotingProof`). Downstream consumers that special-case the incorrect code 2 for this path should update to code 3.
+
+    ## Review Notes
+
+    The `FutureBlockVotingProof` branch already returns `InvalidFutureBlockVotingProof` for its block-number guard. The invalid-signature branch now uses the same proof-specific error.
+
+    The regression test creates a valid future-block-voting proof, changes its payload without re-signing it, and verifies that reporting it returns `InvalidFutureBlockVotingProof`.
+crates:
+- name: pallet-beefy
+  bump: patch

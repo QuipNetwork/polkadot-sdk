@@ -14,6 +14,7 @@
 // limitations under the License.
 
 use crate::tests::{snowbridge_common::snowbridge_sovereign, *};
+use emulated_integration_tests_common::assets_balance_on;
 use sp_core::Get;
 use xcm::latest::AssetTransferFilter;
 
@@ -138,19 +139,17 @@ fn transact_from_ethereum_to_penpalb_through_asset_hub() {
 
 	// We create a pool between WND and WETH in AssetHub to support paying for fees with WETH.
 	let snowbridge_sovereign = snowbridge_sovereign();
-	create_pool_with_native_on!(
+	create_foreign_pool_with_parent_native_on!(
 		AssetHubWestend,
 		bridged_weth.clone(),
-		true,
-		snowbridge_sovereign,
+		snowbridge_sovereign.clone(),
 		1_000_000_000_000,
 		20_000_000_000
 	);
-	// We also need a pool between WND and WETH on PenpalB to support paying for fees with WETH.
-	create_pool_with_native_on!(
+	// We also need a pool between PEN and WETH on PenpalB to support paying for fees with WETH.
+	create_foreign_pool_with_native_on!(
 		PenpalB,
 		bridged_weth.clone(),
-		true,
 		PenpalAssetOwner::get(),
 		1_000_000_000_000,
 		20_000_000_000
@@ -160,10 +159,7 @@ fn transact_from_ethereum_to_penpalb_through_asset_hub() {
 	let receiver = PenpalBReceiver::get();
 
 	// Query initial balances
-	let receiver_assets_before = PenpalB::execute_with(|| {
-		type Assets = <PenpalB as PenpalBPallet>::ForeignAssets;
-		<Assets as Inspect<_>>::balance(bridged_weth.clone(), &receiver)
-	});
+	let receiver_assets_before = assets_balance_on!(PenpalB, bridged_weth.clone(), &receiver);
 
 	// Now register a new asset on PenpalB from Ethereum/Bob account while paying fees using WETH
 	// (going through Asset Hub)
@@ -202,10 +198,7 @@ fn transact_from_ethereum_to_penpalb_through_asset_hub() {
 	});
 
 	// Query final balances
-	let receiver_assets_after = PenpalB::execute_with(|| {
-		type Assets = <PenpalB as PenpalBPallet>::ForeignAssets;
-		<Assets as Inspect<_>>::balance(bridged_weth, &receiver)
-	});
+	let receiver_assets_after = assets_balance_on!(PenpalB, bridged_weth, &receiver);
 	// Receiver's balance is increased
 	assert!(receiver_assets_after > receiver_assets_before);
 }
@@ -236,7 +229,7 @@ fn penpal_b_assertions(
 	assert_expected_events!(
 		PenpalB,
 		vec![
-			RuntimeEvent::ForeignAssets(
+			RuntimeEvent::Assets(
 				pallet_assets::Event::Created { asset_id, creator, owner }
 			) => {
 				asset_id: *asset_id == expected_asset,

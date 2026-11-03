@@ -651,8 +651,6 @@ fn use_permit_rejects_multiple_replay_attempts() {
 
 #[test]
 fn permit_typehash_is_correct() {
-	// This test is also in the permit module itself, but we include it here
-	// for completeness in the test suite
 	let computed = sp_io::hashing::keccak_256(
 		b"Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)",
 	);

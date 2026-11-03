@@ -2,16 +2,16 @@
   test-filter: "smoke::minimal_template_block_production_test"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-parachain-template-0002-parachain_template_block_production"
   test-filter: "smoke::parachain_template_block_production_test"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-parachain-template-0003-solochain_template_block_production"
   test-filter: "smoke::solochain_template_block_production_test"
   runner-type: "default"
   cumulus-image: "test-parachain"
-  use-zombienet-sdk: true
+

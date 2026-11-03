@@ -21,12 +21,15 @@
 
 use super::*;
 use crate::mock::*;
-use frame_support::{assert_noop, dispatch};
+use frame_support::{assert_noop, dispatch, traits::Authorize};
 use sp_core::offchain::{
 	testing::{TestOffchainExt, TestTransactionPoolExt},
 	OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
 };
-use sp_runtime::testing::UintAuthorityId;
+use sp_runtime::{
+	testing::UintAuthorityId,
+	transaction_validity::{InvalidTransaction, TransactionSource, TransactionValidityError},
+};
 
 #[test]
 fn test_unresponsiveness_slash_fraction() {
@@ -120,17 +123,24 @@ fn heartbeat(
 	};
 	let signature = id.sign(&heartbeat.encode()).unwrap();
 
-	ImOnline::pre_dispatch(&crate::Call::heartbeat {
-		heartbeat: heartbeat.clone(),
-		signature: signature.clone(),
-	})
-	.map_err(|e| match e {
-		TransactionValidityError::Invalid(InvalidTransaction::Custom(INVALID_VALIDATORS_LEN)) => {
-			"invalid validators len"
-		},
-		e @ _ => <&'static str>::from(e),
-	})?;
-	ImOnline::heartbeat(RuntimeOrigin::none(), heartbeat, signature)
+	let call: RuntimeCall =
+		crate::Call::heartbeat { heartbeat: heartbeat.clone(), signature: signature.clone() }
+			.into();
+
+	call.authorize(TransactionSource::External)
+		.expect("heartbeat call should have authorize logic")
+		.map_err(|e| match e {
+			TransactionValidityError::Invalid(InvalidTransaction::Custom(
+				INVALID_VALIDATORS_LEN,
+			)) => "invalid validators len",
+			e @ _ => <&'static str>::from(e),
+		})?;
+
+	ImOnline::heartbeat(
+		RuntimeOrigin::from(frame_system::RawOrigin::Authorized),
+		heartbeat,
+		signature,
+	)
 }
 
 #[test]

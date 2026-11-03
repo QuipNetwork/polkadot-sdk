@@ -1,6 +1,6 @@
 [package]
 name = "sp-transaction-storage-proof"
-version = "41.0.0"
+version = "44.0.0"
 authors.workspace = true
 description = "Transaction storage proof primitives"
 edition.workspace = true
@@ -21,6 +21,7 @@ codec = { features = ["derive"], workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 sp-api = { workspace = true }
 sp-core = { optional = true, workspace = true }
+sp-crypto-hashing = { workspace = true }
 sp-inherents = { workspace = true }
 sp-runtime = { workspace = true }
 sp-trie = { optional = true, workspace = true }
@@ -33,6 +34,7 @@ std = [
 	"scale-info/std",
 	"sp-api/std",
 	"sp-core/std",
+	"sp-crypto-hashing/std",
 	"sp-inherents/std",
 	"sp-runtime/std",
 	"sp-trie/std",

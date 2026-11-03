@@ -1,0 +1,26 @@
+title: allow Root-originated nested CREATE
+doc:
+- audience: Runtime Dev
+  description: "# Allow Root-originated nested CREATE in pallet-revive\n\nCloses paritytech/contract-issues#279.\n\
+    \n## Motivation\n\n`pallet-revive`'s exec stack rejects `Origin::Root` at any\
+    \ constructor frame, which means `bare_call(RuntimeOrigin::root(), contract_addr,\
+    \ ...)` errors with `RootNotAllowed` the moment the called contract reaches a\
+    \ `CREATE`/`CREATE2` opcode — even though the contract itself is the semantic\
+    \ instantiator.\n\nThe historical reason for the block was that the origin had\
+    \ to fund the new contract's ED. Since the PGAS rework, the ED is freshly minted\
+    \ by `T::Deposit::init_contract` and immediately deactivated for issuance accounting,\
+    \ so the origin no longer needs to pay it.\n\n## Change\n\n- Remove the explicit\
+    \ `RootNotAllowed` check at the start of the constructor frame in `exec.rs`.\n\
+    \nRoot is still **not** allowed to instantiate\
+    \ directly: `instantiate`/`bare_instantiate` continue to gate on `T::InstantiateOrigin::ensure_origin`\
+    \ (default `EnsureSigned` → `BadOrigin`). The change only unblocks the case\
+    \ where another contract sits between Root and the new contract and acts as the\
+    \ instantiator. Giving Root its own contract-address attribution is intentionally\
+    \ out of scope.\n\n## Test plan\n\
+    \n- Existing `root_cannot_instantiate{,_with_code}` and\
+    \ `root_can_call` continue to pass — direct Root instantiation is still rejected\
+    \ at the dispatchable layer, and Root-originated calls remain functional.\n- Full\
+    \ `pallet-revive` test suite is green."
+crates:
+- name: pallet-revive
+  bump: minor

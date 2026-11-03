@@ -89,6 +89,27 @@ pub extern "C" fn call() {
 	);
 	assert!(matches!(res, Err(ReturnErrorCode::OutOfResources)));
 
+	// Fail to deploy because the body runs out of proof_size after code load.
+	// Done before the successful deploy so the storage slot touched inside this entrypoint's body
+	// is still cold; once a successful deploy commits, the slot is hot and `clear_storage` no
+	// longer OOGs.
+	let mut deploy_revert_output = [0u8; 4];
+	let res = api::instantiate(
+		u64::MAX, // How much ref_time weight to devote for the execution. u64::MAX = use all.
+		load_code_proof_size, // just enough to load the contract
+		&[u8::MAX; 32], // No deposit limit.
+		&value,
+		&input_deploy,
+		None,
+		Some(&mut &mut deploy_revert_output[..]),
+		Some(&salt),
+	);
+	assert!(matches!(res, Err(ReturnErrorCode::CalleeReverted)));
+
+	let mut decode_buf = [0u8; 4];
+	decode_buf[..4].copy_from_slice(&deploy_revert_output[..4]);
+	assert_eq!(u32::from_le_bytes(decode_buf), ReturnErrorCode::OutOfResources as u32);
+
 	// Deploy the contract successfully.
 	let mut callee = [0u8; 20];
 
@@ -130,24 +151,6 @@ pub extern "C" fn call() {
 		None,
 	);
 	assert!(matches!(res, Err(ReturnErrorCode::OutOfResources)));
-
-	// Fail to call the contract due to insufficient proof_size weight.
-	let mut output = [0u8; 4];
-	let res = api::call(
-		uapi::CallFlags::empty(),
-		&callee,
-		u64::MAX, // How much ref_time weight to devote for the execution. u64::MAX = use all.
-		load_code_proof_size, // just enough to load the contract
-		&[u8::MAX; 32], // No deposit limit.
-		&value,
-		&INPUT,
-		Some(&mut &mut output[..]),
-	);
-	assert!(matches!(res, Err(ReturnErrorCode::CalleeReverted)));
-
-	let mut decode_buf = [0u8; 4];
-	decode_buf[..4].copy_from_slice(&output[..4]);
-	assert_eq!(u32::from_le_bytes(decode_buf), ReturnErrorCode::OutOfResources as u32);
 
 	// Call the contract successfully.
 	let mut output = [0u8; 4];

@@ -1,0 +1,16 @@
+title: 'pallet-revive: validate eth_feeHistory reward percentiles'
+
+doc:
+- audience: Node Dev
+  description: |-
+    `eth_feeHistory` did not validate its inputs the way go-ethereum does: out-of-range reward
+    percentiles were silently clamped to `0..=100`, unsorted lists were accepted, and a request
+    for zero blocks still returned data, so malformed requests returned approximated results
+    instead of matching go-ethereum. The handler now mirrors go-ethereum: a request for fewer
+    than one block returns an empty result; the reward percentile list is capped at 100 entries;
+    and each percentile must lie within `0.0..=100.0` and the list must be strictly increasing,
+    otherwise the request is rejected.
+
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

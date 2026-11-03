@@ -1,0 +1,10 @@
+title: 'CI: Get it green again (link-checker + check-macos-crates)'
+doc:
+- audience: Node Dev
+  description: Since brew 6.0 llvm post-install step fails. But I think we can just
+    disable it for our purposes.
+crates:
+- name: sc-rpc-spec-v2
+  bump: none
+- name: pallet-revive-eth-rpc
+  bump: none

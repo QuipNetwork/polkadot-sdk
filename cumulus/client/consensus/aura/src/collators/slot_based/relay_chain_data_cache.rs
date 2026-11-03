@@ -18,25 +18,31 @@
 //! Utility for caching [`RelayChainData`] for different relay blocks.
 
 use crate::collators::claim_queue_at;
-use cumulus_primitives_core::CoreSelector;
 use cumulus_relay_chain_interface::RelayChainInterface;
 use polkadot_node_subsystem_util::runtime::ClaimQueueSnapshot;
 use polkadot_primitives::{
-	Hash as RelayHash, Header as RelayHeader, Id as ParaId, OccupiedCoreAssumption,
+	node_features::FeatureIndex, Hash as RelayHash, Header as RelayHeader, Id as ParaId,
+	NodeFeatures, OccupiedCoreAssumption,
 };
 use sp_runtime::generic::BlockId;
 
 /// Contains relay chain data necessary for parachain block building.
 #[derive(Clone, Debug)]
 pub struct RelayChainData {
-	/// Current relay chain parent header.
-	pub relay_parent_header: RelayHeader,
+	/// Current relay chain header.
+	pub relay_header: RelayHeader,
 	/// The claim queue at the relay parent.
 	pub claim_queue: ClaimQueueSnapshot,
 	/// Maximum configured PoV size on the relay chain.
 	pub max_pov_size: u32,
-	/// The last [`CoreSelector`] we used.
-	pub last_claimed_core_selector: Option<CoreSelector>,
+	/// The node features at the relay parent.
+	pub node_features: NodeFeatures,
+}
+
+impl RelayChainData {
+	pub fn is_v3_enabled(&self) -> bool {
+		FeatureIndex::CandidateReceiptV3.is_set(&self.node_features)
+	}
 }
 
 /// Simple helper to fetch relay chain data and cache it based on the current relay chain best block
@@ -63,60 +69,93 @@ where
 	/// Fetch required [`RelayChainData`] from the relay chain.
 	/// If this data has been fetched in the past for the incoming hash, it will reuse
 	/// cached data.
-	pub async fn get_mut_relay_chain_data(
+	pub async fn get_by_header(
 		&mut self,
-		relay_parent: RelayHash,
-	) -> Result<&mut RelayChainData, ()> {
-		let insert_data = if self.cached_data.peek(&relay_parent).is_some() {
-			tracing::trace!(target: crate::LOG_TARGET, %relay_parent, "Using cached data for relay parent.");
+		relay_header: RelayHeader,
+	) -> Result<&RelayChainData, ()> {
+		let relay_hash = relay_header.hash();
+		let insert_data = if self.cached_data.peek(&relay_hash).is_some() {
 			None
 		} else {
-			tracing::trace!(target: crate::LOG_TARGET, %relay_parent, "Relay chain best block changed, fetching new data from relay chain.");
-			Some(self.update_for_relay_parent(relay_parent).await?)
+			Some(self.fetch_data(relay_header).await?)
 		};
 
 		Ok(self
 			.cached_data
-			.get_or_insert(relay_parent, || {
+			.get_or_insert(relay_hash, || {
 				insert_data.expect("`insert_data` exists if not cached yet; qed")
 			})
 			.expect("There is space for at least one element; qed"))
 	}
 
-	/// Fetch fresh data from the relay chain for the given relay parent hash.
-	async fn update_for_relay_parent(&self, relay_parent: RelayHash) -> Result<RelayChainData, ()> {
-		let claim_queue = claim_queue_at(relay_parent, &self.relay_client).await;
+	/// Fetch required [`RelayChainData`] from the relay chain.
+	/// If this data has been fetched in the past for the incoming hash, it will reuse
+	/// cached data.
+	pub async fn get_by_hash(&mut self, relay_hash: RelayHash) -> Result<&RelayChainData, ()> {
+		if self.cached_data.peek(&relay_hash).is_none() {
+			let Ok(Some(relay_header)) = self.relay_client.header(BlockId::Hash(relay_hash)).await
+			else {
+				tracing::warn!(
+					target: crate::LOG_TARGET,
+					?relay_hash,
+					"Unable to fetch relay chain block header."
+				);
+				return Err(());
+			};
+			return self.get_by_header(relay_header).await;
+		}
 
-		let Ok(Some(relay_parent_header)) =
-			self.relay_client.header(BlockId::Hash(relay_parent)).await
-		else {
-			tracing::warn!(target: crate::LOG_TARGET, "Unable to fetch latest relay chain block header.");
-			return Err(());
-		};
+		self.cached_data.get(&relay_hash).map(|data| &*data).ok_or(())
+	}
+
+	/// Fetch fresh data from the relay chain for the given relay parent.
+	async fn fetch_data(&self, relay_header: RelayHeader) -> Result<RelayChainData, ()> {
+		let relay_hash = relay_header.hash();
+
+		tracing::trace!(
+			target: crate::LOG_TARGET,
+			%relay_hash,
+			"Relay chain block data not in cache, fetching new data from relay chain."
+		);
+
+		let claim_queue = claim_queue_at(relay_hash, &self.relay_client).await;
 
 		let max_pov_size = match self
 			.relay_client
-			.persisted_validation_data(relay_parent, self.para_id, OccupiedCoreAssumption::Included)
+			.persisted_validation_data(relay_hash, self.para_id, OccupiedCoreAssumption::Included)
 			.await
 		{
 			Ok(None) => return Err(()),
 			Ok(Some(pvd)) => pvd.max_pov_size,
 			Err(err) => {
-				tracing::error!(target: crate::LOG_TARGET, ?err, "Failed to gather information from relay-client");
+				tracing::error!(
+					target: crate::LOG_TARGET,
+					?relay_hash,
+					?err,
+					"Failed to fetch pvd from relay-client."
+				);
 				return Err(());
 			},
 		};
 
-		Ok(RelayChainData {
-			relay_parent_header,
-			claim_queue,
-			max_pov_size,
-			last_claimed_core_selector: None,
-		})
+		let node_features = match self.relay_client.node_features(relay_hash).await {
+			Ok(node_features) => node_features,
+			Err(err) => {
+				tracing::error!(
+					target: crate::LOG_TARGET,
+					?relay_hash,
+					?err,
+					"Unable to fetch relay chain node features."
+				);
+				return Err(());
+			},
+		};
+
+		Ok(RelayChainData { relay_header, claim_queue, max_pov_size, node_features })
 	}
 
 	#[cfg(test)]
-	pub(crate) fn insert_test_data(&mut self, relay_parent: RelayHash, data: RelayChainData) {
-		self.cached_data.insert(relay_parent, data);
+	pub fn insert_test_data(&mut self, relay_parent_hash: RelayHash, data: RelayChainData) {
+		self.cached_data.insert(relay_parent_hash, data);
 	}
 }

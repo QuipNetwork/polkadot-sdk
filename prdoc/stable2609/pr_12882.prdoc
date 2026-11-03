@@ -1,0 +1,17 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: "eth-rpc: pin legacy subxt backend, survive unresolvable blocks"
+
+doc:
+  - audience: Node Operator
+    description: |
+      Pin eth-rpc to subxt's legacy backend. subxt 0.50 switched the default
+      to the chainHead-based CombinedBackend, whose pinning limits stall
+      receipt indexing under load. Also, a failed streamed-block resolution
+      no longer kills the server; such blocks are skipped and finalized ones
+      are backfilled by the gap filler.
+
+crates:
+  - name: pallet-revive-eth-rpc
+    bump: patch

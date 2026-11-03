@@ -1,0 +1,17 @@
+title: '[pallet-revive] eth-rpc: fix `latest` block initialization and reduce per-block
+  RPC calls.'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Both the finalized and best blocks were initialized using `at_current_block()`, which in subxt 0.50 returns the *finalized* block; the best block therefore started behind the chain tip and served stale blocks until the subscription caught up. Also reduce the number of RPC calls by reusing the already resolved block in `fetch_receipt_data`, and by only requesting receipt data when a block contains EVM extrinsics.
+
+    ## Changes
+
+    - Initialize `latest_block` from the actual best block.
+    - Ignore the blocks that the subscriptions replay when they (re)initialise, instead of walking a tracked head backwards.
+    - Pass the already resolved block to `fetch_receipt_data` instead of a hash.
+    - Only request receipt data when the block contains pallet-revive extrinsics, or when an extrinsic decode fails and its type is yet unknown.
+    - Raise the `differential-tests` job timeout from 60 to 120 minutes; the full corpus no longer finishes within 60 minutes since the subxt 0.50 bump. Further investigation of the slowdown will be tackled separately.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

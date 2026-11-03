@@ -27,10 +27,12 @@ use frame_support::{
 	traits::{
 		fungible::NativeOrWithId,
 		fungibles::{Create, Inspect, Mutate, Refund},
+		EnsureOrigin,
 	},
 };
 use frame_system::RawOrigin as SystemOrigin;
 use sp_core::Get;
+use sp_runtime::Permill;
 
 /// Benchmark Helper
 pub trait BenchmarkHelper<AssetKind> {
@@ -197,6 +199,57 @@ mod benchmarks {
 		assert_last_event::<T>(
 			Event::PoolCreated { creator: caller, pool_account, pool_id, lp_token }.into(),
 		);
+	}
+
+	#[benchmark]
+	fn create_pool_with_fee() -> Result<(), BenchmarkError> {
+		let caller: T::AccountId = whitelisted_caller();
+		let (asset1, asset2) = T::BenchmarkHelper::create_pair(0, 1);
+		create_asset::<T>(&caller, &asset1, T::Assets::minimum_balance(asset1.clone()), true);
+		create_asset::<T>(&caller, &asset2, T::Assets::minimum_balance(asset2.clone()), true);
+
+		let lp_token = AssetConversion::<T>::get_next_pool_asset_id();
+		create_fee_asset::<T>(&caller);
+		mint_setup_fee_asset::<T>(&caller, &asset1, &asset2, &lp_token);
+
+		let fee = Permill::from_percent(1);
+		let origin =
+			T::AdminOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+
+		#[extrinsic_call]
+		_(
+			origin as T::RuntimeOrigin,
+			caller.clone(),
+			Box::new(asset1.clone()),
+			Box::new(asset2.clone()),
+			fee,
+		);
+
+		let pool_id = T::PoolLocator::pool_id(&asset1, &asset2).unwrap();
+		assert_eq!(PoolFees::<T>::get(&pool_id), Some(fee));
+		assert_last_event::<T>(Event::PoolFeeSet { pool_id, fee }.into());
+		Ok(())
+	}
+
+	#[benchmark]
+	fn set_pool_fee() -> Result<(), BenchmarkError> {
+		let caller: T::AccountId = whitelisted_caller();
+		let (asset1, asset2) = T::BenchmarkHelper::create_pair(0, 1);
+
+		create_fee_asset::<T>(&caller);
+		let _ = create_asset_and_pool::<T>(&caller, &asset1, &asset2);
+
+		let pool_id = T::PoolLocator::pool_id(&asset1, &asset2).unwrap();
+		let fee = Permill::from_percent(1);
+		let origin =
+			T::AdminOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+
+		#[extrinsic_call]
+		_(origin as T::RuntimeOrigin, pool_id.clone(), fee);
+
+		assert_eq!(PoolFees::<T>::get(&pool_id), Some(fee));
+		assert_last_event::<T>(Event::PoolFeeSet { pool_id, fee }.into());
+		Ok(())
 	}
 
 	#[benchmark]
@@ -408,6 +461,31 @@ mod benchmarks {
 		_(SystemOrigin::Signed(caller.clone()), Box::new(asset1.clone()), Box::new(asset2.clone()));
 
 		assert_last_event::<T>(Event::Touched { pool_id, who: caller }.into());
+	}
+
+	#[benchmark]
+	fn get_reserves() {
+		let caller: T::AccountId = whitelisted_caller();
+		let (asset1, asset2) = T::BenchmarkHelper::create_pair(0, 1);
+
+		create_fee_asset::<T>(&caller);
+		let (_, liquidity1, liquidity2) = create_asset_and_pool::<T>(&caller, &asset1, &asset2);
+
+		assert_ok!(AssetConversion::<T>::add_liquidity(
+			SystemOrigin::Signed(caller.clone()).into(),
+			Box::new(asset1.clone()),
+			Box::new(asset2.clone()),
+			liquidity1,
+			liquidity2,
+			T::Balance::one(),
+			T::Balance::zero(),
+			caller.clone(),
+		));
+
+		#[block]
+		{
+			AssetConversion::<T>::get_reserves(asset1, asset2).expect("pool has liquidity; qed");
+		}
 	}
 
 	impl_benchmark_test_suite!(AssetConversion, crate::mock::new_test_ext(), crate::mock::Test);

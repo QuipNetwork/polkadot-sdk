@@ -1,0 +1,8 @@
+title: Remove deprecated pallet_society::RawEvent alias.
+doc:
+- audience: Runtime Dev
+  description: |-
+    Use Event instead; no remaining in-repo callers.
+crates:
+- name: pallet-society
+  bump: major

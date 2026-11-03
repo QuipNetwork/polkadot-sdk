@@ -22,7 +22,7 @@ use frame_support::{
 };
 
 /// The in-code storage version.
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 /// Migrates the pallet storage to the most recent version.
 pub struct Migration<T: Config>(PhantomData<T>);
@@ -43,6 +43,13 @@ impl<T: Config> OnRuntimeUpgrade for Migration<T> {
 				.saturating_add(v2::migrate::<T>())
 				.saturating_add(T::DbWeight::get().writes(1));
 			StorageVersion::new(2).put::<Pallet<T>>();
+		}
+
+		if StorageVersion::get::<Pallet<T>>() == 2 {
+			// Runtime upgrades are in their own PoV so there is no issue with killing this.
+			crate::PoVMessagesTracker::<T>::kill();
+			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+			StorageVersion::new(3).put::<Pallet<T>>();
 		}
 
 		weight
@@ -79,12 +86,11 @@ mod v2 {
 /// mechanism now uses signals instead of block offsets.
 mod v1 {
 	use crate::{Config, Pallet};
-	#[allow(deprecated)]
-	use frame_support::{migration::remove_storage_prefix, pallet_prelude::*};
+	use frame_support::{migration::clear_storage_prefix, pallet_prelude::*};
 
 	pub fn migrate<T: Config>() -> Weight {
-		#[allow(deprecated)]
-		remove_storage_prefix(<Pallet<T>>::name().as_bytes(), b"LastUpgrade", b"");
+		let _ =
+			clear_storage_prefix(<Pallet<T>>::name().as_bytes(), b"LastUpgrade", b"", None, None);
 		T::DbWeight::get().writes(1)
 	}
 }

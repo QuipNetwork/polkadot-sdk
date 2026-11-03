@@ -19,7 +19,7 @@
 
 use crate::{
 	AccountInfoOf, BalanceOf, BalanceWithDust, Config, DeletionQueue, DeletionQueueCounter, Error,
-	SENTINEL, TrieId,
+	NativeDepositOf, SENTINEL, TrieId,
 	address::AddressMapper,
 	exec::{AccountIdOf, Key},
 	metering::FrameMeter,
@@ -202,6 +202,15 @@ impl<T: Config> ContractInfo<T> {
 			return Err(Error::<T>::DuplicateContract.into());
 		}
 
+		// Reject reuse of an address whose previous occupant still has unflushed
+		// `NativeDepositOf` rows in the deletion queue. The on_idle drain will eventually
+		// clear them; until it does, instantiating here would let the new contract inherit
+		// stale per-payer entitlements.
+		let account_id = T::AddressMapper::to_fallback_account_id(address);
+		if NativeDepositOf::<T>::iter_prefix(&account_id).next().is_some() {
+			return Err(Error::<T>::PendingDepositCleanup.into());
+		}
+
 		let trie_id = {
 			let buf = ("bcontract_trie_v1", address, nonce).using_encoded(T::Hashing::hash);
 			buf.as_ref()
@@ -378,34 +387,25 @@ impl<T: Config> ContractInfo<T> {
 		deposit
 	}
 
-	/// Push a contract's trie to the deletion queue for lazy removal.
+	/// Push a contract's trie and account to the deletion queue for lazy removal.
 	///
-	/// You must make sure that the contract is also removed when queuing the trie for deletion.
-	pub fn queue_trie_for_deletion(trie_id: TrieId) {
-		DeletionQueueManager::<T>::load().insert(trie_id);
+	/// You must make sure that the contract is also removed when queuing for deletion.
+	/// Both the contract's child trie and any [`NativeDepositOf`] entries it held are drained
+	/// lazily in `on_idle`.
+	pub fn queue_for_deletion(trie_id: TrieId, contract: AccountIdOf<T>) {
+		DeletionQueueManager::<T>::load().insert(DeletionQueueItem::new(trie_id, contract));
 	}
 
-	/// Calculates the weight that is necessary to remove one key from the trie and how many
-	/// of those keys can be deleted from the deletion queue given the supplied weight limit.
-	pub fn deletion_budget(meter: &WeightMeter) -> (Weight, u32) {
-		let base_weight = T::WeightInfo::on_process_deletion_queue_batch();
-		let weight_per_key = T::WeightInfo::on_initialize_per_trie_key(1) -
-			T::WeightInfo::on_initialize_per_trie_key(0);
-
-		// `weight_per_key` being zero makes no sense and would constitute a failure to
-		// benchmark properly. We opt for not removing any keys at all in this case.
-		let key_budget = meter
-			.limit()
-			.saturating_sub(base_weight)
-			.checked_div_per_component(&weight_per_key)
-			.unwrap_or(0) as u32;
-
-		(weight_per_key, key_budget)
+	/// Returns the total weight available for deletion-queue processing after subtracting
+	/// the fixed [`WeightInfo::deletion_queue_batch`] base.
+	pub fn deletion_budget(meter: &WeightMeter) -> Weight {
+		meter.limit().saturating_sub(T::WeightInfo::deletion_queue_batch())
 	}
 
-	/// Delete as many items from the deletion queue possible within the supplied weight limit.
+	/// Delete as many items from the deletion queue as possible within the supplied weight
+	/// limit.
 	pub fn process_deletion_queue_batch(meter: &mut WeightMeter) {
-		if meter.try_consume(T::WeightInfo::on_process_deletion_queue_batch()).is_err() {
+		if meter.try_consume(T::WeightInfo::deletion_queue_batch()).is_err() {
 			return;
 		};
 
@@ -414,32 +414,68 @@ impl<T: Config> ContractInfo<T> {
 			return;
 		}
 
-		let (weight_per_key, budget) = Self::deletion_budget(&meter);
-		let mut remaining_key_budget = budget;
-		while remaining_key_budget > 0 {
+		let weight_per_entry = T::WeightInfo::deletion_queue_per_entry()
+			.saturating_sub(T::WeightInfo::deletion_queue_batch());
+		let weight_per_native_key = T::WeightInfo::deletion_queue_per_native_deposit_key(1)
+			.saturating_sub(T::WeightInfo::deletion_queue_per_native_deposit_key(0));
+		let weight_per_trie_key = T::WeightInfo::deletion_queue_per_trie_key(1)
+			.saturating_sub(T::WeightInfo::deletion_queue_per_trie_key(0));
+
+		let budget = Self::deletion_budget(&meter);
+		let mut remaining = budget;
+
+		let key_budget_for = |remaining: Weight, w: Weight| -> u32 {
+			// `w == 0` would be a benchmark misconfiguration; refuse to touch keys in that case
+			// rather than loop forever.
+			remaining.checked_div_per_component(&w).unwrap_or(0).min(u32::MAX as u64) as u32
+		};
+
+		loop {
 			let Some(entry) = queue.next() else { break };
 
+			// Charge the per-entry overhead.
+			let Some(after_entry) = remaining.checked_sub(&weight_per_entry) else { break };
+			remaining = after_entry;
+
+			// Phase 1: drain `NativeDepositOf` rows for this contract.
+			let key_budget = key_budget_for(remaining, weight_per_native_key);
+			if key_budget == 0 {
+				break;
+			}
+			let result =
+				NativeDepositOf::<T>::clear_prefix(&entry.value.account_id, key_budget, None);
+			remaining = remaining
+				.saturating_sub(weight_per_native_key.saturating_mul(u64::from(result.unique)));
+			if result.maybe_cursor.is_some() {
+				break;
+			}
+
+			// Phase 2: kill the child trie.
+			let key_budget = key_budget_for(remaining, weight_per_trie_key);
+			if key_budget == 0 {
+				break;
+			}
 			#[allow(deprecated)]
 			let outcome = child::kill_storage(
-				&ChildInfo::new_default(&entry.trie_id),
-				Some(remaining_key_budget),
+				&ChildInfo::new_default(&entry.value.trie_id),
+				Some(key_budget),
 			);
-
 			match outcome {
-				// This happens when our budget wasn't large enough to remove all keys.
 				KillStorageResult::SomeRemaining(keys_removed) => {
-					remaining_key_budget.saturating_reduce(keys_removed);
+					remaining = remaining
+						.saturating_sub(weight_per_trie_key.saturating_mul(keys_removed.into()));
 					break;
 				},
 				KillStorageResult::AllRemoved(keys_removed) => {
+					remaining = remaining.saturating_sub(
+						weight_per_trie_key.saturating_mul(u64::from(keys_removed)),
+					);
 					entry.remove();
-					// charge at least one key even if none were removed.
-					remaining_key_budget = remaining_key_budget.saturating_sub(keys_removed.max(1));
 				},
 			};
 		}
 
-		meter.consume(weight_per_key.saturating_mul(u64::from(budget - remaining_key_budget)))
+		meter.consume(budget.saturating_sub(remaining));
 	}
 
 	/// Returns the code hash of the contract specified by `account` ID.
@@ -518,10 +554,30 @@ pub struct DeletionQueueManager<T: Config> {
 	_phantom: PhantomData<T>,
 }
 
+/// A contract queued for lazy cleanup.
+///
+/// Holds the data needed to drain both the contract's [`NativeDepositOf`] rows and its child
+/// trie. Cleanup runs in two phases per batch (native rows first, then the trie); the entry
+/// stays in the queue until both phases have finished for it.
+#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, CloneNoBound, DebugNoBound, PartialEq, Eq)]
+#[scale_info(skip_type_params(T))]
+pub struct DeletionQueueItem<T: Config> {
+	/// The contract's child trie.
+	pub trie_id: TrieId,
+	/// The contract account whose [`NativeDepositOf`] entries must be cleared.
+	pub account_id: AccountIdOf<T>,
+}
+
+impl<T: Config> DeletionQueueItem<T> {
+	pub fn new(trie_id: TrieId, account_id: AccountIdOf<T>) -> Self {
+		Self { trie_id, account_id }
+	}
+}
+
 /// View on a contract that is marked for deletion.
 struct DeletionQueueEntry<'a, T: Config> {
-	/// the trie id of the contract to delete.
-	trie_id: TrieId,
+	/// The queued deletion record.
+	value: DeletionQueueItem<T>,
 
 	/// A mutable reference on the queue so that the contract can be removed, and none can be added
 	/// or read in the meantime.
@@ -550,8 +606,8 @@ impl<T: Config> DeletionQueueManager<T> {
 	}
 
 	/// Insert a contract in the deletion queue.
-	fn insert(&mut self, trie_id: TrieId) {
-		<DeletionQueue<T>>::insert(self.insert_counter, trie_id);
+	fn insert(&mut self, value: DeletionQueueItem<T>) {
+		<DeletionQueue<T>>::insert(self.insert_counter, value);
 		self.insert_counter = self.insert_counter.wrapping_add(1);
 		<DeletionQueueCounter<T>>::set(self.clone());
 	}
@@ -567,7 +623,7 @@ impl<T: Config> DeletionQueueManager<T> {
 		}
 
 		let entry = <DeletionQueue<T>>::get(self.delete_counter);
-		entry.map(|trie_id| DeletionQueueEntry { trie_id, queue: self })
+		entry.map(|value| DeletionQueueEntry { value, queue: self })
 	}
 }
 

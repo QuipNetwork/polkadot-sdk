@@ -27,7 +27,7 @@ use crate::{
 	parachain_inherent::InboundDownwardMessages,
 };
 use cumulus_primitives_core::{
-	relay_chain::Hash as RelayHash, BundleInfo, CoreInfo, InboundDownwardMessage,
+	relay_chain::Hash as RelayHash, BlockBundleInfo, CoreInfo, InboundDownwardMessage,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -98,7 +98,7 @@ mod benchmarks {
 		frame_system::Pallet::<T>::set_extrinsic_index(1);
 
 		frame_system::Pallet::<T>::deposit_log(
-			BundleInfo { index: 0, maybe_last: false }.to_digest_item(),
+			BlockBundleInfo { index: 0, is_last: false }.to_digest_item(),
 		);
 		frame_system::Pallet::<T>::deposit_log(
 			CoreInfo {
@@ -157,7 +157,7 @@ mod benchmarks {
 		frame_system::Pallet::<T>::set_extrinsic_index(1);
 
 		frame_system::Pallet::<T>::deposit_log(
-			BundleInfo { index: 0, maybe_last: false }.to_digest_item(),
+			BlockBundleInfo { index: 0, is_last: false }.to_digest_item(),
 		);
 		frame_system::Pallet::<T>::deposit_log(
 			CoreInfo {
@@ -219,7 +219,7 @@ mod benchmarks {
 		frame_system::Pallet::<T>::set_extrinsic_index(1);
 
 		frame_system::Pallet::<T>::deposit_log(
-			BundleInfo { index: 0, maybe_last: false }.to_digest_item(),
+			BlockBundleInfo { index: 0, is_last: false }.to_digest_item(),
 		);
 		frame_system::Pallet::<T>::deposit_log(
 			CoreInfo {

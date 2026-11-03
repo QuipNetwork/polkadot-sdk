@@ -1,0 +1,10 @@
+title: 'paras: skip undersized parachain heads in sorted_para_heads'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `Paras::sorted_para_heads()` now skips parachain heads shorter than
+    `MIN_PARA_HEAD_LEN` (64 bytes). Encoded parachain headers are well above this bound, so no
+    real parachain is affected.
+crates:
+- name: polkadot-runtime-parachains
+  bump: minor

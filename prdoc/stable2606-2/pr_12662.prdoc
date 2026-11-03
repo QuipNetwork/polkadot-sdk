@@ -1,0 +1,20 @@
+title: 'sc-hop: add Prometheus metrics'
+doc:
+  - audience: Node Operator
+    description: |
+      Adds Prometheus metrics to sc-hop:
+
+      - `substrate_hop_pool_entries` / `substrate_hop_pool_bytes` / `substrate_hop_pool_max_bytes` (gauges)
+      - `substrate_hop_pool_inserted_bytes_total` (counter)
+      - `substrate_hop_pool_removed_total` (counter; `reason` one of `acked`, `expired_promoted`, `expired_unpromoted`, `corrupt`, `startup_dropped`; all series pre-created at registration; `expired_unpromoted` is an upper bound on loss)
+      - `substrate_hop_rpc_errors_total` (counter; `method` is the wire name, `reason` the `HopError` variant)
+      - `substrate_hop_promotions_confirmed_total` (counter)
+      - `substrate_hop_promotion_backlog` (gauge, snapshot once per maintenance cycle)
+      - `substrate_hop_maintenance_ticks_total` (counter, maintenance-loop liveness)
+
+      API: `HopParams::build_pool` gains an `Option<&Registry>` parameter, `HopDataPool::new` a `HopMetrics` one, and `HopDataPool::cleanup_expired` a promotion-window one. A metrics registration failure only disables metrics. The omni-node passes its existing registry.
+crates:
+  - name: sc-hop
+    bump: major
+  - name: polkadot-omni-node-lib
+    bump: patch

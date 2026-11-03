@@ -1,6 +1,6 @@
 [package]
 name = "sp-runtime-interface"
-version = "34.0.0"
+version = "37.0.1"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -21,21 +21,20 @@ bytes = { workspace = true }
 codec = { features = ["bytes"], workspace = true }
 impl-trait-for-tuples = { workspace = true }
 sp-externalities = { workspace = true }
-sp-runtime-interface-proc-macro = { default-features = true, workspace = true }
+sp-runtime-interface-proc-macro = { workspace = true, default-features = true }
 sp-std = { workspace = true }
 sp-storage = { workspace = true }
 sp-tracing = { workspace = true }
 sp-wasm-interface = { workspace = true }
-static_assertions = { workspace = true, default-features = true }
 
 [target.'cfg(all(target_arch = "riscv64", substrate_runtime))'.dependencies]
 polkavm-derive = { workspace = true }
 
 [dev-dependencies]
 rustversion = { workspace = true }
-sp-io = { default-features = true, workspace = true }
+sp-io = { workspace = true, default-features = true }
 sp-runtime-interface-test-wasm = { workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
+sp-state-machine = { workspace = true, default-features = true }
 trybuild = { workspace = true }
 
 [features]
@@ -44,6 +43,9 @@ std = [
 	"bytes/std",
 	"codec/std",
 	"sp-externalities/std",
+	"sp-io/std",
+	"sp-runtime-interface-test-wasm/std",
+	"sp-state-machine/std",
 	"sp-std/std",
 	"sp-storage/std",
 	"sp-tracing/std",

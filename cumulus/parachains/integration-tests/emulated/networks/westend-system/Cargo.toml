@@ -1,6 +1,6 @@
 [package]
 name = "westend-system-emulated-network"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,6 +11,7 @@ publish = false
 workspace = true
 
 [dependencies]
+# Cumulus
 asset-hub-westend-emulated-chain = { workspace = true }
 bridge-hub-westend-emulated-chain = { workspace = true }
 collectives-westend-emulated-chain = { workspace = true }

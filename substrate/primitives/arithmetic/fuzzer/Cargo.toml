@@ -45,4 +45,4 @@ arbitrary = { workspace = true }
 fraction = { workspace = true }
 honggfuzz = { workspace = true }
 num-bigint = { workspace = true }
-sp-arithmetic = { default-features = true, workspace = true }
+sp-arithmetic = { workspace = true, default-features = true }

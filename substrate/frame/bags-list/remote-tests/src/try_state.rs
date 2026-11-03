@@ -39,8 +39,8 @@ pub async fn execute<Runtime, Block>(
 			pallets: vec![pallet_bags_list::Pallet::<Runtime, pallet_bags_list::Instance1>::name()
 				.to_string()],
 			hashed_prefixes: vec![
-				<pallet_staking::Bonded<Runtime>>::prefix_hash().to_vec(),
-				<pallet_staking::Ledger<Runtime>>::prefix_hash().to_vec(),
+				<pallet_staking_async::Bonded<Runtime>>::prefix_hash().to_vec(),
+				<pallet_staking_async::Ledger<Runtime>>::prefix_hash().to_vec(),
 			],
 			..Default::default()
 		}))

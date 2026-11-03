@@ -1,6 +1,6 @@
 [package]
 name = "pallet-people"
-version = "0.7.0"
+version = "0.11.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -21,6 +21,7 @@ log = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
 sp-arithmetic = { workspace = true }
 sp-core = { workspace = true }
+sp-crypto-hashing = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 verifiable = { workspace = true, features = ["small-ring"] }
@@ -37,6 +38,7 @@ std = [
 	"scale-info/std",
 	"sp-arithmetic/std",
 	"sp-core/std",
+	"sp-crypto-hashing/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	"verifiable/std",

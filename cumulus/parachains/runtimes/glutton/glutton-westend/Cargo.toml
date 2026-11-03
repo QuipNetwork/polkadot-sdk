@@ -1,6 +1,6 @@
 [package]
 name = "glutton-westend-runtime"
-version = "24.0.0"
+version = "35.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -13,11 +13,10 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-aura-ext = { workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-xcm = { workspace = true }
-cumulus-primitives-aura = { workspace = true }
-cumulus-primitives-core = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+serde_json = { features = ["alloc"], workspace = true }
+
+# Substrate
 frame-benchmarking = { optional = true, workspace = true }
 frame-executive = { workspace = true }
 frame-support = { workspace = true }
@@ -30,10 +29,6 @@ pallet-glutton = { workspace = true }
 pallet-message-queue = { workspace = true }
 pallet-sudo = { workspace = true }
 pallet-timestamp = { workspace = true }
-parachain-info = { workspace = true }
-parachains-common = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-serde_json = { features = ["alloc"], workspace = true }
 sp-api = { workspace = true }
 sp-block-builder = { workspace = true }
 sp-consensus-aura = { workspace = true }
@@ -47,13 +42,24 @@ sp-session = { workspace = true }
 sp-storage = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
-testnet-parachains-constants = { features = ["westend"], workspace = true }
+
+# Polkadot
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
 
+# Cumulus
+cumulus-pallet-aura-ext = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-xcm = { workspace = true }
+cumulus-primitives-aura = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+parachain-info = { workspace = true }
+parachains-common = { workspace = true }
+testnet-parachains-constants = { features = ["westend"], workspace = true }
+
 [build-dependencies]
-substrate-wasm-builder = { default-features = true, workspace = true }
+substrate-wasm-builder = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

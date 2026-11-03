@@ -1,0 +1,26 @@
+title: 'pallet-assets-precompiles: add EIP-2612 permit integration tests'
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\nAdds integration tests for the `permit()` precompile\
+    \ in a new `mod precompile` submodule of `permit_tests.rs`. The existing tests\
+    \ in that file exercise `permit::Pallet` in isolation; these drive the same logic\
+    \ through the precompile dispatcher via `bare_call`, signing each digest at runtime\
+    \ with Hardhat account #0.\n\nCovers the precompile-level concerns the pallet\
+    \ tests cannot reach:\n\n- **Four-branch allowance update** in `ERC20::permit`,\
+    \ with `Approval` event emission and approval-deposit reservation.\n- **`with_transaction`\
+    \ rollback** of nonce, allowance, deposit, and contract events, exercised across\
+    \ three failure surfaces (frozen asset, `to_balance` overflow, insufficient native\
+    \ balance for the approval deposit).\n- **Rollback preserves a prior allowance**\
+    \ \u2014 a failed permit must not destroy an existing approval.\n- **Domain separator\
+    \ integration**: cross-prefix replay rejection and `force_set_metadata` invalidating\
+    \ outstanding permits.\n- **Dispatcher invariants**: `STATICCALL` to `permit()`\
+    \ is rejected (mirrors the existing `delegatecall_is_rejected` test); `nonces()`\
+    \ round-trips through the dispatcher.\n- **Edge cases**: `deadline == now` boundary,\
+    \ zero-address owner/spender, and the `secp256k1_ecdsa_recover` failure path.\n\
+    \nTests-only \u2014 no production code changes. Four helpers in `tests.rs` were\
+    \ widened to `pub(crate)` so the submodule can reuse them.\n\n## Test plan\n\n\
+    - [ ] `cargo test -p pallet-assets-precompiles permit_tests` passes\n- [ ] `cargo\
+    \ test -p pallet-assets-precompiles` passes"
+crates:
+- name: pallet-assets-precompiles
+  bump: patch

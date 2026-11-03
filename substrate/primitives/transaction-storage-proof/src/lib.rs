@@ -28,6 +28,7 @@ use core::result::Result;
 
 use alloc::vec::Vec;
 use codec::{Decode, DecodeWithMemTracking, Encode};
+use scale_info::TypeInfo;
 use sp_inherents::{InherentData, InherentIdentifier, IsFatalError};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
@@ -40,6 +41,61 @@ pub const CHUNK_SIZE: usize = 256;
 
 /// Type used for counting/tracking chunks.
 pub type ChunkIndex = u32;
+
+/// Hash of indexed data; the algorithm is reported in [`HashingAlgorithm`].
+pub type ContentHash = [u8; 32];
+
+/// IPFS [multicodec](https://github.com/multiformats/multicodec) content-type
+/// identifier for an indexed payload. Full list of values [here](https://github.com/multiformats/multicodec/blob/master/table.csv).
+pub type CidCodec = u64;
+
+/// Hashing algorithm used to compute a [`ContentHash`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode, TypeInfo)]
+pub enum HashingAlgorithm {
+	/// BLAKE2b-256.
+	Blake2b256,
+	/// SHA2-256.
+	Sha2_256,
+	/// Keccak-256.
+	Keccak256,
+}
+
+impl HashingAlgorithm {
+	/// IPFS multihash code identifying this algorithm for CID construction.
+	pub const fn multihash_code(self) -> u64 {
+		match self {
+			Self::Blake2b256 => 0xb220,
+			Self::Sha2_256 => 0x12,
+			Self::Keccak256 => 0x1b,
+		}
+	}
+
+	/// Compute the 32-byte content hash of `data` using this algorithm.
+	pub fn hash(self, data: &[u8]) -> ContentHash {
+		match self {
+			Self::Blake2b256 => sp_crypto_hashing::blake2_256(data),
+			Self::Sha2_256 => sp_crypto_hashing::sha2_256(data),
+			Self::Keccak256 => sp_crypto_hashing::keccak_256(data),
+		}
+	}
+}
+
+/// Metadata for a single indexed transaction.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct IndexedTransactionInfo {
+	/// Hash of the indexed data.
+	pub content_hash: ContentHash,
+	/// Size of the indexed data, in bytes.
+	pub size: u32,
+	/// Algorithm used to compute `content_hash`.
+	pub hashing: HashingAlgorithm,
+	/// CID codec for constructing the IPFS CID for the indexed data.
+	pub cid_codec: CidCodec,
+	/// Extrinsic index that produced this entry via `store` or `renew`.
+	///
+	/// Must point into the block body; consumers reject entries whose index does not.
+	pub extrinsic_index: u32,
+}
 
 /// Errors that can occur while checking the storage proof.
 #[derive(Encode, Debug)]
@@ -264,5 +320,108 @@ pub mod registration {
 		// Fail for empty transactions/chunks.
 		assert!(build_proof(&random, vec![]).unwrap().is_none());
 		assert!(build_proof(&random, vec![vec![]]).unwrap().is_none());
+	}
+
+	/// Round-trip: build a proof off-chain, verify it against a runtime-side
+	/// parallel view computed from the same input order. Catches position-mismatch
+	/// bugs where one side reorders the indexed body relative to the other.
+	#[test]
+	fn proof_round_trip_against_parallel_runtime_view() {
+		let payloads: Vec<Vec<u8>> = (0..4)
+			.map(|i: u8| {
+				let mut p = vec![0u8; 2 * CHUNK_SIZE];
+				for (j, byte) in p.iter_mut().enumerate() {
+					*byte = i.wrapping_mul(7).wrapping_add(j as u8);
+				}
+				p
+			})
+			.collect();
+
+		// Non-monotonic submission order so any sort would visibly disturb it.
+		let submission_order = [3usize, 0, 2, 1];
+
+		let from_indexed_body: Vec<Vec<u8>> =
+			submission_order.iter().map(|&i| payloads[i].clone()).collect();
+
+		struct TxInfo {
+			chunk_root: sp_core::H256,
+			size: u32,
+			block_chunks: ChunkIndex,
+		}
+		let mut runtime_view: Vec<TxInfo> = Vec::with_capacity(submission_order.len());
+		let mut cumulative: ChunkIndex = 0;
+		for &i in submission_order.iter() {
+			let payload = &payloads[i];
+			let mut db = sp_trie::MemoryDB::<Hasher>::default();
+			let mut transaction_root = sp_trie::empty_trie_root::<TrieLayout>();
+			{
+				let mut trie =
+					sp_trie::TrieDBMutBuilder::<TrieLayout>::new(&mut db, &mut transaction_root)
+						.build();
+				for (idx, chunk) in payload.chunks(CHUNK_SIZE).enumerate() {
+					trie.insert(&encode_index(idx as u32), chunk).unwrap();
+				}
+				trie.commit();
+			}
+			cumulative += num_chunks(payload.len() as u32);
+			runtime_view.push(TxInfo {
+				chunk_root: transaction_root,
+				size: payload.len() as u32,
+				block_chunks: cumulative,
+			});
+		}
+
+		// Sweep parent_hash so a position bug doesn't pass by chance for some chunks.
+		for seed in 0u8..16 {
+			let parent_hash = [seed; 32];
+
+			let proof = build_proof(&parent_hash, from_indexed_body.clone()).unwrap().unwrap();
+
+			let total_chunks = runtime_view.last().unwrap().block_chunks;
+			let selected_chunk_index = random_chunk(&parent_hash, total_chunks);
+			let tx_index = runtime_view
+				.binary_search_by_key(&selected_chunk_index, |info| {
+					info.block_chunks.saturating_sub(1)
+				})
+				.unwrap_or_else(|i| i);
+			let tx_info = &runtime_view[tx_index];
+			let tx_chunks = num_chunks(tx_info.size);
+			let prev_chunks = tx_info.block_chunks - tx_chunks;
+			let tx_chunk_index = selected_chunk_index - prev_chunks;
+
+			sp_trie::verify_trie_proof::<TrieLayout, _, _, _>(
+				&tx_info.chunk_root,
+				&proof.proof,
+				&[(encode_index(tx_chunk_index), Some(proof.chunk.clone()))],
+			)
+			.unwrap_or_else(|e| panic!("seed={seed}: {e:?}"));
+
+			let expected_chunk = payloads[submission_order[tx_index]]
+				.chunks(CHUNK_SIZE)
+				.nth(tx_chunk_index as usize)
+				.unwrap()
+				.to_vec();
+			assert_eq!(proof.chunk, expected_chunk);
+		}
+	}
+}
+
+#[cfg(test)]
+mod hashing_algorithm_tests {
+	use super::HashingAlgorithm;
+
+	#[test]
+	fn multihash_codes_are_iana_assigned() {
+		assert_eq!(HashingAlgorithm::Blake2b256.multihash_code(), 0xb220);
+		assert_eq!(HashingAlgorithm::Sha2_256.multihash_code(), 0x12);
+		assert_eq!(HashingAlgorithm::Keccak256.multihash_code(), 0x1b);
+	}
+
+	#[test]
+	fn hash_dispatches_to_correct_algorithm() {
+		let data = b"polkadot storage chain";
+		assert_eq!(HashingAlgorithm::Blake2b256.hash(data), sp_crypto_hashing::blake2_256(data));
+		assert_eq!(HashingAlgorithm::Sha2_256.hash(data), sp_crypto_hashing::sha2_256(data));
+		assert_eq!(HashingAlgorithm::Keccak256.hash(data), sp_crypto_hashing::keccak_256(data));
 	}
 }

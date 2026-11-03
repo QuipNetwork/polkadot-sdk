@@ -1,0 +1,50 @@
+[package]
+name = "sc-hop"
+version = "0.3.0"
+authors.workspace = true
+edition.workspace = true
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+repository.workspace = true
+description = "Hand-Off Protocol (HOP) ephemeral data pool service"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Core
+codec = { workspace = true, features = ["derive"] }
+hex = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Async
+futures-timer = { workspace = true }
+
+# CLI
+clap = { workspace = true, features = ["derive"] }
+
+# RPC
+jsonrpsee = { workspace = true, features = ["client", "macros", "server"] }
+
+# Metrics
+prometheus-endpoint = { workspace = true, default-features = true }
+
+# Substrate primitives (client-side, always with std)
+polkadot-primitives = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-hop = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+[dev-dependencies]
+sp-externalities = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-test-primitives = { workspace = true }
+sp-version = { workspace = true, default-features = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

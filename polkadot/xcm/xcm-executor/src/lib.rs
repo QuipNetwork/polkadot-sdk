@@ -23,7 +23,6 @@ use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{fmt::Debug, marker::PhantomData};
 use frame_support::{
-	defensive_assert,
 	dispatch::GetDispatchInfo,
 	ensure,
 	traits::{Contains, ContainsPair, Defensive, Get, PalletsInfoAccess},
@@ -31,7 +30,10 @@ use frame_support::{
 use sp_core::defer;
 use sp_io::hashing::blake2_128;
 use sp_weights::Weight;
-use xcm::latest::{prelude::*, AssetTransferFilter};
+use xcm::{
+	latest::{prelude::*, AssetTransferFilter},
+	RECURSION_LIMIT,
+};
 
 pub mod traits;
 use traits::{
@@ -63,14 +65,6 @@ pub struct FeesMode {
 	/// Defaults to false.
 	pub jit_withdraw: bool,
 }
-
-/// The maximum recursion depth allowed when executing nested XCM instructions.
-///
-/// Exceeding this limit results in `XcmError::ExceedsStackLimit` or
-/// `ProcessMessageError::StackLimitReached`.
-///
-/// Also used in the `DenyRecursively` barrier.
-pub const RECURSION_LIMIT: u8 = 10;
 
 environmental::environmental!(recursion_count: u8);
 
@@ -946,11 +940,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 		match instr {
 			WithdrawAsset(assets) => {
-				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				self.ensure_can_subsume_assets(assets.len())?;
-				let mut total_surplus = Weight::zero();
-				let mut withdrawn = AssetsInHolding::new();
 				Config::TransactionalProcessor::process(|| {
+					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+					let mut total_surplus = Weight::zero();
+					let mut withdrawn = AssetsInHolding::new();
 					// Take `assets` from the origin account (on-chain)...
 					for asset in assets.inner() {
 						let (credit, surplus) = Config::AssetTransactor::withdraw_asset_with_surplus(
@@ -962,9 +956,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						// If we have some surplus, aggregate it.
 						total_surplus.saturating_accrue(surplus);
 					}
-					Ok(())
-				})
-				.and_then(|_| {
 					// ...and place into holding.
 					self.holding.subsume_assets(withdrawn);
 					// Credit the total surplus.
@@ -1015,8 +1006,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			TransferReserveAsset { mut assets, dest, xcm } => {
-				Config::TransactionalProcessor::process(|| {
-					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
+				self.transactional_process(|self_ref| {
+					let origin = self_ref.origin_ref().ok_or(XcmError::BadOrigin)?;
 					let mut total_surplus = Weight::zero();
 					// Take `assets` from the origin account (on-chain) and place into dest account.
 					for asset in assets.inner() {
@@ -1024,7 +1015,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 							asset,
 							origin,
 							&dest,
-							&self.context,
+							&self_ref.context,
 						)?;
 						// If we have some surplus, aggregate it.
 						total_surplus.saturating_accrue(surplus);
@@ -1044,9 +1035,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						})?;
 					let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 					message.extend(xcm.0.into_iter());
-					self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
+					self_ref.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
 					// Credit the total surplus.
-					self.total_surplus.saturating_accrue(total_surplus);
+					self_ref.total_surplus.saturating_accrue(total_surplus);
 					Ok(())
 				})
 			},
@@ -1077,7 +1068,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				})
 			},
 			// `fallback_max_weight` is not used in the executor, it's only for conversions.
-			Transact { origin_kind, mut call, .. } => {
+			Transact { origin_kind, call, .. } => {
 				let origin = self.cloned_origin().ok_or_else(|| {
 					tracing::trace!(
 						target: "xcm::process_instruction::transact",
@@ -1087,7 +1078,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					XcmError::BadOrigin
 				})?;
 
-				let message_call = call.take_decoded().map_err(|_| {
+				let message_call = call.try_into().map_err(|_| {
 					tracing::trace!(
 						target: "xcm::process_instruction::transact",
 						"Failed to decode call",
@@ -1098,7 +1089,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 				tracing::trace!(
 					target: "xcm::process_instruction::transact",
-					?call,
+					?message_call,
 					"Processing call",
 				);
 
@@ -1845,59 +1836,53 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Most common transient error is: `beneficiary` account does not yet exist and the first
 	/// asset(s) in the (sorted) list does not satisfy ED, but a subsequent one in the list does.
 	///
-	/// Deposits also proceed without aborting on “below minimum” (dust) errors. This ensures
-	/// that a batch of assets containing some legitimately depositable amounts will succeed
-	/// even if some “dust” deposits fall below the chain’s configured minimum balance.
+	/// Any per-asset failure on the retry pass propagates as `Err`, and the surrounding
+	/// `transactional_process` rolls back the whole instruction (storage changes are reverted by
+	/// `Config::TransactionalProcessor`, and `self.holding` is restored from its
+	/// pre-instruction backup). Anything left in `self.holding` after the program finishes is
+	/// then trapped by `post_process` via `Config::AssetTrap::drop_assets`, so funds are never
+	/// silently lost.
 	///
 	/// This function can write into storage and also return an error at the same time, it should
 	/// always be called within a transactional context.
 	fn deposit_assets_with_retry(
-		mut to_deposit: AssetsInHolding,
+		to_deposit: AssetsInHolding,
 		beneficiary: &Location,
 		context: Option<&XcmContext>,
 	) -> Result<Weight, XcmError> {
 		let mut total_surplus = Weight::zero();
 		let mut failed_deposits = AssetsInHolding::new();
-		let assets: Vec<Asset> = to_deposit.assets_iter().collect();
-		for asset in assets {
-			let what = to_deposit.try_take(asset.into()).map_err(|_| XcmError::AssetNotFound)?;
-			match Config::AssetTransactor::deposit_asset_with_surplus(what, &beneficiary, context) {
-				Ok(surplus) => {
-					total_surplus.saturating_accrue(surplus);
-				},
+
+		// First pass: try to deposit each asset; failures go to retry.
+		for single in to_deposit.into_per_asset_holdings() {
+			match Config::AssetTransactor::deposit_asset_with_surplus(single, beneficiary, context)
+			{
+				Ok(surplus) => total_surplus.saturating_accrue(surplus),
 				Err((unspent, _)) => {
-					// if deposit failed for asset, mark it for retry.
+					// First-pass failure: keep for retry. A subsequent deposit in the same
+					// pass may create the destination account (by satisfying ED), allowing
+					// the retry pass to succeed for assets that fall here.
 					failed_deposits.subsume_assets(unspent);
 				},
 			}
 		}
-		defensive_assert!(to_deposit.is_empty(), "Should have fully consumed `to_deposit`");
-		tracing::trace!(
-			target: "xcm::deposit_assets_with_retry",
-			?failed_deposits,
-			"First‐pass failures, about to retry"
-		);
-		// retry previously failed deposits, this time short-circuiting on any error.
-		let assets: Vec<Asset> = failed_deposits.assets_iter().collect();
-		for asset in assets {
-			let what =
-				failed_deposits.try_take(asset.into()).map_err(|_| XcmError::AssetNotFound)?;
-			match Config::AssetTransactor::deposit_asset_with_surplus(what, &beneficiary, context) {
-				Ok(surplus) => {
-					total_surplus.saturating_accrue(surplus);
-				},
-				Err((_, error)) => {
-					// Ignore dust deposit errors.
-					if !matches!(
-						error,
-						XcmError::FailedToTransactAsset(string)
-							if *string == *<&'static str>::from(sp_runtime::TokenError::BelowMinimum)
-					) {
-						return Err(error);
-					}
-				},
-			};
+
+		// Retry previously failed deposits, this time short-circuiting on any error.
+		for single in failed_deposits.into_per_asset_holdings() {
+			let surplus =
+				Config::AssetTransactor::deposit_asset_with_surplus(single, beneficiary, context)
+					.map_err(|(unspent, error)| {
+					tracing::debug!(
+						target: "xcm::deposit_assets_with_retry",
+						?error,
+						?unspent,
+						"Retry-pass deposit failed"
+					);
+					error
+				})?;
+			total_surplus.saturating_accrue(surplus);
 		}
+
 		Ok(total_surplus)
 	}
 

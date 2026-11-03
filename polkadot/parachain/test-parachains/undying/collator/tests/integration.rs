@@ -95,11 +95,4 @@ async fn collating_using_undying_collator() {
 		.timeout(TIMEOUT)
 		.await
 		.expect("Timed out waiting for 4 produced blocks");
-
-	// Wait until the collator received `12` seconded statements for its collations.
-	collator
-		.wait_for_seconded_collations(12)
-		.timeout(TIMEOUT)
-		.await
-		.expect("Timed out waiting for 12 seconded collations");
 }

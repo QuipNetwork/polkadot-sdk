@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-sdk-docs-first-pallet"
 description = "A simple pallet created for the polkadot-sdk-docs guides"
-version = "0.1.0"
+version = "0.0.0"
 license = "MIT-0"
 authors.workspace = true
 homepage.workspace = true

@@ -17,58 +17,62 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dev-dependencies]
 codec = { features = ["derive"], workspace = true, default-features = true }
-frame = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
+frame = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
 log = { workspace = true }
 scale-info = { features = ["derive"], workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-session = { default-features = true, workspace = true }
-sp-staking = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-xcm = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-executor = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-session = { workspace = true, default-features = true }
+sp-staking = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }
 
 # pallets we need in both
-pallet-balances = { default-features = true, workspace = true }
-pallet-proxy = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-proxy = { workspace = true, default-features = true }
 
 # pallets that we need in AH
-frame-election-provider-support = { default-features = true, workspace = true }
-pallet-dap = { default-features = true, workspace = true }
-pallet-election-provider-multi-block = { default-features = true, workspace = true }
-pallet-staking-async = { default-features = true, workspace = true }
-pallet-staking-async-rc-client = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true, default-features = true }
+pallet-dap = { workspace = true, default-features = true }
+pallet-election-provider-multi-block = { workspace = true, default-features = true }
+pallet-staking-async = { workspace = true, default-features = true }
+pallet-staking-async-rc-client = { workspace = true, default-features = true }
 
 # pallets we need in the RC
-pallet-authorship = { default-features = true, workspace = true }
-pallet-session = { default-features = true, workspace = true }
-pallet-staking-async-ah-client = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
+pallet-authorship = { workspace = true, default-features = true }
+pallet-session = { workspace = true, default-features = true }
+pallet-staking-async-ah-client = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
 # staking classic which will be replaced by ah-client
-pallet-offences = { default-features = true, workspace = true }
-pallet-root-offences = { default-features = true, workspace = true }
-pallet-staking = { default-features = true, workspace = true }
+pallet-offences = { workspace = true, default-features = true }
+pallet-root-offences = { workspace = true, default-features = true }
+pallet-staking = { workspace = true, default-features = true }
 
 [features]
 std = [
 	"log/std",
 ]
 try-runtime = [
+	"pallet-balances/try-runtime",
+	"pallet-proxy/try-runtime",
+
+	"pallet-dap/try-runtime",
+
+	"pallet-staking/try-runtime",
+
+	"pallet-staking-async-rc-client/try-runtime",
+	"pallet-staking-async/try-runtime",
+
 	"frame-election-provider-support/try-runtime",
 	"frame-support/try-runtime",
 	"frame/try-runtime",
 	"pallet-authorship/try-runtime",
-	"pallet-balances/try-runtime",
-	"pallet-dap/try-runtime",
 	"pallet-election-provider-multi-block/try-runtime",
 	"pallet-offences/try-runtime",
-	"pallet-proxy/try-runtime",
 	"pallet-root-offences/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking-async-ah-client/try-runtime",
-	"pallet-staking-async-rc-client/try-runtime",
-	"pallet-staking-async/try-runtime",
-	"pallet-staking/try-runtime",
 	"pallet-timestamp/try-runtime",
 ]

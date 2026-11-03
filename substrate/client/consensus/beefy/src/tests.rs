@@ -19,7 +19,7 @@
 //! Tests and test helpers for BEEFY.
 
 use crate::{
-	aux_schema::{load_persistent, tests::verify_persisted_version},
+	aux_schema::{load_and_migrate_persistent, tests::verify_persisted_version},
 	beefy_block_import_and_links,
 	communication::{
 		gossip::{
@@ -1050,7 +1050,7 @@ async fn should_initialize_voter_at_genesis() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, persisted_state);
 }
 
@@ -1095,7 +1095,7 @@ async fn should_initialize_voter_at_custom_genesis() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, persisted_state);
 
 	// now re-init after genesis changes
@@ -1125,7 +1125,7 @@ async fn should_initialize_voter_at_custom_genesis() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, new_persisted_state);
 }
 
@@ -1182,7 +1182,7 @@ async fn should_initialize_voter_when_last_final_is_session_boundary() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, persisted_state);
 }
 
@@ -1237,7 +1237,7 @@ async fn should_initialize_voter_at_latest_finalized() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, persisted_state);
 }
 
@@ -1288,7 +1288,7 @@ async fn should_initialize_voter_at_custom_genesis_when_state_unavailable() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, persisted_state);
 }
 
@@ -1331,7 +1331,7 @@ async fn should_catch_up_when_loading_saved_voter_state() {
 
 	// verify state also saved to db
 	assert!(verify_persisted_version(&*backend));
-	let state = load_persistent(&*backend).unwrap().unwrap();
+	let state = load_and_migrate_persistent(&*backend).unwrap().unwrap();
 	assert_eq!(state, persisted_state);
 
 	// now let's consider that the node goes offline, and then it restarts after a while

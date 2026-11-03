@@ -1,0 +1,21 @@
+title: Registrar and HRMP migration wire types
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Adds the types the migrator pallet needs to manage parachain registrations and HRMP channels
+      migration over to the pallets that will own them on a system chain (Coretime).
+
+      `registrar-primitives`
+      - `MigratedPara` & `MigratedParaState`: the data that migrates from RC to CT.
+      - Trait `ReceiveMigratedParas` that should be implemented by `registrar_para`.
+
+      `hrmp-primitives`
+      - `MigratedChannel` and `ChannelId`: the data that migrates from RC to CT.
+      - `ReceiveMigratedChannels`: trait to be implemented by `hrmp_para`.
+
+crates:
+  - name: registrar-primitives
+    bump: minor
+  - name: hrmp-primitives
+    bump: minor

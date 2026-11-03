@@ -1,6 +1,6 @@
 [package]
 name = "pallet-oracle-runtime-api"
-version = "0.3.0"
+version = "0.6.0"
 authors = ["Acala Developers", "Parity Technologies <admin@parity.io>"]
 edition.workspace = true
 license = "Apache-2.0"

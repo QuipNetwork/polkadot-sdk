@@ -1,0 +1,7 @@
+title: 'MMR: check `verify_ancestor()` output'
+doc:
+- audience: Runtime Dev
+  description: 'MMR: check `verify_ancestor()` output'
+crates:
+- name: pallet-mmr
+  bump: patch

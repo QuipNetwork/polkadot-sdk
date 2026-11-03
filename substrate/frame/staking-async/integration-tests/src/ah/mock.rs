@@ -23,15 +23,16 @@ use frame_election_provider_support::{
 };
 use frame_support::{
 	sp_runtime::testing::TestXt,
+	traits::fungible::Mutate,
 	weights::{Weight, WeightMeter},
 };
 use pallet_election_provider_multi_block as multi_block;
 use pallet_election_provider_multi_block::{Event as ElectionEvent, Phase};
-use pallet_staking_async::{ActiveEra, CurrentEra, Forcing};
+use pallet_staking_async::{ActiveEra, CurrentEra, Forcing, PotAccountProvider};
 use pallet_staking_async_rc_client::{
 	OutgoingValidatorSet, SendKeysError, SendOperationError, SessionReport, ValidatorSetReport,
 };
-use sp_staking::SessionIndex;
+use sp_staking::{budget::BudgetRecipient, SessionIndex};
 use xcm::latest::{prelude::*, Asset, AssetId, Assets, Fungibility, Junction, Location};
 use xcm_builder::{FungibleAdapter, IsConcrete};
 use xcm_executor::{
@@ -69,15 +70,20 @@ parameter_types! {
 	pub static NextPollWeight: Option<Weight> = None;
 }
 
+/// Block time in milliseconds
+pub const BLOCK_TIME: u64 = 12_000;
+
 pub fn roll_next() {
 	let now = System::block_number();
 	let next = now + 1;
 
+	MockTime::set(MockTime::get() + BLOCK_TIME);
 	System::set_block_number(next);
 	// Re-init frame-system, as execute would do. This resets the block weight usage counter, as we
 	// are using a realistic weight meter here.
 	frame_system::BlockWeight::<T>::kill();
 
+	System::register_extra_weight_unchecked(Dap::on_initialize(next), DispatchClass::Mandatory);
 	System::register_extra_weight_unchecked(Staking::on_initialize(next), DispatchClass::Mandatory);
 	System::register_extra_weight_unchecked(
 		RcClient::on_initialize(next),
@@ -255,7 +261,7 @@ pub(crate) fn roll_until_next_active(mut end_index: SessionIndex) -> Vec<Account
 	// in the next session era is activated.
 	let report = SessionReport {
 		end_index,
-		activation_timestamp: Some((1000, active_era + 1)),
+		activation_timestamp: Some((MockTime::get(), active_era + 1)),
 		leftover: false,
 		validator_points: Default::default(),
 	};
@@ -414,6 +420,8 @@ parameter_types! {
 	pub static DepositPerPage: Balance = 1;
 	pub static MaxSubmissions: u32 = 2;
 	pub static RewardBase: Balance = 5;
+	/// The DAP buffer account, used as the signed-phase reward pot.
+	pub SignedRewardPot: Option<AccountId> = Some(Dap::buffer_account());
 }
 
 impl multi_block::signed::Config for Runtime {
@@ -424,8 +432,11 @@ impl multi_block::signed::Config for Runtime {
 	type DepositBase = DepositBase;
 	type DepositPerPage = DepositPerPage;
 	type EstimateCallFee = ConstU32<1>;
+	type MaxFeeRefund = multi_block::signed::FullSubmissionFee<Runtime, ConstU32<1>>;
 	type MaxSubmissions = MaxSubmissions;
 	type RewardBase = RewardBase;
+	type Slash = Dap;
+	type RewardSource = multi_block::signed::ReactivatingPot<SignedRewardPot, Balances>;
 	type WeightInfo = super::weights::MultiBlockElectionWeightInfo;
 }
 
@@ -457,13 +468,18 @@ impl pallet_staking_async::Config for Runtime {
 
 	type ElectionProvider = MultiBlock;
 
-	type EraPayout = ();
+	type RewardRemainder = ();
+	type EraPayout = TestEraPayout;
+	type MaxEraDuration = ();
+	type DisableMinting = DisableMintingMode;
+	type UnclaimedRewardHandler = ();
+	type RewardPots = pallet_staking_async::SequentialTest;
+	type StakerRewardCalculator =
+		pallet_staking_async::reward::DefaultStakerRewardCalculator<Runtime>;
 	type EventListeners = ();
 	type Reward = ();
-	type RewardRemainder = ();
 	type Slash = Dap;
 	type SlashDeferDuration = SlashDeferredDuration;
-	type MaxEraDuration = ();
 	type MaxPruningItems = MaxPruningItems;
 
 	type HistoryDepth = ConstU32<7>;
@@ -480,6 +496,8 @@ impl pallet_staking_async::Config for Runtime {
 	type RcClientInterface = RcClient;
 
 	type WeightInfo = super::weights::StakingAsyncWeightInfo;
+
+	type IsValidatorInactive = ();
 }
 
 // Session keys type that must match RC's SessionKeys.
@@ -508,12 +526,73 @@ impl pallet_staking_async_rc_client::Config for Runtime {
 }
 
 parameter_types! {
-	pub const DapPalletId: frame_support::PalletId = frame_support::PalletId(*b"dap/buff");
+	pub const DapPalletId: frame_support::PalletId = pallet_dap::DAP_PALLET_ID;
+	pub const DapIssuanceCadence: u64 = 0; // drip every block
+	pub const DapMaxElapsedPerDrip: u64 = 600_000;
+	pub static MockTime: u64 = 0;
+	pub static UseLegacyEraPayout: bool = false;
+	/// Staker percentage for legacy EraPayout. Remainder = 100 - this value.
+	pub static LegacyStakerPercent: u32 = 50;
+}
+
+impl frame_support::traits::Time for MockTime {
+	type Moment = u64;
+	fn now() -> u64 {
+		Self::get()
+	}
+}
+
+/// Switchable EraPayout: returns (0,0) in DAP mode, real values in legacy mode.
+/// In legacy mode, uses `LegacyStakerPercent` for the staker/remainder split.
+pub struct TestEraPayout;
+impl pallet_staking_async::EraPayout<Balance> for TestEraPayout {
+	fn era_payout(
+		_total_staked: Balance,
+		_total_issuance: Balance,
+		era_duration_millis: u64,
+	) -> (Balance, Balance) {
+		if !UseLegacyEraPayout::get() {
+			(0, 0)
+		} else {
+			// 1 token per millisecond, split per LegacyStakerPercent.
+			let total = era_duration_millis as Balance;
+			let stakers = Perbill::from_percent(LegacyStakerPercent::get()).mul_floor(total);
+			let remainder = total - stakers;
+			(stakers, remainder)
+		}
+	}
+}
+
+/// Switchable DisableMinting: follows UseLegacyEraPayout.
+pub struct DisableMintingMode;
+impl frame_support::traits::Get<bool> for DisableMintingMode {
+	fn get() -> bool {
+		!UseLegacyEraPayout::get()
+	}
+}
+
+/// Simple issuance: 1 token per millisecond elapsed.
+pub struct OneTokenPerMillisecond;
+impl sp_staking::budget::IssuanceCurve<Balance> for OneTokenPerMillisecond {
+	fn issue(_total_issuance: Balance, elapsed_millis: u64) -> Balance {
+		elapsed_millis as Balance
+	}
 }
 
 impl pallet_dap::Config for Runtime {
 	type Currency = Balances;
 	type PalletId = DapPalletId;
+	type IssuanceCurve = OneTokenPerMillisecond;
+	type BudgetRecipients = (
+		pallet_dap::Pallet<Runtime>,
+		pallet_staking_async::StakerRewardRecipient<pallet_staking_async::SequentialTest>,
+		pallet_staking_async::ValidatorIncentiveRecipient<pallet_staking_async::SequentialTest>,
+	);
+	type Time = MockTime;
+	type IssuanceCadence = DapIssuanceCadence;
+	type MaxElapsedPerDrip = DapMaxElapsedPerDrip;
+	type BudgetOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -827,6 +906,10 @@ impl ExtBuilder {
 		let mut state: TestState = t.into();
 
 		state.execute_with(|| {
+			if !UseLegacyEraPayout::get() {
+				setup_dap();
+			}
+
 			// initialises events
 			roll_next();
 		});
@@ -835,11 +918,75 @@ impl ExtBuilder {
 	}
 }
 
+pub(crate) fn staker_reward_key() -> sp_staking::budget::BudgetKey {
+	<pallet_staking_async::StakerRewardRecipient<pallet_staking_async::SequentialTest> as
+		BudgetRecipient<AccountId>>::budget_key()
+}
+
+pub(crate) fn validator_incentive_key() -> sp_staking::budget::BudgetKey {
+	<pallet_staking_async::ValidatorIncentiveRecipient<pallet_staking_async::SequentialTest> as
+		BudgetRecipient<AccountId>>::budget_key()
+}
+
+pub(crate) fn buffer_key() -> sp_staking::budget::BudgetKey {
+	<pallet_dap::Pallet<Runtime> as BudgetRecipient<AccountId>>::budget_key()
+}
+
+pub(crate) fn build_budget(
+	entries: &[(sp_staking::budget::BudgetKey, u32)],
+) -> pallet_dap::BudgetAllocationMap {
+	let mut budget = pallet_dap::BudgetAllocationMap::new();
+	for (key, pct) in entries {
+		budget.try_insert(key.clone(), Perbill::from_percent(*pct)).unwrap();
+	}
+	budget
+}
+
+/// Set up DAP infrastructure: budget allocation, timestamp, fund pots with ED.
+pub(crate) fn setup_dap() {
+	pallet_dap::BudgetAllocation::<Runtime>::put(build_budget(&[
+		(staker_reward_key(), 50),
+		(buffer_key(), 50),
+	]));
+
+	pallet_dap::LastIssuanceTimestamp::<Runtime>::put(MockTime::get());
+
+	// Fund general pots with ED to keep them alive.
+	let general_staker = pallet_staking_async::SequentialTest::pot_account(
+		pallet_staking_async::RewardPot::General(pallet_staking_async::RewardKind::StakerRewards),
+	);
+	Balances::mint_into(&general_staker, 1).unwrap();
+
+	let general_incentive = pallet_staking_async::SequentialTest::pot_account(
+		pallet_staking_async::RewardPot::General(
+			pallet_staking_async::RewardKind::ValidatorSelfStake,
+		),
+	);
+	Balances::mint_into(&general_incentive, 1).unwrap();
+}
+
 parameter_types! {
 	static StakingEventsIndex: usize = 0;
 	static ElectionEventsIndex: usize = 0;
 	static VerifierEventsIndex: usize = 0;
 	static RcClientEventsIndex: usize = 0;
+	static SignedEventsIndex: usize = 0;
+}
+
+pub(crate) fn signed_events_since_last_call() -> Vec<multi_block::signed::Event<T>> {
+	let all: Vec<_> = System::events()
+		.into_iter()
+		.filter_map(|r| {
+			if let RuntimeEvent::MultiBlockSigned(inner) = r.event {
+				Some(inner)
+			} else {
+				None
+			}
+		})
+		.collect();
+	let seen = SignedEventsIndex::get();
+	SignedEventsIndex::set(all.len());
+	all.into_iter().skip(seen).collect()
 }
 
 pub(crate) fn rc_client_events_since_last_call() -> Vec<pallet_staking_async_rc_client::Event<T>> {

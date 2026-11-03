@@ -58,14 +58,16 @@ use sp_staking::{
 
 use super::{Call, Config, Error, Pallet, LOG_TARGET};
 
-/// A round number and set id which point on the time of an offence.
+/// A set of fields which point to the time and type of an offence.
 #[derive(Copy, Clone, PartialOrd, Ord, Eq, PartialEq, Encode, Decode)]
-pub struct TimeSlot<N: Copy + Clone + PartialOrd + Ord + Eq + PartialEq + Encode + Decode> {
+pub struct Slot<N: Copy + Clone + PartialOrd + Ord + Eq + PartialEq + Encode + Decode> {
 	// The order of these matters for `derive(Ord)`.
 	/// BEEFY Set ID.
 	pub set_id: ValidatorSetId,
 	/// Round number.
 	pub round: N,
+	/// Equivocation type
+	pub equivocation_type: u8,
 }
 
 /// BEEFY equivocation offence report.
@@ -74,7 +76,7 @@ where
 	N: Copy + Clone + PartialOrd + Ord + Eq + PartialEq + Encode + Decode,
 {
 	/// Time slot at which this incident happened.
-	pub time_slot: TimeSlot<N>,
+	pub slot: Slot<N>,
 	/// The session index in which the incident happened.
 	pub session_index: SessionIndex,
 	/// The size of the validator set at the time of the offence.
@@ -90,7 +92,7 @@ where
 	N: Copy + Clone + PartialOrd + Ord + Eq + PartialEq + Encode + Decode,
 {
 	const ID: Kind = *b"beefy:equivocati";
-	type TimeSlot = TimeSlot<N>;
+	type Slot = Slot<N>;
 
 	fn offenders(&self) -> Vec<Offender> {
 		vec![self.offender.clone()]
@@ -104,8 +106,8 @@ where
 		self.validator_set_count
 	}
 
-	fn time_slot(&self) -> Self::TimeSlot {
-		self.time_slot
+	fn slot(&self) -> Self::Slot {
+		self.slot
 	}
 
 	fn slash_fraction(&self, offenders_count: u32) -> Perbill {
@@ -152,6 +154,14 @@ pub enum EquivocationEvidenceFor<T: Config> {
 }
 
 impl<T: Config> EquivocationEvidenceFor<T> {
+	fn equivocation_type(&self) -> u8 {
+		match self {
+			EquivocationEvidenceFor::DoubleVotingProof(..) => 1,
+			EquivocationEvidenceFor::ForkVotingProof(..) => 2,
+			EquivocationEvidenceFor::FutureBlockVotingProof(..) => 3,
+		}
+	}
+
 	/// Returns the authority id of the equivocator.
 	fn offender_id(&self) -> &T::BeefyId {
 		match self {
@@ -271,7 +281,7 @@ impl<T: Config> EquivocationEvidenceFor<T> {
 				let is_signature_valid =
 					check_commitment_signature(&vote.commitment, &vote.id, &vote.signature);
 				if !is_signature_valid {
-					return Err(Error::<T>::InvalidForkVotingProof);
+					return Err(Error::<T>::InvalidFutureBlockVotingProof);
 				}
 
 				Ok(())
@@ -322,8 +332,12 @@ where
 		let offender = evidence.checked_offender::<P>().ok_or(InvalidTransaction::BadProof)?;
 
 		// Check if the offence has already been reported, and if so then we can discard the report.
-		let time_slot = TimeSlot { set_id: evidence.set_id(), round: *evidence.round_number() };
-		if R::is_known_offence(&[offender], &time_slot) {
+		let slot = Slot {
+			set_id: evidence.set_id(),
+			round: *evidence.round_number(),
+			equivocation_type: evidence.equivocation_type(),
+		};
+		if R::is_known_offence(&[offender], &slot) {
 			Err(InvalidTransaction::Stale.into())
 		} else {
 			Ok(())
@@ -339,7 +353,6 @@ where
 
 		// We check the equivocation within the context of its set id (and associated session).
 		let set_id = evidence.set_id();
-		let round = *evidence.round_number();
 		let set_id_session_index = crate::SetIdSession::<T>::get(set_id)
 			.ok_or(Error::<T>::InvalidEquivocationProofSessionMember)?;
 
@@ -356,10 +369,13 @@ where
 		let offender =
 			evidence.checked_offender::<P>().ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
+		let round = *evidence.round_number();
+		let equivocation_type = evidence.equivocation_type();
+
 		evidence.check_equivocation_proof()?;
 
 		let offence = EquivocationOffence {
-			time_slot: TimeSlot { set_id, round },
+			slot: Slot { set_id, round, equivocation_type },
 			session_index,
 			validator_set_count: validator_count,
 			offender,

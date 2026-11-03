@@ -20,7 +20,11 @@
 use super::*;
 use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
-use frame_support::traits::{Defensive, DefensiveOption, Instance, UncheckedOnRuntimeUpgrade};
+use core::cmp::Ordering;
+use frame_support::traits::{
+	Defensive, DefensiveOption, ExistenceRequirement::KeepAlive, Instance,
+	UncheckedOnRuntimeUpgrade,
+};
 
 #[cfg(feature = "try-runtime")]
 use sp_runtime::TryRuntimeError;
@@ -103,6 +107,60 @@ pub type MigrateToV2<T, I, PastPayouts> = frame_support::migrations::VersionedMi
 	crate::pallet::Pallet<T, I>,
 	<T as frame_system::Config>::DbWeight,
 >;
+
+/// Reconcile the balance of the payouts account with the payouts recorded in storage.
+///
+/// The balance of the payouts account must equal the total of all pending payouts recorded in
+/// `Payouts`. Deployments may have drifted from this invariant — e.g. through code which discarded
+/// payout records without moving the balance backing them, or through
+/// [`VersionUncheckedMigrateToV2`], which carries payout records over without funding the account.
+/// This migration transfers the difference between the payouts account and the society account in
+/// whichever direction restores the invariant. It is unversioned, idempotent and safe to keep in a
+/// runtime's migration tuple across upgrades.
+pub struct ReconcilePayoutsAccount<T, I = ()>(core::marker::PhantomData<(T, I)>);
+
+impl<T: Config<I>, I: Instance + 'static> frame_support::traits::OnRuntimeUpgrade
+	for ReconcilePayoutsAccount<T, I>
+{
+	fn on_runtime_upgrade() -> Weight {
+		let entries = Payouts::<T, I>::iter_keys().count() as u64;
+		let pending = Pallet::<T, I>::pending_payouts_total();
+		let society_account = Pallet::<T, I>::account_id();
+		let payouts_account = Pallet::<T, I>::payouts();
+		let balance = T::Currency::free_balance(&payouts_account);
+
+		// Top-ups must never reap the society account; sweeps may reap the payouts account only
+		// when no pending payouts remain to be backed.
+		let res = match balance.cmp(&pending) {
+			Ordering::Equal => Ok(()),
+			Ordering::Less => T::Currency::transfer(
+				&society_account,
+				&payouts_account,
+				pending - balance,
+				KeepAlive,
+			),
+			Ordering::Greater if pending.is_zero() => {
+				T::Currency::transfer(&payouts_account, &society_account, balance, AllowDeath)
+			},
+			Ordering::Greater => T::Currency::transfer(
+				&payouts_account,
+				&society_account,
+				balance - pending,
+				KeepAlive,
+			),
+		};
+		if let Err(e) = res {
+			frame_support::defensive!("failed to reconcile the payouts account", e);
+		}
+
+		T::DbWeight::get().reads_writes(entries.saturating_add(2), 2)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade(_: Vec<u8>) -> Result<(), TryRuntimeError> {
+		Pallet::<T, I>::do_try_state()
+	}
+}
 
 pub(crate) mod v0 {
 	use super::*;

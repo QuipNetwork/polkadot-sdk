@@ -1,0 +1,19 @@
+title: 'asset-hub-westend: fix `NonTransfer` proxy falsely claiming `Governance` containment'
+doc:
+- audience: Runtime User
+  description: |-
+    On Asset Hub Westend, the `NonTransfer` proxy type declared itself a superset of the
+    `Governance` proxy type while its call filter denied the `Treasury`, `ConvictionVoting`,
+    `Referenda` and `Whitelist` calls that `Governance` admits.
+
+    Because `pallet_proxy` authorizes `add_proxy`/`remove_proxy` through `is_superset`, a
+    `NonTransfer` proxy could add a `Governance` proxy for its delegator and thereby reach calls
+    that its own filter denies. `NonTransfer` no longer declares `Governance` as a subset, so this
+    is rejected.
+
+    Existing `Governance` proxies are unaffected; only the ability of a `NonTransfer` proxy to
+    create or remove one changes. The `Collator`, `Staking`, `NominationPools` and
+    `StakingOperator` subsets of `NonTransfer` are unchanged.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch

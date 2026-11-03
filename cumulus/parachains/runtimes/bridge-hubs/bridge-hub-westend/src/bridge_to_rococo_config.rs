@@ -65,7 +65,7 @@ parameter_types! {
 	// see the `FEE_BOOST_PER_PARACHAIN_HEADER` constant get the meaning of this value
 	pub PriorityBoostPerParachainHeader: u64 = 1_396_340_903_540_903;
 	// see the `FEE_BOOST_PER_MESSAGE` constant to get the meaning of this value
-	pub PriorityBoostPerMessage: u64 = 364_088_888_888_888;
+	pub PriorityBoostPerMessage: u64 = 398_097_191_697_191;
 
 	pub BridgeHubRococoLocation: Location = Location::new(
 		2,
@@ -361,88 +361,5 @@ mod tests {
 				bp_bridge_hub_westend::WITH_BRIDGE_WESTEND_TO_ROCOCO_MESSAGES_PALLET_INDEX
 			)]
 		);
-	}
-}
-
-/// Contains the migration for the AssetHubWestend<>AssetHubRococo bridge.
-pub mod migration {
-	use super::*;
-	use bp_messages::LegacyLaneId;
-
-	parameter_types! {
-		pub AssetHubWestendToAssetHubRococoMessagesLane: LegacyLaneId = LegacyLaneId([0, 0, 0, 2]);
-		pub AssetHubWestendLocation: Location = Location::new(1, [Parachain(bp_asset_hub_westend::ASSET_HUB_WESTEND_PARACHAIN_ID)]);
-		pub AssetHubRococoUniversalLocation: InteriorLocation = [GlobalConsensus(RococoGlobalConsensusNetwork::get()), Parachain(bp_asset_hub_rococo::ASSET_HUB_ROCOCO_PARACHAIN_ID)].into();
-	}
-
-	mod v1_wrong {
-		use bp_messages::{LaneState, MessageNonce, UnrewardedRelayer};
-		use bp_runtime::AccountIdOf;
-		use codec::{Decode, Encode};
-		use pallet_bridge_messages::BridgedChainOf;
-		use sp_std::collections::vec_deque::VecDeque;
-
-		#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-		pub(crate) struct StoredInboundLaneData<T: pallet_bridge_messages::Config<I>, I: 'static>(
-			pub(crate) InboundLaneData<AccountIdOf<BridgedChainOf<T, I>>>,
-		);
-		#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-		pub(crate) struct InboundLaneData<RelayerId> {
-			pub state: LaneState,
-			pub(crate) relayers: VecDeque<UnrewardedRelayer<RelayerId>>,
-			pub(crate) last_confirmed_nonce: MessageNonce,
-		}
-		#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-		pub(crate) struct OutboundLaneData {
-			pub state: LaneState,
-			pub(crate) oldest_unpruned_nonce: MessageNonce,
-			pub(crate) latest_received_nonce: MessageNonce,
-			pub(crate) latest_generated_nonce: MessageNonce,
-		}
-	}
-
-	mod v1 {
-		pub use bp_messages::{InboundLaneData, LaneState, OutboundLaneData};
-		pub use pallet_bridge_messages::{InboundLanes, OutboundLanes, StoredInboundLaneData};
-	}
-
-	/// Fix for v1 migration - corrects data for OutboundLaneData/InboundLaneData (it is needed only
-	/// for Rococo/Westend).
-	pub struct FixMessagesV1Migration<T, I>(sp_std::marker::PhantomData<(T, I)>);
-
-	impl<T: pallet_bridge_messages::Config<I>, I: 'static> frame_support::traits::OnRuntimeUpgrade
-		for FixMessagesV1Migration<T, I>
-	{
-		fn on_runtime_upgrade() -> Weight {
-			use sp_core::Get;
-			let mut weight = T::DbWeight::get().reads(1);
-
-			// `InboundLanes` - add state to the old structs
-			let translate_inbound =
-				|pre: v1_wrong::StoredInboundLaneData<T, I>| -> Option<v1::StoredInboundLaneData<T, I>> {
-					weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
-					Some(v1::StoredInboundLaneData(v1::InboundLaneData {
-						state: v1::LaneState::Opened,
-						relayers: pre.0.relayers,
-						last_confirmed_nonce: pre.0.last_confirmed_nonce,
-					}))
-				};
-			v1::InboundLanes::<T, I>::translate_values(translate_inbound);
-
-			// `OutboundLanes` - add state to the old structs
-			let translate_outbound =
-				|pre: v1_wrong::OutboundLaneData| -> Option<v1::OutboundLaneData> {
-					weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
-					Some(v1::OutboundLaneData {
-						state: v1::LaneState::Opened,
-						oldest_unpruned_nonce: pre.oldest_unpruned_nonce,
-						latest_received_nonce: pre.latest_received_nonce,
-						latest_generated_nonce: pre.latest_generated_nonce,
-					})
-				};
-			v1::OutboundLanes::<T, I>::translate_values(translate_outbound);
-
-			weight
-		}
 	}
 }

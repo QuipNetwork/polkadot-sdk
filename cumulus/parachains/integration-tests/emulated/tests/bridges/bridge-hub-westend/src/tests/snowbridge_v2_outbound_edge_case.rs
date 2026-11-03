@@ -23,9 +23,12 @@ use crate::{
 };
 use emulated_integration_tests_common::snowbridge::{SEPOLIA_ID, WETH};
 use frame_support::assert_noop;
-use snowbridge_core::AssetMetadata;
+use hex_literal::hex;
+use snowbridge_core::{AgentIdOf, AssetMetadata};
+use snowbridge_outbound_queue_primitives::v2::ContractCall;
 use sp_runtime::DispatchError::BadOrigin;
 use xcm::v5::AssetTransferFilter;
+use xcm_executor::traits::ConvertLocation;
 
 #[test]
 fn register_penpal_a_asset_from_penpal_b_will_fail() {
@@ -46,8 +49,7 @@ fn register_penpal_a_asset_from_penpal_b_will_fail() {
 			},
 		],
 	);
-	let asset_location_on_penpal =
-		PenpalB::execute_with(|| PenpalLocalTeleportableToAssetHub::get());
+	let asset_location_on_penpal = PenpalB::execute_with(|| PenpalLocalPen2Asset::get());
 	let penpal_a_asset_at_asset_hub =
 		Location::new(1, [Junction::Parachain(PenpalA::para_id().into())])
 			.appended_with(asset_location_on_penpal)
@@ -56,7 +58,7 @@ fn register_penpal_a_asset_from_penpal_b_will_fail() {
 		type RuntimeOrigin = <PenpalB as Chain>::RuntimeOrigin;
 
 		let local_fee_asset_on_penpal =
-			Asset { id: AssetId(Location::parent()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_DOT) };
+			Asset { id: AssetId(Location::here()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_PAL) };
 
 		let remote_fee_asset_on_ah =
 			Asset { id: AssetId(ethereum()), fun: Fungible(REMOTE_FEE_AMOUNT_IN_ETHER) };
@@ -236,7 +238,7 @@ pub const INSUFFICIENT_REMOTE_FEE_AMOUNT: u128 = 1_000_000_000;
 #[test]
 fn transfer_from_penpal_to_ethereum_trapped_on_ah_and_then_claim_can_work() {
 	create_pools_on_ah();
-	register_pal_on_ah();
+	mint_pal_on_ah();
 	register_pal_on_bh();
 	fund_on_ah();
 	// penpal
@@ -260,7 +262,7 @@ fn transfer_from_penpal_to_ethereum_trapped_on_ah_and_then_claim_can_work() {
 		type RuntimeOrigin = <PenpalB as Chain>::RuntimeOrigin;
 
 		let local_fee_asset_on_penpal =
-			Asset { id: AssetId(Location::parent()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_DOT) };
+			Asset { id: AssetId(Location::here()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_PAL) };
 
 		let remote_fee_asset_on_ah =
 			Asset { id: AssetId(ethereum()), fun: Fungible(INSUFFICIENT_REMOTE_FEE_AMOUNT) };
@@ -323,12 +325,25 @@ fn transfer_from_penpal_to_ethereum_trapped_on_ah_and_then_claim_can_work() {
 		));
 	});
 
-	AssetHubWestend::execute_with(|| {
+	let trapped_assets: Assets = AssetHubWestend::execute_with(|| {
 		type RuntimeEvent = <AssetHubWestend as Chain>::RuntimeEvent;
 		assert_expected_events!(
 			AssetHubWestend,
 			vec![RuntimeEvent::PolkadotXcm(pallet_xcm::Event::ProcessXcmError { .. }) => {},]
 		);
+		// Capture the exact trapped assets: the amounts depend on the configured weights and
+		// fees, and a claim only succeeds if it matches the trapped assets exactly.
+		AssetHubWestend::events()
+			.into_iter()
+			.find_map(|event| match event {
+				RuntimeEvent::PolkadotXcm(pallet_xcm::Event::AssetsTrapped { assets, .. }) => {
+					Some(assets)
+				},
+				_ => None,
+			})
+			.expect("assets are trapped on AssetHub")
+			.try_into()
+			.expect("trapped assets convert to the latest XCM version")
 	});
 
 	// Claim the trapped asset and deposit on AH.
@@ -336,7 +351,7 @@ fn transfer_from_penpal_to_ethereum_trapped_on_ah_and_then_claim_can_work() {
 		type RuntimeOrigin = <PenpalB as Chain>::RuntimeOrigin;
 
 		let local_fee_asset_on_penpal =
-			Asset { id: AssetId(Location::parent()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_DOT) };
+			Asset { id: AssetId(Location::here()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_PAL) };
 
 		let remote_fee_asset_on_ah =
 			Asset { id: AssetId(ethereum()), fun: Fungible(REMOTE_FEE_AMOUNT_IN_ETHER) };
@@ -354,14 +369,7 @@ fn transfer_from_penpal_to_ethereum_trapped_on_ah_and_then_claim_can_work() {
 				preserve_origin: true,
 				assets: BoundedVec::truncate_from(vec![]),
 				remote_xcm: Xcm(vec![
-					ClaimAsset {
-						assets: vec![
-							Asset { id: AssetId(ethereum()), fun: Fungible(600914043236) },
-							Asset { id: AssetId(weth_location()), fun: Fungible(TOKEN_AMOUNT) },
-						]
-						.into(),
-						ticket: GeneralIndex(5).into(),
-					},
+					ClaimAsset { assets: trapped_assets.clone(), ticket: GeneralIndex(5).into() },
 					RefundSurplus,
 					DepositAsset {
 						assets: Wild(All),
@@ -429,4 +437,94 @@ pub fn exploit_v2_route_with_legacy_v1_transfer_will_fail() {
 			]
 		);
 	})
+}
+
+#[test]
+pub fn signed_assethub_user_cannot_bypass_origin_alteration_when_routing_to_ethereum() {
+	fund_on_bh();
+	fund_on_ah();
+
+	let forged_assethub_origin = Location::new(1, [Parachain(AssetHubWestend::para_id().into())]);
+	let expected_assethub_agent = AgentIdOf::convert_location(&forged_assethub_origin).unwrap();
+	assert_eq!(
+		expected_assethub_agent,
+		hex!("81c5ab2571199e3188135178f3c2c8e2d268be1313d029b30f534fa579b69b79").into()
+	);
+
+	AssetHubWestend::execute_with(|| {
+		type RuntimeOrigin = <AssetHubWestend as Chain>::RuntimeOrigin;
+
+		let local_fee_asset =
+			Asset { id: AssetId(Location::parent()), fun: Fungible(LOCAL_FEE_AMOUNT_IN_DOT) };
+
+		let remote_fee_asset =
+			Asset { id: AssetId(ethereum()), fun: Fungible(REMOTE_FEE_AMOUNT_IN_ETHER) };
+
+		let arbitrary_agent_call = ContractCall::V1 {
+			target: ETHEREUM_DESTINATION_ADDRESS,
+			calldata: vec![0xde, 0xad, 0xbe, 0xef],
+			value: 0,
+			gas: 100_000,
+		};
+
+		let assets = vec![local_fee_asset.clone(), remote_fee_asset.clone()];
+		let forged_xcm = Xcm(vec![
+			WithdrawAsset(assets.into()),
+			PayFees { asset: local_fee_asset },
+			// Clear the origin register to None. Under the logic flaw in the XCM executor's
+			// InitiateTransfer implementation (with preserve_origin: true), this causes the
+			// executor to export the message without prepending any origin-altering instructions.
+			// Details: https://forum.polkadot.network/t/postmortem-xcm-initiatetransfer-origin-leak/17357
+			ClearOrigin,
+			InitiateTransfer {
+				destination: ethereum(),
+				remote_fees: Some(AssetTransferFilter::ReserveWithdraw(Definite(
+					remote_fee_asset.into(),
+				))),
+				preserve_origin: true,
+				assets: BoundedVec::truncate_from(vec![]),
+				remote_xcm: Xcm(vec![
+					AliasOrigin(forged_assethub_origin),
+					DepositAsset { assets: Wild(AllCounted(0)), beneficiary: beneficiary() },
+					Transact {
+						origin_kind: OriginKind::Xcm,
+						call: arbitrary_agent_call.encode().into(),
+						fallback_max_weight: None,
+					},
+					SetTopic([9u8; 32]),
+				]),
+			},
+		]);
+
+		assert_ok!(<AssetHubWestend as AssetHubWestendPallet>::PolkadotXcm::execute(
+			RuntimeOrigin::signed(AssetHubWestendSender::get()),
+			bx!(VersionedXcm::from(forged_xcm)),
+			Weight::from(EXECUTION_WEIGHT),
+		));
+	});
+
+	BridgeHubWestend::ext_wrapper(|| {
+		type Runtime = bridge_hub_westend_runtime::Runtime;
+		type RuntimeEvent = <BridgeHubWestend as Chain>::RuntimeEvent;
+
+		let events = BridgeHubWestend::events();
+		let committed_messages = snowbridge_pallet_outbound_queue_v2::Messages::<Runtime>::get();
+		assert_eq!(
+			committed_messages.len(),
+			0,
+			"expected zero committed outbound messages in Messages storage"
+		);
+
+		assert!(
+			!events.iter().any(|event| matches!(
+				event,
+				RuntimeEvent::EthereumOutboundQueueV2(
+					snowbridge_pallet_outbound_queue_v2::Event::MessageQueued { .. }
+				)
+			)),
+			"forged message should not have been queued"
+		);
+
+		assert_eq!(snowbridge_pallet_outbound_queue_v2::Nonce::<Runtime>::get(), 0);
+	});
 }

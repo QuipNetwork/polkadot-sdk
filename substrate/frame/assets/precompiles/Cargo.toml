@@ -1,6 +1,6 @@
 [package]
 name = "pallet-assets-precompiles"
-version = "0.5.0"
+version = "0.12.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -16,12 +16,11 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true }
-const-crypto = { version = "0.3.0", default-features = false }
+const-crypto = { workspace = true, default-features = false }
 ethereum-standards = { workspace = true }
 frame-benchmarking = { workspace = true, optional = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-k256 = { workspace = true, features = ["ecdsa"], optional = true }
 log = { workspace = true }
 pallet-assets = { workspace = true }
 pallet-revive = { workspace = true }
@@ -33,8 +32,9 @@ sp-runtime = { workspace = true }
 xcm = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { workspace = true, default-features = false }
-pallet-revive-fixtures = { workspace = true, default-features = false }
+pallet-balances = { workspace = true }
+pallet-revive-fixtures = { workspace = true }
+sp-keystore = { workspace = true }
 test-case = { workspace = true }
 
 [features]
@@ -44,7 +44,6 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
-	"k256?/std",
 	"log/std",
 	"pallet-assets/std",
 	"pallet-balances/std",
@@ -54,6 +53,7 @@ std = [
 	"scale-info/std",
 	"sp-core/std",
 	"sp-io/std",
+	"sp-keystore/std",
 	"sp-runtime/std",
 	"xcm/std",
 ]
@@ -61,7 +61,6 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"k256",
 	"pallet-assets/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-revive/runtime-benchmarks",

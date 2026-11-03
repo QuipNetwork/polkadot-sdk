@@ -47,6 +47,8 @@ use sp_runtime::{traits::Zero, FixedPointNumber, FixedU64};
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+const LOG_TARGET: &str = "runtime::glutton";
+
 /// The size of each value in the `TrashData` storage in bytes.
 pub const VALUE_SIZE: usize = 1024;
 /// Max number of entries for the `TrashData` map.
@@ -207,6 +209,8 @@ pub mod pallet {
 		}
 
 		fn on_idle(_: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+			log::debug!(target: LOG_TARGET, "Running `on_idle` with remaining weight: {remaining_weight:?}");
+
 			let mut meter = WeightMeter::with_limit(remaining_weight);
 			if meter.try_consume(T::WeightInfo::empty_on_idle()).is_err() {
 				return T::WeightInfo::empty_on_idle();
@@ -216,6 +220,9 @@ pub mod pallet {
 				Storage::<T>::get().saturating_mul_int(meter.remaining().proof_size());
 			let computation_weight_limit =
 				Compute::<T>::get().saturating_mul_int(meter.remaining().ref_time());
+
+			log::debug!(target: LOG_TARGET, "Going to waste: proof_size {proof_size_limit:?}; compute {computation_weight_limit:?}");
+
 			let mut meter = WeightMeter::with_limit(Weight::from_parts(
 				computation_weight_limit,
 				proof_size_limit,

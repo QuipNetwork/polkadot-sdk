@@ -1,6 +1,6 @@
 [package]
 name = "pallet-assets"
-version = "49.0.0"
+version = "54.0.1"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -17,18 +17,21 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 impl-trait-for-tuples = { workspace = true }
 log = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
-sp-core = { workspace = true }
+# Needed for various traits. In our case, `OnFinalize`.
 sp-runtime = { workspace = true }
+# Needed for type-safe access to storage DB.
+frame-support = { workspace = true }
+# `system` module provides us with all sorts of useful stuff and macros depend on it being around.
+frame-benchmarking = { optional = true, workspace = true }
+frame-system = { workspace = true }
+sp-core = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -38,8 +41,10 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
 	"scale-info/std",
 	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 runtime-benchmarks = [

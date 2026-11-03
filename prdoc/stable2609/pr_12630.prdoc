@@ -1,0 +1,15 @@
+title: '`staking-async`: include the unlock era in the Unbonded event'
+doc:
+- audience: Runtime User
+  description: |
+    `Event::Unbonded` gains `era`, the era at which `amount` becomes withdrawable.
+    Front-ends, wallets and indexers read it from the event instead of `Staking::Ledger(stash)`.
+    The unbonding duration is dynamic: 2 eras for pure nominators, `BondingDuration` otherwise.
+- audience: Runtime Dev
+  description: |
+    `Event::Unbonded` gains an `era: EraIndex` field. Metadata-driven tooling picks it up;
+    hardcoded decoders and `Unbonded` test assertions need the field. No new logic, no
+    storage migration.
+crates:
+- name: pallet-staking-async
+  bump: major

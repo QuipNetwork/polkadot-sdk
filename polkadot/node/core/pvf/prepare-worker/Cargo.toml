@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-core-pvf-prepare-worker"
 description = "Polkadot crate that contains the logic for preparing PVFs. Used by the polkadot-prepare-worker binary."
-version = "25.0.0"
+version = "29.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,17 +20,19 @@ harness = false
 
 [dependencies]
 cfg-if = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 libc = { workspace = true }
 nix = { features = ["process", "resource", "sched"], workspace = true }
 tikv-jemalloc-ctl = { optional = true, workspace = true }
 tikv-jemallocator = { optional = true, workspace = true }
-tracking-allocator = { default-features = true, workspace = true }
+tracking-allocator = { workspace = true, default-features = true }
 
 codec = { features = ["derive"], workspace = true }
-polkadot-node-core-pvf-common = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sp-maybe-compressed-blob = { default-features = true, workspace = true }
+
+polkadot-node-core-pvf-common = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemallocator = { workspace = true }

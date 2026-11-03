@@ -38,15 +38,29 @@ jobs:
           github.event.pull_request.author_association != 'CONTRIBUTOR' && 
           github.event.pull_request.author_association != 'MEMBER'
         run: |
-          echo "User's association is ${{ github.event.pull_request.author_association }}"
           # We get the list of reviewers who approved the PR
           REVIEWERS=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
           --jq '{reviewers: [.[] | select(.state == "APPROVED") | .user.login]}')
 
-          # We request them to review again
-          echo $REVIEWERS | gh api --method POST repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers --input -
+          # We request them to review again.
+          echo $REVIEWERS | gh api --silent --method POST repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers --input -
 
-          echo "::error::Project needs to be reviewed again"
+          APPROVERS=$(echo "$REVIEWERS" | jq -r '.reviewers | map("@" + .) | join(", ")')
+
+          tee -a "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Review required
+
+          **What failed:** @${{ github.event.pull_request.user.login }} (association \`${{ github.event.pull_request.author_association }}\`)
+          pushed \`${{ github.event.pull_request.head.sha }}\` after this pull request was already approved.
+          An approval only covers the code it was given for, so a push from an author outside the
+          organisation invalidates it.
+
+          **What needs to be done:** review has been re-requested from ${APPROVERS}.
+          Once a new approval lands, this workflow re-runs and the check passes.
+          The author does not need to change anything.
+          EOF
+
+          echo "::error title=Review required::Author pushed new commits after approval, a new approval from ${APPROVERS} is needed"
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}
@@ -65,7 +79,7 @@ jobs:
           echo "Saving PR number: $PR_NUMBER"
           mkdir -p ./pr
           echo $PR_NUMBER > ./pr/pr_number
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         name: Save PR number
         with:
           name: pr_number

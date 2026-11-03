@@ -1,0 +1,25 @@
+title: 'Snowbridge: halt the Ethereum verifier when the bridge is in emergency stop'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      When `pallet-ethereum-client` is in `Halted` operating mode, its `Verifier::verify`
+      implementation now short-circuits with the new `VerificationError::Halted` instead of
+      attempting to verify Ethereum-side proofs.
+
+      Previously, halting the light client only blocked new beacon header updates via
+      `EthereumBeaconClient::submit`. Proof verification still ran, which meant
+      `inbound_queue_v2::submit` and `outbound_queue_v2::submit_delivery_receipt` could
+      continue to process receipts and pay out relayer rewards from `PendingOrders` while
+      governance had halted the bridge (e.g. after a suspected beacon light client compromise).
+
+      Halting the verifier closes that gap in one place — covering both inbound dispatch and
+      outbound delivery-receipt reward payments.
+
+crates:
+  - name: snowbridge-verification-primitives
+    bump: major
+  - name: snowbridge-pallet-outbound-queue-v2
+    bump: major
+  - name: snowbridge-pallet-ethereum-client
+    bump: patch

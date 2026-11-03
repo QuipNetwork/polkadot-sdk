@@ -49,7 +49,10 @@ use sp_runtime::traits::{One, Saturating};
 
 const LOG_TARGET: &str = "runtime::parachains::scheduler";
 
-pub use assigner_coretime::{CoreAssignment, PartsOf57600};
+pub use assigner_coretime::{
+	AssignmentState, CoreAssignment, CoreDescriptor, PartsOf57600, QueueDescriptor, Schedule,
+	WorkState,
+};
 pub use pallet::*;
 pub use polkadot_core_primitives::v2::BlockNumber;
 
@@ -125,7 +128,7 @@ pub mod pallet {
 	///
 	/// Managed by the `assigner_coretime` submodule.
 	#[pallet::storage]
-	pub(super) type CoreSchedules<T: Config> = StorageMap<
+	pub type CoreSchedules<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		(BlockNumberFor<T>, CoreIndex),
@@ -139,7 +142,7 @@ pub mod pallet {
 	///
 	/// Managed by the `assigner_coretime` submodule.
 	#[pallet::storage]
-	pub(super) type CoreDescriptors<T: Config> = StorageValue<
+	pub type CoreDescriptors<T: Config> = StorageValue<
 		_,
 		BTreeMap<CoreIndex, assigner_coretime::CoreDescriptor<BlockNumberFor<T>>>,
 		ValueQuery,

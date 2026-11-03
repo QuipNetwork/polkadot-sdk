@@ -1,0 +1,16 @@
+title: 'staking-async: pending_rewards returns false for zero-point validators'
+
+doc:
+- audience: [Runtime Dev, Runtime User]
+  description: |
+    The `StakingApi::pending_rewards(era, validator)` runtime API previously returned `true`
+    whenever the validator had exposure in the era with unclaimed pages, without checking whether
+    the validator earned any reward points. A validator that was elected but earned zero reward
+    points (e.g. offline / authored no blocks) is exposed but its payout is 0, so this reported a
+    pending reward where none was payable.
+
+    `pending_rewards` now returns `false` for validators with zero reward points in the era.
+
+crates:
+- name: pallet-staking-async
+  bump: patch

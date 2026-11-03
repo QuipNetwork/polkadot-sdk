@@ -31,7 +31,7 @@ use finality_grandpa::{
 use futures::prelude::*;
 use futures_timer::Delay;
 use log::{debug, warn};
-use parking_lot::RwLock;
+use parking_lot::{MappedMutexGuard, RwLock};
 use prometheus_endpoint::{register, Counter, Gauge, PrometheusError, U64};
 
 use sc_client_api::{
@@ -1100,7 +1100,7 @@ where
 	) -> Result<(), Self::Error> {
 		let result = finalize_block(
 			self.client.clone(),
-			&self.authority_set,
+			self.authority_set.inner(),
 			Some(self.config.justification_generation_period),
 			hash,
 			number,
@@ -1365,9 +1365,19 @@ where
 /// authority set change is enacted then a justification is created (if not
 /// given) and stored with the block when finalizing it.
 /// This method assumes that the block being finalized has already been imported.
+///
+/// NOTE: the caller must pass in the *already locked* authority set. The lock
+/// must be held for the whole duration of finalization (i.e. through writing to
+/// the DB) to avoid races, and it also implicitly synchronizes the check for the
+/// last finalized number below. Crucially, callers that take a decision based on
+/// authority-set state *before* calling this function (e.g. verifying a
+/// justification against the current set id, or computing whether a block enacts
+/// a change) must either keep holding the lock or revalidate that authority-set
+/// state after re-acquiring it before calling here, so that the decision and its
+/// enactment are consistent with respect to other finalizers (e.g. the voter).
 pub(crate) fn finalize_block<BE, Block, Client>(
 	client: Arc<Client>,
-	authority_set: &SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
+	mut authority_set: MappedMutexGuard<'_, AuthoritySet<Block::Hash, NumberFor<Block>>>,
 	justification_generation_period: Option<u32>,
 	hash: Block::Hash,
 	number: NumberFor<Block>,
@@ -1381,11 +1391,6 @@ where
 	BE: BackendT<Block>,
 	Client: ClientForGrandpa<Block, BE>,
 {
-	// NOTE: lock must be held through writing to DB to avoid race. this lock
-	//       also implicitly synchronizes the check for last finalized number
-	//       below.
-	let mut authority_set = authority_set.inner();
-
 	let status = client.info();
 
 	if number <= status.finalized_number && client.hash(number)? == Some(hash) {

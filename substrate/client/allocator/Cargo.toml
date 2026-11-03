@@ -1,6 +1,6 @@
 [package]
 name = "sc-allocator"
-version = "36.0.0"
+version = "23.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -18,6 +18,6 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 log = { workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-wasm-interface = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-wasm-interface = { workspace = true, default-features = true }
 thiserror = { workspace = true }

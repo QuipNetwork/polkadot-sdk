@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-subsystem-types"
 description = "Subsystem traits and message definitions"
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -17,19 +17,19 @@ derive_more = { workspace = true, default-features = true }
 fatality = { workspace = true }
 futures = { workspace = true }
 orchestra = { features = ["futures_channel"], workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-polkadot-statement-table = { default-features = true, workspace = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-statement-table = { workspace = true, default-features = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
 smallvec = { workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-authority-discovery = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-authority-discovery = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 thiserror = { workspace = true }

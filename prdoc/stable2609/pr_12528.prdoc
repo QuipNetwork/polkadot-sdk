@@ -1,0 +1,12 @@
+title: 'bridges: remove dead FloatJsonValueMetric'
+
+doc:
+- audience: Node Dev
+  description: |-
+    Removes the unused `FloatJsonValueMetric` from `relay-utils`. It fetched a
+    token price over HTTP (CoinGecko) via `isahc` to compute cross-chain message
+    fees, but that mechanism was removed in parity-bridges-common#1642 and the
+    type has been dead code since. Dropping it removes the `isahc -> curl ->
+    openssl-sys` dependency chain from the bridges relay tree.
+
+crates: []

@@ -221,6 +221,7 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T, I))]
 	pub struct Origin<T, I = ()>(PhantomData<(T, I)>);
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config<I>, I: 'static> ValidateUnsigned for Pallet<T, I> {
 		type Call = Call<T, I>;

@@ -348,106 +348,58 @@ benchmarks_instance_pallet! {
 		)
 	}
 
-	on_idle {
-		// This benchmark generates weights for `on_idle` based on runtime configuration.
-		// The main input is the runtime's `MaxAutoRebagPerBlock` type, which defines how many
-		// nodes can be rebagged per block.
-		// This benchmark simulates a scenario with both pending rebag processing
-		// and fragmented rebag scenario.
+	on_idle_rebag {
+		// Worst-case cost of a single `rebag_internal` call inside `on_idle`.
+		// This measures one non-terminal rebag with a pending rebag entry, which is the
+		// most expensive per-item path. `on_idle` consumes this weight per iteration via
+		// `WeightMeter`, so the benchmark is independent of `MaxAutoRebagPerBlock`.
 
-		List::<T, _>::unsafe_clear();
+		List::<T, I>::unsafe_clear();
 
 		let bag_thresh = T::BagThresholds::get();
-		let low = bag_thresh[0];
-		let mid = bag_thresh[1];
-		let high = bag_thresh[2];
+		assert!(bag_thresh.len() >= 2, "on_idle_rebag benchmark requires at least 2 bag thresholds");
+		let origin_bag_thresh = bag_thresh[0];
+		let dest_bag_thresh = bag_thresh[1];
 
-		let rebag_budget = <T as Config<I>>::MaxAutoRebagPerBlock::get();
+		// Seed 3 nodes in the origin bag so the target node is non-terminal (has prev + next).
+		let origin_head: T::AccountId = account("origin_head", 0, 0);
+		assert_ok!(List::<T, I>::insert(origin_head.clone(), origin_bag_thresh));
 
-		// Adjust counts to ensure exact budget usage
-		let pending_count = rebag_budget / 3; // Smaller portion for pending
-		let regular_count = rebag_budget + 5;
+		let target: T::AccountId = account("target", 0, 0);
+		assert_ok!(List::<T, I>::insert(target.clone(), origin_bag_thresh));
 
-		// Insert regular nodes with varying scores
-		for i in 0..regular_count {
-			let node: T::AccountId = account("regular_node", i, 0);
-			let score = match i % 3 {
-				0 => low - One::one(),
-				1 => mid - One::one(),
-				_ => high - One::one(),
-			};
-			assert_ok!(List::<T, _>::insert(node.clone(), score));
-		}
+		let origin_tail: T::AccountId = account("origin_tail", 0, 0);
+		assert_ok!(List::<T, I>::insert(origin_tail.clone(), origin_bag_thresh));
 
-		// Corrupt some nodes to simulate edge cases
-		for i in (0..regular_count).step_by(4) {
-			let node: T::AccountId = account("regular_node", i, 0);
-			let _ = List::<T, _>::remove(&node); // orphan nodes
-		}
+		// Seed a node in the destination bag so it's not empty (requires updating dest tail).
+		let dest_head: T::AccountId = account("dest_head", 0, 0);
+		assert_ok!(List::<T, I>::insert(dest_head.clone(), dest_bag_thresh));
 
-		// Lock the list and simulate pending rebag insertions
-		<Pallet<T, I>>::lock();
+		// Add a PendingRebag entry for the target to exercise the contains_key + remove path.
+		PendingRebag::<T, I>::insert(&target, ());
 
-		// Create pending rebag entries (mix of valid and corrupted)
-		for i in 0..pending_count {
-			let pending_node: T::AccountId = account("pending_node", i, 0);
-			let pending_score = match i % 3 {
-				0 => mid,
-				1 => high,
-				_ => high + high,
-			};
-
-			// Set score first for most nodes, but skip some to simulate cleanup scenarios
-			if i % 7 != 0 {
-				T::ScoreProvider::set_score_of(&pending_node, pending_score);
-			}
-
-			let _ = <Pallet<T, I> as SortedListProvider<T::AccountId>>::on_insert(
-				pending_node, pending_score
-			);
-		}
-
-		<Pallet<T, I>>::unlock();
-
-		// Now set new scores that will move nodes into higher bags
-		for i in 0..regular_count {
-			let node: T::AccountId = account("regular_node", i, 0);
-			let new_score = match i % 3 {
-				0 => mid,
-				1 => high,
-				_ => high + high, // force into a new top bag
-			};
-			T::ScoreProvider::set_score_of(&node, new_score);
-		}
+		// Update score to force a rebag into the destination bag.
+		T::ScoreProvider::set_score_of(&target, dest_bag_thresh);
 
 		assert_eq!(
-			PendingRebag::<T, I>::count(),
-			pending_count,
-			"Expected exactly {} pending rebag entries",
-			pending_count
+			List::<T, I>::get_bags(),
+			vec![
+				(origin_bag_thresh, vec![origin_head.clone(), target.clone(), origin_tail.clone()]),
+				(dest_bag_thresh, vec![dest_head.clone()])
+			]
 		);
-		// Ensure we have at least three bags populated before rebag
-		assert!(List::<T, _>::get_bags().len() >= 2);
-	}
-	: {
-		use frame_support::traits::Hooks;
-		<Pallet<T, I> as Hooks<_>>::on_idle(Default::default(), Weight::MAX);
+	}: {
+		Pallet::<T, I>::rebag_internal(&target).unwrap();
 	}
 	verify {
-		// Verify all pending rebag entries were processed.
-		// This should always be true since pending_count = rebag_budget / 3 < rebag_budget,
-		// and pending accounts are processed first so all pending entries fit within the budget.
-		assert_eq!(PendingRebag::<T, I>::count(), 0, "All pending rebag entries should be processed");
-
-		// Count how many nodes ended up in higher bags
-		let total_rebagged: usize = List::<T, _>::get_bags()
-			.iter()
-			.filter(|(b, _)| *b > T::BagThresholds::get()[0])
-			.map(|(_, nodes)| nodes.len())
-			.sum();
-
-		let expected = <T as Config<I>>::MaxAutoRebagPerBlock::get() as usize;
-		assert_eq!(total_rebagged, expected, "Expected exactly {:?} rebagged nodes, found {:?}", expected, total_rebagged);
+		assert_eq!(
+			List::<T, I>::get_bags(),
+			vec![
+				(origin_bag_thresh, vec![origin_head, origin_tail]),
+				(dest_bag_thresh, vec![dest_head, target])
+			]
+		);
+		assert!(!PendingRebag::<T, I>::contains_key(&account::<T::AccountId>("target", 0, 0)));
 	}
 
 	impl_benchmark_test_suite!(

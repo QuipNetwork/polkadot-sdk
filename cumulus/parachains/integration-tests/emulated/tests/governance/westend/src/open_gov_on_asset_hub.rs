@@ -38,18 +38,14 @@ fn assethub_can_authorize_upgrade_for_itself() {
 	// store preimage
 	let call_hash = call_hash_of::<AssetHubWestend>(&authorize_upgrade);
 
-	// Err - when dispatch non-whitelisted
-	assert_err!(
-		dispatch_whitelisted_call_with_preimage::<AssetHubWestend>(
-			authorize_upgrade.clone(),
-			ok_origin.clone()
-		),
-		DispatchError::Module(sp_runtime::ModuleError {
-			index: 93,
-			error: [3, 0, 0, 0],
-			message: Some("CallIsNotWhitelisted")
-		})
-	);
+	// Ok - dispatching non-whitelisted defers the call
+	assert_ok!(dispatch_whitelisted_call_with_preimage::<AssetHubWestend>(
+		authorize_upgrade.clone(),
+		ok_origin.clone()
+	));
+	AssetHubWestend::execute_with(|| {
+		assert!(pallet_whitelist::DeferredDispatch::<AssetHubRuntime>::contains_key(call_hash));
+	});
 
 	// whitelist
 	collectives_send_whitelist(
@@ -114,18 +110,14 @@ fn assethub_can_authorize_upgrade_for_relay_chain() {
 
 	let call_hash = call_hash_of::<AssetHubWestend>(&authorize_upgrade);
 
-	// Err - when dispatch non-whitelisted
-	assert_err!(
-		dispatch_whitelisted_call_with_preimage::<AssetHubWestend>(
-			authorize_upgrade.clone(),
-			ok_origin.clone()
-		),
-		DispatchError::Module(sp_runtime::ModuleError {
-			index: 93,
-			error: [3, 0, 0, 0],
-			message: Some("CallIsNotWhitelisted")
-		})
-	);
+	// Ok - dispatching non-whitelisted defers the call
+	assert_ok!(dispatch_whitelisted_call_with_preimage::<AssetHubWestend>(
+		authorize_upgrade.clone(),
+		ok_origin.clone()
+	));
+	AssetHubWestend::execute_with(|| {
+		assert!(pallet_whitelist::DeferredDispatch::<AssetHubRuntime>::contains_key(call_hash));
+	});
 
 	// whitelist
 	collectives_send_whitelist(
@@ -209,18 +201,14 @@ fn assethub_can_authorize_upgrade_for_system_chains() {
 
 	let call_hash = call_hash_of::<AssetHubWestend>(&authorize_upgrade);
 
-	// Err - when dispatch non-whitelisted
-	assert_err!(
-		dispatch_whitelisted_call_with_preimage::<AssetHubWestend>(
-			authorize_upgrade.clone(),
-			ok_origin.clone()
-		),
-		DispatchError::Module(sp_runtime::ModuleError {
-			index: 93,
-			error: [3, 0, 0, 0],
-			message: Some("CallIsNotWhitelisted")
-		})
-	);
+	// Ok - dispatching non-whitelisted defers the call
+	assert_ok!(dispatch_whitelisted_call_with_preimage::<AssetHubWestend>(
+		authorize_upgrade.clone(),
+		ok_origin.clone()
+	));
+	AssetHubWestend::execute_with(|| {
+		assert!(pallet_whitelist::DeferredDispatch::<AssetHubRuntime>::contains_key(call_hash));
+	});
 
 	// whitelist
 	collectives_send_whitelist(

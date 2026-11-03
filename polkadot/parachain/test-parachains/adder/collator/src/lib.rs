@@ -17,20 +17,13 @@
 //! Collator for the adder test parachain.
 
 use codec::{Decode, Encode};
-use futures::channel::oneshot;
 use futures_timer::Delay;
-use polkadot_node_primitives::{
-	Collation, CollationResult, CollationSecondedSignal, CollatorFn, MaybeCompressedPoV, PoV,
-	Statement,
-};
+use polkadot_node_primitives::{Collation, CollationResult, CollatorFn, MaybeCompressedPoV, PoV};
 use polkadot_primitives::{CollatorId, CollatorPair};
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
-	sync::{
-		atomic::{AtomicU32, Ordering},
-		Arc, Mutex,
-	},
+	sync::{Arc, Mutex},
 	time::Duration,
 };
 use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
@@ -141,7 +134,6 @@ impl LocalCollatorState {
 pub struct Collator {
 	state: Arc<Mutex<State>>,
 	key: CollatorPair,
-	seconded_collations: Arc<AtomicU32>,
 	collator_state: Arc<Mutex<LocalCollatorState>>,
 }
 
@@ -151,7 +143,6 @@ impl Collator {
 		Self {
 			state: Arc::new(Mutex::new(State::genesis())),
 			key: CollatorPair::generate().0,
-			seconded_collations: Arc::new(AtomicU32::new(0)),
 			collator_state: Default::default(),
 		}
 	}
@@ -188,13 +179,12 @@ impl Collator {
 	/// adder parachain.
 	pub fn create_collation_function(
 		&self,
-		spawner: impl SpawnNamed + Clone + 'static,
+		_spawner: impl SpawnNamed + Clone + 'static,
 	) -> CollatorFn {
 		use futures::FutureExt as _;
 
 		let state = self.state.clone();
 		let collator_state = self.collator_state.clone();
-		let seconded_collations = self.seconded_collations.clone();
 
 		Box::new(move |relay_parent, validation_data| {
 			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
@@ -225,34 +215,7 @@ impl Collator {
 				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
-			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
-
-			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
-			let seconded_collations = seconded_collations.clone();
-			spawner.spawn(
-				"adder-collator-seconded",
-				None,
-				async move {
-					if let Ok(res) = recv.await {
-						if !matches!(
-							res.statement.payload(),
-							Statement::Seconded(s) if s.descriptor.pov_hash() == compressed_pov.hash(),
-						) {
-							log::error!(
-								"Seconded statement should match our collation: {:?}",
-								res.statement.payload()
-							);
-							std::process::exit(-1);
-						}
-
-						seconded_collations.fetch_add(1, Ordering::Relaxed);
-					}
-				}
-				.boxed(),
-			);
-
-			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }
-				.boxed()
+			async move { Some(CollationResult { collation }) }.boxed()
 		})
 	}
 
@@ -265,22 +228,6 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return;
-			}
-		}
-	}
-
-	/// Wait until `seconded` collations of this collator are seconded by a parachain validator.
-	///
-	/// The internal counter isn't de-duplicating the collations when counting the number of
-	/// seconded collations. This means when one collation is seconded by X validators, we record X
-	/// seconded messages.
-	pub async fn wait_for_seconded_collations(&self, seconded: u32) {
-		let seconded_collations = self.seconded_collations.clone();
-		loop {
-			Delay::new(Duration::from_secs(1)).await;
-
-			if seconded <= seconded_collations.load(Ordering::Relaxed) {
 				return;
 			}
 		}

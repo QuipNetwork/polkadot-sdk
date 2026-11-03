@@ -134,7 +134,45 @@ fn tasks_work() {
 	});
 }
 
+// Ensures the `#[pallet::tasks_experimental]` macro automatically adds the
+// `frame_system::Config<RuntimeTask: From<Task<Self>>>` supertrait bound to the pallet's `Config`
+// trait.
+//
+// These helpers are generic over `T: Config` and convert a pallet `Task` into the aggregate
+// `RuntimeTask` via `.into()`, relying *solely* on the auto-generated supertrait bound — they
+// declare no `From` bound of their own. They would fail to compile if the macro did not add the
+// bound.
+fn task_into_runtime_task<T: my_pallet::Config>(
+	task: my_pallet::Task<T>,
+) -> <T as frame_system::Config>::RuntimeTask {
+	task.into()
+}
+
+fn task_into_runtime_task_with_instance<I: 'static, T: my_pallet::Config<I>>(
+	task: my_pallet::Task<T, I>,
+) -> <T as frame_system::Config>::RuntimeTask {
+	task.into()
+}
+
 #[test]
+fn task_config_is_auto_bound_to_runtime_task() {
+	use frame_support::instances::Instance2;
+
+	let task = my_pallet::Task::<Runtime>::Foo { i: 0u32, j: 2u64 };
+	assert_eq!(
+		task_into_runtime_task::<Runtime>(task),
+		RuntimeTask::MyPallet(my_pallet::Task::<Runtime>::Foo { i: 0u32, j: 2u64 }),
+	);
+
+	let task = my_pallet::Task::<Runtime, Instance2>::Foo { i: 0u32, j: 2u64 };
+	assert_eq!(
+		task_into_runtime_task_with_instance::<Instance2, Runtime>(task),
+		RuntimeTask::MyPallet2(my_pallet::Task::<Runtime, Instance2>::Foo { i: 0u32, j: 2u64 }),
+	);
+}
+
+#[test]
+#[allow(deprecated)]
 fn do_task_unsigned_validation_rejects_external_source() {
 	new_test_ext().execute_with(|| {
 		use frame_support::pallet_prelude::{

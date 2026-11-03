@@ -1,0 +1,34 @@
+title: 'benchmarking: Support child trie key whitelisting'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    Extends the benchmarking framework to support whitelisting child trie storage keys, enabling accurate PoV measurement for pallets that use child tries (e.g. `pallet-revive` for contract storage).
+
+    - Add `child_trie_key: Option<Vec<u8>>` field to `TrackedStorageKey` with `new_child()` constructor
+    - Add `add_to_whitelist_child()` helper function for benchmarks
+    - Update whitelist pre-read in both v1 and v2 benchmark macros to handle child trie keys via `child::get_raw()`
+    - **Fix stale whitelist bug**: `on_before_start` now reads from the global whitelist (`get_whitelist()`) instead of a captured local copy, so keys added during benchmark setup are properly pre-loaded
+    - Export `ChildInfo` from `frame_support::storage`
+
+    ### Problem
+
+    Calling `add_to_whitelist()` or `add_to_whitelist_child()` during benchmark setup had no effect on PoV measurement because:
+    1. The pre-read only used `unhashed::get_raw()` which doesn't work for child tries
+    2. The pre-read closure captured a local whitelist copy that missed keys added during benchmark setup
+crates:
+- name: frame-benchmarking
+  bump: minor
+- name: frame-support-procedural
+  bump: patch
+- name: frame-support
+  bump: minor
+- name: pallet-timestamp
+  bump: patch
+- name: sp-storage
+  bump: major
+- name: sc-client-db
+  bump: patch
+- name: frame-benchmarking-pallet-pov
+  bump: patch

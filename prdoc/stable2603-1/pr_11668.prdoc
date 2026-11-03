@@ -1,0 +1,9 @@
+title: Remove Meta Tx from Westend RC
+doc:
+- audience: Runtime User
+  description: |-
+    Removal of the Meta Transaction from the Westend Relay Chain.
+    With this removal, pallet Verify Signature is removed as well.
+crates:
+- name: westend-runtime
+  bump: major

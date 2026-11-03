@@ -189,17 +189,34 @@ where
 	pub async fn run(&mut self) -> Error {
 		trace!(target: BEEFY_SYNC_LOG_TARGET, "🥩 Running BeefyJustifsRequestHandler");
 
-		while let Ok(request) = self
-			.request_receiver
-			.recv(|bytes| {
-				let bytes = bytes.min(i32::MAX as usize) as i32;
-				vec![ReputationChange::new(
-					bytes.saturating_mul(cost::PER_UNDECODABLE_BYTE),
-					"BEEFY: Bad request payload",
-				)]
-			})
-			.await
-		{
+		loop {
+			let request = match self
+				.request_receiver
+				.recv(|bytes| {
+					let bytes = bytes.min(i32::MAX as usize) as i32;
+					vec![ReputationChange::new(
+						bytes.saturating_mul(cost::PER_UNDECODABLE_BYTE),
+						"BEEFY: Bad request payload",
+					)]
+				})
+				.await
+			{
+				Ok(request) => request,
+				Err(
+					e @ (Error::DecodingError(_, _) | Error::DecodingErrorNoReputationChange(_, _)),
+				) => {
+					// Malformed request from a peer: it has already been refused and the peer
+					// penalized in `recv()`. Keep serving other peers.
+					metric_inc!(self.metrics, beefy_failed_justification_responses);
+					debug!(
+						target: BEEFY_SYNC_LOG_TARGET,
+						"🥩 Ignoring invalid BEEFY justification request: {}", e,
+					);
+					continue;
+				},
+				Err(e) => return e,
+			};
+
 			let peer = request.peer;
 			match self.handle_request(request) {
 				Ok(()) => {
@@ -219,6 +236,109 @@ where
 				},
 			}
 		}
-		Error::RequestsReceiverStreamClosed
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::communication::request_response::JUSTIF_CHANNEL_SIZE;
+	use codec::Encode;
+	use sc_block_builder::BlockBuilderBuilder;
+	use sc_network::config::OutgoingResponse;
+	use sp_blockchain::HeaderBackend;
+	use substrate_test_runtime_client::{
+		runtime::Block as TestBlock, Backend, Client, ClientBlockImportExt, ClientExt,
+		DefaultTestClientBuilderExt, TestClientBuilder, TestClientBuilderExt,
+	};
+
+	type TestClient = Client<Backend>;
+
+	fn test_handler(
+		client: TestClient,
+	) -> (
+		async_channel::Sender<netconfig::IncomingRequest>,
+		BeefyJustifsRequestHandler<TestBlock, TestClient>,
+	) {
+		let (tx, rx) = async_channel::bounded(JUSTIF_CHANNEL_SIZE);
+		let handler = BeefyJustifsRequestHandler {
+			request_receiver: IncomingRequestReceiver::new(rx),
+			justif_protocol_name: ProtocolName::Static("/beefy/justifications/1"),
+			client: Arc::new(client),
+			metrics: None,
+			_block: PhantomData,
+		};
+		(tx, handler)
+	}
+
+	async fn send_request(
+		tx: &async_channel::Sender<netconfig::IncomingRequest>,
+		payload: Vec<u8>,
+	) -> Result<OutgoingResponse, oneshot::Canceled> {
+		let (pending_response, rx) = oneshot::channel();
+		tx.send(netconfig::IncomingRequest { peer: PeerId::random(), payload, pending_response })
+			.await
+			.unwrap();
+		rx.await
+	}
+
+	#[tokio::test]
+	async fn misbehaving_sending_peers_are_penalized() {
+		let (tx, mut handler) = test_handler(TestClientBuilder::new().build());
+		let handler_task = tokio::spawn(async move { handler.run().await });
+
+		// A malformed payload is refused and the sending peer penalized.
+		let response = send_request(&tx, vec![0xff]).await.expect("handler answers the request");
+		assert_eq!(response.result, Err(()));
+		assert!(!response.reputation_changes.is_empty());
+
+		// A valid payload with trailing garbage is rejected by `decode_all` just the same.
+		let mut payload = JustificationRequest::<TestBlock> { begin: 1 }.encode();
+		payload.push(0x00);
+		let response = send_request(&tx, payload).await.expect("handler answers the request");
+		assert_eq!(response.result, Err(()));
+		assert!(!response.reputation_changes.is_empty());
+
+		// The handler is still running and serves well-formed requests. There's no BEEFY
+		// justification for block #1 in the test client, so the request is refused, but getting
+		// any answer at all proves the loop survived the malformed requests above.
+		let payload = JustificationRequest::<TestBlock> { begin: 1 }.encode();
+		let response = send_request(&tx, payload).await.expect("handler answers the request");
+		assert_eq!(response.result, Err(()));
+		assert_eq!(response.reputation_changes, vec![cost::UNKNOWN_PROOF_REQUEST]);
+
+		// Closing the incoming requests channel is fatal and does end the handler.
+		drop(tx);
+		handler_task.await.unwrap();
+	}
+
+	#[tokio::test]
+	async fn known_justification_is_served() {
+		let client = TestClientBuilder::new().build();
+		let justif = vec![42u8];
+
+		// Give the client a BEEFY justification for block #1.
+		let block = BlockBuilderBuilder::new(&client)
+			.on_parent_block(client.info().genesis_hash)
+			.with_parent_block_number(0)
+			.build()
+			.unwrap()
+			.build()
+			.unwrap()
+			.block;
+		let hash = block.header.hash();
+		client.import(sp_consensus::BlockOrigin::Own, block).await.unwrap();
+		client.finalize_block(hash, Some((BEEFY_ENGINE_ID, justif.clone()))).unwrap();
+
+		let (tx, mut handler) = test_handler(client);
+		let handler_task = tokio::spawn(async move { handler.run().await });
+
+		let payload = JustificationRequest::<TestBlock> { begin: 1 }.encode();
+		let response = send_request(&tx, payload).await.expect("handler answers the request");
+		assert_eq!(response.result, Ok(justif));
+		assert!(response.reputation_changes.is_empty());
+
+		drop(tx);
+		handler_task.await.unwrap();
 	}
 }

@@ -223,8 +223,8 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for WestendXcmWeight<RuntimeCall> {
 		}
 		weight
 	}
-	fn claim_asset(_assets: &Assets, _ticket: &Location) -> Weight {
-		XcmGeneric::<Runtime>::claim_asset()
+	fn claim_asset(assets: &Assets, _ticket: &Location) -> Weight {
+		assets.weigh_assets(XcmGeneric::<Runtime>::claim_asset())
 	}
 	fn trap(_code: &u64) -> Weight {
 		XcmGeneric::<Runtime>::trap()

@@ -121,7 +121,7 @@ fn run_benchmark(
 		let threads_running = Arc::new(AtomicUsize::new(0));
 		let aux_threads: Vec<_> = (0..thread_count - 1)
 			.map(|_| {
-				let mut instance = runtime.new_instance().unwrap();
+				let mut instance = runtime.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY).unwrap();
 				let is_benchmark_running = is_benchmark_running.clone();
 				let threads_running = threads_running.clone();
 				std::thread::spawn(move || {
@@ -137,7 +137,7 @@ fn run_benchmark(
 			std::thread::yield_now();
 		}
 
-		let mut instance = runtime.new_instance().unwrap();
+		let mut instance = runtime.new_instance(DEFAULT_HEAP_ALLOC_STRATEGY).unwrap();
 		b.iter(|| testcase(&mut instance));
 
 		is_benchmark_running.store(false, Ordering::SeqCst);

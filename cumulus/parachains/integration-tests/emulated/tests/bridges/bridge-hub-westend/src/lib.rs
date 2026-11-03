@@ -18,7 +18,9 @@ mod imports {
 	// Substrate
 	pub(crate) use codec::Encode;
 	pub(crate) use frame_support::{
-		assert_err, assert_ok, pallet_prelude::DispatchResult, BoundedVec,
+		assert_err, assert_ok,
+		pallet_prelude::{DispatchResult, Weight},
+		BoundedVec,
 	};
 	pub(crate) use sp_core::H160;
 	pub(crate) use sp_runtime::DispatchError;
@@ -33,24 +35,24 @@ mod imports {
 	// Cumulus
 	pub(crate) use emulated_integration_tests_common::{
 		accounts::ALICE,
-		create_pool_with_native_on,
-		impls::Inspect,
+		create_foreign_pool_with_native_on, create_foreign_pool_with_parent_native_on,
+		impls::{Decode, Inspect},
 		test_dry_run_transfer_across_pk_bridge, test_parachain_is_trusted_teleporter,
 		test_parachain_is_trusted_teleporter_for_relay, test_relay_is_trusted_teleporter,
 		xcm_emulator::{
 			assert_expected_events, bx, Chain, Parachain as Para, RelayChain as Relay, TestExt,
 		},
 		xcm_helpers::xcm_transact_paid_execution,
-		ASSETS_PALLET_ID, USDT_ID,
+		PenpalBLocation, ASSETS_PALLET_ID, USDT_ID,
 	};
 	pub(crate) use parachains_common::AccountId;
 	pub(crate) use rococo_westend_system_emulated_network::{
 		asset_hub_rococo_emulated_chain::{
-			asset_hub_rococo_runtime::{xcm_config::TreasuryAccount, ForeignAssetReserveData},
-			genesis::ED as ASSET_HUB_ROCOCO_ED,
+			asset_hub_rococo_runtime::ForeignAssetReserveData, genesis::ED as ASSET_HUB_ROCOCO_ED,
 			AssetHubRococoParaPallet as AssetHubRococoPallet,
 		},
 		asset_hub_westend_emulated_chain::{
+			asset_hub_westend_runtime::xcm_config::DapBufferAccount,
 			genesis::{AssetHubWestendAssetOwner, ED as ASSET_HUB_WESTEND_ED},
 			AssetHubWestendParaPallet as AssetHubWestendPallet,
 		},
@@ -65,8 +67,9 @@ mod imports {
 		penpal_emulated_chain::{
 			self,
 			penpal_runtime::xcm_config::{
+				CheckingAccount as PenpalCheckingAccount,
 				CustomizableAssetFromSystemAssetHub as PenpalCustomizableAssetFromSystemAssetHub,
-				LocalTeleportableToAssetHub as PenpalLocalTeleportableToAssetHub,
+				LocalPen2Asset as PenpalLocalPen2Asset, PenpalNativeCurrency,
 				UniversalLocation as PenpalUniversalLocation,
 			},
 			PenpalAParaPallet as PenpalAPallet, PenpalAssetOwner,

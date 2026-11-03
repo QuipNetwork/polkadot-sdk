@@ -118,8 +118,11 @@ pub unsafe fn execute_artifact(
 	let mut ext = ValidationExternalities(extensions);
 
 	match sc_executor::with_externalities_safe(&mut ext, || {
+		let (semantics, _) = params_to_wasmtime_semantics(executor_params);
 		let runtime = create_runtime_from_artifact_bytes(compiled_artifact_blob, executor_params)?;
-		runtime.new_instance()?.call("validate_block", params)
+		runtime
+			.new_instance(semantics.heap_alloc_strategy)?
+			.call("validate_block", params)
 	}) {
 		Ok(Ok(ok)) => Ok(ok),
 		Ok(Err(err)) | Err(err) => Err(err),

@@ -946,6 +946,48 @@ async fn allows_reimporting_change_blocks() {
 }
 
 #[tokio::test]
+async fn rejected_old_block_without_changes() {
+	let peers_a = &[Ed25519Keyring::Alice, Ed25519Keyring::Bob, Ed25519Keyring::Charlie];
+	let peers_b = &[Ed25519Keyring::Alice, Ed25519Keyring::Bob];
+	let voters = make_ids(peers_a);
+	let api = TestApi::new(voters);
+	let mut net = GrandpaTestNet::new(api.clone(), 3, 0);
+
+	// Finalize block 2.
+	let hashes = net.peer(0).push_blocks(2, false);
+	net.peer(0).client().finalize_block(hashes[1], None, false).unwrap();
+
+	let client = net.peer(0).client().clone();
+	let (block_import, _, link) = net.make_block_import(client.clone());
+	let link = link.lock().take().unwrap();
+
+	let full_client = client.as_client();
+	assert_eq!(full_client.chain_info().finalized_number, 2);
+
+	// Add a fork at block 1 with a scheduled change.
+	let mut builder = BlockBuilderBuilder::new(&*full_client)
+		.on_parent_block(full_client.chain_info().genesis_hash)
+		.with_parent_block_number(0)
+		.build()
+		.unwrap();
+	add_scheduled_change(
+		&mut builder,
+		ScheduledChange { next_authorities: make_ids(peers_b), delay: 0 },
+	);
+	let block = builder.build().unwrap().block;
+
+	let mut import = BlockImportParams::new(BlockOrigin::File, block.header);
+	import.justifications = Some(Justifications::from((GRANDPA_ENGINE_ID, Vec::new())));
+	import.body = Some(block.extrinsics);
+	import.fork_choice = Some(ForkChoiceStrategy::Custom(false));
+
+	let changes_before = link.shared_authority_set().authority_set_changes();
+	assert!(block_import.import_block(import).await.is_err());
+
+	assert_eq!(changes_before, link.shared_authority_set().authority_set_changes());
+}
+
+#[tokio::test]
 async fn test_bad_justification() {
 	let peers_a = &[Ed25519Keyring::Alice, Ed25519Keyring::Bob, Ed25519Keyring::Charlie];
 	let peers_b = &[Ed25519Keyring::Alice, Ed25519Keyring::Bob];
@@ -2429,4 +2471,150 @@ async fn observer_finalizes_through_authority_set_change() {
 	}
 	let wait_for = futures::future::join_all(finality_notifications);
 	run_until_complete(wait_for, &net).await;
+}
+
+#[tokio::test]
+async fn concurrent_finalization_of_change_block_doesnt_panic() {
+	// Regression test for a panic in `GrandpaBlockImport::import_justification`:
+	//
+	//     'returns Ok when no authority set change should be enacted; qed;'
+	//
+	// When importing a block that enacts a standard authority set change,
+	// `import_justification` verifies the block's justification against the current
+	// set id and then calls `environment::finalize_block` to enact the change. If
+	// another finalizer (the GRANDPA voter acting on a gossiped commit, or a
+	// justification imported via sync) finalizes the *same* block in the window
+	// between the verification and `finalize_block` acquiring the authority set lock,
+	// then `finalize_block` short-circuits on its "already finalized in the canonical
+	// chain" guard and returns `Ok(())` — while `import_justification` was told the
+	// block enacts a change (`enacts_change == true`), tripping the assertion.
+	//
+	// The fix decodes the justification without holding the authority-set lock and
+	// verifies it under the lock used for finalization. This test drives two
+	// drives two justification importers at the same change block concurrently. It
+	// does not force the exact historical interleaving, but it checks the intended
+	// stable outcome: one importer enacts the change, while the importer that lost
+	// the race observes its old-set justification as stale instead of panicking or
+	// finalizing the change twice.
+	let peers = &[Ed25519Keyring::Alice];
+	let voters = make_ids(peers);
+	let api = TestApi::new(voters);
+	let mut net = GrandpaTestNet::new(api.clone(), 1, 0);
+
+	let client = net.peer(0).client().clone();
+	let full_client = client.as_client();
+	let backend = client.as_backend();
+
+	// build a raw `GrandpaBlockImport` so we can drive `import_justification`
+	// (with `enacts_change = true`) directly, mirroring the internal `import_block`
+	// path that hits the assertion.
+	let (block_import, link) = block_import(
+		full_client.clone(),
+		JUSTIFICATION_IMPORT_PERIOD,
+		&api,
+		LongestChain::new(backend.clone()),
+		None,
+	)
+	.unwrap();
+
+	// build block #1 scheduling an immediate (delay 0) authority set change.
+	let mut builder = BlockBuilderBuilder::new(&*full_client)
+		.on_parent_block(full_client.chain_info().best_hash)
+		.fetch_parent_block_number(&*full_client)
+		.unwrap()
+		.build()
+		.unwrap();
+	add_scheduled_change(
+		&mut builder,
+		ScheduledChange { next_authorities: make_ids(peers), delay: 0 },
+	);
+	let block = builder.build().unwrap().block;
+	let hash = block.hash();
+	let number = *block.header.number();
+
+	// import the change block *without* a justification: this registers the pending
+	// standard change in the shared authority set (set id stays 0). `import_block`
+	// reports `needs_justification == true` for it.
+	let mut import = BlockImportParams::new(BlockOrigin::File, block.header);
+	import.body = Some(block.extrinsics);
+	import.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+	assert_matches!(
+		block_import.import_block(import).await.unwrap(),
+		ImportResult::Imported(ImportedAux { needs_justification: true, .. })
+	);
+
+	// a valid justification for the change block, signed by the current (set 0)
+	// authorities — exactly what a finalizer verifies before calling `finalize_block`.
+	let justification = {
+		let set_id = 0;
+		let round = 1;
+		let precommit = finality_grandpa::Precommit { target_hash: hash, target_number: number };
+		let msg = finality_grandpa::Message::Precommit(precommit.clone());
+		let encoded = sp_consensus_grandpa::localized_payload(round, set_id, &msg);
+		let signature = peers[0].sign(&encoded[..]).into();
+		let precommit = finality_grandpa::SignedPrecommit {
+			precommit,
+			signature,
+			id: peers[0].public().into(),
+		};
+		let commit = finality_grandpa::Commit {
+			target_hash: hash,
+			target_number: number,
+			precommits: vec![precommit],
+		};
+		GrandpaJustification::from_commit(&full_client, round, commit).unwrap()
+	};
+	let justification = justification.encode();
+
+	// Drive two justification importers at the same change block concurrently:
+	//  - one with `enacts_change = false`, standing in for a sync justification import that
+	//    finalizes the block and enacts the change;
+	//  - one with `enacts_change = true`, standing in for the block-import path that expects to
+	//    enact the change and which carries the assertion.
+	// Both go through `finalize_block` against the same shared authority set. The
+	// `enacts_change = true` path must not be able to verify against set 0, get
+	// overtaken, and then trip the assertion.
+	let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+
+	let other_finalizer = {
+		let block_import = block_import.clone();
+		let justification = justification.clone();
+		let barrier = barrier.clone();
+		std::thread::spawn(move || {
+			barrier.wait();
+			block_import.import_justification(
+				hash,
+				number,
+				(GRANDPA_ENGINE_ID, justification),
+				false,
+				false,
+			)
+		})
+	};
+
+	barrier.wait();
+	let import_result = block_import.import_justification(
+		hash,
+		number,
+		(GRANDPA_ENGINE_ID, justification),
+		true,
+		false,
+	);
+
+	// `join().unwrap()` would surface a panic on the other thread; the assertion would
+	// surface a panic on this one. Neither must happen.
+	let other_result = other_finalizer.join().unwrap();
+
+	// exactly one finalizer enacts the change; the one that was overtaken sees the
+	// already-advanced set id and rejects its now-stale justification.
+	let outcomes = [import_result, other_result];
+	assert_eq!(outcomes.iter().filter(|r| r.is_ok()).count(), 1, "exactly one finalizer enacts");
+	assert!(
+		outcomes.iter().any(|r| matches!(r, Err(ConsensusError::OutdatedJustification))),
+		"the overtaken finalizer rejects its stale justification",
+	);
+
+	// the authority set change was enacted exactly once and the block is finalized.
+	assert_eq!(link.shared_authority_set().set_id(), 1);
+	assert_eq!(full_client.info().finalized_number, number);
 }

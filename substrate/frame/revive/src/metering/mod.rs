@@ -73,6 +73,14 @@ pub type TransactionMeter<T> = ResourceMeter<T, Root>;
 /// The type of resource meter used for an execution frame.
 pub type FrameMeter<T> = ResourceMeter<T, Nested>;
 
+/// Snapshot of a [`ResourceMeter`]'s consumption at a point in time.
+///
+/// Produced by [`ResourceMeter::snapshot`] and consumed by [`ResourceMeter::delta_since`].
+pub struct MeterSnapshot<T: Config> {
+	weight: Weight,
+	gas: SignedGas<T>,
+}
+
 /// Resource meter tracking weight and storage deposit consumption.
 #[derive(DefaultNoBound)]
 pub struct ResourceMeter<T: Config, S: State> {
@@ -333,18 +341,14 @@ impl<T: Config, S: State> ResourceMeter<T, S> {
 			self.deposit.max_charged(),
 		);
 
-		self.deposit.record_charge(deposit);
-		self.adjust_effective_weight_limit()?;
-
-		if self.deposit.is_root {
-			if self.deposit_left().is_none() {
-				self.deposit.reset();
-				self.adjust_effective_weight_limit()?;
+		if let StorageDeposit::Charge(amount) = deposit {
+			if self.deposit.is_root && self.deposit_left().map_or(true, |left| left < *amount) {
 				return Err(<Error<T>>::StorageDepositLimitExhausted.into());
 			}
 		}
 
-		Ok(())
+		self.deposit.record_charge(deposit);
+		self.adjust_effective_weight_limit()
 	}
 
 	/// Get remaining ethereum gas equivalent.
@@ -447,16 +451,44 @@ impl<T: Config, S: State> ResourceMeter<T, S> {
 
 	/// Get the Ethereum gas that has been consumed during the lifetime of this meter
 	pub fn eth_gas_consumed(&self) -> BalanceOf<T> {
-		let signed_gas = match &self.transaction_limits {
+		self.eth_gas_consumed_signed().to_ethereum_gas().unwrap_or_default()
+	}
+
+	/// Same as [`Self::eth_gas_consumed`] but returns the unrounded [`SignedGas`].
+	///
+	/// Prefer this when computing a delta across two snapshots: subtracting in [`SignedGas`] form
+	/// avoids the double ceil-rounding that [`Self::eth_gas_consumed`] performs at each call.
+	pub fn eth_gas_consumed_signed(&self) -> SignedGas<T> {
+		match &self.transaction_limits {
 			TransactionLimits::EthereumGas { eth_tx_info, .. } => {
 				math::ethereum_execution::eth_gas_consumed(self, eth_tx_info)
 			},
 			TransactionLimits::WeightAndDeposit { .. } => {
 				math::substrate_execution::eth_gas_consumed(self)
 			},
-		};
+		}
+	}
 
-		signed_gas.to_ethereum_gas().unwrap_or_default()
+	/// Take a snapshot of the meter's current consumption for later use with
+	/// [`Self::delta_since`].
+	pub fn snapshot(&self) -> MeterSnapshot<T> {
+		MeterSnapshot { weight: self.weight_consumed(), gas: self.eth_gas_consumed_signed() }
+	}
+
+	/// Ethereum gas and weight consumed since `snapshot` was taken.
+	///
+	/// Gas subtraction happens in [`SignedGas`] form so that the ceil-rounding inside
+	/// `to_ethereum_gas` is applied once to the delta, not to each snapshot.
+	pub fn delta_since(&self, snapshot: &MeterSnapshot<T>) -> (u64, Weight) {
+		let gas = self
+			.eth_gas_consumed_signed()
+			.saturating_sub(&snapshot.gas)
+			.to_ethereum_gas()
+			.unwrap_or_default()
+			.try_into()
+			.unwrap_or(u64::MAX);
+		let weight = self.weight_consumed().saturating_sub(snapshot.weight);
+		(gas, weight)
 	}
 
 	/// Determine and set the new effective weight limit of the weight meter.
@@ -636,6 +668,15 @@ impl<T: Config> FrameMeter<T> {
 	/// See: <https://github.com/paritytech/contract-issues/issues/213>
 	pub fn apply_pending_storage_changes(&self, info: &mut ContractInfo<T>) {
 		self.deposit.apply_pending_changes_to_contract(info);
+	}
+
+	/// See [`storage::RawMeter::bank_pending_changes`].
+	pub fn bank_pending_storage_changes(
+		&mut self,
+		contract: T::AccountId,
+		info: &mut ContractInfo<T>,
+	) {
+		self.deposit.bank_pending_changes(contract, info);
 	}
 }
 

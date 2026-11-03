@@ -2694,6 +2694,142 @@ mod enter {
 			);
 		});
 	}
+
+	/// Verifies that a V3-capable runtime (CandidateReceiptV3 enabled) correctly accepts V1
+	/// descriptors from non-upgraded collators: not filtered, backed, and placed in
+	/// `PendingAvailability`.
+	#[test]
+	fn v1_descriptor_accepted_by_v3_capable_runtime() {
+		let config = MockGenesisConfig::default();
+
+		new_test_ext(config).execute_with(|| {
+			configuration::Pallet::<Test>::set_node_feature(
+				RuntimeOrigin::root(),
+				FeatureIndex::CandidateReceiptV3 as u8,
+				true,
+			)
+			.unwrap();
+
+			let mut backed_and_concluding = BTreeMap::new();
+			backed_and_concluding.insert(0, 1);
+			backed_and_concluding.insert(1, 1);
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements: BTreeMap::new(),
+				dispute_sessions: vec![],
+				backed_and_concluding,
+				num_validators_per_core: 1,
+				code_upgrade: None,
+				elastic_paras: BTreeMap::new(),
+				unavailable_cores: vec![],
+				descriptor_version: CandidateDescriptorVersionConfig::V1,
+				approved_peer_signal: None,
+				candidate_modifier: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+
+			assert_eq!(expected_para_inherent_data.bitfields.len(), 2);
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+
+			for candidate in &expected_para_inherent_data.backed_candidates {
+				assert_eq!(candidate.descriptor().version(), CandidateDescriptorVersion::V1);
+				assert!(candidate.descriptor().session_index().is_none());
+			}
+
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			assert_eq!(
+				Pallet::<Test>::create_inherent_inner(&inherent_data).unwrap(),
+				expected_para_inherent_data
+			);
+
+			assert_eq!(
+				OnChainVotes::<Test>::get().unwrap().backing_validators_per_candidate.len(),
+				2
+			);
+
+			assert_eq!(
+				inclusion::PendingAvailability::<Test>::get(ParaId::from(0))
+					.unwrap()
+					.into_iter()
+					.map(|c| c.core_occupied())
+					.collect::<Vec<_>>(),
+				vec![CoreIndex(0)]
+			);
+			assert_eq!(
+				inclusion::PendingAvailability::<Test>::get(ParaId::from(1))
+					.unwrap()
+					.into_iter()
+					.map(|c| c.core_occupied())
+					.collect::<Vec<_>>(),
+				vec![CoreIndex(1)]
+			);
+		});
+	}
+
+	// Candidates whose `new_validation_code` exceeds the on-chain
+	// `HostConfiguration.max_code_size` are filtered out during inherent sanitization
+	// (via `filter_unchained_candidates` → `verify_backed_candidate` → `NewCodeTooLarge`).
+	#[rstest]
+	#[case(true)]
+	#[case(false)]
+	fn oversized_new_validation_code_is_filtered(#[case] v2_descriptor: bool) {
+		let config = MockGenesisConfig {
+			configuration: configuration::GenesisConfig {
+				config: HostConfiguration {
+					max_code_size: 100,
+					max_head_data_size: 0b100000,
+					scheduler_params: SchedulerParams {
+						group_rotation_frequency: u32::MAX,
+						..Default::default()
+					},
+					..Default::default()
+				},
+			},
+			..Default::default()
+		};
+
+		new_test_ext(config).execute_with(|| {
+			let mut backed_and_concluding = BTreeMap::new();
+			backed_and_concluding.insert(0, 1);
+			backed_and_concluding.insert(1, 1);
+
+			let scenario = make_inherent_data(TestConfig {
+				dispute_statements: BTreeMap::new(),
+				dispute_sessions: vec![],
+				backed_and_concluding,
+				num_validators_per_core: 1,
+				// Exceeds the 100-byte on-chain cap set above.
+				code_upgrade: Some(200),
+				elastic_paras: BTreeMap::new(),
+				unavailable_cores: vec![],
+				descriptor_version: descriptor_version(v2_descriptor),
+				approved_peer_signal: v2_descriptor.then_some(vec![1, 2, 3].try_into().unwrap()),
+				candidate_modifier: None,
+			});
+
+			let expected_para_inherent_data = scenario.data.clone();
+			// Sanity: both oversized candidates are present in the raw inherent.
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			// Sanitization drops every candidate carrying oversized code.
+			let filtered = Pallet::<Test>::create_inherent_inner(&inherent_data).unwrap();
+			assert!(
+				filtered.backed_candidates.is_empty(),
+				"oversized candidates should be filtered, got {} remaining",
+				filtered.backed_candidates.len()
+			);
+		});
+	}
 }
 
 fn default_header() -> polkadot_primitives::Header {

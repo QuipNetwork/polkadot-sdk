@@ -1,0 +1,23 @@
+title: "fix(multi-asset-bounties): enforce authorization in unassign_curator when parent bounty is not Active"
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fix an authorization bypass in `unassign_curator` where any signed account could forcibly
+    unassign an active child bounty's curator when the parent bounty was not in `Active` state.
+    The child curator's native balance hold (deposit) was also permanently leaked in this path.
+
+    The `BountyStatus::Active` catch-all arm now uses `parent_curator.ok_or(BadOrigin)?` to
+    explicitly reject callers when no parent curator is available, matching the defensive pattern
+    already used in the `Funded` arm. `CuratorDeposit::take()` is also moved after authorization
+    to prevent storage mutation on unauthorized calls.
+
+    A regression test is added covering the full attack scenario.
+- audience: Runtime User
+  description: |-
+    Previously, any account could unassign a child bounty curator without authorization when the
+    parent bounty's curator had been unassigned. This is now correctly rejected. If you were
+    affected by a permanently locked curator deposit from this bug, a migration or manual
+    intervention may be needed to release the held balance.
+crates:
+- name: pallet-multi-asset-bounties
+  bump: patch

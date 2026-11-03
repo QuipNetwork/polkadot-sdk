@@ -24,7 +24,9 @@ pub fn verify_receipt_proof(
 	// already cryptographically verified during this traversal.
 	let value = match verify_proof(root, key, None, proof_nodes.iter()) {
 		Ok(()) => return None, // Exclusion proof - key does not exist
-		Err(ProofVerificationError::ValueMismatch { got: Some(v), expected: None, .. }) => {
+		Err(ProofVerificationError::ValueMismatch { path, got: Some(v), expected: None })
+			if path == key =>
+		{
 			v.to_vec()
 		},
 		Err(_) => return None,

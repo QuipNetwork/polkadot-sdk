@@ -1,0 +1,10 @@
+title: Extend PGAS filter to allow batches
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    Just as the title says.
+crates:
+- name: asset-hub-westend-runtime
+  bump: major

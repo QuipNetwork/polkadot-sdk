@@ -178,8 +178,11 @@ impl<T: Config<I>, I: 'static> fungible::Unbalanced<T::AccountId> for Pallet<T, 
 
 	fn deactivate(amount: Self::Balance) {
 		InactiveIssuance::<T, I>::mutate(|b| {
-			// InactiveIssuance cannot be greater than TotalIssuance.
-			*b = b.saturating_add(amount).min(TotalIssuance::<T, I>::get());
+			let active = TotalIssuance::<T, I>::get().saturating_sub(*b);
+			// Only cap the delta and don't re-cap the existing inactive issuance.
+			let increase = amount.min(active);
+
+			*b = b.saturating_add(increase);
 		});
 	}
 
@@ -324,11 +327,17 @@ impl<T: Config<I>, I: 'static> fungible::UnbalancedHold<T::AccountId> for Pallet
 				*a = new_account;
 				Ok(())
 			})?;
-		debug_assert!(
-			maybe_dust.is_none(),
-			"Does not alter main balance; dust only happens when it is altered; qed"
-		);
-		Holds::<T, I>::insert(who, holds);
+
+		if holds.is_empty() {
+			Holds::<T, I>::remove(who)
+		} else {
+			Holds::<T, I>::insert(who, holds)
+		}
+
+		if let Some(dust) = maybe_dust {
+			<Self as fungible::Unbalanced<_>>::handle_raw_dust(dust);
+		}
+
 		Ok(result)
 	}
 }

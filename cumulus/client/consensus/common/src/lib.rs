@@ -30,12 +30,14 @@ use sp_timestamp::Timestamp;
 
 use std::{sync::Arc, time::Duration};
 
+mod finality;
 mod level_monitor;
 mod parachain_consensus;
 mod parent_search;
 #[cfg(test)]
 mod tests;
 
+pub use finality::old_finalized_hash;
 pub use parent_search::*;
 
 pub use cumulus_relay_chain_streams::finalized_heads;
@@ -45,6 +47,8 @@ use level_monitor::LevelMonitor;
 pub use level_monitor::{LevelLimit, MAX_LEAVES_PER_LEVEL_SENSIBLE_DEFAULT};
 
 pub mod import_queue;
+
+const LOG_TARGET: &str = "consensus::common";
 
 /// Provides the hash of validation code used for authoring/execution of blocks at a given
 /// hash.
@@ -189,19 +193,31 @@ pub trait ParachainBlockImportMarker {}
 
 impl<B: BlockT, BI, BE> ParachainBlockImportMarker for ParachainBlockImport<B, BI, BE> {}
 
-/// Get the relay-parent slot and timestamp from a header.
-pub fn relay_slot_and_timestamp(
-	relay_parent_header: &PHeader,
-	relay_chain_slot_duration: Duration,
-) -> Option<(Slot, Timestamp)> {
-	sc_consensus_babe::find_pre_digest::<PBlock>(relay_parent_header)
-		.map(|babe_pre_digest| {
-			let slot = babe_pre_digest.slot();
-			let t = Timestamp::new(relay_chain_slot_duration.as_millis() as u64 * *slot);
+/// Get the relay slot from a header.
+pub fn get_relay_slot(relay_header: &PHeader) -> Option<Slot> {
+	match sc_consensus_babe::find_pre_digest::<PBlock>(relay_header) {
+		Ok(pre_digest) => Some(pre_digest.slot()),
+		Err(err) => {
+			tracing::error!(
+				target: LOG_TARGET,
+				hash = %relay_header.hash(),
+				?err,
+				"Relay chain block does not contain a BABE pre-digest. This should never happen.",
+			);
+			None
+		},
+	}
+}
 
-			(slot, t)
-		})
-		.ok()
+/// Get the relay slot and timestamp from a header.
+pub fn get_relay_slot_and_timestamp(
+	relay_header: &PHeader,
+	relay_slot_duration: Duration,
+) -> Option<(Slot, Timestamp)> {
+	get_relay_slot(relay_header).map(|slot| {
+		let t = Timestamp::new(relay_slot_duration.as_millis() as u64 * *slot);
+		(slot, t)
+	})
 }
 
 /// Reads abridged host configuration from the relay chain storage at the given relay parent.

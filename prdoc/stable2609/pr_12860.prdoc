@@ -1,0 +1,27 @@
+title: Add Doc Comments for Pallet Revive's Versioned Types
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    ## Why
+
+    I think this PR's objective is better understood by the why rather than the how. After versioning was introduced we didn't have a good way to communicate to users, clients, and consumers of the runtime API "we updated this function to v2 to add this specific capability". We agreed that this would be something that we would document but it's not very clear to me where such documentation would go.
+
+    A user would find themselves needing to dig through the code adding vN to understand the diff and therefore understand what new capabilities or changes come with a specific version of a runtime api and then make a decision on whether they want to use it or not.
+
+    ## How
+
+    This PR adds documentation comments to:
+
+    1. The enums used for the inputs and outputs of the runtime API functions.
+    2. The variants used for the inputs and outputs of the runtime API functions including versions higher than V1 telling the user what changes were made.
+
+    For example, in the tracing v2 output we have a doc comment which says that this version adds the `index` field to `CallLog`. Therefore, it's very clear to a user that "I should use v2 when I care about this specific field"
+
+    ## Usage
+
+    The way I envision for this to be used is that eventually when this crate is published we'd have a doc.rs link for the crate which we could link anybody to for them to read the documentation of a specific runtime API function which would then help them decide which version they should use or if v1 meets all of their needs
+crates:
+- name: pallet-revive-types
+  bump: patch

@@ -31,8 +31,19 @@ interface ISystem {
 	/// function returning `true` implies that the contract is being called by the origin.
 	///
 	/// A return value of `true` indicates that this contract is being called by a root origin,
-	/// and `false` indicates that the caller is a signed origin.
+	/// and `false` indicates that the caller is a signed origin or another contract.
 	function callerIsRoot() external view returns (bool);
+
+	/// Checks whether the origin of the whole call stack is root.
+	///
+	/// Unlike `callerIsRoot`, this does not require the immediate caller to be the origin:
+	/// it returns `true` whenever the top-level dispatch was made with a root origin, regardless
+	/// of how many contract or delegate-call frames separate the precompile from that dispatch.
+	/// This is the analogue of `tx.origin == ROOT`.
+	///
+	/// Contracts that need the stricter "my direct caller is root" check, including those
+	/// behind an upgradeable proxy, must use `callerIsRoot`.
+	function originIsRoot() external view returns (bool);
 
 	/// Returns the minimum balance that is required for creating an account
 	/// (the existential deposit).
@@ -49,7 +60,6 @@ interface ISystem {
 	/// - called from constructor
 	/// - called from static context
 	/// - called from delegate context
-	/// - the contract introduced balance locks
 	function terminate(address beneficiary) external;
 
 	/// Verify a sr25519 signature

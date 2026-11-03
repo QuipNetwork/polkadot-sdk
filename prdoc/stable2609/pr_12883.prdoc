@@ -1,0 +1,23 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: "statement-store: reject submissions from accounts with a depleted allowance"
+
+doc:
+  - audience: Node Dev
+    description: |
+      `Store::submit` accepted any allowance present in chain state, including one depleted on
+      the count or size axis. A depleted allowance stores nothing by definition, but the
+      per-account constraint check only evaluates `max_count` while walking the account's
+      existing statements, so an account with a `max_count` of zero and no statements yet had
+      nothing to walk and its first statement was admitted. The statement was evicted again by
+      the next allowance enforcement pass, so the effect was a single statement stored for an
+      account entitled to none.
+
+      Submissions from an account whose allowance is depleted are now rejected up front with
+      `RejectionReason::NoAllowance`, the same result already returned for an account with no
+      allowance at all.
+
+crates:
+  - name: sc-statement-store
+    bump: patch

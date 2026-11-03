@@ -1,6 +1,6 @@
 [package]
 name = "pallet-migrations"
-version = "16.0.0"
+version = "20.0.0"
 description = "FRAME pallet to execute multi-block migrations."
 authors.workspace = true
 edition.workspace = true
@@ -13,20 +13,22 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { features = ["derive"], workspace = true }
 docify = { workspace = true }
+impl-trait-for-tuples = { workspace = true }
+log = { workspace = true, default-features = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame = { workspace = true, features = ["runtime"] }
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-impl-trait-for-tuples = { workspace = true }
-log = { workspace = true, default-features = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-core = { workspace = true }
+sp-crypto-hashing = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-frame-executive = { default-features = true, workspace = true }
-sp-tracing = { features = ["std"], default-features = true, workspace = true }
+frame-executive = { workspace = true, default-features = true }
+sp-tracing = { features = ["std"], workspace = true, default-features = true }
 
 pretty_assertions = { workspace = true }
 
@@ -41,6 +43,7 @@ std = [
 	"log/std",
 	"scale-info/std",
 	"sp-core/std",
+	"sp-crypto-hashing/std",
 	"sp-io/std",
 	"sp-runtime/std",
 ]

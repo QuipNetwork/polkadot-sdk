@@ -1,0 +1,23 @@
+title: 'statement-store: avoid blocking event loop during initial sync'
+doc:
+- audience: Node Dev
+  description: |-
+    Initial-sync sends are now driven as futures by the protocol event loop instead of being awaited
+    inline, so an unresponsive peer stalls only its own sync. Statements are marked known only after
+    a successful send, only one chunk per sync is in flight, and stale results from replaced syncs
+    are ignored.
+- audience: Node Operator
+  description: |-
+    `substrate_sync_propagated_statements_chunks` gains a `kind` label (`propagation`,
+    `initial_sync`), and `substrate_sync_initial_sync_duration_seconds` gains an `outcome` label
+    (`completed`, `abandoned`). Existing queries may therefore return one series per label value.
+
+    A new metric reports outstanding initial-sync payload bytes
+    (`substrate_sync_initial_sync_in_flight_bytes`). Send-failure and undelivered counters can now
+    also report `no_sink` for initial sync.
+
+    `substrate_sync_initial_sync_peers_active` no longer leaks when a peer is already absent from the
+    peer map.
+crates:
+- name: sc-network-statement
+  bump: minor

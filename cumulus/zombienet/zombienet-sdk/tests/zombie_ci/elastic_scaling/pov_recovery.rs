@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use crate::utils::initialize_network;
 
-use cumulus_zombienet_sdk_helpers::{assert_para_throughput, assign_cores};
+use cumulus_zombienet_sdk_helpers::{assert_para_throughput, assign_cores, wait_for_pvf_prepare};
 use polkadot_primitives::Id as ParaId;
 use serde_json::json;
 use zombienet_orchestrator::network::node::LogLineCountOptions;
@@ -46,8 +46,11 @@ async fn elastic_scaling_pov_recovery() -> Result<(), anyhow::Error> {
 
 	assign_cores(&relay_client, PARA_ID, vec![0]).await?;
 
+	// Wait for PVF preparation to complete.
+	wait_for_pvf_prepare(&network, 1).await?;
+
 	log::info!("Ensuring parachain making progress");
-	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 40..65)]).await?;
+	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 36..41)], []).await?;
 
 	// We want to make sure that none of the consensus hook checks fail, even if the chain makes
 	// progress. If below log line occurred 1 or more times then test failed.
@@ -164,8 +167,8 @@ async fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 						.with_limit_cpu(2)
 						.with_limit_memory("4G")
 				})
-				.with_collator(|n| {
-					n.with_name("recovery-target").validator(false).with_args(vec![
+				.with_fullnode(|n| {
+					n.with_name("recovery-target").with_args(vec![
 						("-lparachain::availability=trace,sync=debug,parachain=debug,cumulus-pov-recovery=debug,cumulus-consensus=debug").into(),
 						("--disable-block-announcements").into(),
 						("--in-peers", "0").into(),

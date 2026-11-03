@@ -19,7 +19,8 @@
 
 use alloc::vec::Vec;
 use alloy_core::rlp;
-use sp_core::{H160, H256, keccak_256};
+use sp_core::{H160, H256};
+use sp_crypto_hashing::keccak_256;
 
 /// Number of bytes that a bloom stores.
 pub const BLOOM_SIZE_BYTES: usize = 256;

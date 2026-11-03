@@ -1,6 +1,6 @@
 [package]
 name = "pallet-multi-asset-bounties"
-version = "0.3.0"
+version = "0.8.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -27,9 +27,9 @@ sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-preimage = { default-features = true, workspace = true }
-pallet-utility = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-preimage = { workspace = true, default-features = true }
+pallet-utility = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -39,6 +39,8 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
+	"pallet-preimage/std",
 	"scale-info/std",
 	"sp-core/std",
 	"sp-io/std",

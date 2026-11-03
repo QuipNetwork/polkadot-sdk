@@ -1,0 +1,14 @@
+title: Small balance fixes
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fix account preservation below the existential deposit, hold release and transfer handling,
+    empty hold cleanup, and dust handling when removing freezes or locks. Prevent aggregate
+    balance overflow and preserve inactive issuance when deactivating funds.
+crates:
+- name: pallet-balances
+  bump: patch
+- name: frame-support
+  bump: patch
+- name: pallet-assets
+  bump: patch

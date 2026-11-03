@@ -544,7 +544,7 @@ fn query_holding() {
 		// Send withdraw and deposit with query holding
 		assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone(),));
 
-		VersionedXcm::from(message).using_encoded(sp_core::blake2_256)
+		VersionedXcm::from(message).using_encoded(sp_crypto_hashing::blake2_256)
 	});
 
 	// Check that transfer was executed

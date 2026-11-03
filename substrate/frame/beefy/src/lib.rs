@@ -55,7 +55,7 @@ use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::{offence::OffenceReportSystem, SessionIndex};
 
 use crate::equivocation::EquivocationEvidenceFor;
-pub use crate::equivocation::{EquivocationOffence, EquivocationReportSystem, TimeSlot};
+pub use crate::equivocation::{EquivocationOffence, EquivocationReportSystem, Slot};
 pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::beefy";
@@ -422,6 +422,7 @@ pub mod pallet {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -450,6 +451,13 @@ pub mod pallet {
 						key_owner_proof.clone(),
 					))
 				},
+				Call::report_future_block_voting_unsigned {
+					equivocation_proof,
+					key_owner_proof,
+				} => Some(EquivocationEvidenceFor::<T>::FutureBlockVotingProof(
+					*equivocation_proof.clone(),
+					key_owner_proof.clone(),
+				)),
 				_ => None,
 			}
 		}

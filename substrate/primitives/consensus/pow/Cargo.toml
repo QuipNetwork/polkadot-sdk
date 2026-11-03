@@ -1,6 +1,6 @@
 [package]
 name = "sp-consensus-pow"
-version = "0.47.0"
+version = "0.50.0"
 authors.workspace = true
 description = "Primitives for Aura consensus"
 edition.workspace = true

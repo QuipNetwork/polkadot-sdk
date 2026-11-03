@@ -20,12 +20,6 @@
 // Need to enable this one since we document feature-gated stuff.
 #![allow(rustdoc::broken_intra_doc_links)]
 
-//! # **⚠️ WARNING ⚠️**
-//!  
-//! <br>  
-//! <b>THIS CRATE IS NOT AUDITED AND SHOULD NOT BE USED IN PRODUCTION.</b>  
-//! <br>  
-//!
 //! # Parameters
 //!
 //! Allows to update configuration parameters at runtime.

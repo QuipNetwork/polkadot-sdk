@@ -29,6 +29,9 @@ pub enum VerificationError {
 	InvalidProof,
 	/// Unable to verify the execution header with ancestry proof
 	InvalidExecutionProof(#[codec(skip)] &'static str),
+	/// The verifier is halted. Proofs cannot be verified while the bridge is in an emergency
+	/// halted state (e.g. a compromised beacon light client).
+	Halted,
 }
 
 /// A bridge message from the Gateway contract on Ethereum

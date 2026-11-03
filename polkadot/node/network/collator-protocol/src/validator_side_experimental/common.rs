@@ -93,9 +93,11 @@ pub const CONNECTED_PEERS_LIMIT: NonZeroU16 = NonZeroU16::new(300).expect("300 i
 
 /// Limit for the total number of connected peers for a paraid.
 /// Must be smaller than `CONNECTED_PEERS_LIMIT`.
+/// The value is optimal for lookahead=5. In that case we can have no more than 5 parachains in the
+/// claim queue => 60 is a good value for per para limit.
 pub const CONNECTED_PEERS_PARA_LIMIT: NonZeroU16 = const {
-	assert!(CONNECTED_PEERS_LIMIT.get() >= 100);
-	NonZeroU16::new(100).expect("100 is greater than 0")
+	assert!(CONNECTED_PEERS_LIMIT.get() == 300);
+	NonZeroU16::new(60).expect("60 is greater than 0")
 };
 
 /// Maximum number of relay parents to process for reputation bumps on startup and between finality
@@ -201,11 +203,32 @@ impl TryAcceptOutcome {
 
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub struct ProspectiveCandidate {
-	/// Candidate hash.
-	pub candidate_hash: CandidateHash,
-	/// Parent head-data hash as supplied in advertisement.
-	pub parent_head_data_hash: Hash,
+pub enum ProspectiveCandidate {
+	ByHash { candidate_hash: CandidateHash, parent_head_data_hash: Hash },
+	ByOutputHead { output_head_data_hash: Hash, parent_head_data_hash: Hash },
+}
+
+impl ProspectiveCandidate {
+	pub fn candidate_hash(&self) -> Option<CandidateHash> {
+		match self {
+			Self::ByHash { candidate_hash, .. } => Some(*candidate_hash),
+			Self::ByOutputHead { .. } => None,
+		}
+	}
+
+	pub fn output_head_data_hash(&self) -> Option<Hash> {
+		match self {
+			Self::ByHash { .. } => None,
+			Self::ByOutputHead { output_head_data_hash, .. } => Some(*output_head_data_hash),
+		}
+	}
+
+	pub fn parent_head_data_hash(&self) -> Hash {
+		match self {
+			Self::ByHash { parent_head_data_hash, .. } |
+			Self::ByOutputHead { parent_head_data_hash, .. } => *parent_head_data_hash,
+		}
+	}
 }
 
 /// Identifier of a collation being requested.
@@ -227,7 +250,7 @@ pub struct Advertisement {
 
 impl Advertisement {
 	pub fn candidate_hash(&self) -> Option<CandidateHash> {
-		self.prospective_candidate.map(|candidate| candidate.candidate_hash)
+		self.prospective_candidate.and_then(|candidate| candidate.candidate_hash())
 	}
 }
 

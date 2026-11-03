@@ -1,0 +1,23 @@
+title: 'Fix paths_via_relay_parent returning paths longer than scheduling_lookahead'
+doc:
+- audience: Node Dev
+  description: |-
+    Fixes a bug where `paths_via_relay_parent()` in the implicit view could return
+    paths longer than `scheduling_lookahead` during relay chain forks. Fork leaves
+    kept old blocks in `block_info_storage`, and the path traversal walked through
+    all of them regardless of which leaf they belonged to.
+
+    This caused `is_slot_available` to compute `valid_len = 0` for valid scheduling
+    parents, unconditionally rejecting collation advertisements with
+    `SecondedLimitReached`.
+
+    The fix derives paths directly from each leaf's `allowed_relay_parents_contiguous`
+    instead of walking `block_info_storage`, bounding path length to
+    `scheduling_lookahead`.
+
+    Fixes https://github.com/paritytech/polkadot-sdk/issues/11625.
+crates:
+- name: polkadot-node-subsystem-util
+  bump: patch
+- name: polkadot-collator-protocol
+  bump: none

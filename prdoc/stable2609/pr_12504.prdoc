@@ -1,0 +1,9 @@
+title: Remove deprecated UnpaidLocalExporter from staging-xcm-builder
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+    Removes the deprecated `UnpaidLocalExporter` from `staging-xcm-builder`. Use `LocalExporter` instead.
+crates:
+- name: staging-xcm-builder
+  bump: major

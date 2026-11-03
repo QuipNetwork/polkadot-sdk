@@ -1,0 +1,19 @@
+[package]
+name = "polkadot-voter-bags"
+version = "40.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI to generate voter bags for Polkadot runtimes"
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { features = ["derive"], workspace = true }
+
+generate-bags = { workspace = true, default-features = true }
+
+asset-hub-westend-runtime = { workspace = true, default-features = true }

@@ -1,0 +1,10 @@
+title: Make the experimental collator proto the default for Kusama
+doc:
+- audience: Node Dev
+  description: |-
+    The binary checks if a Kusama chainspec is loaded and enables the experimental collator protocol
+    by default unless `experimental-collator-protocol` parameter is passed explicitly. In that case
+    its value is respected no matter what the chainspec is.
+crates:
+- name: polkadot-cli
+  bump: patch

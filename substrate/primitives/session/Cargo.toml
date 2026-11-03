@@ -1,6 +1,6 @@
 [package]
 name = "sp-session"
-version = "43.0.0"
+version = "46.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

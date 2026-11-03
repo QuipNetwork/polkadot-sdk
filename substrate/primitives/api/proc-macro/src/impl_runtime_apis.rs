@@ -367,6 +367,10 @@ fn generate_runtime_api_base_structures() -> Result<TokenStream> {
 				fn register_extension<E: #crate_::Extension>(&mut self, extension: E) {
 					std::cell::RefCell::borrow_mut(&self.extensions).register(extension);
 				}
+
+				fn set_overlayed_changes(&mut self, changes: #crate_::OverlayedChanges<#crate_::HashingFor<Block>>) {
+					*self.changes.borrow_mut() = changes;
+				}
 			}
 
 			#[automatically_derived]

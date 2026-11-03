@@ -1,0 +1,9 @@
+title: Make BEEFY aware of duplicated authorities
+doc:
+- audience: [Node Dev, Node Operator]
+  description: |-
+    Added a mechanism to count duplicated authorities as non-equal weight votes.
+
+crates:
+- name: sc-consensus-beefy
+  bump: major

@@ -1,0 +1,22 @@
+title: '[pallet-assets-precompiles] Charge DepositEvent by data length, not topic
+  count'
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\n`deposit_event` in the assets ERC-20 precompile passed\
+    \ `topics.len()` for both the `num_topic` and `len` fields of `RuntimeCosts::DepositEvent`.\
+    \ The `len` field is the byte length of the event data payload, so the per-byte\
+    \ data cost was charged against the topic count (always 3 for the ERC-20 events\
+    \ emitted here) instead of the actual payload size \u2014 undercharging every\
+    \ `Transfer` and `Approval` emitted via this precompile by 7,640,746 ref_time\
+    \ and making its metering inconsistent with the EVM `LOG_n` path in `pallet-revive`,\
+    \ which correctly passes the data byte length.\n\n## Changes\n\n- `substrate/frame/assets/precompiles/src/lib.rs`:\
+    \ pass `data.len()` to `RuntimeCosts::DepositEvent { len }`.\n- `substrate/frame/assets/precompiles/src/tests.rs`:\
+    \ add `deposit_event_charges_data_byte_length` regression test that asserts a\
+    \ precompile `transfer`'s `weight_consumed` equals `WeightInfo::transfer() + DepositEvent{num_topic:\
+    \ 3, len: 32}.weight()`. Verified to pass with the fix and fail without it (off\
+    \ by exactly the per-byte event-charge delta).\n\n## Test plan\n- [x] Verified\
+    \ the new regression test fails when the bug is reintroduced and passes when the\
+    \ fix is in place"
+crates:
+- name: pallet-assets-precompiles
+  bump: patch

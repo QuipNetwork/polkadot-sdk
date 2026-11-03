@@ -1,0 +1,19 @@
+title: 'approval-voting: remove unused v1 version'
+
+doc:
+- audience: Node Dev
+  description: |-
+    Removes the long-dead approval-voting v1 code, now that all networks have used v2 assignments
+    for ~2.5 years: the v1 assignment-cert types and the v1<->v2 conversions, the non-compact
+    `AssignmentCertKindV2::RelayVRFModulo` variant (codec index 2 is now reserved), and the v1
+    approval-DB schema together with its migration.
+
+crates:
+- name: polkadot-node-primitives
+  bump: major
+- name: polkadot-node-core-approval-voting
+  bump: major
+- name: polkadot-approval-distribution
+  bump: patch
+- name: polkadot-service
+  bump: patch

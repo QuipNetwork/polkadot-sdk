@@ -1,0 +1,17 @@
+title: 'statement-store: fix statement loss during major sync'
+doc:
+- audience: Node Dev
+  description: |
+    Fixes two cases where statements are permanently lost during major sync.
+
+    **New peers (fresh start):** peers connecting while major sync is active are buffered in
+    `deferred_peers` instead of being added to the reserved set immediately. When sync ends
+    all buffered peers are added in one batch so each performs a fresh initial sync.
+
+    **Already-connected peers (fall-behind):** when a running node temporarily falls behind
+    and drops statements via the `is_major_syncing()` guard, one peer is force-disconnected
+    and re-added after a 1-minute window so it re-sends its statements via initial sync.
+    The recovery only fires when statements were actually dropped during sync.
+crates:
+- name: sc-network-statement
+  bump: patch

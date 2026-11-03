@@ -16,8 +16,8 @@
 
 //! XCM sender for relay chain.
 
-use alloc::vec::Vec;
-use codec::{DecodeLimit, Encode};
+use alloc::{collections::btree_set::BTreeSet, vec::Vec};
+use codec::Encode;
 use core::marker::PhantomData;
 use frame_support::traits::Get;
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -27,7 +27,7 @@ use polkadot_runtime_parachains::{
 	dmp, FeeTracker,
 };
 use sp_runtime::FixedPointNumber;
-use xcm::{prelude::*, MAX_XCM_DECODE_DEPTH};
+use xcm::prelude::*;
 use xcm_builder::InspectMessageQueues;
 use SendError::*;
 
@@ -155,28 +155,35 @@ where
 
 impl<T: dmp::Config, W, P> InspectMessageQueues for ChildParachainRouter<T, W, P> {
 	fn clear_messages() {
-		// Best effort.
-		let _ = dmp::DownwardMessageQueues::<T>::clear(u32::MAX, None);
+		// Best effort: clear all dmp storage maps.
+		let _ = dmp::DownwardMessageQueueMeta::<T>::clear(u32::MAX, None);
+		let _ = dmp::DownwardMessageQueuePages::<T>::clear(u32::MAX, None);
+		let _ = dmp::DownwardMessageQueueLazyDelete::<T>::clear(u32::MAX, None);
 	}
 
 	fn get_messages() -> Vec<(VersionedLocation, Vec<VersionedXcm<()>>)> {
-		dmp::DownwardMessageQueues::<T>::iter()
-			.map(|(para_id, messages)| {
-				let decoded_messages: Vec<VersionedXcm<()>> = messages
-					.iter()
-					.map(|downward_message| {
-						let message = VersionedXcm::<()>::decode_all_with_depth_limit(
-							MAX_XCM_DECODE_DEPTH,
-							&mut &downward_message.msg[..],
-						)
-						.unwrap();
-						log::trace!(
-							target: "xcm::DownwardMessageQueues::get_messages",
-							"Message: {:?}, sent at: {:?}", message, downward_message.sent_at
-						);
-						message
-					})
-					.collect();
+		let para_ids: BTreeSet<_> = dmp::DownwardMessageQueueMeta::<T>::iter_keys()
+			.chain(dmp::migration::v0::DownwardMessageQueues::<T>::iter_keys())
+			.collect();
+
+		para_ids
+			.into_iter()
+			.map(|para_id| {
+				let decoded_messages: Vec<VersionedXcm<()>> =
+					dmp::Pallet::<T>::dmq_contents_do_not_call_in_consensus(para_id)
+						.iter()
+						.map(|downward_message| {
+							let message = VersionedXcm::<()>::decode_all_with_mem_and_depth_limit(
+								&mut &downward_message.msg[..],
+							)
+							.unwrap();
+							log::trace!(
+								target: "xcm::DownwardMessageQueues::get_messages",
+								"Message: {:?}, sent at: {:?}", message, downward_message.sent_at
+							);
+							message
+						})
+						.collect();
 				(
 					VersionedLocation::from(Location::from(Parachain(para_id.into()))),
 					decoded_messages,
@@ -385,6 +392,51 @@ mod tests {
 			assert_eq!(
 				Err(ExceedsMaxMessageSize),
 				<Router as SendXcm>::validate(&mut Some(dest.into()), &mut Some(bad))
+			);
+		});
+	}
+
+	#[test]
+	fn get_messages_surfaces_v0_only_paras() {
+		use polkadot_primitives::InboundDownwardMessage;
+
+		type Test = crate::integration_tests::Test;
+		type Router = ChildParachainRouter<Test, (), NoPriceForMessageDelivery<ParaId>>;
+
+		let para_v1: ParaId = 5000.into();
+		let para_v0: ParaId = 6000.into();
+		let xcm_v1 = VersionedXcm::from(Xcm::<()>(vec![ClearOrigin]));
+		let xcm_v0 = VersionedXcm::from(Xcm::<()>(vec![ClearOrigin]));
+
+		new_test_ext().execute_with(|| {
+			configuration::ActiveConfig::<Test>::mutate(|c| {
+				c.max_downward_message_size = 1024;
+			});
+			dmp::Pallet::<Test>::make_parachain_reachable(para_v1);
+			let config = configuration::ActiveConfig::<Test>::get();
+			assert_ok!(dmp::Pallet::<Test>::queue_downward_message(
+				&config,
+				para_v1,
+				xcm_v1.encode()
+			));
+
+			dmp::migration::v0::DownwardMessageQueues::<Test>::insert(
+				para_v0,
+				vec![InboundDownwardMessage { sent_at: 1, msg: xcm_v0.encode() }],
+			);
+
+			assert_eq!(
+				<Router as InspectMessageQueues>::get_messages(),
+				vec![
+					(
+						VersionedLocation::from(Location::from(Parachain(u32::from(para_v1)))),
+						vec![xcm_v1],
+					),
+					(
+						VersionedLocation::from(Location::from(Parachain(u32::from(para_v0)))),
+						vec![xcm_v0],
+					),
+				]
 			);
 		});
 	}

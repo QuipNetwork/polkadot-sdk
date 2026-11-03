@@ -186,6 +186,24 @@ impl AssetsInHolding {
 			)
 	}
 
+	/// A consuming iterator that yields one [`AssetsInHolding`] per individual asset —
+	/// each fungible imbalance and each non-fungible instance — by transferring ownership
+	/// out of the underlying maps. No `AssetId` clones and no `BTreeMap` lookups, unlike
+	/// the borrowing-iterator + `try_take` pattern.
+	///
+	/// Iteration order matches [`Self::assets_iter`] and [`Self::into_assets_iter`]:
+	/// fungibles in sorted-by-`AssetId` order, then non-fungibles in sorted order.
+	pub fn into_per_asset_holdings(self) -> impl Iterator<Item = AssetsInHolding> {
+		let fungibles = self.fungible.into_iter().map(|(asset_id, accounting)| {
+			AssetsInHolding::new_from_fungible_credit(asset_id, accounting)
+		});
+		let non_fungibles = self
+			.non_fungible
+			.into_iter()
+			.map(|(class, instance)| AssetsInHolding::new_from_non_fungible(class, instance));
+		fungibles.chain(non_fungibles)
+	}
+
 	/// A borrowing iterator over all assets.
 	pub fn assets_iter(&self) -> impl Iterator<Item = Asset> + '_ {
 		self.fungible_assets_iter().chain(self.non_fungible_assets_iter())
@@ -531,7 +549,7 @@ impl AssetsInHolding {
 	///
 	/// This uses `unsafe_clone()` on the imbalance accounting trait objects,
 	/// which may not maintain proper accounting invariants. Only use in tests.
-	#[cfg(test)]
+	#[cfg(feature = "std")]
 	pub fn unsafe_clone_for_tests(&self) -> Self {
 		Self {
 			fungible: self

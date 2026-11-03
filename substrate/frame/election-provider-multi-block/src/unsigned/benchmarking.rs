@@ -45,7 +45,9 @@ mod benchmarks {
 
 		#[block]
 		{
-			assert_ok!(Pallet::<T>::validate_unsigned(TransactionSource::Local, &call));
+			#[allow(deprecated)]
+			let result = Pallet::<T>::validate_unsigned(TransactionSource::Local, &call);
+			assert_ok!(result);
 		}
 
 		Ok(())

@@ -27,8 +27,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	CandidateDescriptorVersion, CandidateReceiptV2, ClaimQueueOffset, CollatorPair, CoreSelector,
-	PersistedValidationData, UMPSignal, UMP_SEPARATOR,
+	CandidateDescriptorVersion, ClaimQueueOffset, CollatorPair, CoreSelector,
+	PersistedValidationData, UMPSignal, ValidationCodeHash, UMP_SEPARATOR,
 };
 use polkadot_primitives_test_helpers::dummy_head_data;
 use rstest::rstest;
@@ -134,7 +134,7 @@ impl TestCollator {
 				core_selector_data.index += core_selector_data.increment_index_by;
 			}
 
-			async move { Some(CollationResult { collation, result_sender: None }) }.boxed()
+			async move { Some(CollationResult { collation }) }.boxed()
 		})
 	}
 }
@@ -170,18 +170,27 @@ fn test_config_no_collator<Id: Into<ParaId>>(para_id: Id) -> CollationGeneration
 }
 
 #[test]
-fn submit_collation_is_no_op_before_initialization() {
+fn submit_segment_is_no_op_before_initialization() {
 	test_harness(|mut virtual_overseer| async move {
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-					relay_parent: Hash::repeat_byte(0),
-					scheduling_parent: Some(Hash::repeat_byte(0)),
-					collation: test_collation(),
-					parent_head: vec![1, 2, 3].into(),
-					validation_code_hash: Hash::repeat_byte(1).into(),
-					result_sender: None,
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: Hash::repeat_byte(0),
 					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V2,
+					collations: BoundedVec::try_from(vec![SegmentCollation {
+						relay_parent: Hash::repeat_byte(0),
+						collation: test_collation(),
+						validation_code_hash: Hash::repeat_byte(1).into(),
+						session_index: 1,
+						validation_data: PersistedValidationData {
+							parent_head: vec![1, 2, 3].into(),
+							relay_parent_number: 10,
+							relay_parent_storage_root: Hash::repeat_byte(1),
+							max_pov_size: 1024,
+						},
+					}])
+					.expect("One element segment should fit;qed!"),
 				}),
 			})
 			.await;
@@ -191,7 +200,7 @@ fn submit_collation_is_no_op_before_initialization() {
 }
 
 #[test]
-fn submit_collation_leads_to_distribution() {
+fn submit_segment_leads_to_distribution() {
 	let relay_parent = Hash::repeat_byte(0);
 	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
 	let parent_head = dummy_head_data();
@@ -219,39 +228,108 @@ fn submit_collation_leads_to_distribution() {
 
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-					relay_parent,
-					scheduling_parent: Some(relay_parent),
-					collation,
-					parent_head: dummy_head_data(),
-					validation_code_hash,
-					result_sender: None,
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: relay_parent,
 					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V2,
+					collations: BoundedVec::try_from(vec![SegmentCollation {
+						relay_parent,
+						collation,
+						validation_code_hash,
+						session_index: 1,
+						validation_data: expected_pvd.clone(),
+					}])
+					.expect("One element segment should fit;qed!"),
 				}),
 			})
 			.await;
 
-		helpers::handle_runtime_calls_on_submit_collation(
+		helpers::handle_runtime_calls_on_submit_segment(
 			&mut virtual_overseer,
 			relay_parent,
-			para_id,
-			expected_pvd.clone(),
 			[(CoreIndex(0), VecDeque::from([para_id]))].into(),
 		)
 		.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation {
-				candidate_receipt,
-				parent_head_data_hash,
-				..
-			}) => {
-				let CandidateReceiptV2 { descriptor, .. } = candidate_receipt;
-				assert_eq!(parent_head_data_hash, parent_head.hash());
-				assert_eq!(descriptor.persisted_validation_data_hash(), expected_pvd.hash());
-				assert_eq!(descriptor.para_head(), dummy_head_data().hash());
-				assert_eq!(descriptor.validation_code_hash(), validation_code_hash);
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeSegment {segment: Segment::V2(entry),..}) => {
+				assert_eq!(entry.parent_head_data.hash(), parent_head.hash());
+				assert_eq!(entry.persisted_validation_data_hash, expected_pvd.hash());
+				assert_eq!(entry.output_head_data_hash, dummy_head_data().hash());
+				assert_eq!(entry.validation_code_hash, validation_code_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn submit_segment_v3_runtime_calls_use_scheduling_parent() {
+	let relay_parent = Hash::repeat_byte(0xAA);
+	let scheduling_parent = Hash::repeat_byte(0xBB);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let parent_head = dummy_head_data();
+	let para_id = ParaId::from(5);
+	let expected_pvd = PersistedValidationData {
+		parent_head: parent_head.clone(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+			})
+			.await;
+
+		let mut collation = test_collation();
+		collation.upward_messages.force_push(UMP_SEPARATOR);
+		collation
+			.upward_messages
+			.force_push(UMPSignal::SelectCore(CoreSelector(0), ClaimQueueOffset(0)).encode());
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent,
+					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V3,
+					collations: BoundedVec::try_from(vec![SegmentCollation {
+						relay_parent,
+						collation,
+						validation_code_hash,
+						session_index: 1,
+						validation_data: expected_pvd.clone(),
+					}])
+					.expect("One element segment should fit;qed!"),
+				}),
+			})
+			.await;
+
+		// All runtime API calls must be against the scheduling_parent, not relay_parent.
+		helpers::handle_runtime_calls_on_submit_segment(
+			&mut virtual_overseer,
+			scheduling_parent,
+			[(CoreIndex(0), VecDeque::from([para_id]))].into(),
+		)
+		.await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeSegment {segment: Segment::V3 { scheduling_parent: sp, candidates,.. },.. }) => {
+				let [entry] = &candidates[..] else {
+					panic!("expected exactly one built entry")
+				};
+				assert_eq!(entry.parent_head_data.hash(), parent_head.hash());
+				assert_eq!(entry.persisted_validation_data_hash, expected_pvd.hash());
+				// relay_parent in the descriptor is the execution context
+				assert_eq!(entry.relay_parent, relay_parent);
+				// scheduling_parent in the descriptor is the scheduling context
+				assert_eq!(sp, scheduling_parent);
 			}
 		);
 
@@ -465,23 +543,25 @@ fn v2_receipts_failed_core_index_check() {
 
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-					relay_parent,
-					scheduling_parent: Some(relay_parent),
-					collation: test_collation(),
-					parent_head: dummy_head_data(),
-					validation_code_hash,
-					result_sender: None,
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: relay_parent,
 					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V2,
+					collations: BoundedVec::try_from(vec![SegmentCollation {
+						relay_parent,
+						collation: test_collation(),
+						validation_code_hash,
+						session_index: 1,
+						validation_data: expected_pvd.clone(),
+					}])
+					.expect("One element segment should fit;qed!"),
 				}),
 			})
 			.await;
 
-		helpers::handle_runtime_calls_on_submit_collation(
+		helpers::handle_runtime_calls_on_submit_segment(
 			&mut virtual_overseer,
 			relay_parent,
-			para_id,
-			expected_pvd.clone(),
 			// Core index commitment is on core 0 but don't add any assignment for core 0.
 			[(CoreIndex(1), [para_id].into_iter().collect())].into_iter().collect(),
 		)
@@ -494,7 +574,140 @@ fn v2_receipts_failed_core_index_check() {
 }
 
 #[test]
-// Verify that an ApprovedPeer UMP signal does not break the subsystem (DistributeCollation is
+// An empty segment is rejected with `Error::InvalidSegmentSize`.
+fn submit_empty_segment_is_rejected() {
+	let para_id = ParaId::from(5);
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+			})
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: Hash::repeat_byte(0),
+					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V3,
+					collations: BoundedVec::try_from(vec![])
+						.expect("Empty segment should fit;qed!"),
+				}),
+			})
+			.await;
+
+		virtual_overseer
+	});
+}
+
+#[test]
+// A V2 segment with more than one collation is rejected with `Error::V2InvalidSegmentLength`.
+fn submit_v2_segment_with_multiple_collations_is_rejected() {
+	let relay_parent = Hash::repeat_byte(0);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let para_id = ParaId::from(5);
+	let pvd = PersistedValidationData {
+		parent_head: dummy_head_data(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+			})
+			.await;
+
+		let collations = (0..2)
+			.map(|_| SegmentCollation {
+				relay_parent,
+				collation: test_collation(),
+				validation_code_hash,
+				session_index: 1,
+				validation_data: pvd.clone(),
+			})
+			.collect::<Vec<_>>();
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: relay_parent,
+					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V2,
+					collations: BoundedVec::try_from(collations)
+						.expect("Two element segment should fit;qed!"),
+				}),
+			})
+			.await;
+
+		virtual_overseer
+	});
+}
+
+#[rstest]
+#[case(CandidateDescriptorVersion::V1)]
+#[case(CandidateDescriptorVersion::Unknown(42))]
+// Only V2 and V3 descriptor versions can be submitted.
+fn submit_segment_with_unsupported_descriptor_version_is_rejected(
+	#[case] version: CandidateDescriptorVersion,
+) {
+	let relay_parent = Hash::repeat_byte(0);
+	let validation_code_hash = ValidationCodeHash::from(Hash::repeat_byte(42));
+	let para_id = ParaId::from(5);
+	let pvd = PersistedValidationData {
+		parent_head: dummy_head_data(),
+		relay_parent_number: 10,
+		relay_parent_storage_root: Hash::repeat_byte(1),
+		max_pov_size: 1024,
+	};
+
+	test_harness(|mut virtual_overseer| async move {
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::Initialize(test_config_no_collator(para_id)),
+			})
+			.await;
+
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: relay_parent,
+					core_index: CoreIndex(0),
+					candidates_descriptor_version: version,
+					// A plain collation without UMP signals: with a `SelectCore` signal a
+					// `V1` submission would already fail the UMP signal checks instead of
+					// reaching the descriptor version check.
+					collations: BoundedVec::try_from(vec![SegmentCollation {
+						relay_parent,
+						collation: test_collation(),
+						validation_code_hash,
+						session_index: 1,
+						validation_data: pvd,
+					}])
+					.expect("One element segment should fit;qed!"),
+				}),
+			})
+			.await;
+
+		// The runtime calls precede the descriptor version checks.
+		helpers::handle_runtime_calls_on_submit_segment(
+			&mut virtual_overseer,
+			relay_parent,
+			[(CoreIndex(0), VecDeque::from([para_id]))].into(),
+		)
+		.await;
+
+		// No segment is distributed.
+
+		virtual_overseer
+	});
+}
+
+#[test]
+// Verify that an ApprovedPeer UMP signal does not break the subsystem (DistributedSegment is
 // sent), assuming CandidateReceiptV2 node feature is enabled.
 fn approved_peer_signal() {
 	let relay_parent = Hash::repeat_byte(0);
@@ -523,40 +736,39 @@ fn approved_peer_signal() {
 
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: CollationGenerationMessage::SubmitCollation(SubmitCollationParams {
-					relay_parent,
-					scheduling_parent: Some(relay_parent),
-					collation,
-					parent_head: dummy_head_data(),
-					validation_code_hash,
-					result_sender: None,
+				msg: CollationGenerationMessage::SubmitSegment(SubmitSegmentParams {
+					scheduling_parent: relay_parent,
 					core_index: CoreIndex(0),
+					candidates_descriptor_version: CandidateDescriptorVersion::V3,
+					collations: BoundedVec::try_from(vec![SegmentCollation {
+						relay_parent,
+						collation,
+						validation_code_hash,
+						session_index: 1,
+						validation_data: expected_pvd.clone(),
+					}])
+					.expect("One element segment should fit;qed!"),
 				}),
 			})
 			.await;
 
-		helpers::handle_runtime_calls_on_submit_collation(
+		helpers::handle_runtime_calls_on_submit_segment(
 			&mut virtual_overseer,
 			relay_parent,
-			para_id,
-			expected_pvd.clone(),
 			[(CoreIndex(0), [para_id].into_iter().collect())].into_iter().collect(),
 		)
 		.await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation {
-				candidate_receipt,
-				parent_head_data_hash,
-				..
-			}) => {
-				let CandidateReceiptV2 { descriptor, .. } = candidate_receipt;
-				assert_eq!(parent_head_data_hash, parent_head.hash());
-				assert_eq!(descriptor.persisted_validation_data_hash(), expected_pvd.hash());
-				assert_eq!(descriptor.para_head(), dummy_head_data().hash());
-				assert_eq!(descriptor.validation_code_hash(), validation_code_hash);
-				assert_eq!(descriptor.version(), CandidateDescriptorVersion::V3);
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeSegment { segment: Segment::V3 { candidates,.. }, .. }) => {
+				let [entry] = &candidates[..] else {
+					panic!("expected exactly one built entry")
+				};
+				assert_eq!(entry.parent_head_data.hash(), parent_head.hash());
+				assert_eq!(entry.persisted_validation_data_hash, expected_pvd.hash());
+				assert_eq!(entry.output_head_data_hash, dummy_head_data().hash());
+				assert_eq!(entry.validation_code_hash, validation_code_hash);
 			}
 		);
 
@@ -690,48 +902,31 @@ mod helpers {
 		for core in cores_assigned {
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation{
-					candidate_receipt,
-					parent_head_data_hash,
-					core_index,
-					..
-				}) => {
+				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeSegment{ segment: Segment::V2(entry), core_index, ..}) => {
 					assert_eq!(CoreIndex(core), core_index);
-					assert_eq!(parent_head_data_hash, parent_head.hash());
-					assert_eq!(candidate_receipt.descriptor().persisted_validation_data_hash(), pvd.hash());
-					assert_eq!(candidate_receipt.descriptor().para_head(), dummy_head_data().hash());
-					assert_eq!(candidate_receipt.descriptor().validation_code_hash(), validation_code_hash);
+					assert_eq!(entry.parent_head_data.hash(), parent_head.hash());
+					assert_eq!(entry.persisted_validation_data_hash, pvd.hash());
+					assert_eq!(entry.output_head_data_hash, dummy_head_data().hash());
+					assert_eq!(entry.validation_code_hash, validation_code_hash);
 				}
 			);
 		}
 	}
 
-	// Handles all runtime requests performed in `handle_submit_collation`
-	pub async fn handle_runtime_calls_on_submit_collation(
+	// Handles all runtime requests performed in `handle_submit_segment`.
+	// All requests are made against the scheduling parent (or relay_parent for V2).
+	pub async fn handle_runtime_calls_on_submit_segment(
 		virtual_overseer: &mut VirtualOverseer,
-		relay_parent: Hash,
-		para_id: ParaId,
-		expected_pvd: PersistedValidationData,
+		scheduling_parent: Hash,
 		claim_queue: BTreeMap<CoreIndex, VecDeque<ParaId>>,
 	) {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::PersistedValidationData(id, a, tx))) => {
-				assert_eq!(rp, relay_parent);
-				assert_eq!(id, para_id);
-				assert_eq!(a, OccupiedCoreAssumption::TimedOut);
-
-				tx.send(Ok(Some(expected_pvd))).unwrap();
-			}
-		);
-
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				rp,
 				RuntimeApiRequest::ClaimQueue(tx),
 			)) => {
-				assert_eq!(rp, relay_parent);
+				assert_eq!(rp, scheduling_parent);
 				tx.send(Ok(claim_queue)).unwrap();
 			}
 		);
@@ -739,7 +934,7 @@ mod helpers {
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::SessionIndexForChild(tx))) => {
-				assert_eq!(rp, relay_parent);
+				assert_eq!(rp, scheduling_parent);
 				tx.send(Ok(1)).unwrap();
 			}
 		);
@@ -747,7 +942,7 @@ mod helpers {
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::Validators(tx))) => {
-				assert_eq!(rp, relay_parent);
+				assert_eq!(rp, scheduling_parent);
 				tx.send(Ok(vec![
 					Sr25519Keyring::Alice.public().into(),
 					Sr25519Keyring::Bob.public().into(),

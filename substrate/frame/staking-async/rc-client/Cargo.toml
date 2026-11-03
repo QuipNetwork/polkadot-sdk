@@ -2,7 +2,7 @@
 name = "pallet-staking-async-rc-client"
 description = "Pallet handling the communication with staking-ah-client. It's role is to glue the staking pallet (on AssetHub chain) and session pallet (on Relay Chain) in a transparent way."
 license = "Apache-2.0"
-version = "0.8.0"
+version = "0.13.0"
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
@@ -12,12 +12,14 @@ codec = { workspace = true, features = ["derive"] }
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-impl-trait-for-tuples = "0.2.2"
+impl-trait-for-tuples = { workspace = true }
 log = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
 sp-core = { workspace = true }
 sp-runtime = { features = ["serde"], workspace = true }
 sp-staking = { features = ["serde"], workspace = true }
+# XCM dependencies are only needed for the optional XCMSender helper struct.
+# They can be removed entirely once XCMSender is moved to a separate crate.
 xcm = { optional = true, workspace = true }
 xcm-builder = { optional = true, workspace = true }
 xcm-executor = { optional = true, workspace = true }

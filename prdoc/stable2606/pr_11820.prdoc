@@ -1,0 +1,23 @@
+title: Fix statement-distribution request cleanup on leaf deactivation
+
+doc:
+- audience: Node Dev
+  description: |-
+    `handle_deactivate_leaves` in statement-distribution v2 was cleaning up outgoing
+    attested-candidate requests using the wrong key: it called
+    `remove_by_scheduling_parent(*leaf)` once per pruned ancestor, instead of
+    `remove_by_scheduling_parent(pruned_rp)` once per pruned relay parent. As a result,
+    requests tied to ancestors pruned alongside a deactivated leaf were never cleaned up,
+    leaking entries in the `RequestManager`.
+
+    The bug was introduced in #1436 (vstaging rework, 2023) and was latent because the
+    stale entries only caused gradual memory growth and wasted retry cycles, not
+    correctness failures.
+
+    Also adds unit tests covering the full cleanup contract of `handle_deactivate_leaves`
+    (implicit view pruning, `per_scheduling_parent`, request manager, `per_session`,
+    and the "last session's topology is retained" edge case).
+
+crates:
+- name: polkadot-statement-distribution
+  bump: patch

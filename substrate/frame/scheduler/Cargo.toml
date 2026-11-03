@@ -1,6 +1,6 @@
 [package]
 name = "pallet-scheduler"
-version = "47.0.0"
+version = "51.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -25,8 +25,8 @@ sp-runtime = { workspace = true }
 sp-weights = { workspace = true }
 
 [dev-dependencies]
-pallet-preimage = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
+pallet-preimage = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
 substrate-test-utils = { workspace = true }
 
 [features]
@@ -45,7 +45,9 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-preimage/std",
 	"scale-info/std",
+	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-weights/std",

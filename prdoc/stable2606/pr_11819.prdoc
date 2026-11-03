@@ -1,0 +1,37 @@
+title: 'pallet-psm: support external assets with different decimal precision'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Previously pallet-psm rejected any external stablecoin whose decimals did
+    not match pUSD. This change normalizes to pUSD units internally so the PSM
+    can approve assets with arbitrary decimal precision within a safe range.
+
+    Core changes:
+    - New storage: per-asset `AssetDecimals` snapshot and pallet-wide
+      `StableDecimals` snapshot. Storage version bumped to 2.
+    - Conversion helpers `external_to_pusd` / `pusd_to_external` with checked
+      arithmetic and `MAX_DECIMALS_DIFF = 24` to prevent overflow.
+    - `mint` and `redeem` use round-trip rounding. Truncation dust stays in the
+      caller's wallet on both paths (symmetric behavior), no value is trapped
+      in the reserve and no hidden dust is routed to the fee destination.
+    - `PsmDebt` now denominates in pUSD units so aggregate ceilings and issuance
+      checks are meaningful across mixed-decimal assets.
+    - Runtime drift guard: `mint`/`redeem` return `DecimalsMismatch` if live
+      metadata diverges from the registration snapshot; that asset halts until
+      governance intervenes.
+    - New errors: `DecimalsRangeExceeded`, `ConversionOverflow`,
+      `AmountTooSmallAfterConversion`.
+
+    Migrations:
+    - `InitializePsm` now also seeds `StableDecimals` from live metadata if
+      missing, and snapshots `AssetDecimals` for any new assets it adds.
+    - New one-shot `PopulateDecimals` migration backfills `StableDecimals` and
+      `AssetDecimals` for chains that approved external assets before this
+      upgrade. Out-of-range assets are auto-disabled (migration does not fail);
+      `try-runtime` `post_upgrade` surfaces the anomaly to operators.
+
+crates:
+- name: pallet-psm
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: patch

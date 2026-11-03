@@ -1,7 +1,7 @@
 [package]
 name = "westend-runtime"
 build = "build.rs"
-version = "31.0.0"
+version = "40.0.0"
 description = "Westend testnet Relay Chain runtime."
 authors.workspace = true
 edition.workspace = true
@@ -13,80 +13,15 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-binary-merkle-tree = { workspace = true }
 bitvec = { features = ["alloc"], workspace = true }
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-election-provider-support = { workspace = true }
-frame-executive = { workspace = true }
-frame-metadata-hash-extension = { workspace = true }
-frame-support = { features = ["experimental", "tuples-96"], workspace = true }
-frame-system = { workspace = true }
-frame-system-benchmarking = { optional = true, workspace = true }
-frame-system-rpc-runtime-api = { workspace = true }
-frame-try-runtime = { optional = true, workspace = true }
-hex-literal = { workspace = true, default-features = true }
 log = { workspace = true }
-pallet-asset-rate = { workspace = true }
-pallet-authority-discovery = { workspace = true }
-pallet-authorship = { workspace = true }
-pallet-babe = { workspace = true }
-pallet-bags-list = { workspace = true }
-pallet-balances = { workspace = true }
-pallet-beefy = { workspace = true }
-pallet-beefy-mmr = { workspace = true }
-pallet-conviction-voting = { workspace = true }
-pallet-dap-satellite = { workspace = true }
-pallet-delegated-staking = { workspace = true }
-pallet-election-provider-multi-phase = { workspace = true }
-pallet-election-provider-support-benchmarking = { optional = true, workspace = true }
-pallet-fast-unstake = { workspace = true }
-pallet-grandpa = { workspace = true }
-pallet-identity = { workspace = true }
-pallet-indices = { workspace = true }
-pallet-message-queue = { workspace = true }
-pallet-meta-tx = { workspace = true }
-pallet-migrations = { workspace = true }
-pallet-mmr = { workspace = true }
-pallet-multisig = { workspace = true }
-pallet-nomination-pools = { workspace = true }
-pallet-nomination-pools-benchmarking = { optional = true, workspace = true }
-pallet-nomination-pools-runtime-api = { workspace = true }
-pallet-offences = { workspace = true }
-pallet-offences-benchmarking = { optional = true, workspace = true }
-pallet-parameters = { workspace = true }
-pallet-preimage = { workspace = true }
-pallet-proxy = { workspace = true }
-pallet-recovery = { workspace = true }
-pallet-referenda = { workspace = true }
-pallet-root-offences = { workspace = true }
-pallet-root-testing = { workspace = true }
-pallet-scheduler = { workspace = true }
-pallet-session = { workspace = true }
-pallet-session-benchmarking = { optional = true, workspace = true }
-pallet-staking = { workspace = true }
-pallet-staking-async-ah-client = { workspace = true }
-pallet-staking-async-rc-client = { workspace = true, features = ["xcm-sender"] }
-pallet-staking-runtime-api = { workspace = true }
-pallet-sudo = { workspace = true }
-pallet-timestamp = { workspace = true }
-pallet-transaction-payment = { workspace = true }
-pallet-transaction-payment-rpc-runtime-api = { workspace = true }
-pallet-treasury = { workspace = true }
-pallet-utility = { workspace = true }
-pallet-verify-signature = { workspace = true }
-pallet-vesting = { workspace = true }
-pallet-whitelist = { workspace = true }
-pallet-xcm = { workspace = true }
-pallet-xcm-benchmarks = { optional = true, workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-primitives = { workspace = true }
-polkadot-runtime-common = { workspace = true }
-polkadot-runtime-parachains = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { workspace = true }
 serde_derive = { optional = true, workspace = true }
 serde_json = { features = ["alloc"], workspace = true }
+
+binary-merkle-tree = { workspace = true }
 sp-api = { workspace = true }
 sp-application-crypto = { workspace = true }
 sp-arithmetic = { workspace = true }
@@ -96,12 +31,12 @@ sp-consensus-babe = { workspace = true }
 sp-consensus-beefy = { workspace = true }
 sp-consensus-grandpa = { workspace = true }
 sp-core = { workspace = true }
+sp-dap = { workspace = true }
 sp-genesis-builder = { workspace = true }
 sp-inherents = { workspace = true }
 sp-io = { workspace = true }
 sp-keyring = { workspace = true }
 sp-mmr-primitives = { workspace = true }
-sp-npos-elections = { workspace = true }
 sp-offchain = { workspace = true }
 sp-runtime = { workspace = true }
 sp-session = { workspace = true }
@@ -109,22 +44,71 @@ sp-staking = { workspace = true }
 sp-storage = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
+
+frame-executive = { workspace = true }
+frame-metadata-hash-extension = { workspace = true }
+frame-support = { features = ["experimental", "tuples-96"], workspace = true }
+frame-system = { workspace = true }
+frame-system-rpc-runtime-api = { workspace = true }
+pallet-accumulate-and-forward = { workspace = true }
+pallet-asset-rate = { workspace = true }
+pallet-authority-discovery = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-babe = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-beefy = { workspace = true }
+pallet-beefy-mmr = { workspace = true }
+pallet-grandpa = { workspace = true }
+pallet-identity = { workspace = true }
+pallet-indices = { workspace = true }
+pallet-message-queue = { workspace = true }
+pallet-migrations = { workspace = true }
+pallet-mmr = { workspace = true }
+pallet-multisig = { workspace = true }
+pallet-offences = { workspace = true }
+pallet-parameters = { workspace = true }
+pallet-preimage = { workspace = true }
+pallet-proxy = { workspace = true }
+pallet-root-offences = { workspace = true }
+pallet-root-testing = { workspace = true }
+pallet-scheduler = { workspace = true }
+pallet-session = { workspace = true }
+pallet-staking-async-ah-client = { workspace = true }
+pallet-staking-async-rc-client = { workspace = true, features = ["xcm-sender"] }
+pallet-sudo = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-transaction-payment = { workspace = true }
+pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+pallet-utility = { workspace = true }
+pallet-vesting = { workspace = true }
+pallet-xcm = { workspace = true }
+pallet-xcm-benchmarks = { optional = true, workspace = true }
 westend-runtime-constants = { workspace = true }
+
+frame-benchmarking = { optional = true, workspace = true }
+frame-system-benchmarking = { optional = true, workspace = true }
+frame-try-runtime = { optional = true, workspace = true }
+hex-literal = { workspace = true, default-features = true }
+
+polkadot-parachain-primitives = { workspace = true }
+polkadot-primitives = { workspace = true }
+polkadot-runtime-common = { workspace = true }
+polkadot-runtime-parachains = { workspace = true }
+
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
 xcm-executor = { workspace = true }
 xcm-runtime-apis = { workspace = true }
 
 [dev-dependencies]
-approx = { workspace = true }
-remote-externalities = { default-features = true, workspace = true }
+remote-externalities = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { workspace = true, default-features = false }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true }
 tokio = { features = ["macros"], workspace = true, default-features = true }
 
 [build-dependencies]
-substrate-wasm-builder = { default-features = true, workspace = true }
+substrate-wasm-builder = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -134,7 +118,6 @@ std = [
 	"bitvec/std",
 	"codec/std",
 	"frame-benchmarking?/std",
-	"frame-election-provider-support/std",
 	"frame-executive/std",
 	"frame-metadata-hash-extension/std",
 	"frame-support/std",
@@ -143,56 +126,37 @@ std = [
 	"frame-system/std",
 	"frame-try-runtime/std",
 	"log/std",
+	"pallet-accumulate-and-forward/std",
 	"pallet-asset-rate/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-babe/std",
-	"pallet-bags-list/std",
 	"pallet-balances/std",
 	"pallet-beefy-mmr/std",
 	"pallet-beefy/std",
-	"pallet-conviction-voting/std",
-	"pallet-dap-satellite/std",
-	"pallet-delegated-staking/std",
-	"pallet-election-provider-multi-phase/std",
-	"pallet-election-provider-support-benchmarking?/std",
-	"pallet-fast-unstake/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-indices/std",
 	"pallet-message-queue/std",
-	"pallet-meta-tx/std",
 	"pallet-migrations/std",
 	"pallet-mmr/std",
 	"pallet-multisig/std",
-	"pallet-nomination-pools-benchmarking?/std",
-	"pallet-nomination-pools-runtime-api/std",
-	"pallet-nomination-pools/std",
-	"pallet-offences-benchmarking?/std",
 	"pallet-offences/std",
 	"pallet-parameters/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
-	"pallet-recovery/std",
-	"pallet-referenda/std",
 	"pallet-root-offences/std",
 	"pallet-root-testing/std",
 	"pallet-scheduler/std",
-	"pallet-session-benchmarking?/std",
 	"pallet-session/std",
 	"pallet-staking-async-ah-client/std",
 	"pallet-staking-async-rc-client/std",
-	"pallet-staking-runtime-api/std",
-	"pallet-staking/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
-	"pallet-treasury/std",
 	"pallet-utility/std",
-	"pallet-verify-signature/std",
 	"pallet-vesting/std",
-	"pallet-whitelist/std",
 	"pallet-xcm-benchmarks?/std",
 	"pallet-xcm/std",
 	"polkadot-parachain-primitives/std",
@@ -212,11 +176,11 @@ std = [
 	"sp-consensus-beefy/std",
 	"sp-consensus-grandpa/std",
 	"sp-core/std",
+	"sp-dap/std",
 	"sp-genesis-builder/std",
 	"sp-inherents/std",
 	"sp-io/std",
 	"sp-mmr-primitives/std",
-	"sp-npos-elections/std",
 	"sp-offchain/std",
 	"sp-runtime/std",
 	"sp-session/std",
@@ -233,53 +197,35 @@ std = [
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
-	"frame-election-provider-support/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"pallet-accumulate-and-forward/runtime-benchmarks",
 	"pallet-asset-rate/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
-	"pallet-bags-list/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-beefy-mmr/runtime-benchmarks",
-	"pallet-conviction-voting/runtime-benchmarks",
-	"pallet-dap-satellite/runtime-benchmarks",
-	"pallet-delegated-staking/runtime-benchmarks",
-	"pallet-election-provider-multi-phase/runtime-benchmarks",
-	"pallet-election-provider-support-benchmarking/runtime-benchmarks",
-	"pallet-fast-unstake/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
 	"pallet-message-queue/runtime-benchmarks",
-	"pallet-meta-tx/runtime-benchmarks",
 	"pallet-migrations/runtime-benchmarks",
 	"pallet-mmr/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
-	"pallet-nomination-pools-benchmarking/runtime-benchmarks",
-	"pallet-nomination-pools/runtime-benchmarks",
-	"pallet-offences-benchmarking/runtime-benchmarks",
 	"pallet-offences/runtime-benchmarks",
 	"pallet-parameters/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
-	"pallet-recovery/runtime-benchmarks",
-	"pallet-referenda/runtime-benchmarks",
 	"pallet-root-offences/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
-	"pallet-session-benchmarking/runtime-benchmarks",
 	"pallet-session/runtime-benchmarks",
 	"pallet-staking-async-ah-client/runtime-benchmarks",
 	"pallet-staking-async-rc-client/runtime-benchmarks",
-	"pallet-staking/runtime-benchmarks",
 	"pallet-sudo/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-transaction-payment/runtime-benchmarks",
-	"pallet-treasury/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
-	"pallet-verify-signature/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
-	"pallet-whitelist/runtime-benchmarks",
 	"pallet-xcm-benchmarks/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"polkadot-parachain-primitives/runtime-benchmarks",
@@ -295,55 +241,41 @@ runtime-benchmarks = [
 	"xcm/runtime-benchmarks",
 ]
 try-runtime = [
-	"frame-election-provider-support/try-runtime",
 	"frame-executive/try-runtime",
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"frame-try-runtime",
 	"frame-try-runtime/try-runtime",
+	"pallet-accumulate-and-forward/try-runtime",
 	"pallet-asset-rate/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",
-	"pallet-bags-list/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-beefy-mmr/try-runtime",
 	"pallet-beefy/try-runtime",
-	"pallet-conviction-voting/try-runtime",
-	"pallet-dap-satellite/try-runtime",
-	"pallet-delegated-staking/try-runtime",
-	"pallet-election-provider-multi-phase/try-runtime",
-	"pallet-fast-unstake/try-runtime",
 	"pallet-grandpa/try-runtime",
 	"pallet-identity/try-runtime",
 	"pallet-indices/try-runtime",
 	"pallet-message-queue/try-runtime",
-	"pallet-meta-tx/try-runtime",
 	"pallet-migrations/try-runtime",
 	"pallet-mmr/try-runtime",
 	"pallet-multisig/try-runtime",
-	"pallet-nomination-pools/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-parameters/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
-	"pallet-recovery/try-runtime",
-	"pallet-referenda/try-runtime",
 	"pallet-root-offences/try-runtime",
 	"pallet-root-testing/try-runtime",
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking-async-ah-client/try-runtime",
 	"pallet-staking-async-rc-client/try-runtime",
-	"pallet-staking/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
-	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
-	"pallet-verify-signature/try-runtime",
 	"pallet-vesting/try-runtime",
-	"pallet-whitelist/try-runtime",
 	"pallet-xcm/try-runtime",
 	"polkadot-runtime-common/try-runtime",
 	"polkadot-runtime-parachains/try-runtime",

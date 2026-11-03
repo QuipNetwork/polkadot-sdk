@@ -1,0 +1,12 @@
+title: Remove deprecated FixedPoint::try_sqrt.
+doc:
+- audience: Runtime Dev
+  description: |-
+    Remove the deprecated `try_sqrt` method from the fixed-point arithmetic types in `sp-arithmetic`.
+
+    ## Integration
+
+    Replace `value.try_sqrt()` with `value.checked_sqrt()`.
+crates:
+- name: sp-arithmetic
+  bump: major

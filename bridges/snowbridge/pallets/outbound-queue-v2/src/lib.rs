@@ -24,9 +24,11 @@
 //! 	c. Generate `PendingOrder` with assigned nonce and fee attached, stored into the
 //! 	   `PendingOrders` map storage, with nonce as the key
 //! 	d. Increment nonce and update the `Nonce` storage
-//! 6. At the end of the block, a merkle root is constructed from all the leaves in `MessageLeaves`.
-//!    At the beginning of the next block, both `Messages` and `MessageLeaves` are dropped so that
-//!    state at each block only holds the messages processed in that block.
+//! 6. At the end of the block, a merkle root is constructed from all the leaves in `MessageLeaves`,
+//!    and `MessageLeaves` is then dropped within the same block so that it never persists to state.
+//!    `Messages` is dropped at the beginning of the next block, so state at each block only holds
+//!    the messages processed in that block. The leaves are recomputed from `Messages` on demand by
+//!    the `prove_message` runtime API, which is only read off-chain and so never enters the PoV.
 //! 7. This merkle root is inserted into the parachain header as a digest item
 //! 8. Offchain relayers are able to relay the message to Ethereum after:
 //! 	a. Generating a merkle proof for the committed message using the `prove_message` runtime API
@@ -254,9 +256,10 @@ pub mod pallet {
 	pub type Messages<T: Config> = StorageValue<_, Vec<OutboundMessage>, ValueQuery>;
 
 	/// Hashes of the ABI-encoded messages in the [`Messages`] storage value. Used to generate a
-	/// merkle root during `on_finalize`. This storage value is killed in `on_initialize`, so state
-	/// at each block contains only root hash of messages processed in that block. This also means
-	/// it doesn't have to be included in PoV.
+	/// merkle root during `on_finalize`. This storage value is transient: it is appended to as
+	/// messages are processed and killed again in [`Pallet::commit`] (within the same block) once
+	/// the root has been built, so it never persists to state. The leaves are recomputed from
+	/// [`Messages`] when needed off-chain (see the `prove_message` runtime API).
 	#[pallet::storage]
 	#[pallet::unbounded]
 	pub type MessageLeaves<T: Config> = StorageValue<_, Vec<H256>, ValueQuery>;
@@ -273,8 +276,11 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_: BlockNumberFor<T>) -> Weight {
-			// Remove storage from previous block
+			// Remove the messages committed in the previous block.
 			Messages::<T>::kill();
+			// `MessageLeaves` is normally already dropped in `commit`; killing it here is a
+			// defensive cleanup that also removes any value left persisted by a pre-upgrade
+			// runtime.
 			MessageLeaves::<T>::kill();
 			// Reserve some weight for the `on_finalize` handler
 			T::WeightInfo::on_initialize() + T::WeightInfo::commit()
@@ -336,6 +342,36 @@ pub mod pallet {
 			T::OnNewCommitment::on_new_commitment(root);
 
 			Self::deposit_event(Event::MessagesCommitted { root, count });
+
+			// Drop the leaves now that the root has been committed, so they never persist to state.
+			// They can be recomputed from `Messages` on demand (e.g. by the `prove_message` runtime
+			// API), which is only read off-chain and so never enters the PoV.
+			MessageLeaves::<T>::kill();
+		}
+
+		/// Computes the committed merkle leaf for an [`OutboundMessage`]: the Keccak256 hash of the
+		/// ABI-encoded message, exactly as it will be verified on the Ethereum side.
+		///
+		/// The leaves are intentionally not persisted to state. They are appended to the transient
+		/// [`MessageLeaves`] storage during block execution to build the merkle root in
+		/// [`Self::commit`], and recomputed from [`Messages`] in the `prove_message` runtime API.
+		pub(crate) fn message_leaf(message: &OutboundMessage) -> H256 {
+			let commands: Vec<CommandWrapper> = message
+				.commands
+				.iter()
+				.map(|command| CommandWrapper {
+					kind: command.kind,
+					gas: command.gas,
+					payload: Bytes::from(command.payload.clone()),
+				})
+				.collect();
+			let committed_message = OutboundMessageWrapper {
+				origin: FixedBytes::from(message.origin.as_fixed_bytes()),
+				nonce: message.nonce,
+				topic: FixedBytes::from(message.topic.as_fixed_bytes()),
+				commands,
+			};
+			<T as Config>::Hashing::hash(&committed_message.abi_encode())
 		}
 
 		/// Process a message delivered by the MessageQueue pallet.
@@ -391,7 +427,7 @@ pub mod pallet {
 				origin,
 				nonce,
 				topic: id,
-				commands: commands.clone().try_into().map_err(|_| {
+				commands: commands.try_into().map_err(|_| {
 					Self::deposit_event(Event::MessageRejected {
 						id: Some(id),
 						payload: message.to_vec(),
@@ -400,28 +436,15 @@ pub mod pallet {
 					Corrupt
 				})?,
 			};
-			Messages::<T>::append(outbound_message);
 
-			// Convert it to an OutboundMessageWrapper (in ABI format), hash it using Keccak256 to
-			// generate a committed hash, and store it in MessageLeaves storage which can be
-			// verified on Ethereum later.
-			let abi_commands: Vec<CommandWrapper> = commands
-				.into_iter()
-				.map(|command| CommandWrapper {
-					kind: command.kind,
-					gas: command.gas,
-					payload: Bytes::from(command.payload),
-				})
-				.collect();
-			let committed_message = OutboundMessageWrapper {
-				origin: FixedBytes::from(origin.as_fixed_bytes()),
-				nonce,
-				topic: FixedBytes::from(id.as_fixed_bytes()),
-				commands: abi_commands,
-			};
-			let message_abi_encoded_hash =
-				<T as Config>::Hashing::hash(&committed_message.abi_encode());
-			MessageLeaves::<T>::append(message_abi_encoded_hash);
+			// Compute the committed merkle leaf (Keccak256 of the ABI-encoded message) and store it
+			// alongside the message. `MessageLeaves` is transient: it is consumed to build the
+			// merkle root in `commit` and dropped before the end of the block, so it never persists
+			// to state. The leaves are recomputed from `Messages` in the `prove_message` runtime
+			// API.
+			let leaf = Self::message_leaf(&outbound_message);
+			Messages::<T>::append(&outbound_message);
+			MessageLeaves::<T>::append(leaf);
 
 			// Generate `PendingOrder` with fee attached in the message, stored
 			// into the `PendingOrders` map storage, with assigned nonce as the key.

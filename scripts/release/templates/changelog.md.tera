@@ -1,7 +1,0 @@
-## Changelog for `{{ env.PRODUCT | capitalize }} {{ env.VERSION }}`
-
-{% for file in prdoc | sort(attribute="doc_filename.number") -%}
-{%- set author= file.content.author | default(value="n/a") -%}
-{%- set topic= file.content.topic | default(value="n/a") -%}
-- #{{file.doc_filename.number}}: {{ file.content.title }} (@{{ author }}) [{{ topic | capitalize }}]
-{% endfor -%}

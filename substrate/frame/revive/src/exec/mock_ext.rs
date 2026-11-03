@@ -113,6 +113,10 @@ impl<T: Config> PrecompileExt for MockExt<T> {
 		panic!("MockExt::caller_is_root")
 	}
 
+	fn origin_is_root(&self) -> bool {
+		panic!("MockExt::origin_is_root")
+	}
+
 	fn account_id(&self) -> &AccountIdOf<Self::T> {
 		panic!("MockExt::account_id")
 	}
@@ -254,6 +258,23 @@ impl<T: Config> PrecompileExt for MockExt<T> {
 		_take_old: bool,
 	) -> Result<WriteOutcome, DispatchError> {
 		panic!("MockExt::set_storage")
+	}
+
+	fn touch_storage_access(
+		&mut self,
+		_transient: bool,
+		_key: &Key,
+		_op: crate::access_list::StorageOp,
+	) -> crate::access_list::StorageAccessKind {
+		panic!("MockExt::touch_storage_access")
+	}
+
+	fn peek_storage_access(
+		&self,
+		_transient: bool,
+		_key: &Key,
+	) -> crate::access_list::StorageAccessKind {
+		panic!("MockExt::peek_storage_access")
 	}
 
 	fn charge_storage(&mut self, _diff: &Diff) -> DispatchResult {

@@ -31,7 +31,10 @@ pub enum CallContext {
 	/// The call is happening in some offchain context.
 	Offchain,
 	/// The call is happening in some on-chain context like building or importing a block.
-	Onchain,
+	Onchain {
+		/// `true` when the call is part of block import pipeline.
+		import: bool,
+	},
 }
 
 /// Code execution engine.

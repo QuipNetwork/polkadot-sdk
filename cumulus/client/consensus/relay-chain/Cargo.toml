@@ -1,7 +1,7 @@
 [package]
 name = "cumulus-client-consensus-relay-chain"
 description = "The relay-chain provided consensus algorithm"
-version = "0.29.0"
+version = "0.36.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -13,18 +13,22 @@ workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
-cumulus-client-consensus-common = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-relay-chain-interface = { default-features = true, workspace = true }
 futures = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-consensus = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-block-builder = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
 tracing = { workspace = true, default-features = true }
+
+# Substrate
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+# Cumulus
+cumulus-client-consensus-common = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-relay-chain-interface = { workspace = true, default-features = true }

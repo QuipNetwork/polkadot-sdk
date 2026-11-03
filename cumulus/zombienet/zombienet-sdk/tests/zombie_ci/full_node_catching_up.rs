@@ -32,7 +32,7 @@ async fn full_node_catching_up() -> Result<(), anyhow::Error> {
 	let relay_client: OnlineClient<PolkadotConfig> = relay_alice.wait_client().await?;
 
 	log::info!("Ensuring parachain making progress");
-	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 2..40)]).await?;
+	assert_para_throughput(&relay_client, 20, [(ParaId::from(PARA_ID), 2..40)], []).await?;
 
 	for (name, timeout_secs) in [("dave", 250u64), ("eve", 250u64)] {
 		log::info!("Ensuring {name} reports expected block height");

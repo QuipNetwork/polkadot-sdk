@@ -1,0 +1,16 @@
+title: 'statement-store: avoid blocking the event loop during propagation'
+doc:
+- audience: Node Dev
+  description: |-
+    Statement propagation no longer awaits each notification inline: sends are queued as
+    futures driven by the protocol's main event loop, so an unresponsive peer stalls only its
+    own send. Also fixes a network error being reported as a successful send on the initial
+    sync path, which marked statements as known to a peer that never received them.
+- audience: Node Operator
+  description: |-
+    New counters `substrate_sync_statement_send_failures_total` and
+    `substrate_sync_statement_undelivered_total`, both labelled by `reason` with the values
+    `network`, `timeout` and `no_sink`. Send timeouts are now logged at `warn`.
+crates:
+- name: sc-network-statement
+  bump: patch

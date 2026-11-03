@@ -1,0 +1,22 @@
+title: Remove non permanent migrations on westend
+doc:
+- audience: Runtime Dev
+  description: |-
+    Remove one-shot migrations that already executed on the live Westend system chains (all on spec 1024001), plus their now-unused support code.
+
+    Each one was verified against live chain state before removal: storage versions are at their post-migration values and the unversioned one-shots left their expected effects. A verification script is in [this gist](https://gist.github.com/runcomet/1fac906cf1197519a92a3c60aefed23e). The two bridge data fixes (`FixMessagesV1Migration`, `MigrationForXcmV5`) have no on-chain marker but shipped in #5649 / #4826, long before the deployed runtime.
+
+    Kept `ClaimTrappedBalance` (PAH reference, no-op on WAH), the staking-async migrations (`Staking` is still at v17 on-chain) and the PSM reset from #12245 (not yet executed).
+
+    Part of #11771.
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: bridge-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major
+- name: people-westend-runtime
+  bump: major

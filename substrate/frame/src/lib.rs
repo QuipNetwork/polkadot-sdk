@@ -402,9 +402,6 @@ pub mod runtime {
 		pub use sp_version::create_runtime_str;
 		pub use sp_version::{runtime_version, RuntimeVersion};
 
-		#[cfg(feature = "std")]
-		pub use sp_version::NativeVersion;
-
 		/// Macro to implement runtime APIs.
 		pub use sp_api::impl_runtime_apis;
 
@@ -579,7 +576,8 @@ pub mod derive {
 ///
 /// This is already part of the main [`prelude`].
 pub mod hashing {
-	pub use sp_core::{hashing::*, H160, H256, H512, U256, U512};
+	pub use sp_core::{H160, H256, H512, U256, U512};
+	pub use sp_crypto_hashing::*;
 	pub use sp_runtime::traits::{BlakeTwo256, Hash, Keccak256};
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "rococo-emulated-chain"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,14 +11,32 @@ publish = false
 workspace = true
 
 [dependencies]
-emulated-integration-tests-common = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
-polkadot-primitives = { workspace = true }
-rococo-runtime = { workspace = true }
-rococo-runtime-constants = { workspace = true }
+# Substrate
 sc-consensus-grandpa = { workspace = true }
 sp-authority-discovery = { workspace = true }
 sp-consensus-babe = { workspace = true }
-sp-consensus-beefy = { default-features = true, workspace = true }
+sp-consensus-beefy = { workspace = true, default-features = true }
 sp-core = { workspace = true }
 sp-keyring = { workspace = true }
+
+# Polkadot
+polkadot-primitives = { workspace = true }
+rococo-runtime = { workspace = true }
+rococo-runtime-constants = { workspace = true }
+
+# Cumulus
+emulated-integration-tests-common = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
+
+[features]
+runtime-benchmarks = [
+	"emulated-integration-tests-common/runtime-benchmarks",
+	"parachains-common/runtime-benchmarks",
+	"polkadot-primitives/runtime-benchmarks",
+	"rococo-runtime/runtime-benchmarks",
+]
+try-runtime = [
+	"emulated-integration-tests-common/try-runtime",
+	"parachains-common/try-runtime",
+	"rococo-runtime/try-runtime",
+]

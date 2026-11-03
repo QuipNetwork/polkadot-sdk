@@ -53,10 +53,10 @@ fn should_get_reports_with_storagemap_getter_and_function_getter() {
 fn should_report_an_authority_and_trigger_on_offence() {
 	new_test_ext().execute_with(|| {
 		// given
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let offence = Offence { validator_set_count: 5, time_slot, offenders: vec![5] };
+		let offence = Offence { validator_set_count: 5, slot, offenders: vec![5] };
 
 		// when
 		Offences::report_offence(vec![], offence).unwrap();
@@ -72,10 +72,10 @@ fn should_report_an_authority_and_trigger_on_offence() {
 fn should_not_report_the_same_authority_twice_in_the_same_slot() {
 	new_test_ext().execute_with(|| {
 		// given
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let offence = Offence { validator_set_count: 5, time_slot, offenders: vec![5] };
+		let offence = Offence { validator_set_count: 5, slot, offenders: vec![5] };
 		Offences::report_offence(vec![], offence.clone()).unwrap();
 		with_on_offence_fractions(|f| {
 			assert_eq!(f.clone(), vec![Perbill::from_percent(25)]);
@@ -94,13 +94,13 @@ fn should_not_report_the_same_authority_twice_in_the_same_slot() {
 }
 
 #[test]
-fn should_report_in_different_time_slot() {
+fn should_report_in_different_slot() {
 	new_test_ext().execute_with(|| {
 		// given
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let mut offence = Offence { validator_set_count: 5, time_slot, offenders: vec![5] };
+		let mut offence = Offence { validator_set_count: 5, slot, offenders: vec![5] };
 		Offences::report_offence(vec![], offence.clone()).unwrap();
 		with_on_offence_fractions(|f| {
 			assert_eq!(f.clone(), vec![Perbill::from_percent(25)]);
@@ -109,7 +109,7 @@ fn should_report_in_different_time_slot() {
 
 		// when
 		// report for the second time
-		offence.time_slot += 1;
+		offence.slot += 1;
 		Offences::report_offence(vec![], offence).unwrap();
 
 		// then
@@ -123,10 +123,10 @@ fn should_report_in_different_time_slot() {
 fn should_deposit_event() {
 	new_test_ext().execute_with(|| {
 		// given
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let offence = Offence { validator_set_count: 5, time_slot, offenders: vec![5] };
+		let offence = Offence { validator_set_count: 5, slot, offenders: vec![5] };
 
 		// when
 		Offences::report_offence(vec![], offence).unwrap();
@@ -138,7 +138,7 @@ fn should_deposit_event() {
 				phase: Phase::Initialization,
 				event: RuntimeEvent::Offences(crate::Event::Offence {
 					kind: KIND,
-					timeslot: time_slot.encode()
+					slot: slot.encode()
 				}),
 				topics: vec![],
 			}]
@@ -150,10 +150,10 @@ fn should_deposit_event() {
 fn doesnt_deposit_event_for_dups() {
 	new_test_ext().execute_with(|| {
 		// given
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let offence = Offence { validator_set_count: 5, time_slot, offenders: vec![5] };
+		let offence = Offence { validator_set_count: 5, slot, offenders: vec![5] };
 		Offences::report_offence(vec![], offence.clone()).unwrap();
 		with_on_offence_fractions(|f| {
 			assert_eq!(f.clone(), vec![Perbill::from_percent(25)]);
@@ -172,7 +172,7 @@ fn doesnt_deposit_event_for_dups() {
 				phase: Phase::Initialization,
 				event: RuntimeEvent::Offences(crate::Event::Offence {
 					kind: KIND,
-					timeslot: time_slot.encode()
+					slot: slot.encode()
 				}),
 				topics: vec![],
 			}]
@@ -183,19 +183,18 @@ fn doesnt_deposit_event_for_dups() {
 #[test]
 fn reports_if_an_offence_is_dup() {
 	new_test_ext().execute_with(|| {
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let offence =
-			|time_slot, offenders| Offence { validator_set_count: 5, time_slot, offenders };
+		let offence = |slot, offenders| Offence { validator_set_count: 5, slot, offenders };
 
-		let mut test_offence = offence(time_slot, vec![0]);
+		let mut test_offence = offence(slot, vec![0]);
 
 		// the report for authority 0 at time slot 42 should not be a known
 		// offence
 		assert!(!<Offences as ReportOffence<_, _, Offence>>::is_known_offence(
 			&test_offence.offenders,
-			&test_offence.time_slot
+			&test_offence.slot
 		));
 
 		// we report an offence for authority 0 at time slot 42
@@ -204,7 +203,7 @@ fn reports_if_an_offence_is_dup() {
 		// the same report should be a known offence now
 		assert!(<Offences as ReportOffence<_, _, Offence>>::is_known_offence(
 			&test_offence.offenders,
-			&test_offence.time_slot
+			&test_offence.slot
 		));
 
 		// and reporting it again should yield a duplicate report error
@@ -219,7 +218,7 @@ fn reports_if_an_offence_is_dup() {
 		// it should not be a known offence anymore
 		assert!(!<Offences as ReportOffence<_, _, Offence>>::is_known_offence(
 			&test_offence.offenders,
-			&test_offence.time_slot
+			&test_offence.slot
 		));
 
 		// and reporting it again should work without any error
@@ -227,10 +226,10 @@ fn reports_if_an_offence_is_dup() {
 
 		// creating a new offence for the same authorities on the next slot
 		// should be considered a new offence and therefore not known
-		let test_offence_next_slot = offence(time_slot + 1, vec![0, 1]);
+		let test_offence_next_slot = offence(slot + 1, vec![0, 1]);
 		assert!(!<Offences as ReportOffence<_, _, Offence>>::is_known_offence(
 			&test_offence_next_slot.offenders,
-			&test_offence_next_slot.time_slot
+			&test_offence_next_slot.slot
 		));
 	});
 }
@@ -241,11 +240,11 @@ fn should_properly_count_offences() {
 	// should have `count` equal 2 and the count of the 2nd one should be equal to 1.
 	new_test_ext().execute_with(|| {
 		// given
-		let time_slot = 42;
-		assert_eq!(offence_reports(KIND, time_slot), vec![]);
+		let slot = 42;
+		assert_eq!(offence_reports(KIND, slot), vec![]);
 
-		let offence1 = Offence { validator_set_count: 5, time_slot, offenders: vec![5] };
-		let offence2 = Offence { validator_set_count: 5, time_slot, offenders: vec![4] };
+		let offence1 = Offence { validator_set_count: 5, slot, offenders: vec![5] };
+		let offence2 = Offence { validator_set_count: 5, slot, offenders: vec![4] };
 		Offences::report_offence(vec![], offence1).unwrap();
 		with_on_offence_fractions(|f| {
 			assert_eq!(f.clone(), vec![Perbill::from_percent(25)]);
@@ -259,7 +258,7 @@ fn should_properly_count_offences() {
 		// then
 		// the 1st authority should have count 2 and the 2nd one should be reported only once.
 		assert_eq!(
-			offence_reports(KIND, time_slot),
+			offence_reports(KIND, slot),
 			vec![
 				OffenceDetails { offender: 5, reporters: vec![] },
 				OffenceDetails { offender: 4, reporters: vec![] },

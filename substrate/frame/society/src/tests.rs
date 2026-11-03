@@ -21,7 +21,7 @@ use super::*;
 use migrations::v0;
 use mock::*;
 
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::OnRuntimeUpgrade};
 use sp_crypto_hashing::blake2_256;
 use sp_runtime::traits::BadOrigin;
 use BidKind::*;
@@ -79,6 +79,10 @@ fn migration_works() {
 
 		migrations::from_original::<Test, ()>(&mut [][..]).expect("migration failed");
 		migrations::assert_internal_consistency::<Test, ()>();
+
+		// `from_original` carries the payout records over without funding the payouts account;
+		// reconcile it from the society account to restore the payout accounting invariant.
+		migrations::ReconcilePayoutsAccount::<Test, ()>::on_runtime_upgrade();
 
 		assert_eq!(
 			membership(),
@@ -212,6 +216,60 @@ fn unfounding_works() {
 }
 
 #[test]
+fn reconcile_payouts_account_migration_works() {
+	EnvBuilder::new().execute(|| {
+		// GIVEN: a member with a pending payout of 100 backed by the payouts account.
+		place_members([20]);
+		Society::bump_payout(&20, 5, 100);
+		let society_account = Balances::free_balance(Society::account_id());
+
+		// WHEN: the payouts account has drifted below the pending total.
+		let _ = Balances::make_free_balance_be(&Society::payouts(), 40);
+		migrations::ReconcilePayoutsAccount::<Test, ()>::on_runtime_upgrade();
+
+		// THEN: the difference is topped up from the society account.
+		assert_eq!(Balances::free_balance(Society::payouts()), 100);
+		assert_eq!(Balances::free_balance(Society::account_id()), society_account - 60);
+
+		// WHEN: the payouts account has drifted above the pending total.
+		let _ = Balances::make_free_balance_be(&Society::payouts(), 130);
+		migrations::ReconcilePayoutsAccount::<Test, ()>::on_runtime_upgrade();
+
+		// THEN: the surplus is returned to the society account.
+		assert_eq!(Balances::free_balance(Society::payouts()), 100);
+		assert_eq!(Balances::free_balance(Society::account_id()), society_account - 30);
+
+		// WHEN: the balance already matches the pending total.
+		migrations::ReconcilePayoutsAccount::<Test, ()>::on_runtime_upgrade();
+
+		// THEN: nothing changes.
+		assert_eq!(Balances::free_balance(Society::payouts()), 100);
+		assert_eq!(Balances::free_balance(Society::account_id()), society_account - 30);
+	});
+}
+
+#[test]
+fn dissolve_returns_pending_payout_funds_to_society() {
+	EnvBuilder::new().execute(|| {
+		// GIVEN: a suspended member with a pending payout of 100 and the founder as sole member.
+		place_members([20]);
+		Society::bump_payout(&20, 5, 100);
+		assert_ok!(Society::suspend_member(&20));
+		assert_eq!(Balances::free_balance(Society::payouts()), 100);
+		let society_account = Balances::free_balance(Society::account_id());
+
+		// WHEN: the founder dissolves the society.
+		assert_ok!(Society::dissolve(Origin::signed(10)));
+
+		// THEN: the pending payout records are discarded and the funds backing them are returned
+		// to the society account.
+		assert_eq!(Payouts::<Test>::iter().count(), 0);
+		assert_eq!(Balances::free_balance(Society::payouts()), 0);
+		assert_eq!(Balances::free_balance(Society::account_id()), society_account + 100);
+	});
+}
+
+#[test]
 fn basic_new_member_works() {
 	EnvBuilder::new().execute(|| {
 		assert_eq!(Balances::free_balance(20), 50);
@@ -285,10 +343,13 @@ fn bidding_works() {
 		System::run_to_block::<AllPalletsWithSystem>(16);
 		// Same members
 		assert_eq!(members(), vec![10, 30, 40, 50]);
-		// Pot is increased by 1000 again
-		assert_eq!(Pot::<Test>::get(), 2_800);
-		// No payouts
-		assert_eq!(Balances::free_balance(Society::account_id()), 8_800);
+		// 30 was struck as the challenge skeptic for not voting: half of their pending payout of
+		// 300 is slashed and returned to the pot.
+		assert_eq!(Payouts::<Test>::get(30).payouts.iter().map(|x| x.1).sum::<u64>(), 150);
+		// Pot is increased by 1000 again, plus the 150 slashed from 30's pending payout.
+		assert_eq!(Pot::<Test>::get(), 2_950);
+		// No payouts, but the slashed 150 was returned to the society account.
+		assert_eq!(Balances::free_balance(Society::account_id()), 8_950);
 		// Candidate 60 now qualifies based on the increased pot size.
 		assert_eq!(candidacies(), vec![(60, candidacy(4, 1900, Deposit(25), 0, 0))]);
 		// Candidate 60 is voted in.
@@ -298,8 +359,8 @@ fn bidding_works() {
 		// 60 joins as a member
 		assert_eq!(members(), vec![10, 30, 40, 50, 60]);
 		// Pay them
-		assert_eq!(Pot::<Test>::get(), 1_900);
-		assert_eq!(Balances::free_balance(Society::account_id()), 6_900);
+		assert_eq!(Pot::<Test>::get(), 2_050);
+		assert_eq!(Balances::free_balance(Society::account_id()), 7_050);
 	});
 }
 
@@ -459,6 +520,62 @@ fn slash_payout_multi_works() {
 			Payouts::<Test>::get(20),
 			PayoutRecord { paid: 0, payouts: vec![(20, 100)].try_into().unwrap() }
 		);
+	});
+}
+
+#[test]
+fn strike_slash_returns_funds_to_pot() {
+	EnvBuilder::new().execute(|| {
+		// GIVEN: rank-0 member 20 with a pending payout of 100.
+		place_members([20]);
+		Society::bump_payout(&20, 5, 100);
+		let pot = Pot::<Test>::get();
+		let payouts_account = Balances::free_balance(Society::payouts());
+
+		// WHEN: the member accrues enough strikes to have their pending payouts slashed in half.
+		assert_ok!(Society::strike_member(&20));
+
+		// THEN: half of the pending payout is slashed.
+		assert_eq!(
+			Payouts::<Test>::get(20),
+			PayoutRecord { paid: 0, payouts: vec![(5, 50)].try_into().unwrap() }
+		);
+		// THEN: the funds reserved for the slashed amount are returned to the pot.
+		assert_eq!(Pot::<Test>::get(), pot + 50);
+		assert_eq!(Balances::free_balance(Society::payouts()), payouts_account - 50);
+	});
+}
+
+#[test]
+fn bump_payout_does_not_reserve_when_payment_is_discarded() {
+	EnvBuilder::new().execute(|| {
+		// GIVEN: rank-0 member 20 with the maximum number of pending payouts.
+		place_members([20]);
+		let max_payouts: u64 = <Test as Config>::MaxPayouts::get().into();
+		for i in 0..max_payouts {
+			Society::bump_payout(&20, 10 + i, 1);
+		}
+		let record = Payouts::<Test>::get(20);
+		assert_eq!(record.payouts.len() as u64, max_payouts);
+		let pot = Pot::<Test>::get();
+		let society_account = Balances::free_balance(Society::account_id());
+		let payouts_account = Balances::free_balance(Society::payouts());
+
+		// WHEN: a payout with a new maturity block is bumped.
+		Society::bump_payout(&20, 999, 100);
+
+		// THEN: the payment is discarded and no funds are reserved for it.
+		assert_eq!(Payouts::<Test>::get(20), record);
+		assert_eq!(Pot::<Test>::get(), pot);
+		assert_eq!(Balances::free_balance(Society::account_id()), society_account);
+		assert_eq!(Balances::free_balance(Society::payouts()), payouts_account);
+
+		// WHEN: a payout with an already-scheduled maturity block is bumped.
+		Society::bump_payout(&20, 10, 100);
+
+		// THEN: it accrues to the existing entry and its funds are reserved.
+		assert_eq!(Payouts::<Test>::get(20).payouts[0], (10, 101));
+		assert_eq!(Balances::free_balance(Society::payouts()), payouts_account + 100);
 	});
 }
 
@@ -1257,20 +1374,34 @@ fn bids_ordered_correctly() {
 #[test]
 fn waive_repay_works() {
 	EnvBuilder::new().execute(|| {
+		// GIVEN: rank-0 member 20 with a claimed payout of 40 and a pending payout of 60.
 		place_members([20, 30]);
-		Society::bump_payout(&20, 5, 100);
+		Society::bump_payout(&20, 1, 40);
+		Society::bump_payout(&20, 5, 60);
+		assert_ok!(Society::payout(Origin::signed(20)));
 		assert_eq!(
 			Payouts::<Test>::get(20),
-			PayoutRecord { paid: 0, payouts: vec![(5, 100)].try_into().unwrap() }
+			PayoutRecord { paid: 40, payouts: vec![(5, 60)].try_into().unwrap() }
 		);
 		assert_eq!(Members::<Test>::get(20).unwrap().rank, 0);
-		assert_ok!(Society::waive_repay(Origin::signed(20), 100));
+		assert_eq!(Balances::free_balance(20), 90);
+		let pot = Pot::<Test>::get();
+		let payouts_account = Balances::free_balance(Society::payouts());
+
+		// WHEN: the member waives the repayment.
+		assert_ok!(Society::waive_repay(Origin::signed(20), 40));
+
+		// THEN: the claimed amount is repaid and all pending payouts are removed.
 		assert_eq!(
 			Payouts::<Test>::get(20),
 			PayoutRecord { paid: 0, payouts: vec![].try_into().unwrap() }
 		);
-		assert_eq!(Members::<Test>::get(20).unwrap().rank, 1);
 		assert_eq!(Balances::free_balance(20), 50);
+		// THEN: the member is elevated to rank 1.
+		assert_eq!(Members::<Test>::get(20).unwrap().rank, 1);
+		// THEN: the funds reserved for the forfeited pending payouts are returned to the pot.
+		assert_eq!(Pot::<Test>::get(), pot + 60);
+		assert_eq!(Balances::free_balance(Society::payouts()), payouts_account - 60);
 	});
 }
 

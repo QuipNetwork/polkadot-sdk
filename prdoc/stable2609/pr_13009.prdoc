@@ -1,0 +1,52 @@
+title: 'Move on-demand coretime orders to the Coretime chain'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds `pallet-on-demand-para`, which is the first step of moving the on-demand
+    coretime purchase functionality to the Coretime chain.
+
+    The Relay chain still owns the real on-demand order queue, so this pallet acts
+    as a front-end for it. The spot price of on-demand coretime is based on a
+    local estimate of the queue depth. The real queue is not used, because it is
+    one hop away, and because it will be moved to the Coretime chain in the future
+    anyway. The estimate is increased with every accepted order and decreased at a
+    constant rate per Relay Chain block, per pool core. The details of the
+    price computation are delegated to an implementation of the `PricingProvider`
+    trait, with a default implementation provided which raises the price
+    exponentially with the queue depth, starting at a configured base fee and
+    raising it by a predefined percentage for each outstanding order in the
+    estimated queue. Orders are rejected if the number of outstanding orders
+    reaches a configured maximum value, or when the on-demand pool has no cores
+    assigned.
+
+    `place_order` charges the caller the spot price into the pallet's own pot
+    account, as long as it doesn't exceed a maximum acceptable price defined by the
+    caller. An accepted order is appended to a pending batch, and the whole batch is
+    sent to the Relay Chain on finalization of the block.
+
+    On the Relay Chain side, the existing on-demand pallet gains the receiving end:
+    a new `queue_on_demand_batch` call, callable only by the Coretime chain or root,
+    which pushes the whole batch into the on-demand order queue.
+
+    Note that in order for the batch to reach the Relay Chain without additional
+    latency, the new pallet has to be ordered before cumulus_pallet_parachain_system
+    in runtimes using both.
+- audience: Runtime User
+  description: |-
+    Adds `pallet-on-demand-para` for the Coretime chain, which can be used to place
+    orders for on-demand coretime.
+
+    Important: In order for `pallet-on-demand-para` to be able to accept orders with
+    spot price below the Existential Deposit, the pallet's account needs to be
+    pre-funded with the Existential Deposit.
+crates:
+- name: pallet-on-demand-para
+  bump: major
+- name: polkadot-runtime-parachains
+  bump: major
+- name: rococo-runtime
+  bump: patch
+- name: westend-runtime
+  bump: patch
+- name: polkadot-sdk
+  bump: minor

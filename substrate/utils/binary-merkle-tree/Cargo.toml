@@ -1,6 +1,6 @@
 [package]
 name = "binary-merkle-tree"
-version = "16.1.1"
+version = "16.1.2"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -19,8 +19,8 @@ log = { optional = true, workspace = true }
 
 [dev-dependencies]
 array-bytes = { workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 
 [features]
 debug = ["array-bytes", "log"]
@@ -29,4 +29,6 @@ std = [
 	"codec/std",
 	"hash-db/std",
 	"log/std",
+	"sp-core/std",
+	"sp-runtime/std",
 ]

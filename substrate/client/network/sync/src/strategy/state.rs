@@ -375,7 +375,6 @@ impl<B: BlockT> StateStrategy<B> {
 					}))
 				}
 				.boxed(),
-				remove_obsolete: false,
 			}
 		});
 		self.actions.extend(state_request);
@@ -396,7 +395,7 @@ mod test {
 	use crate::{
 		schema::v1::{StateRequest, StateResponse},
 		service::network::NetworkServiceProvider,
-		strategy::state_sync::{ImportResult, StateSyncProgress, StateSyncProvider},
+		strategy::state_sync::{ImportResult, StateSync, StateSyncProgress, StateSyncProvider},
 	};
 	use codec::Decode;
 	use sc_block_builder::BlockBuilderBuilder;
@@ -672,6 +671,56 @@ mod test {
 		assert!(matches!(
 			state_strategy.on_state_response_inner(&peer_id, &dummy_response),
 			Err(BadPeer(id, _rep)) if id == peer_id,
+		));
+	}
+
+	#[test]
+	fn empty_unverified_state_response_is_rejected() {
+		let client = Arc::new(TestClientBuilder::new().set_no_genesis().build());
+		let target_block = BlockBuilderBuilder::new(&*client)
+			.on_parent_block(client.chain_info().best_hash)
+			.with_parent_block_number(client.chain_info().best_number)
+			.build()
+			.unwrap()
+			.build()
+			.unwrap()
+			.block;
+		let mut state_sync =
+			StateSync::new(client, target_block.header().clone(), None, None, true);
+
+		let response = StateResponse { entries: Vec::new(), proof: vec![1] };
+
+		assert!(matches!(state_sync.import(response), ImportResult::BadResponse));
+	}
+
+	#[test]
+	fn empty_unverified_state_response_drops_peer() {
+		let client = Arc::new(TestClientBuilder::new().set_no_genesis().build());
+		let target_block = BlockBuilderBuilder::new(&*client)
+			.on_parent_block(client.chain_info().best_hash)
+			.with_parent_block_number(client.chain_info().best_number)
+			.build()
+			.unwrap()
+			.build()
+			.unwrap()
+			.block;
+		let peer_id = PeerId::random();
+		let mut state_strategy = StateStrategy::new(
+			client,
+			target_block.header().clone(),
+			None,
+			None,
+			true,
+			std::iter::once((peer_id, 10)),
+			ProtocolName::Static(""),
+		);
+		let response = StateResponse { entries: Vec::new(), proof: vec![1] }.encode_to_vec();
+
+		state_strategy.on_state_response(&peer_id, response);
+
+		assert!(matches!(
+			state_strategy.actions.as_slice(),
+			[SyncingAction::DropPeer(BadPeer(id, _))] if *id == peer_id,
 		));
 	}
 

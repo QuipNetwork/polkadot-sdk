@@ -1,0 +1,15 @@
+title: 'statement-store: Allow light clients to specify topic affinity'
+doc:
+- audience: Node Dev
+  description: |-
+    Adds explicit topic affinity to the statement protocol via a new "statement/2" protocol.
+    Peers can advertise which topics they care about using a bloom filter. Only matching
+    statements are forwarded to peers with an active affinity filter. When affinity changes,
+    relevant statements are re-sent. Light clients must advertise affinity before receiving
+    statements. Includes rate limiting on affinity advertisements.
+
+crates:
+- name: sc-network-statement
+  bump: minor
+- name: sc-network
+  bump: minor

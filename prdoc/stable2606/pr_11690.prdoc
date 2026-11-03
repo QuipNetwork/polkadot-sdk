@@ -1,0 +1,10 @@
+title: asset-conversion-precompiles expose pool management
+doc:
+- audience: Runtime Dev
+  description: Add createPool, addLiquidity, and removeLiquidity functions to the
+    asset-conversion precompile, enabling EVM contracts to manage liquidity pools
+    directly. Also refactors common helpers (caller lookup, path validation) for reuse
+    across swap and liquidity operations.
+crates:
+- name: pallet-asset-conversion-precompiles
+  bump: minor

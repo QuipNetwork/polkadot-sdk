@@ -1,0 +1,63 @@
+title: "Block Bundling Node Side"
+doc:
+- audience: Node Dev
+  description: |
+    Implements the node-side logic for block bundling (aka 500ms blocks) in parachains.
+    The main changes are in the slot-based collator: instead of building one block per core,
+    blocks are built as requested and distributed over the available cores.
+
+crates:
+- name: frame-support
+  bump: patch
+- name: sp-trie
+  bump: minor
+- name: frame-system
+  bump: patch
+- name: sc-block-builder
+  bump: major
+- name: sp-block-builder
+  bump: major
+- name: sc-consensus
+  bump: minor
+- name: sp-consensus-slots
+  bump: minor
+- name: cumulus-primitives-core
+  bump: major
+- name: cumulus-pallet-parachain-system
+  bump: major
+- name: pallet-glutton
+  bump: patch
+- name: cumulus-client-collator
+  bump: major
+- name: cumulus-client-consensus-common
+  bump: major
+- name: polkadot-node-subsystem-util
+  bump: minor
+- name: sc-basic-authorship
+  bump: patch
+- name: cumulus-client-consensus-aura
+  bump: major
+- name: cumulus-client-proof-size-recording
+  bump: patch
+- name: cumulus-client-service
+  bump: minor
+- name: polkadot-omni-node-lib
+  bump: patch
+- name: testnet-parachains-constants
+  bump: patch
+- name: asset-hub-rococo-runtime
+  bump: patch
+- name: coretime-westend-runtime
+  bump: patch
+- name: penpal-runtime
+  bump: patch
+- name: cumulus-pallet-xcmp-queue
+  bump: patch
+- name: parachains-runtimes-test-utils
+  bump: patch
+- name: bridge-hub-rococo-runtime
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch
+- name: polkadot-sdk
+  bump: minor

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "29.0.0"
+version = "36.0.0"
 description = "The node-side components that participate in disputes"
 authors.workspace = true
 edition.workspace = true
@@ -21,27 +21,31 @@ required-features = ["subsystem-benchmarks"]
 codec = { workspace = true, default-features = true }
 fatality = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-keystore = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 schnellru = { workspace = true }
 thiserror = { workspace = true }
+
+polkadot-node-clock = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
+sc-keystore = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
 futures-timer = { workspace = true }
 kvdb-memorydb = { workspace = true }
+polkadot-node-clock = { workspace = true, default-features = true, features = ["test"] }
 polkadot-node-subsystem-test-helpers = { workspace = true }
-polkadot-primitives = { features = ["test"], workspace = true, default-features = false }
+polkadot-primitives = { workspace = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 polkadot-subsystem-bench = { workspace = true }
 

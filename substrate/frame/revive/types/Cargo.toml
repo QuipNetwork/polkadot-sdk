@@ -1,0 +1,51 @@
+[package]
+name = "pallet-revive-types"
+version = "0.2.0"
+authors.workspace = true
+edition = "2024"
+license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+description = "Wire types used by pallet-revive which have higher stability guarantees than internal pallet-revive types."
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+alloy-core = { workspace = true }
+codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+derive_more = { workspace = true, features = ["from", "try_into"] }
+num-traits = { workspace = true }
+num_enum = { workspace = true }
+pallet-revive-uapi = { workspace = true, features = ["scale"] }
+paste = { workspace = true }
+revm-bytecode = { workspace = true, features = ["parse"] }
+rlp = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["alloc", "derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
+sp-core = { workspace = true, features = ["serde"] }
+sp-runtime = { workspace = true }
+sp-weights = { workspace = true, features = ["serde"] }
+strum = { workspace = true, features = ["derive"] }
+
+[features]
+default = ["std"]
+std = [
+	"alloy-core/std",
+	"codec/std",
+	"num-traits/std",
+	"num_enum/std",
+	"revm-bytecode/std",
+	"rlp/std",
+	"scale-info/std",
+	"serde/std",
+	"serde_json/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-weights/std",
+	"strum/std",
+]

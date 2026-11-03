@@ -442,5 +442,13 @@ mod benchmarks {
 		}
 	}
 
-	impl_benchmark_test_suite!(CollatorSelection, crate::mock::new_test_ext(), crate::mock::Test);
+	impl_benchmark_test_suite!(
+		CollatorSelection,
+		{
+			// Larger than the candidacy bonds used above.
+			crate::mock::KeyDeposit::set(100);
+			crate::mock::new_test_ext()
+		},
+		crate::mock::Test
+	);
 }

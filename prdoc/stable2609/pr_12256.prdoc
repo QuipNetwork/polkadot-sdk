@@ -1,0 +1,18 @@
+title: 'Statement-store: Publishing documentation'
+
+doc:
+  - audience: Node Dev
+    description: |
+      Documentation-only update for the statement store. Adds an overview and usage
+      guide to `sc-statement-store` and expands doc comments across the statement
+      store crates. No functional changes.
+
+crates:
+  - name: sc-rpc-api
+    bump: none
+  - name: sp-statement-store
+    bump: none
+  - name: sc-statement-store
+    bump: none
+  - name: sc-network-statement
+    bump: none

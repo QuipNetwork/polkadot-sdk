@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-pallet-parachain-system-proc-macro"
-version = "0.8.0"
+version = "0.6.0"
 authors.workspace = true
 edition.workspace = true
 description = "Proc macros provided by the parachain-system pallet"

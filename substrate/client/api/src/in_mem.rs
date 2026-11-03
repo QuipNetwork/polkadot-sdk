@@ -21,7 +21,7 @@
 use parking_lot::RwLock;
 use sp_blockchain::{CachedHeaderMetadata, HeaderMetadata};
 use sp_core::{
-	offchain::storage::InMemOffchainStorage as OffchainStorage, storage::well_known_keys,
+	offchain::storage::InMemOffchainStorage as OffchainStorage, storage::well_known_keys, H256,
 };
 use sp_runtime::{
 	generic::BlockId,
@@ -427,7 +427,11 @@ impl<Block: BlockT> blockchain::Backend<Block> for Blockchain<Block> {
 		unimplemented!()
 	}
 
-	fn indexed_transaction(&self, _hash: Block::Hash) -> sp_blockchain::Result<Option<Vec<u8>>> {
+	fn indexed_transaction(&self, _hash: H256) -> sp_blockchain::Result<Option<Vec<u8>>> {
+		unimplemented!("Not supported by the in-mem backend.")
+	}
+
+	fn block_indexed_hashes(&self, _hash: Block::Hash) -> sp_blockchain::Result<Option<Vec<H256>>> {
 		unimplemented!("Not supported by the in-mem backend.")
 	}
 
@@ -589,6 +593,13 @@ impl<Block: BlockT> backend::BlockImportOperation<Block> for BlockImportOperatio
 	fn update_transaction_index(
 		&mut self,
 		_index: Vec<IndexOperation>,
+	) -> sp_blockchain::Result<()> {
+		Ok(())
+	}
+
+	fn set_renew_payloads(
+		&mut self,
+		_payloads: HashMap<H256, Vec<u8>>,
 	) -> sp_blockchain::Result<()> {
 		Ok(())
 	}

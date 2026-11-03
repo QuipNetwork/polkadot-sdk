@@ -52,7 +52,7 @@ async fn elastic_scaling_slot_based_relay_parent_offset_test() -> Result<(), any
 			p.with_id(2400)
 				.with_default_command("test-parachain")
 				.with_default_image(images.cumulus.as_str())
-				.with_chain("relay-parent-offset")
+				.with_chain("relay-parent-offset-2")
 				.with_default_args(vec![
 					"--authoring=slot-based".into(),
 					("-lparachain=debug,aura=debug").into(),

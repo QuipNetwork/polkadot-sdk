@@ -3,7 +3,7 @@ name = "test-parachain-halt"
 description = "Test parachain which executes forever"
 build = "build.rs"
 publish = false
-version = "0.1.0"
+version = "1.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,7 +13,7 @@ workspace = true
 
 [build-dependencies]
 rustversion = { workspace = true }
-substrate-wasm-builder = { default-features = true, workspace = true }
+substrate-wasm-builder = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

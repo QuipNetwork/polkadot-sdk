@@ -51,6 +51,8 @@ use sp_consensus_beefy::{
 	ValidatorSet as BeefyValidatorSet,
 };
 
+#[cfg(any(feature = "try-runtime", test))]
+use frame_support::ensure;
 use frame_support::{crypto::ecdsa::ECDSAExt, pallet_prelude::Weight, traits::Get};
 use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
 
@@ -83,6 +85,13 @@ where
 	}
 }
 
+/// Sentinel returned by [`BeefyEcdsaToEthereum`] when an ECDSA public key cannot be
+/// converted to an Ethereum address. Both producer and consumer must reference this
+/// constant so the two ends of the conversion can never drift to different sentinels
+/// (see `Pallet::compute_authority_set`, which counts failed conversions by matching
+/// against this value).
+pub const FAILED_BEEFY_TO_ETH_ADDRESS: [u8; 20] = [0u8; 20];
+
 /// Convert BEEFY secp256k1 public keys into Ethereum addresses
 pub struct BeefyEcdsaToEthereum;
 impl Convert<sp_consensus_beefy::ecdsa_crypto::AuthorityId, Vec<u8>> for BeefyEcdsaToEthereum {
@@ -90,10 +99,10 @@ impl Convert<sp_consensus_beefy::ecdsa_crypto::AuthorityId, Vec<u8>> for BeefyEc
 		sp_core::ecdsa::Public::from(beefy_id)
 			.to_eth_address()
 			.map(|v| v.to_vec())
-			.map_err(|_| {
+			.unwrap_or_else(|_| {
 				log::debug!(target: "runtime::beefy", "Failed to convert BEEFY PublicKey to ETH address!");
+				FAILED_BEEFY_TO_ETH_ADDRESS.to_vec()
 			})
-			.unwrap_or_default()
 	}
 }
 
@@ -148,6 +157,14 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type BeefyNextAuthorities<T: Config> =
 		StorageValue<_, BeefyNextAuthoritySet<MerkleRootOf<T>>, ValueQuery>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		#[cfg(feature = "try-runtime")]
+		fn try_state(_n: BlockNumberFor<T>) -> Result<(), sp_runtime::TryRuntimeError> {
+			Self::do_try_state()
+		}
+	}
 }
 
 impl<T: Config> LeafDataProvider for Pallet<T> {
@@ -336,11 +353,10 @@ impl<T: Config> Pallet<T> {
 			.cloned()
 			.map(T::BeefyAuthorityToMerkleLeaf::convert)
 			.collect::<Vec<_>>();
-		let default_eth_addr = [0u8; 20];
 		let len = beefy_addresses.len() as u32;
 		let uninitialized_addresses = beefy_addresses
 			.iter()
-			.filter(|&addr| addr.as_slice().eq(&default_eth_addr))
+			.filter(|&addr| addr.as_slice().eq(&FAILED_BEEFY_TO_ETH_ADDRESS))
 			.count();
 		if uninitialized_addresses > 0 {
 			log::error!(
@@ -356,6 +372,20 @@ impl<T: Config> Pallet<T> {
 		>(beefy_addresses)
 		.into();
 		BeefyAuthoritySet { id, len, keyset_commitment }
+	}
+
+	/// Validates the invariants of this pallet's storage.
+	#[cfg(any(feature = "try-runtime", test))]
+	pub fn do_try_state() -> Result<(), sp_runtime::TryRuntimeError> {
+		let current = BeefyAuthorities::<T>::get();
+		let next = BeefyNextAuthorities::<T>::get();
+
+		ensure!(next.id == current.id + 1, "Next authority set id must be one ahead of current");
+
+		ensure!(current.len > 0, "Current authority set must not be empty");
+		ensure!(next.len > 0, "Next authority set must not be empty");
+
+		Ok(())
 	}
 }
 

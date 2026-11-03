@@ -1,0 +1,11 @@
+title: 'frame-omni-bencher: better diagnostic on insufficient data points'
+doc:
+- audience: Runtime Dev
+  description: When a benchmark is run with not enough steps and too many points are
+    skipped then it can make the analysis panic. This PR improves the panic message
+    and gives precise information about which benchmark is at fault.
+crates:
+- name: frame-benchmarking
+  bump: major
+- name: frame-benchmarking-cli
+  bump: major

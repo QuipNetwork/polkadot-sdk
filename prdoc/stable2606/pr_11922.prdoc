@@ -1,0 +1,5 @@
+title: Update merkle mountain lib
+doc:
+- audience: Runtime Dev
+  description: Updates the merkle mountain crate to its latest version.
+crates: []

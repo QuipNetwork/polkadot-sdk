@@ -1,0 +1,40 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc v1.0.0)
+# See doc at https://raw.githubusercontent.com/paritytech/prdoc/master/prdoc_schema_user.json
+
+title: 'approval-voting: cleanup coalescing logic'
+
+doc:
+  - audience: Node Dev
+    description: |
+      Refactor the approval coalescing logic so that the runtime `ApprovalVotingParams` are read
+      through `ExtendedSessionInfo` (cached per session) rather than via a separate runtime API
+      call. The change is fully backwards compatible with the previous behaviour and was validated
+      with a mixed deployment of old/new nodes against old/new runtimes.
+
+crates:
+  - name: polkadot-primitives
+    bump: minor
+  - name: polkadot-node-subsystem-util
+    bump: major
+  - name: polkadot-node-subsystem-types
+    bump: patch
+  - name: polkadot-runtime-parachains
+    bump: major
+  - name: polkadot-approval-distribution
+    bump: minor
+  - name: polkadot-node-core-approval-voting
+    bump: patch
+  - name: polkadot-node-core-dispute-coordinator
+    bump: minor
+  - name: polkadot-dispute-distribution
+    bump: patch
+  - name: polkadot-availability-distribution
+    bump: patch
+  - name: polkadot-availability-recovery
+    bump: patch
+  - name: polkadot-collator-protocol
+    bump: patch
+  - name: cumulus-relay-chain-rpc-interface
+    bump: major
+  - name: cumulus-relay-chain-minimal-node
+    bump: patch

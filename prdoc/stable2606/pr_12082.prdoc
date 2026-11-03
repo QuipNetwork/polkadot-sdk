@@ -1,0 +1,19 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'ParityDB: Do not skip storing on store + ref in same tx'
+
+doc:
+  - audience: ['Node Operator', 'Node Dev']
+    description: |
+      Fixes a bug in the ParityDB adapter where a `store` + `reference` on the same
+      unknown key within a single transaction would skip storing the value entirely.
+
+      ParityDB internally transformed the reference into a dereference, making the value
+      disappear from the database after commit. The fix maps changes directly to
+      `parity_db::Operation` variants so the `Set` is always emitted regardless of other
+      operations in the same transaction.
+
+crates:
+  - name: sc-client-db
+    bump: patch

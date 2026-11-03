@@ -1,0 +1,12 @@
+title: 'pallet-revive: map account in prepare_dry_run'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+    - Map the origin account in `prepare_dry_run` when it is not already mapped, so dry-running contract calls/instantiations does not fail with `AccountUnmapped` for callers that never registered a mapping.
+
+    ## Test plan
+    - [ ] CI passes
+crates:
+- name: pallet-revive
+  bump: patch

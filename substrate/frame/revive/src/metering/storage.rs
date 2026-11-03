@@ -252,14 +252,6 @@ where
 		RawMeter { limit, ..Default::default() }
 	}
 
-	/// Reset this meter to its original setting.
-	pub fn reset(&mut self) {
-		self.own_contribution = Default::default();
-		self.total_deposit = Default::default();
-		self.charges = Default::default();
-		self.max_charged = Default::default();
-	}
-
 	/// Absorb a child that was spawned to handle a sub call.
 	///
 	/// This should be called whenever a sub call comes to its end and it is **not** reverted.
@@ -508,6 +500,24 @@ impl<T: Config, E: Ext<T>> RawMeter<T, E, Nested> {
 			let _ = diff.update_contract::<T>(Some(info));
 		}
 	}
+
+	/// Apply the pending diff to `info` and push its deposit as a final charge, then reset
+	/// `own_contribution` so finalize does not apply it a second time.
+	pub fn bank_pending_changes(&mut self, contract: T::AccountId, info: &mut ContractInfo<T>) {
+		if let Contribution::Alive(_) = &self.own_contribution {
+			let deposit = self.own_contribution.update_contract(Some(info));
+			self.own_contribution = Contribution::Alive(Default::default());
+			if !deposit.is_zero() {
+				self.charge_deposit(contract, deposit);
+			}
+		} else {
+			debug_assert!(
+				false,
+				"on-stack ancestor frames have not finalized yet, so own_contribution \
+				 should be Alive when banked; qed",
+			);
+		}
+	}
 }
 
 impl<T: Config> Ext<T> for ReservingExt {
@@ -521,7 +531,7 @@ impl<T: Config> Ext<T> for ReservingExt {
 			Deposit::Charge(amount) | Deposit::Refund(amount) if amount.is_zero() => (),
 			Deposit::Charge(amount) => {
 				<Pallet<T>>::charge_deposit(
-					Some(HoldReason::StorageDepositReserve),
+					HoldReason::StorageDepositReserve,
 					origin,
 					contract,
 					*amount,
@@ -532,9 +542,8 @@ impl<T: Config> Ext<T> for ReservingExt {
 				<Pallet<T>>::refund_deposit(
 					HoldReason::StorageDepositReserve,
 					contract,
-					origin,
+					exec_config.funds(origin),
 					*amount,
-					Some(exec_config),
 				)?;
 			},
 		}

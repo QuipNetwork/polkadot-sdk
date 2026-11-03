@@ -33,6 +33,10 @@ fn score_from(x: u128) -> ElectionScore {
 	ElectionScore { minimal_stake: x, ..Default::default() }
 }
 
+fn max_fee_refund() -> Balance {
+	<Runtime as crate::signed::Config>::MaxFeeRefund::get()
+}
+
 mod calls {
 	use super::*;
 	use sp_runtime::{DispatchError, TokenError::FundsUnavailable};
@@ -217,6 +221,37 @@ mod calls {
 	}
 
 	#[test]
+	fn resubmitting_a_stored_page_does_not_accumulate_fee() {
+		ExtBuilder::signed().build_and_execute(|| {
+			// GIVEN a registered submitter with one page stored.
+			roll_to_signed_open();
+			assert_full_snapshot();
+
+			let score = ElectionScore { minimal_stake: 100, ..Default::default() };
+			assert_ok!(SignedPallet::register(RuntimeOrigin::signed(99), score));
+			assert_ok!(SignedPallet::submit_page(
+				RuntimeOrigin::signed(99),
+				0,
+				Some(Default::default())
+			));
+
+			let before = Submissions::<Runtime>::metadata_of(0, 99).unwrap();
+			assert_eq!(before.fee, 2);
+
+			// WHEN the same page is stored again.
+			assert_ok!(SignedPallet::submit_page(
+				RuntimeOrigin::signed(99),
+				0,
+				Some(Default::default())
+			));
+
+			// THEN nothing in the metadata moves: no second fee for the same page, and the page
+			// count, hence the deposit, is the same.
+			assert_eq!(Submissions::<Runtime>::metadata_of(0, 99).unwrap(), before);
+		});
+	}
+
+	#[test]
 	fn metadata_submission_sorted_based_on_score() {
 		ExtBuilder::signed().build_and_execute(|| {
 			roll_to_signed_open();
@@ -287,6 +322,7 @@ mod calls {
 					SignedEvent::Registered(..),
 					SignedEvent::Registered(..),
 					SignedEvent::Registered(..),
+					SignedEvent::Slashed(_, 92, _),
 					SignedEvent::Ejected(_, 92),
 					SignedEvent::Registered(_, 94, _),
 				]
@@ -311,8 +347,10 @@ mod calls {
 					SignedEvent::Registered(..),
 					SignedEvent::Registered(..),
 					SignedEvent::Registered(..),
+					SignedEvent::Slashed(..),
 					SignedEvent::Ejected(..),
 					SignedEvent::Registered(..),
+					SignedEvent::Slashed(_, 91, _),
 					SignedEvent::Ejected(_, 91),
 					SignedEvent::Registered(_, 95, _),
 				]
@@ -341,7 +379,11 @@ mod calls {
 
 			assert_eq!(
 				signed_events(),
-				vec![Event::Registered(0, 99, score), Event::Bailed(0, 99)]
+				vec![
+					Event::Registered(0, 99, score),
+					Event::Slashed(0, 99, 4),
+					Event::Bailed(0, 99)
+				]
 			);
 		});
 	}
@@ -426,6 +468,62 @@ mod calls {
 				]
 			));
 		});
+	}
+}
+
+mod max_fee_refund {
+	use super::*;
+	use codec::Encode;
+	use frame_support::{dispatch::DispatchInfo, traits::EstimateFee};
+
+	/// A fee model that charges one unit per encoded byte, and nothing for weight.
+	pub struct PerByteFee;
+	impl EstimateFee<Balance> for PerByteFee {
+		fn estimate_fee(len: u32, _: &DispatchInfo) -> Balance {
+			len.into()
+		}
+	}
+
+	#[test]
+	fn is_what_a_full_submission_accrues() {
+		ExtBuilder::signed().build_and_execute(|| {
+			roll_to_signed_open();
+			assert_full_snapshot();
+
+			// GIVEN a full submission, under a fee model that charges one unit per call.
+			load_signed_for_verification(99, mine_full_solution().unwrap());
+			assert_eq!(Submissions::<Runtime>::pages_of(0, 99).count(), Pages::get() as usize);
+
+			// THEN the bound is exactly what it accrued: one `register`, plus one call per page.
+			let accrued = Submissions::<Runtime>::metadata_of(0, 99).unwrap().fee;
+			assert_eq!(accrued, 1 + Pages::get() as Balance);
+			assert_eq!(accrued, max_fee_refund());
+		})
+	}
+
+	#[test]
+	fn covers_the_length_of_a_real_submission() {
+		ExtBuilder::signed().build_and_execute(|| {
+			roll_to_signed_open();
+			assert_full_snapshot();
+
+			// GIVEN the calls that a full submission is made of, priced by encoded length.
+			let paged = mine_full_solution().unwrap();
+			let mut submission_len =
+				crate::signed::Call::<Runtime>::register { claimed_score: paged.score }
+					.encoded_size();
+			for (page, solution) in paged.solution_pages.pagify(Pages::get()) {
+				submission_len += crate::signed::Call::<Runtime>::submit_page {
+					page,
+					maybe_solution: Some(Box::new(solution.clone())),
+				}
+				.encoded_size();
+			}
+
+			// THEN the bound covers it with room to spare: pages are priced at the maximum page
+			// size, not their actual size.
+			assert!(FullSubmissionFee::<Runtime, PerByteFee>::get() > submission_len as Balance);
+		})
 	}
 }
 
@@ -651,6 +749,49 @@ mod e2e {
 
 			// signed pallet should be in 100% clean state.
 			assert_ok!(Submissions::<Runtime>::ensure_killed(0));
+		})
+	}
+
+	#[test]
+	fn winner_fee_refund_is_bounded_by_max_fee_refund() {
+		ExtBuilder::signed().build_and_execute(|| {
+			roll_to_signed_open();
+			assert_full_snapshot();
+
+			// GIVEN a full, valid solution, whose accrued fee is already at the bound.
+			let paged = mine_full_solution().unwrap();
+			load_signed_for_verification(99, paged.clone());
+			assert_eq!(Submissions::<Runtime>::metadata_of(0, 99).unwrap().fee, max_fee_refund());
+
+			// WHEN further fee-paying calls are made against the same submission, leaving it
+			// unchanged.
+			let (page_index, page) = paged.solution_pages.pagify(Pages::get()).next().unwrap();
+			for _ in 0..3 {
+				assert_ok!(SignedPallet::submit_page(RuntimeOrigin::signed(99), page_index, None));
+				assert_ok!(SignedPallet::submit_page(
+					RuntimeOrigin::signed(99),
+					page_index,
+					Some(Box::new(page.clone()))
+				));
+			}
+			assert_eq!(Submissions::<Runtime>::pages_of(0, 99).count(), Pages::get() as usize);
+			assert_eq!(Submissions::<Runtime>::get_page_of(0, &99, page_index), Some(page.clone()));
+			assert!(
+				Submissions::<Runtime>::metadata_of(0, 99).unwrap().fee > max_fee_refund(),
+				"the bound must actually bind for this test to mean anything"
+			);
+			let _ = signed_events_since_last_call();
+
+			// THEN the winner is paid the reward plus the bound, not the accrued fee.
+			roll_to_signed_validation_open();
+			roll_to_full_verification();
+
+			assert_eq!(
+				signed_events_since_last_call(),
+				vec![SignedEvent::Rewarded(0, 99, SignedRewardBase::get() + max_fee_refund())]
+			);
+			// deposit released, and only the bounded refund minted on top of the reward.
+			assert_eq!(balances(99), (100 + SignedRewardBase::get() + max_fee_refund(), 0));
 		})
 	}
 
@@ -1410,6 +1551,53 @@ mod invulnerables {
 	}
 
 	#[test]
+	fn discarded_invulnerable_fee_refund_is_bounded_by_max_fee_refund() {
+		ExtBuilder::signed().build_and_execute(|| {
+			// GIVEN an invulnerable with an accrued fee above the bound.
+			make_invulnerable(99);
+			roll_to_signed_open();
+
+			assert_ok!(SignedPallet::register(RuntimeOrigin::signed(99), Default::default()));
+			for _ in 0..6 {
+				assert_ok!(SignedPallet::submit_page(RuntimeOrigin::signed(99), 0, None));
+				assert_ok!(SignedPallet::submit_page(
+					RuntimeOrigin::signed(99),
+					0,
+					Some(Default::default())
+				));
+			}
+			assert!(
+				Submissions::<Runtime>::metadata_of(0, 99).unwrap().fee > max_fee_refund(),
+				"the bound must actually bind for this test to mean anything"
+			);
+
+			// a stronger solution wins the round, so 99 is discarded rather than rewarded.
+			load_signed_for_verification(98, mine_full_solution().unwrap());
+			roll_to_signed_validation_open();
+			roll_to_full_verification();
+			roll_to_done();
+			MultiBlock::rotate_round();
+			assert!(signed_events_since_last_call().contains(&Event::Rewarded(
+				0,
+				98,
+				SignedRewardBase::get() + max_fee_refund()
+			)));
+
+			// WHEN they clear their discarded submission.
+			assert_ok!(SignedPallet::clear_old_round_data(
+				RuntimeOrigin::signed(99),
+				0,
+				Pages::get()
+			));
+
+			// THEN they are discarded, their deposit is returned in full, and the fee refund is
+			// the bound.
+			assert_eq!(signed_events_since_last_call(), vec![Event::Discarded(0, 99)]);
+			assert_eq!(balances(99), (100 + max_fee_refund(), 0));
+		})
+	}
+
+	#[test]
 	fn removing_from_invulnerables_affects_future_submissions() {
 		ExtBuilder::signed().build_and_execute(|| {
 			// Initially make invulnerable
@@ -1558,6 +1746,327 @@ mod defensive_tests {
 
 			// get_page should trigger defensive failure when no leader exists
 			let _page = SignedPallet::get_page(0);
+		});
+	}
+}
+
+mod issuance {
+	use super::*;
+	use frame_support::traits::fungible::Mutate;
+
+	/// Arbitrary account used as a reward pot in these tests.
+	const POT: AccountId = 1000;
+
+	/// Submit a full valid solution for `who` and roll through to the Rewarded event.
+	///
+	/// Returns the balances snapshot of `who` just before rolling to SignedValidation.
+	fn submit_and_verify_winning(who: AccountId) {
+		roll_to_signed_open();
+		assert_full_snapshot();
+
+		let paged = mine_full_solution().unwrap();
+		load_signed_for_verification(who, paged);
+		let _ = signed_events_since_last_call();
+
+		roll_to_signed_validation_open();
+		let _ = multi_block_events_since_last_call();
+
+		for _ in 0..Pages::get() + 1 {
+			roll_to(System::block_number() + 1);
+		}
+	}
+
+	#[test]
+	fn reward_mints_by_default() {
+		// When RewardSource is None (default), rewards are minted and TotalIssuance increases.
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedRewardSource::set(None);
+
+			let ti_before = Balances::total_issuance();
+			submit_and_verify_winning(999);
+
+			let rewarded_events: Vec<_> = signed_events_since_last_call()
+				.into_iter()
+				.filter(|e| matches!(e, SignedEvent::Rewarded(..)))
+				.collect();
+			assert_eq!(rewarded_events.len(), 1, "expected exactly one Rewarded event");
+
+			let ti_after = Balances::total_issuance();
+			// reward (3) + fee (1 register + 3 pages = 4) = 7
+			assert!(ti_after > ti_before, "total issuance must increase when minting rewards");
+		});
+	}
+
+	#[test]
+	fn reward_transfers_from_source_when_configured() {
+		// When RewardSource is Some(pot), the reward is transferred from the pot account.
+		// TotalIssuance must not change during the reward payment.
+		ExtBuilder::signed().build_and_execute(|| {
+			Balances::mint_into(&POT, 1_000).unwrap();
+			SignedRewardSource::set(Some(POT));
+
+			let ti_before = Balances::total_issuance();
+			let pot_before = Balances::free_balance(POT);
+
+			submit_and_verify_winning(999);
+
+			let rewarded_events: Vec<_> = signed_events_since_last_call()
+				.into_iter()
+				.filter(|e| matches!(e, SignedEvent::Rewarded(..)))
+				.collect();
+			assert_eq!(rewarded_events.len(), 1, "expected exactly one Rewarded event");
+
+			// mint_into of pot balance was the only issuance change before the test window
+			let ti_after = Balances::total_issuance();
+			let pot_after = Balances::free_balance(POT);
+
+			assert_eq!(ti_before, ti_after, "total issuance must not change when paying from pot");
+			assert!(pot_after < pot_before, "reward pot balance must decrease after paying winner");
+		});
+	}
+
+	#[test]
+	fn reward_deferred_when_source_pot_is_empty() {
+		// Empty pot: transfer fails, RewardPaymentDeferred fires instead of Rewarded, and the
+		// amount is queued in UnpaidRewards rather than paid.
+		ExtBuilder::signed().build_and_execute(|| {
+			// Do NOT fund the pot.
+			SignedRewardSource::set(Some(POT));
+
+			let ti_before = Balances::total_issuance();
+			submit_and_verify_winning(999);
+			let ti_after = Balances::total_issuance();
+
+			let events = signed_events_since_last_call();
+			assert!(
+				!events.iter().any(|e| matches!(e, SignedEvent::Rewarded(..))),
+				"Rewarded must not be emitted when the pot transfer fails"
+			);
+			let deferred_events: Vec<_> = events
+				.into_iter()
+				.filter(|e| matches!(e, SignedEvent::RewardPaymentDeferred(..)))
+				.collect();
+			assert_eq!(
+				deferred_events.len(),
+				1,
+				"expected exactly one RewardPaymentDeferred event"
+			);
+			assert_eq!(ti_before, ti_after, "total issuance must not change when pot is empty");
+			assert_eq!(UnpaidRewards::<T>::get().len(), 1, "the reward must be queued");
+		});
+	}
+
+	#[test]
+	fn claim_unpaid_reward_works_once_pot_refilled() {
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedRewardSource::set(Some(POT));
+
+			submit_and_verify_winning(999);
+			assert_eq!(UnpaidRewards::<T>::get().len(), 1);
+			let _ = signed_events_since_last_call();
+
+			// Refill the pot, then claim.
+			Balances::mint_into(&POT, 1_000).unwrap();
+			let balance_before = Balances::free_balance(999);
+
+			assert_ok!(SignedPallet::claim_unpaid_reward(RuntimeOrigin::signed(999), 0));
+
+			assert!(
+				Balances::free_balance(999) > balance_before,
+				"winner must receive the deferred reward"
+			);
+			assert!(UnpaidRewards::<T>::get().is_empty(), "claimed entry must be removed");
+			assert!(signed_events_since_last_call()
+				.iter()
+				.any(|e| matches!(e, SignedEvent::Rewarded(0, 999, _))));
+		});
+	}
+
+	#[test]
+	fn claim_unpaid_reward_is_permissionless() {
+		// Anyone can trigger the claim; the payout still goes to the original winner, not the
+		// caller.
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedRewardSource::set(Some(POT));
+
+			submit_and_verify_winning(999);
+			Balances::mint_into(&POT, 1_000).unwrap();
+			let winner_balance_before = Balances::free_balance(999);
+			let caller_balance_before = Balances::free_balance(1);
+
+			// 1 claims on behalf of 999.
+			assert_ok!(SignedPallet::claim_unpaid_reward(RuntimeOrigin::signed(1), 0));
+
+			assert!(Balances::free_balance(999) > winner_balance_before, "winner gets paid");
+			assert_eq!(Balances::free_balance(1), caller_balance_before, "caller gets nothing");
+		});
+	}
+
+	#[test]
+	fn claim_unpaid_reward_fails_when_no_entry() {
+		ExtBuilder::signed().build_and_execute(|| {
+			assert_noop!(
+				SignedPallet::claim_unpaid_reward(RuntimeOrigin::signed(999), 0),
+				Error::<T>::NoUnpaidReward
+			);
+		});
+	}
+
+	#[test]
+	fn claim_unpaid_reward_fails_when_pot_still_depleted() {
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedRewardSource::set(Some(POT));
+			submit_and_verify_winning(999);
+			assert_eq!(UnpaidRewards::<T>::get().len(), 1);
+
+			// Pot is still empty.
+			assert_noop!(
+				SignedPallet::claim_unpaid_reward(RuntimeOrigin::signed(999), 0),
+				Error::<T>::PotStillDepleted
+			);
+			assert_eq!(UnpaidRewards::<T>::get().len(), 1, "entry must remain queued");
+		});
+	}
+
+	#[test]
+	fn reward_deferral_evicts_oldest_when_unpaid_queue_is_full() {
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedRewardSource::set(Some(POT));
+
+			// Fill the unpaid-rewards queue to capacity, oldest (round 999) first.
+			UnpaidRewards::<T>::mutate(|unpaid| {
+				for i in 0..MAX_UNPAID_REWARDS as u64 {
+					unpaid
+						.try_push(UnpaidReward { round: 999 + i as u32, who: i, amount: 1 })
+						.unwrap();
+				}
+			});
+
+			submit_and_verify_winning(999);
+
+			let events = signed_events_since_last_call();
+			assert!(
+				events.iter().any(|e| matches!(e, SignedEvent::UnpaidRewardEvicted(999, 0, 1))),
+				"expected the oldest entry (round 999) to be evicted"
+			);
+			assert!(
+				events.iter().any(|e| matches!(e, SignedEvent::RewardPaymentDeferred(..))),
+				"the new reward must still be deferred, never dropped"
+			);
+			let unpaid = UnpaidRewards::<T>::get();
+			assert_eq!(
+				unpaid.len(),
+				MAX_UNPAID_REWARDS as usize,
+				"queue stays at capacity, oldest swapped for newest"
+			);
+			assert!(!unpaid.iter().any(|e| e.round == 999), "evicted entry must be gone");
+		});
+	}
+
+	#[test]
+	fn fee_refund_failed_when_source_pot_is_empty() {
+		// An invulnerable's fee refund is not deferred like a reward: on failure it just emits
+		// FeeRefundFailed, and Discarded still fires normally.
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedRewardSource::set(Some(POT));
+			// Do NOT fund POT.
+			SignedPallet::set_invulnerables(RuntimeOrigin::root(), vec![99]).unwrap();
+
+			roll_to_signed_open();
+			assert_ok!(SignedPallet::register(RuntimeOrigin::signed(99), Default::default()));
+
+			let paged = mine_full_solution().unwrap();
+			load_signed_for_verification(98, paged.clone());
+			let _ = signed_events_since_last_call();
+
+			roll_to_signed_validation_open();
+			roll_to_full_verification();
+			let _ = signed_events_since_last_call();
+			let _ = verifier_events_since_last_call();
+
+			roll_next_and_phase_verifier(Phase::SignedValidation(2), Status::Nothing);
+			let _ = verifier_events_since_last_call();
+
+			roll_to_done();
+			MultiBlock::rotate_round();
+
+			assert_ok!(SignedPallet::clear_old_round_data(
+				RuntimeOrigin::signed(99),
+				0,
+				Pages::get()
+			));
+
+			let events = signed_events_since_last_call();
+			assert!(
+				events.iter().any(|e| matches!(e, SignedEvent::FeeRefundFailed(0, 99, _))),
+				"expected FeeRefundFailed when the pot can't pay the fee refund"
+			);
+			assert!(events.iter().any(|e| matches!(e, SignedEvent::Discarded(0, 99))));
+			assert!(!events.iter().any(|e| matches!(e, SignedEvent::Rewarded(..))));
+			// Full deposit (7) is still returned; the 1-unit fee refund is the part that failed.
+			assert_eq!(balances(99), (100, 0));
+		});
+	}
+
+	#[test]
+	fn slash_burns_deposit_by_default() {
+		// When SignedSlashTarget is None, slashed deposits are burned (credit is dropped).
+		// TotalIssuance must decrease by the slashed amount.
+		ExtBuilder::signed().build_and_execute(|| {
+			roll_to_signed_open();
+			assert_full_snapshot();
+
+			let invalid_score =
+				ElectionScore { minimal_stake: 10, sum_stake: 10, sum_stake_squared: 100 };
+			// 99 registers with 5 deposit (SignedDepositBase) but submits no valid pages.
+			assert_ok!(SignedPallet::register(RuntimeOrigin::signed(99), invalid_score));
+
+			let ti_before = Balances::total_issuance();
+
+			roll_to_signed_validation_open();
+			roll_to_full_verification();
+
+			// Slashed event emitted and deposit is burned.
+			assert!(signed_events_since_last_call()
+				.iter()
+				.any(|e| matches!(e, SignedEvent::Slashed(..))));
+
+			let ti_after = Balances::total_issuance();
+			assert!(ti_after < ti_before, "total issuance must decrease when slash is burned");
+		});
+	}
+
+	#[test]
+	fn slash_transfers_to_target_when_configured() {
+		// When SignedSlashTarget is Some(target), slashed deposits are transferred to target
+		// instead of being burned. TotalIssuance must not change.
+		ExtBuilder::signed().build_and_execute(|| {
+			SignedSlashTarget::set(Some(POT));
+
+			roll_to_signed_open();
+			assert_full_snapshot();
+
+			let invalid_score =
+				ElectionScore { minimal_stake: 10, sum_stake: 10, sum_stake_squared: 100 };
+			assert_ok!(SignedPallet::register(RuntimeOrigin::signed(99), invalid_score));
+
+			let ti_before = Balances::total_issuance();
+			let target_before = Balances::free_balance(POT);
+
+			roll_to_signed_validation_open();
+			roll_to_full_verification();
+
+			let slashed_events: Vec<_> = signed_events_since_last_call()
+				.into_iter()
+				.filter(|e| matches!(e, SignedEvent::Slashed(..)))
+				.collect();
+			assert_eq!(slashed_events.len(), 1, "expected exactly one Slashed event");
+
+			let ti_after = Balances::total_issuance();
+			let target_after = Balances::free_balance(POT);
+
+			assert_eq!(ti_before, ti_after, "total issuance must not change when slash is routed");
+			assert!(target_after > target_before, "slash target balance must increase");
 		});
 	}
 }

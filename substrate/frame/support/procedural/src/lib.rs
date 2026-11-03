@@ -34,6 +34,7 @@ mod pallet;
 mod pallet_error;
 mod runtime;
 mod storage_alias;
+mod stored;
 mod transactional;
 mod tt_macro;
 
@@ -430,6 +431,55 @@ pub fn storage_alias(attributes: TokenStream, input: TokenStream) -> TokenStream
 	storage_alias::storage_alias(attributes.into(), input.into())
 		.unwrap_or_else(|r| r.into_compile_error())
 		.into()
+}
+
+/// Attribute macro for simplifying storage type definitions with consistent field-based bounding.
+///
+/// Derives the implementation of `Encode`, `Decode`, `DecodeWithMemTracking`, `MaxEncodedLen`,
+/// `Clone`, `PartialEq`, `Eq`, `Debug` and `TypeInfo.
+///
+/// Automatically extracts field types and applies derives with bounds on those fields, ensuring
+/// consistent behavior across all traits. Supports both structs and enums.
+///
+/// Directly recursive types are not supported.
+///
+/// # Example
+///
+/// ```ignore
+/// #[frame_support::stored]
+/// pub struct Foo<F, F2> {
+///     f: F,
+///     f2: Vec<F2>,
+/// }
+/// ```
+///
+/// In this example, the macro will automatically apply field-based bounds to `F` and `F2`
+/// (requiring them to implement `Clone`, `Eq`, `PartialEq`, `Debug`, `TypeInfo`, `Codec`, etc.)
+/// without requiring the user to manually specify them on the generic parameters.
+///
+/// For pallet storage, you can of course still use generics, in this example bound `T::Balance`
+/// and not `T` as the bounds are applied to the fields.
+///
+/// ```ignore
+/// # trait ABCD {
+/// #     type Balance;
+/// # }
+/// #[frame_support::stored]
+/// pub struct AccountData<T: ABCD> {
+///     pub free: T::Balance,
+///     pub reserved: T::Balance,
+/// }
+/// ```
+///
+/// By default the type params are skipped, because they are rarely used. But to not skip them
+/// an attribute can used as follows:
+/// ```ignore
+/// #[frame_support::stored(no_skip_type_params)]
+/// pub struct Bar<T>(T);
+/// ```
+#[proc_macro_attribute]
+pub fn stored(attr: TokenStream, item: TokenStream) -> TokenStream {
+	stored::stored(attr, item)
 }
 
 /// This attribute can be used to derive a full implementation of a trait based on a local partial

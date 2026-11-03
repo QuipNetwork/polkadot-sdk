@@ -1,0 +1,14 @@
+title: Remove deprecated TREASURER_INDEX constants
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removes the deprecated `xcm::body::TREASURER_INDEX` constants from the Westend and RC runtime constants modules.
+
+    ## Integration
+
+    Downstream users should use `xcm::latest::BodyId::Treasury` instead of the old numeric `TREASURER_INDEX` constant.
+crates:
+- name: westend-runtime-constants
+  bump: major
+- name: pallet-staking-async-rc-runtime-constants
+  bump: major

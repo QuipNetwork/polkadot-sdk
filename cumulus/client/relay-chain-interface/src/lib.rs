@@ -31,7 +31,9 @@ use codec::{Decode, Encode, Error as CodecError};
 use jsonrpsee_core::ClientError as JsonRpcError;
 use sp_api::ApiError;
 
-use cumulus_primitives_core::relay_chain::{BlockId, CandidateEvent, Hash as RelayHash};
+use cumulus_primitives_core::relay_chain::{
+	vstaging::RelayParentInfo, BlockId, CandidateEvent, Hash as RelayHash, NodeFeatures,
+};
 pub use cumulus_primitives_core::{
 	relay_chain::{
 		BlockNumber, CommittedCandidateReceiptV2 as CommittedCandidateReceipt, CoreIndex,
@@ -259,6 +261,17 @@ pub trait RelayChainInterface: Send + Sync {
 	async fn scheduling_lookahead(&self, relay_parent: PHash) -> RelayChainResult<u32>;
 
 	async fn candidate_events(&self, at: RelayHash) -> RelayChainResult<Vec<CandidateEvent>>;
+
+	async fn max_relay_parent_session_age(&self, at: RelayHash) -> RelayChainResult<u32>;
+
+	async fn node_features(&self, at: RelayHash) -> RelayChainResult<NodeFeatures>;
+
+	async fn ancestor_relay_parent_info(
+		&self,
+		at: RelayHash,
+		session_index: SessionIndex,
+		relay_parent: RelayHash,
+	) -> RelayChainResult<Option<RelayParentInfo<RelayHash, BlockNumber>>>;
 }
 
 #[async_trait]
@@ -429,6 +442,23 @@ where
 
 	async fn candidate_events(&self, at: RelayHash) -> RelayChainResult<Vec<CandidateEvent>> {
 		(**self).candidate_events(at).await
+	}
+
+	async fn max_relay_parent_session_age(&self, at: RelayHash) -> RelayChainResult<u32> {
+		(**self).max_relay_parent_session_age(at).await
+	}
+
+	async fn node_features(&self, at: RelayHash) -> RelayChainResult<NodeFeatures> {
+		(**self).node_features(at).await
+	}
+
+	async fn ancestor_relay_parent_info(
+		&self,
+		at: RelayHash,
+		session_index: SessionIndex,
+		relay_parent: RelayHash,
+	) -> RelayChainResult<Option<RelayParentInfo<RelayHash, BlockNumber>>> {
+		(**self).ancestor_relay_parent_info(at, session_index, relay_parent).await
 	}
 }
 

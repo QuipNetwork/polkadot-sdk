@@ -1,0 +1,8 @@
+title: 'pallet-referenda: Check before decrement deciding count'
+doc:
+- audience: Runtime Dev
+  description: |-
+    This ensures when a referendum is canceled or killed that we check if it was deciding before decrementing the deciding counter.
+crates:
+- name: pallet-referenda
+  bump: patch

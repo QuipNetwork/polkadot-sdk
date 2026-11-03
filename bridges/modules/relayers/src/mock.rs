@@ -302,9 +302,10 @@ impl pallet_bridge_relayers::benchmarking::Config for TestRuntime {
 	}
 
 	fn prepare_rewards_account(
+		_relayer: &ThisChainAccountId,
 		account_params: RewardsAccountParams<TestLaneIdType>,
 		reward: Self::RewardBalance,
-	) -> Option<ThisChainAccountId> {
+	) -> Option<(RewardsAccountParams<TestLaneIdType>, ThisChainAccountId)> {
 		let rewards_account = PayRewardFromAccount::<
 			Balances,
 			ThisChainAccountId,
@@ -313,7 +314,7 @@ impl pallet_bridge_relayers::benchmarking::Config for TestRuntime {
 		>::rewards_account(account_params);
 		Self::deposit_account(rewards_account, reward.into());
 
-		Some(REGULAR_RELAYER2)
+		Some((account_params, REGULAR_RELAYER2))
 	}
 
 	fn deposit_account(account: Self::AccountId, balance: Self::Balance) {

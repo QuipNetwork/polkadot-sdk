@@ -77,7 +77,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -117,7 +117,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -158,7 +158,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -201,7 +201,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -243,7 +243,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -290,7 +290,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -333,7 +333,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -372,7 +372,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -392,7 +392,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: build
         run: |
-          forklift cargo nextest --manifest-path polkadot/zombienet-sdk-tests/Cargo.toml archive --locked --features zombie-metadata,zombie-ci --archive-file polkadot-zombienet-tests.tar.zst
+          forklift cargo nextest --manifest-path polkadot/zombienet-sdk-tests/Cargo.toml archive --locked --cargo-profile testnet --features zombie-metadata,zombie-ci --archive-file polkadot-zombienet-tests.tar.zst
       - name: pack artifacts
         run: |
           mkdir -p artifacts
@@ -402,7 +402,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -422,7 +422,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: build
         run: |
-          forklift cargo nextest --manifest-path substrate/zombienet/zombienet-sdk/Cargo.toml archive --locked --features zombie-ci --archive-file substrate-zombienet-tests.tar.zst
+          forklift cargo nextest --manifest-path substrate/zombienet/zombienet-sdk/Cargo.toml archive --locked --cargo-profile testnet --features zombie-ci --archive-file substrate-zombienet-tests.tar.zst
       - name: pack artifacts
         run: |
           mkdir -p artifacts
@@ -432,7 +432,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -452,7 +452,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: build
         run: |
-          forklift cargo nextest --manifest-path cumulus/zombienet/zombienet-sdk/Cargo.toml archive --locked --features zombie-ci --archive-file cumulus-zombienet-tests.tar.zst
+          forklift cargo nextest --manifest-path cumulus/zombienet/zombienet-sdk/Cargo.toml archive --locked --cargo-profile testnet --features zombie-ci --archive-file cumulus-zombienet-tests.tar.zst
       - name: pack artifacts
         run: |
           mkdir -p artifacts
@@ -462,7 +462,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -479,7 +479,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: build
         run: |
-          forklift cargo nextest --manifest-path templates/zombienet/Cargo.toml archive --locked --features zombienet --archive-file parachain-templates-zombienet-tests.tar.zst
+          forklift cargo nextest --manifest-path templates/zombienet/Cargo.toml archive --locked --cargo-profile testnet --features zombienet --archive-file parachain-templates-zombienet-tests.tar.zst
       - name: pack artifacts
         run: |
           mkdir -p artifacts
@@ -489,7 +489,7 @@ jobs:
         run: tar -cvf artifacts.tar artifacts
 
       - name: upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ github.job }}-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
           path: artifacts.tar
@@ -508,7 +508,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-test-parachain-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
 
@@ -534,7 +534,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-linux-stable-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
 
@@ -560,7 +560,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-test-collators-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
 
@@ -586,7 +586,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-malus-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
 
@@ -612,7 +612,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-linux-substrate-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
 
@@ -646,7 +646,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-linux-stable-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
       - name: tar
@@ -654,7 +654,7 @@ jobs:
           tar -xvf artifacts.tar
           rm artifacts.tar
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-linux-stable-cumulus-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
       - name: tar
@@ -662,7 +662,7 @@ jobs:
           tar -xvf artifacts.tar
           rm artifacts.tar
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: prepare-bridges-zombienet-artifacts-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
       - name: tar
@@ -689,7 +689,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-linux-stable-cumulus-${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
 
@@ -716,6 +716,10 @@ jobs:
       - build-malus
       - build-linux-substrate
       - build-templates-node
+      - prepare-cumulus-zombienet-artifacts
+      - prepare-parachain-templates-zombienet-artifacts
+      - prepare-polkadot-zombienet-artifacts
+      - prepare-substrate-zombienet-artifacts
     if: always() && !cancelled()
     outputs:
       build_success: ${{ steps.check_success.outputs.build_success }}
@@ -741,6 +745,9 @@ jobs:
     with:
       build_run_id: ${{ github.run_id }}
       ref_slug: ${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
+    secrets:
+      ARTIFACTS_DOWNLOADER_APP_ID: ${{ secrets.ARTIFACTS_DOWNLOADER_APP_ID }}
+      ARTIFACTS_DOWNLOADER_PRIVATE_KEY: ${{ secrets.ARTIFACTS_DOWNLOADER_PRIVATE_KEY }}
 
   trigger-zombienet-cumulus:
     needs: [preflight, confirm-required-build-jobs-passed]
@@ -749,6 +756,9 @@ jobs:
     with:
       build_run_id: ${{ github.run_id }}
       ref_slug: ${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
+    secrets:
+      ARTIFACTS_DOWNLOADER_APP_ID: ${{ secrets.ARTIFACTS_DOWNLOADER_APP_ID }}
+      ARTIFACTS_DOWNLOADER_PRIVATE_KEY: ${{ secrets.ARTIFACTS_DOWNLOADER_PRIVATE_KEY }}
 
   trigger-zombienet-substrate:
     needs: [preflight, confirm-required-build-jobs-passed]
@@ -757,6 +767,9 @@ jobs:
     with:
       build_run_id: ${{ github.run_id }}
       ref_slug: ${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
+    secrets:
+      ARTIFACTS_DOWNLOADER_APP_ID: ${{ secrets.ARTIFACTS_DOWNLOADER_APP_ID }}
+      ARTIFACTS_DOWNLOADER_PRIVATE_KEY: ${{ secrets.ARTIFACTS_DOWNLOADER_PRIVATE_KEY }}
 
   trigger-zombienet-parachain-template:
     needs: [preflight, confirm-required-build-jobs-passed]
@@ -765,14 +778,16 @@ jobs:
     with:
       build_run_id: ${{ github.run_id }}
       ref_slug: ${{ needs.preflight.outputs.SOURCE_REF_SLUG }}
+    secrets:
+      ARTIFACTS_DOWNLOADER_APP_ID: ${{ secrets.ARTIFACTS_DOWNLOADER_APP_ID }}
+      ARTIFACTS_DOWNLOADER_PRIVATE_KEY: ${{ secrets.ARTIFACTS_DOWNLOADER_PRIVATE_KEY }}
 
   confirm-zombienet-tests-passed:
     runs-on: ubuntu-latest
     name: All zombienet tests passed
     needs:
-      # Disabled until zombienet polkadot/cumulus flows are stable
-      # - trigger-zombienet-polkadot
-      # - trigger-zombienet-cumulus
+      - trigger-zombienet-polkadot
+      - trigger-zombienet-cumulus
       - trigger-zombienet-substrate
       - trigger-zombienet-parachain-template
     if: always() && !cancelled()

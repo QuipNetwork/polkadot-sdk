@@ -131,10 +131,9 @@ pub fn sign(
 			.into()
 		},
 		ExtrinsicFormat::Bare => generic::UncheckedExtrinsic::new_bare(xt.function).into(),
-		ExtrinsicFormat::General(ext_version, tx_ext) => generic::UncheckedExtrinsic::from_parts(
-			xt.function,
-			generic::Preamble::General(ext_version, tx_ext),
-		)
-		.into(),
+		ExtrinsicFormat::General(tx_ext) => {
+			generic::UncheckedExtrinsic::from_parts(xt.function, generic::Preamble::General(tx_ext))
+				.into()
+		},
 	}
 }

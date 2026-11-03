@@ -114,7 +114,7 @@ pub type HostFunctions = (statement_store::HostFunctions,);
 /// Host interface
 #[runtime_interface]
 pub trait StatementStore {
-	/// Submit a new new statement. The statement will be broadcast to the network.
+	/// Submit a new statement. The statement will be broadcast to the network.
 	/// This is meant to be used by the offchain worker.
 	fn submit_statement(
 		&mut self,

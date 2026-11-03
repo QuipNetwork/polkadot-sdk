@@ -1,0 +1,20 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Westend Coretime: remove truncation of the assignments vector'
+
+doc:
+  - audience: Runtime Dev
+    description: |-
+      Fixes the way coretime assignments are being reported to the Relay Chain. Previously any
+      assignment beyond the initial 28 would be silently truncated. Now all the assignments (up to
+      80) are divided into chunks of at most 28 and sent to the Relay Chain.
+      
+      Some types and methods in polkadot-runtime-parachains are made public in order to facilitate
+      inspection of the Scheduler pallet's state from outside the crate.
+
+crates:
+  - name: coretime-westend-runtime
+    bump: patch
+  - name: polkadot-runtime-parachains
+    bump: minor

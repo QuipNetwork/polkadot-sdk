@@ -16,16 +16,20 @@
 // limitations under the License.
 
 use crate::{
-	BalanceOf, CallResources, Code, Config, EthTxInfo, StorageDeposit, TransactionLimits,
-	TransactionMeter, WeightToken,
+	BalanceOf, CallResources, Code, Config, Error, EthTxInfo, ExecConfig, StorageDeposit,
+	TransactionLimits, TransactionMeter, WeightToken,
 	storage::AccountInfo,
-	test_utils::{ALICE, ALICE_ADDR, builder::Contract},
+	test_utils::{ALICE, ALICE_ADDR, CHARLIE, builder::Contract},
 	tests::{ExtBuilder, Test, builder},
 };
 use alloy_core::sol_types::SolCall;
-use frame_support::traits::fungible::Mutate;
+use frame_support::{
+	storage::{TransactionOutcome, with_transaction},
+	traits::fungible::Mutate,
+};
+use frame_system::RawOrigin;
 use pallet_revive_fixtures::{
-	CatchConstructorTest, DepositPrecompile, FixtureType, compile_module_with_type,
+	CatchConstructorTest, DepositPrecompile, FixtureType, ReentryStorage, compile_module_with_type,
 };
 use sp_runtime::{FixedU128, Weight};
 use test_case::test_case;
@@ -156,6 +160,203 @@ fn nested_call_storage_refund(fixture_type: FixtureType, fixture_name: &str) {
 			direct_info.storage_byte_deposit, nested_info.storage_byte_deposit,
 			"storage_byte_deposit mismatch between direct and nested paths",
 		);
+	});
+}
+
+/// Direct same-contract reentry (X -> X): a write, a self-reenter, then another write
+/// must not double-count the pre-reentry write in the persisted `ContractInfo`. The
+/// reentrant run must match a non-reentrant baseline exactly (both persisted accounting
+/// and the net deposit charged to the origin). Regression repro for contract-issues#213.
+#[test_case(FixtureType::Solc   ; "solc")]
+#[test_case(FixtureType::Resolc ; "resolc")]
+fn same_contract_reentry_does_not_double_count_storage(fixture_type: FixtureType) {
+	let (code, _) = compile_module_with_type("ReentryStorage", fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+
+		// Baseline: two writes, no reentry.
+		let Contract { addr: baseline_addr, .. } =
+			builder::bare_instantiate(Code::Upload(code.clone()))
+				.salt(Some([1; 32]))
+				.build_and_unwrap_contract();
+		let baseline = builder::bare_call(baseline_addr)
+			.data(ReentryStorage::writeTwiceCall {}.abi_encode())
+			.build();
+		let baseline_info = AccountInfo::<Test>::load_contract(&baseline_addr).unwrap();
+
+		// Reentrant: write, reenter self (an empty frame), write. Same end state.
+		let Contract { addr: reentrant_addr, .. } = builder::bare_instantiate(Code::Upload(code))
+			.salt(Some([2; 32]))
+			.build_and_unwrap_contract();
+		let reentrant = builder::bare_call(reentrant_addr)
+			.data(ReentryStorage::writeReenterWriteCall {}.abi_encode())
+			.build();
+		let reentrant_info = AccountInfo::<Test>::load_contract(&reentrant_addr).unwrap();
+
+		assert!(baseline.result.is_ok(), "baseline call failed: {:?}", baseline.result);
+		assert!(reentrant.result.is_ok(), "reentrant call failed: {:?}", reentrant.result);
+
+		// Without the bank-pending-changes fix the pre-reentry write is applied to the
+		// persisted ContractInfo twice, inflating every storage field and over-charging
+		// the origin. Assert the full set so a partial regression still fails.
+		assert_eq!(
+			reentrant_info.storage_items, baseline_info.storage_items,
+			"storage_items inflated by double-applied pending diff under same-contract reentry",
+		);
+		assert_eq!(
+			reentrant_info.storage_bytes, baseline_info.storage_bytes,
+			"storage_bytes inflated under same-contract reentry",
+		);
+		assert_eq!(
+			reentrant_info.storage_item_deposit, baseline_info.storage_item_deposit,
+			"storage_item_deposit inflated under same-contract reentry",
+		);
+		assert_eq!(
+			reentrant_info.storage_byte_deposit, baseline_info.storage_byte_deposit,
+			"storage_byte_deposit inflated under same-contract reentry",
+		);
+		assert_eq!(
+			reentrant.storage_deposit, baseline.storage_deposit,
+			"net storage deposit charged to origin inflated under same-contract reentry",
+		);
+	});
+}
+
+/// Transitive same-contract reentry (X -> Y -> X): the invalidation matcher keys on
+/// `account_id`, so an ancestor reentered through an intermediary is affected too. Full
+/// solc/resolc matrix over (`ReentryStorage`, `ReentryProxy`) -> 4 cases. As above, the
+/// reentrant run must match a non-reentrant baseline exactly.
+#[test_case(FixtureType::Solc  , FixtureType::Solc   ; "solc storage, solc proxy")]
+#[test_case(FixtureType::Solc  , FixtureType::Resolc ; "solc storage, resolc proxy")]
+#[test_case(FixtureType::Resolc, FixtureType::Solc   ; "resolc storage, solc proxy")]
+#[test_case(FixtureType::Resolc, FixtureType::Resolc ; "resolc storage, resolc proxy")]
+fn transitive_reentry_does_not_double_count_storage(
+	storage_type: FixtureType,
+	proxy_type: FixtureType,
+) {
+	let (storage_code, _) = compile_module_with_type("ReentryStorage", storage_type).unwrap();
+	let (proxy_code, _) = compile_module_with_type("ReentryProxy", proxy_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+
+		let Contract { addr: proxy_addr, .. } = builder::bare_instantiate(Code::Upload(proxy_code))
+			.salt(Some([3; 32]))
+			.build_and_unwrap_contract();
+
+		// Baseline: two writes, no reentry.
+		let Contract { addr: baseline_addr, .. } =
+			builder::bare_instantiate(Code::Upload(storage_code.clone()))
+				.salt(Some([1; 32]))
+				.build_and_unwrap_contract();
+		let baseline = builder::bare_call(baseline_addr)
+			.data(ReentryStorage::writeTwiceCall {}.abi_encode())
+			.build();
+		let baseline_info = AccountInfo::<Test>::load_contract(&baseline_addr).unwrap();
+
+		// Reentrant: write, reenter self via the proxy (X -> Y -> X), write.
+		let Contract { addr: reentrant_addr, .. } =
+			builder::bare_instantiate(Code::Upload(storage_code))
+				.salt(Some([2; 32]))
+				.build_and_unwrap_contract();
+		let reentrant = builder::bare_call(reentrant_addr)
+			.data(
+				ReentryStorage::writeReenterWriteViaCall { proxy: proxy_addr.0.into() }
+					.abi_encode(),
+			)
+			.build();
+		let reentrant_info = AccountInfo::<Test>::load_contract(&reentrant_addr).unwrap();
+
+		assert!(baseline.result.is_ok(), "baseline call failed: {:?}", baseline.result);
+		assert!(reentrant.result.is_ok(), "reentrant call failed: {:?}", reentrant.result);
+
+		assert_eq!(
+			reentrant_info.storage_items, baseline_info.storage_items,
+			"storage_items inflated by double-applied diff under transitive reentry",
+		);
+		assert_eq!(
+			reentrant_info.storage_bytes, baseline_info.storage_bytes,
+			"storage_bytes inflated under transitive reentry",
+		);
+		assert_eq!(
+			reentrant_info.storage_item_deposit, baseline_info.storage_item_deposit,
+			"storage_item_deposit inflated under transitive reentry",
+		);
+		assert_eq!(
+			reentrant_info.storage_byte_deposit, baseline_info.storage_byte_deposit,
+			"storage_byte_deposit inflated under transitive reentry",
+		);
+		assert_eq!(
+			reentrant.storage_deposit, baseline.storage_deposit,
+			"net storage deposit charged to origin inflated under transitive reentry",
+		);
+	});
+}
+
+/// A dry-run from an unfunded account should still report the `max_storage_deposit`
+/// that a successful run would need, so that the caller can size the allowance
+/// required to cover the storage deposit before submitting the real transaction.
+#[test_case(FixtureType::Solc   , "DepositPrecompile" ; "solc precompiles")]
+#[test_case(FixtureType::Resolc , "DepositPrecompile" ; "resolc precompiles")]
+#[test_case(FixtureType::Solc   , "DepositDirect" ; "solc direct")]
+#[test_case(FixtureType::Resolc , "DepositDirect" ; "resolc direct")]
+fn max_storage_deposit_reported_for_unfunded_dry_run(
+	fixture_type: FixtureType,
+	fixture_name: &str,
+) {
+	let (code, _) = compile_module_with_type(fixture_name, fixture_type).unwrap();
+
+	ExtBuilder::default().build().execute_with(|| {
+		let _ = <Test as Config>::Currency::set_balance(&ALICE, 100_000_000_000);
+
+		let Contract { addr: caller_addr, .. } =
+			builder::bare_instantiate(Code::Upload(code)).build_and_unwrap_contract();
+
+		// Wrap each call in a rolled-back storage layer so state doesn't leak
+		// between them. Mirrors how a runtime API dispatches the dry-run.
+		let run_in_rollback = |build: &dyn Fn() -> _| {
+			with_transaction(|| {
+				TransactionOutcome::Rollback(Ok::<_, sp_runtime::DispatchError>(build()))
+			})
+			.unwrap()
+		};
+
+		// Reference run from a funded account.
+		let funded = run_in_rollback(&|| {
+			builder::bare_call(caller_addr)
+				.data(DepositPrecompile::setAndClearCall {}.abi_encode())
+				.build()
+		});
+		assert!(funded.result.is_ok(), "reference run must succeed, got {:?}", funded.result);
+		assert!(
+			funded.max_storage_deposit.charge_or_zero() > 0,
+			"expected the funded reference run to require some storage deposit, got {:?}",
+			funded.max_storage_deposit,
+		);
+
+		// Same call from CHARLIE, who has no balance, using the runtime-api dry-run
+		// `ExecConfig`. Collecting the deposit fails because CHARLIE cannot fund it, but
+		// the reported `max_storage_deposit` must still match the funded run so the
+		// caller can size the allowance needed to cover the deposit.
+		let unfunded = run_in_rollback(&|| {
+			crate::Pallet::<Test>::prepare_dry_run(&CHARLIE);
+			builder::bare_call(caller_addr)
+				.origin(RawOrigin::Signed(CHARLIE).into())
+				.data(DepositPrecompile::setAndClearCall {}.abi_encode())
+				.transaction_limits(TransactionLimits::WeightAndDeposit {
+					weight_limit: <Test as frame_system::Config>::BlockWeights::get().max_block,
+					deposit_limit: u128::MAX,
+				})
+				.exec_config(ExecConfig::new_substrate_tx().with_dry_run(None))
+				.build()
+		});
+
+		assert_eq!(
+			unfunded.result.unwrap_err(),
+			Error::<Test>::StorageDepositNotEnoughFunds.into()
+		);
+		assert_eq!(unfunded.max_storage_deposit, funded.max_storage_deposit);
 	});
 }
 
@@ -739,7 +940,9 @@ fn catch_constructor_test() {
 					.into(),
 				..Default::default()
 			},
-			Default::default(),
+			None,
+			true,
+			None,
 		);
 
 		assert_ok!(first_estimate.as_ref());
@@ -754,7 +957,9 @@ fn catch_constructor_test() {
 					.into(),
 				..Default::default()
 			},
-			Default::default(),
+			None,
+			true,
+			None,
 		);
 
 		assert_ok!(second_estimate);
@@ -811,7 +1016,9 @@ fn dry_run_bounded_execution_runs_out_of_gas() {
 				input: Fibonacci::fibCall { n: 100u64 }.abi_encode().into(),
 				..Default::default()
 			},
-			Default::default(),
+			None,
+			true,
+			None,
 		);
 
 		let err = result.expect_err("fib(100) should run out of gas");

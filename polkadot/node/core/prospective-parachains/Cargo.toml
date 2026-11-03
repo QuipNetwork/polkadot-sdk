@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-prospective-parachains"
-version = "28.0.0"
+version = "35.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,18 +14,21 @@ workspace = true
 [dependencies]
 fatality = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+schnellru = { workspace = true }
 thiserror = { workspace = true }
+
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
-polkadot-primitives = { features = ["test"], workspace = true, default-features = false }
+polkadot-primitives = { workspace = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
+polkadot-subsystem-test-sim = { workspace = true }
 rand = { workspace = true }
 rstest = { workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-tracing = { workspace = true, default-features = false }
+sp-core = { workspace = true, default-features = true }
+sp-tracing = { workspace = true }

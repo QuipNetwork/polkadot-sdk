@@ -1,0 +1,9 @@
+title: 'eth-rpc: Add trace logging for receipt lookup debugging'
+doc:
+- audience: Runtime Dev
+  description: Add trace logging to receipt handling to help diagnose intermittent
+    receipt retrieval failures for finalized transactions, observed while running
+    revive differential test benchmarks.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

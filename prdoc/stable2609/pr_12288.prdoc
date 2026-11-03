@@ -1,0 +1,15 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'binary-merkle-tree: preallocate proof vector to avoid reallocations'
+
+doc:
+  - audience: Node Dev
+    description: |
+      `ProofCollection` now preallocates the proof `Vec` to `ceil(log2(number_of_leaves))`,
+      the most nodes a single-leaf proof can hold, so `merkle_proof` and `merkle_proof_raw`
+      no longer reallocate while collecting it.
+
+crates:
+  - name: binary-merkle-tree
+    bump: patch

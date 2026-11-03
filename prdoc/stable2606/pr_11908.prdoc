@@ -1,0 +1,10 @@
+title: 'UncheckedExtrinsic: Improve memory usage'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Improves the memory usage of the unchecked extrinsic by pre-allocating some buffers and preventing e.g. printing huge calls.
+crates:
+- name: frame-executive
+  bump: patch
+- name: sp-runtime
+  bump: patch

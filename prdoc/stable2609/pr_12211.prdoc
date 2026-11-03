@@ -1,0 +1,21 @@
+title: 'Snowbridge: drop outbound-queue-v2 message leaves from state'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The `outbound-queue-v2` pallet stored the per-message merkle leaves in the `MessageLeaves` storage value
+    and only cleared them at the start of the next block, so the leaves persisted across blocks and were
+    needlessly included in the PoV. They are only needed to build the commitment root and to generate proofs
+    off-chain.
+
+    `MessageLeaves` is now truly transient: the leaves are still appended during block execution to build the
+    merkle root, but the value is killed within the same block, right after the commitment is produced in
+    `commit()`. The committed root inserted into the header digest is unchanged, so relayers and the
+    Ethereum-side verification are unaffected. The `prove_message` runtime API keeps the same signature and now
+    recomputes the leaves from `Messages` (read off-chain only).
+crates:
+- name: snowbridge-pallet-outbound-queue-v2
+  bump: patch
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: bridge-hub-westend-runtime  
+  bump: patch

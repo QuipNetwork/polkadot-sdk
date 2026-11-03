@@ -1,6 +1,6 @@
 [package]
 name = "sc-tracing-proc-macro"
-version = "11.1.1"
+version = "11.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"

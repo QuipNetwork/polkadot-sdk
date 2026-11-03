@@ -1,0 +1,34 @@
+title: "collator-protocol: V4 segment handling on the experimental validator side"
+doc:
+- audience: Node Dev
+  description: |-
+    This PR implements V4 segment advertisements in `validator_side_experimental`. The
+    legacy validator side does not support V4. V1-V3 handling is unchanged.
+
+    - A stored segment is one fetch entitlement, spent when a fetch launches. At fetch
+      time the entries are walked oldest-first and the first output head that is not
+      fetched, not in flight and not known to prospective-parachains is requested.
+      Re-advertised blocks are deduplicated by output head.
+    - A segment whose entries are all known to prospective-parachains is dropped
+      without a fetch. One blocked only by fetched or in-flight heads is held and
+      retried when the pending attempt concludes.
+    - Segments with a zero-length cycle (parent head == output head) are rejected.
+      Byte-identical segments from the same peer are rejected while stored; a
+      re-advertisement after the fetch launched is a new entitlement.
+    - The planner pass runs only after a change that can enable a launch (view update,
+      accepted advertisement, concluded fetch, released slot, fetch timer) instead of
+      after every message.
+    - Adds `ProspectiveParachainsMessage::GetKnownOutputHeads`: per scheduling parent
+      still in view and para, the output heads of all held candidates plus the para's
+      latest included head. The validator side queries it before each planner pass.
+      Knowledge under a sibling relay fork does not block a fetch.
+crates:
+- name: polkadot-collator-protocol
+  bump: minor
+  validate: false
+- name: polkadot-node-core-prospective-parachains
+  bump: minor
+  validate: false
+- name: polkadot-node-subsystem-types
+  bump: major
+  validate: false

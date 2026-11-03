@@ -362,7 +362,9 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	/// Proof: `XcmPallet::ShouldRecordXcm` (`max_values`: Some(1), `max_size`: None, mode: `Measured`)
 	/// Storage: `XcmPallet::AssetTraps` (r:1 w:1)
 	/// Proof: `XcmPallet::AssetTraps` (`max_values`: None, `max_size`: None, mode: `Measured`)
-	fn claim_assets() -> Weight {
+	/// Flat in `n`: the `AssetTransactor` only handles the native token, so a claim can never
+	/// deposit more than one distinct asset.
+	fn claim_assets(_n: u32) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `23`
 		//  Estimated: `3488`
@@ -379,12 +381,20 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 		Weight::from_parts(100_000, 0)
 	}
 
-	fn weigh_message() -> Weight {
+	/// The range of component `n` is `[0, 131072]`.
+	fn weigh_message(n: u32) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 7_785_000 picoseconds.
 		Weight::from_parts(8_077_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
+			// INTERIM placeholder slope; replace with `/cmd bench` output before merging.
+			.saturating_add(Weight::from_parts(100_000, 0).saturating_mul(n.into()))
+	}
+	/// The range of component `n` is `[0, 131072]`.
+	fn decode_xcm(n: u32) -> Weight {
+		// INTERIM: decoding is a subset of weighing, so this over-estimates.
+		Self::weigh_message(n)
 	}
 }

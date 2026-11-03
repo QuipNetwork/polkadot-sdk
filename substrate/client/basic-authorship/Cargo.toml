@@ -1,6 +1,6 @@
 [package]
 name = "sc-basic-authorship"
-version = "0.54.0"
+version = "0.57.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -19,22 +19,22 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { workspace = true, default-features = true }
 futures = { workspace = true }
 log = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
-sc-proposer-metrics = { default-features = true, workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-proposer-metrics = { workspace = true, default-features = true }
+sc-telemetry = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 
 [dev-dependencies]
 parking_lot = { workspace = true, default-features = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-transaction-pool = { default-features = true, workspace = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-transaction-pool = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }

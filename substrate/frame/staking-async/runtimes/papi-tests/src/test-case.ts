@@ -415,7 +415,8 @@ export async function runTest(
 						e.event.type == "MultiBlockElection" ||
 						e.event.type == "MultiBlockElectionSigned" ||
 						e.event.type == "MultiBlockElectionVerifier" ||
-						e.event.type == "StakingRcClient"
+						e.event.type == "StakingRcClient" ||
+						e.event.type == "Dap"
 				)
 				.map((e) => ({
 					module: e.event.type,

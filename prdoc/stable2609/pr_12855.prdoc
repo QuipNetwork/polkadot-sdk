@@ -1,0 +1,17 @@
+title: '[pallet-revive] fix wrong values in truncated and failed execution traces'
+doc:
+- audience: Runtime Dev
+  description: |-
+    This PR fixes wrong values in truncated traces.
+    The execution tracer reported wrong values in four ways. The first three need `ExecutionTracerConfig::limit`; the fourth affects every failing transaction.
+
+    1. `gasCost` / `weightCost`. Past the limit the tracer stopped opening a pending entry per step, but the interpreter still reported every step's exit, so those exits finalized an enclosing CALL against the counters seen at truncation. At call depth 2 or more the captured steps could sum to more than the transaction consumed.
+
+    2. `storage`. Snapshots taken by dropped steps were grafted onto the last captured step, which could show slots it never touched.
+
+    3. `error`. A revert or trap after the limit annotated the last captured step, reporting a step that succeeded as reverted.
+
+    4. `failed` / `returnValue`. `failed` was guarded on the outermost frame exiting at depth 0, which never happens, so every reverting transaction traced as `failed: false`, and the revert path never assigned `returnValue`.
+crates:
+- name: pallet-revive
+  bump: patch

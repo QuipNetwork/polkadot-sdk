@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-client-bootnodes"
-version = "0.8.0"
+version = "0.15.0"
 authors.workspace = true
 edition.workspace = true
 description = "Parachain bootnodes registration and discovery."
@@ -19,16 +19,20 @@ prost-build = { workspace = true }
 array-bytes = { workspace = true, default-features = true }
 async-channel = { workspace = true }
 codec = { workspace = true, default-features = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-relay-chain-interface = { default-features = true, workspace = true }
 futures = { workspace = true, default-features = true }
 hex = { workspace = true, default-features = true }
 ip_network = { workspace = true }
 log = { workspace = true, default-features = true }
 num-traits = { workspace = true, default-features = true }
 prost = { workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-service = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
 tokio = { workspace = true, default-features = true }
+
+# Substrate
+sc-network = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-relay-chain-interface = { workspace = true, default-features = true }

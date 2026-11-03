@@ -1,6 +1,6 @@
 [package]
 name = "pallet-asset-conversion-tx-payment"
-version = "28.0.0"
+version = "33.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -27,9 +27,9 @@ scale-info = { features = ["derive"], workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-assets = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+pallet-assets = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

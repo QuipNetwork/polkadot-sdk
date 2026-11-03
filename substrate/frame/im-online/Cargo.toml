@@ -1,6 +1,6 @@
 [package]
 name = "pallet-im-online"
-version = "45.0.0"
+version = "49.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -30,8 +30,8 @@ sp-runtime = { features = ["serde"], workspace = true }
 sp-staking = { features = ["serde"], workspace = true }
 
 [dev-dependencies]
-pallet-balances = { workspace = true, default-features = false }
-pallet-session = { default-features = true, workspace = true }
+pallet-balances = { workspace = true }
+pallet-session = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -43,6 +43,7 @@ std = [
 	"log/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-session/std",
 	"scale-info/std",
 	"sp-application-crypto/std",
 	"sp-core/std",

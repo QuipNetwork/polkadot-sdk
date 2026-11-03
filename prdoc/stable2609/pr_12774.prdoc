@@ -1,0 +1,12 @@
+title: 'statement-store: move the submit index to disk with bounded caches'
+doc:
+- audience: Node Dev
+  description: |-
+    Stage 2b of the statement-store index refactor (#10910). The submit index (per-account
+    quota accounting) now lives on disk next to the statements, with bounded in-memory caches
+    on top. Store memory usage no longer grows with the number of stored statements or
+    accounts, and startup no longer reads statement bodies, so it stays fast for large
+    stores. Existing databases are migrated automatically on first start.
+crates:
+- name: sc-statement-store
+  bump: minor

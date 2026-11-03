@@ -1,0 +1,145 @@
+title: Rework sp-virtualization API
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\nRedesign `sp-virtualization` around a **typestate API**\
+    \ (`Module -> Instance -> Execution`) that enforces correct usage at compile time.\
+    \ Split host-side polkavm ownership into a new **`sc-virtualization`** crate behind\
+    \ the `VirtManagerBackend` trait, decouple virtualization from the WASM executor,\
+    \ and replace the original `compile_from_hash` with two opaque-identifier entry\
+    \ points: `compile_from_storage_key` (auto-reload on cache miss) and a pure `lookup`.\
+    \ Cache hit/miss status is reported back to the runtime so callers can weight\
+    \ the call.\n\n## Typestate API\n\nReplace the trait-based `VirtT` / `MemoryT`\
+    \ abstraction with three concrete types that encode the lifecycle via Rust's move\
+    \ semantics:\n\n- **`Module`** \u2014 a compiled PolkaVM program. Created via\
+    \ `Module::from_bytes(program, identifier)`, `Module::from_storage_key(storage_key,\
+    \ child_trie)`, or `Module::lookup(identifier)`.\n- **`Instance`** \u2014 an idle\
+    \ instance ready to run. Created from `module.instantiate()`. Calling `instance.prepare(function)`\
+    \ consumes it and produces an `Execution`.\n- **`Execution`** \u2014 a running\
+    \ (or suspended-at-syscall) instance. `execution.run(gas, a0)` drives one step\
+    \ and returns an `ExecResult` enum that carries ownership back through the transitions.\n\
+    \nThis makes invalid state transitions (e.g. calling `run` on an idle instance,\
+    \ or accessing memory outside a syscall) unrepresentable.\n\n### `ExecResult`\
+    \ enum\n\n```rust\nenum ExecResult<V, I> {\n    Finished { instance: V, gas_left\
+    \ },                            // V = idle Instance\n    Syscall  { execution:\
+    \ I, gas_left, syscall_symbol, a0..a5 },   // I = running Execution\n    Error\
+    \    { instance: V, error },\n}\n```\n\nReplaces the old `ExecOutcome` + separate\
+    \ error path. Ownership of the instance/execution is always returned, preventing\
+    \ resource leaks.\n\n### Memory access restricted to `Execution`\n\n`read_memory`\
+    \ / `write_memory` are now methods on `Execution`, not on a separate `Memory`\
+    \ type. This enforces at the type level that guest memory can only be accessed\
+    \ while the instance is actively running (i.e. suspended at a syscall).\n\n##\
+    \ Crate split: `sp-virtualization` + `sc-virtualization`\n\n`sp-virtualization`\
+    \ (runtime-facing) houses the forwarder API (`Module`/`Instance`/`Execution`),\
+    \ the `#[runtime_interface]` declaration, the `VirtManagerBackend` trait, and\
+    \ the `VirtManagerExt` externalities extension. No PolkaVM dependency. `#![cfg_attr(substrate_runtime,\
+    \ no_std)]` so it compiles into runtimes.\n\n**New `sc-virtualization` crate**\
+    \ (host-side): the concrete `VirtManager` implementation of `VirtManagerBackend`,\
+    \ owning all PolkaVM types and the compiled-module cache. The runtime side stays\
+    \ storage-aware; the backend trait does not. The runtime-interface call site is\
+    \ the only layer that touches `self.storage` / `self.child_storage`.\n\n## Syscall\
+    \ symbols instead of numeric IDs\n\nSyscalls are now identified by **string symbols**\
+    \ (up to 32 bytes via `SyscallSymbol`) instead of `u32` syscall numbers. The test\
+    \ fixture imports change from `#[polkavm_import(symbol = 1u32)]` to `#[polkavm_import(symbol\
+    \ = \"read_counter\")]`, etc.\n\n## Compile entry points\n\nThree host functions,\
+    \ each with a clear contract:\n\n| Host function | Behavior |\n|---|---|\n| `compile_from_bytes(program,\
+    \ identifier)` | If `Some(identifier)` is already cached, return that module without\
+    \ recompiling. Otherwise compile `program` and cache under `identifier` if supplied.\
+    \ |\n| `compile_from_storage_key(storage_key, child_trie)` | Cache lookup keyed\
+    \ by `storage_key`. On miss, load program bytes from storage at `storage_key`\
+    \ (main trie or `child_trie`), compile, cache. |\n| `lookup(identifier)` | Pure\
+    \ cache lookup. Never reads storage. Returns `Err(NotCached)` on miss. |\n\nAll\
+    \ three return `Result<_, ModuleError>`. The two compile entry points return a\
+    \ `CompiledModule { id, status }` packing both the new `ModuleId` and a `CompileStatus\
+    \ { Cached, Compiled }`, so the runtime can tell a cheap cache hit from a fresh\
+    \ compile (which, for `compile_from_storage_key`, includes a storage read) and\
+    \ charge weight accordingly.\n\n### Wire encoding\n\n`CompiledModule` packs into\
+    \ the `i64` FFI return value: low 32 bits hold the `ModuleId`; bits 32-39 hold\
+    \ the `CompileStatus` discriminant (`u8`); bits 40-62 are reserved for future\
+    \ fields; negative values stay reserved for `ModuleError` discriminants. `Module::lookup`\
+    \ returns `Result<ModuleId, ModuleError>` directly (no status \u2014 a successful\
+    \ lookup is always cached by definition).\n\n## Per-extension cache, keyed by\
+    \ opaque identifier\n\nThe compiled-module cache lives on the `VirtManager` instance\
+    \ itself, not on a process-global static. Its lifetime tracks the externalities\
+    \ extension \u2014 one block of authoring or one `execute_block` call \u2014 which\
+    \ eliminates the author/importer asymmetry where cache hits depended on host process\
+    \ history rather than chain state.\n\nThe cache is keyed by an **opaque caller-supplied\
+    \ identifier** (the runtime passes a storage key for `from_storage_key`, or any\
+    \ byte slice for `from_bytes`). The host no longer re-hashes loaded bytes to verify\
+    \ them \u2014 storage tries are merkle-verified by their own infrastructure \u2014\
+    \ and `sp-crypto-hashing` is no longer a dependency of either crate.\n\n## `VirtManagerExt`\
+    \ externalities extension\n\n`VirtManager` is no longer embedded in the wasmtime\
+    \ executor's `HostState` or accessed via `FunctionContext::virtualization()`.\
+    \ Instead, it is registered as an **externalities extension** (`VirtManagerExt`),\
+    \ making it accessible to both the WASM executor and native test code through\
+    \ the standard externalities mechanism.\n\n## New `PassFatPointerAndReadOption<T>`\
+    \ in `sp-runtime-interface`\n\nAdded to ferry `Option<&[u8]>` across the FFI without\
+    \ SCALE overhead, using `(ptr = 0, len = 0)` as the `None` sentinel (Rust's `&[]::as_ptr()`\
+    \ is documented non-null, so a real `Some(&[])` always carries a non-zero pointer).\
+    \ Used by `compile_from_bytes` for the optional cache identifier.\n\n## Removed\
+    \ abstractions\n\n| Removed | Replacement |\n|---|---|\n| `VirtT` trait | Concrete\
+    \ `Module` / `Instance` / `Execution` types |\n| `MemoryT` trait + `Memory` type\
+    \ | `Execution::read_memory` / `write_memory` |\n| `native.rs` (205 lines) | `VirtManager`\
+    \ (in `sc-virtualization`) directly owns PolkaVM types |\n| `ExecAction::Execute`\
+    \ / `Resume` | `Instance::prepare` + `Execution::run(gas, a0)` |\n| `ExecOutcome`\
+    \ (in `sp-wasm-interface`) | `ExecResult` enum in `sp-virtualization` |\n| `Virtualization`\
+    \ trait (in `sp-wasm-interface`) | `VirtManagerExt` externalities extension |\n\
+    | `FunctionContext::virtualization()` | Extension access via `self.extension::<VirtManagerExt>()`\
+    \ |\n| `InstanceId` (in `sp-wasm-interface`) | `InstanceId` + `ModuleId` (in `sp-virtualization`)\
+    \ |\n| `RIInstantiateError`, `RIExecError`, etc. | `impl_ri_error_encoding!` macro\
+    \ |\n| `DestroyError` (public) | Moved to `host_functions` (internal) |\n| `compile_from_hash`\
+    \ + hash/prefix split | `compile_from_storage_key` + `lookup` (opaque identifier)\
+    \ |\n| `ModuleError::HashMismatch` | \u2014 (no longer relevant; storage proves\
+    \ authenticity) |\n| Process-global `MODULE_CACHE` | Per-`VirtManager` cache,\
+    \ lifetime = externalities extension |\n\n## Error type changes\n\nAll error enums\
+    \ are `repr(u32)`. `CompileStatus` is `repr(u8)` (packed alongside `ModuleId`\
+    \ in the wire `i64`). `ModuleError` variants are `InvalidImage`, `NotCached`,\
+    \ `NotFound`. Wire encoding (negated discriminants for errors) is generated by\
+    \ the `impl_ri_error_encoding!` macro instead of manual `From`/`TryFrom` impls\
+    \ per error type.\n\n## Engine configuration\n\nThe PolkaVM engine configures\
+    \ `worker_count(10)` so contract calls always have a worker ready, and `default_cost_model(CostModelKind::Full(CacheModel::L2Hit))`\
+    \ to match the cost model used in production. PolkaVM compilation/runtime errors\
+    \ panic (they indicate a host bug, not a guest error); only validation failures\
+    \ and missing storage map to `ModuleError`.\n\n## Dependency changes\n\n| Removed\
+    \ from | Added to |\n|---|---|\n| `sp-wasm-interface` dep from `sp-virtualization`\
+    \ | `sp-externalities` dep in `sp-virtualization` |\n| `sp-virtualization` dep\
+    \ from `sc-executor-wasmtime` | `sp-storage` (std-only) in `sp-virtualization`\
+    \ |\n| `sp-crypto-hashing` dep (was used for hash verification) | New crate `sc-virtualization`\
+    \ (host-side `VirtManager`) |\n| `sp-std` dep from `sp-virtualization` | `sp-io`\
+    \ (dev-dependency) in `sp-virtualization` |\n| \u2014 | `sp-virtualization` dep\
+    \ in `frame-benchmarking-cli` |\n\n## Test changes\n\nTests run inside `sp_io::TestExternalities`\
+    \ with `VirtManagerExt::new(VirtManager::default())` registered. Each test has\
+    \ both a shared `run()` entry point (callable from WASM integration tests) and\
+    \ a standalone `#[test]` wrapper. New tests cover `from_storage_key` (cache hit\
+    \ reports `Cached`; cache miss reports `Compiled`; main trie + child trie reload\
+    \ paths; invalid image; not found), `from_bytes` (cache-lookup-first behavior\
+    \ \u2014 second call with the same identifier returns `Cached`), and `lookup`\
+    \ (proves it never falls back to storage even when the identifier exists at a\
+    \ storage key). Syscall handlers pattern-match on byte-string symbols (`b\"read_counter\"\
+    `) instead of numeric IDs. `run_out_of_gas_works` counter value reflects the new\
+    \ cost model configuration. Benchmarking CLI and executor integration tests register\
+    \ `VirtManagerExt`."
+crates:
+- name: sc-executor-polkavm
+  bump: major
+- name: sc-executor
+  bump: major
+- name: sc-executor-wasmtime
+  bump: major
+- name: sp-virtualization
+  bump: major
+- name: sp-virtualization-test-fixture
+  bump: major
+- name: sp-wasm-interface
+  bump: major
+- name: frame-benchmarking-cli
+  bump: major
+- name: bp-runtime
+  bump: major
+- name: sc-virtualization
+  bump: major
+- name: sp-runtime-interface
+  bump: major
+- name: polkadot
+  bump: major
+- name: polkadot-sdk
+  bump: major

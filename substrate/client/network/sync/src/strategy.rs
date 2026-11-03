@@ -151,15 +151,11 @@ impl StrategyKey {
 }
 
 pub enum SyncingAction<B: BlockT> {
-	/// Start request to peer.
-	StartRequest {
-		peer_id: PeerId,
-		key: StrategyKey,
-		request: ResponseFuture,
-		// Whether to remove obsolete pending responses.
-		remove_obsolete: bool,
-	},
-	/// Drop stale request.
+	/// Start a request to a peer. Any previous request with the same peer and strategy key
+	/// must have completed or been explicitly canceled.
+	StartRequest { peer_id: PeerId, key: StrategyKey, request: ResponseFuture },
+	/// Drop a pending response. The strategy must release the canceled request's bookkeeping
+	/// before scheduling a replacement and emit this action before its `StartRequest`.
 	CancelRequest { peer_id: PeerId, key: StrategyKey },
 	/// Peer misbehaved. Disconnect, report it and cancel any requests to it.
 	DropPeer(BadPeer),
@@ -184,12 +180,8 @@ where
 {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self {
-			Self::StartRequest { peer_id, key, remove_obsolete, .. } => {
-				write!(
-					f,
-					"StartRequest {{ peer_id: {:?}, key: {:?}, remove_obsolete: {:?} }}",
-					peer_id, key, remove_obsolete
-				)
+			Self::StartRequest { peer_id, key, .. } => {
+				write!(f, "StartRequest {{ peer_id: {:?}, key: {:?} }}", peer_id, key)
 			},
 			Self::CancelRequest { peer_id, key } => {
 				write!(f, "CancelRequest {{ peer_id: {:?}, key: {:?} }}", peer_id, key)

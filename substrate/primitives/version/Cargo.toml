@@ -1,6 +1,6 @@
 [package]
 name = "sp-version"
-version = "44.0.0"
+version = "47.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -23,7 +23,7 @@ parity-wasm = { optional = true, workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { features = ["alloc", "derive"], optional = true, workspace = true }
 sp-core = { workspace = true }
-sp-crypto-hashing-proc-macro = { default-features = true, workspace = true }
+sp-crypto-hashing-proc-macro = { workspace = true, default-features = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 sp-version-proc-macro = { workspace = true }

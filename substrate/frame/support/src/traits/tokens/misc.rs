@@ -434,3 +434,34 @@ pub struct IdAmount<Id, Balance> {
 	/// Some amount for this item.
 	pub amount: Balance,
 }
+
+/// Transfer `amount` from `source` to `dest` and apply a linear vesting schedule that completes
+/// within at most `duration` blocks starting from the current block.
+///
+/// The per-block unlock rate is rounded up so that vesting never exceeds `duration` blocks.
+///
+/// The implementor handles per-block unlock computation, block-number provider selection, and
+/// the actual fund transfer internally. Callers only specify the total amount and duration.
+///
+/// Unlike [`VestedTransfer`](super::currency::VestedTransfer), this trait is agnostic to both
+/// the old [`Currency`](super::currency::Currency) trait and the new
+/// [`fungible::Mutate`](super::fungible::Mutate) trait. The implementor (e.g. `pallet_vesting`)
+/// chooses which currency mechanism to use internally, and callers do not need to provide
+/// `per_block` or `starting_block` — only the total amount and vesting duration.
+pub trait VestedPayout<AccountId, Balance> {
+	/// The block number type used to express vesting duration.
+	type BlockNumber;
+
+	/// Transfer `amount` from `source` to `dest`, locked under a linear vesting schedule
+	/// that completes within at most `duration` blocks.
+	///
+	/// If `start_at` is `Some`, the vesting schedule begins at that block number;
+	/// otherwise it begins at the current block.
+	fn vested_transfer(
+		source: &AccountId,
+		dest: &AccountId,
+		amount: Balance,
+		duration: Self::BlockNumber,
+		start_at: Option<Self::BlockNumber>,
+	) -> sp_runtime::DispatchResult;
+}

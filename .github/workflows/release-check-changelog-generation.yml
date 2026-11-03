@@ -1,0 +1,159 @@
+name: Check changelog generation
+
+# Regression check for the release changelog tooling: renders the changelog with
+# scripts/release/changelog/generate.py against real prdoc folders, and runs the
+# full build-changelogs.sh (tera included) end-to-end, whenever the generator,
+# templates, or the topic taxonomy change. Rendered output is uploaded as an
+# artifact so reviewers can inspect the result — also on failure.
+#
+# Note: --check (fail on content warnings) only runs against the latest quarterly
+# folder, whose content is frozen. Pending, patch, and legacy folders are rendered
+# in tolerant mode: prdoc CONTENT problems belong to the per-PR prdoc check, not to
+# unrelated tooling PRs; here they only need to not crash the generator.
+# No merge_group trigger on purpose: merge_group cannot be path-filtered and this
+# check is not required for the merge queue.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - "scripts/release/**"
+      - "prdoc/topics.yaml"
+      - "prdoc/schema_user.json"
+      - ".github/workflows/release-check-changelog-generation.yml"
+
+jobs:
+  check-changelog-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare tooling
+        run: |
+          python3 -m pip install --user pyyaml jsonschema
+          URL=https://github.com/chevdor/tera-cli/releases/download/v0.4.0/tera-cli_linux_amd64.deb
+          wget -q $URL -O tera.deb
+          sudo dpkg -i tera.deb
+
+      - name: Find prdoc folders under test
+        id: folders
+        run: |
+          shopt -s nullglob
+          quarterly=(prdoc/stable[0-9][0-9][0-9][0-9])
+          if [ ${#quarterly[@]} -eq 0 ]; then
+            echo "::error::no quarterly prdoc/stableYYMM folders found"
+            exit 1
+          fi
+          latest="${quarterly[-1]}"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          patches=(prdoc/stable[0-9][0-9][0-9][0-9]-*)
+          if [ ${#patches[@]} -gt 0 ]; then
+            echo "latest_patch=${patches[-1]}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Latest quarterly: $latest; latest patch: ${patches[-1]:-none}"
+
+      - name: Render changelog for the latest stable release (strict)
+        run: |
+          python3 scripts/release/changelog/generate.py \
+            --prdoc-dir "${{ steps.folders.outputs.latest }}" \
+            --topics prdoc/topics.yaml \
+            --output-dir changelog-preview/latest-stable \
+            --tag "polkadot-$(basename "${{ steps.folders.outputs.latest }}")" \
+            --check
+
+      - name: Render changelog for the latest patch release (tolerant)
+        if: steps.folders.outputs.latest_patch != ''
+        run: |
+          python3 scripts/release/changelog/generate.py \
+            --prdoc-dir "${{ steps.folders.outputs.latest_patch }}" \
+            --topics prdoc/topics.yaml \
+            --output-dir changelog-preview/latest-patch \
+            --tag "polkadot-$(basename "${{ steps.folders.outputs.latest_patch }}")"
+
+      - name: Render changelog for the pending prdocs (tolerant)
+        run: |
+          if ls prdoc/pr_*.prdoc >/dev/null 2>&1; then
+            python3 scripts/release/changelog/generate.py \
+              --prdoc-dir prdoc \
+              --topics prdoc/topics.yaml \
+              --output-dir changelog-preview/pending
+          else
+            echo "No pending prdocs in prdoc/ - skipping"
+          fi
+
+      - name: Render changelog for a legacy release (old prdoc format, tolerant)
+        run: |
+          python3 scripts/release/changelog/generate.py \
+            --prdoc-dir prdoc/1.6.0 \
+            --topics prdoc/topics.yaml \
+            --output-dir changelog-preview/legacy
+
+      - name: Build the full release draft end-to-end (tera included)
+        run: |
+          LATEST_DIR="${{ steps.folders.outputs.latest }}"
+          export VERSION="$(basename "$LATEST_DIR")"
+          export REF1="polkadot-previous-test" REF2="polkadot-${VERSION}-rc1"
+          export RUSTC_STABLE="0.0" GENERATED_AT="2000-01-01T00:00:00Z"
+
+          # The full-release mode needs srtool digests; scripts/release/digests/
+          # is a gitignored drop-zone (empty in CI), so point the overrides at
+          # the committed fixtures instead.
+          FIXTURES="$PWD/scripts/release/test-fixtures/digests"
+          export ASSET_HUB_WESTEND_DIGEST="$FIXTURES/asset-hub-westend-srtool-digest.json"
+          export BRIDGE_HUB_WESTEND_DIGEST="$FIXTURES/bridge-hub-westend-srtool-digest.json"
+          export COLLECTIVES_WESTEND_DIGEST="$FIXTURES/collectives-westend-srtool-digest.json"
+          export CORETIME_WESTEND_DIGEST="$FIXTURES/coretime-westend-srtool-digest.json"
+          export GLUTTON_WESTEND_DIGEST="$FIXTURES/glutton-westend-srtool-digest.json"
+          export PEOPLE_WESTEND_DIGEST="$FIXTURES/people-westend-srtool-digest.json"
+          export WESTEND_DIGEST="$FIXTURES/westend-srtool-digest.json"
+
+          # Both release shapes: a patch release without runtimes, and a full
+          # quarterly release, which also exercises the srtool digest assembly
+          # and the runtimes/compiler template branches (against the fixture
+          # digests above).
+          for MODE in patch full; do
+            if [ "$MODE" = "patch" ]; then export NO_RUNTIMES=true; else export NO_RUNTIMES=false; fi
+            ./scripts/release/build-changelogs.sh
+
+            DRAFT=scripts/release/RELEASE_DRAFT.md
+            test -s "$DRAFT"
+            if grep -qF '<!-- POLKADOT-SDK-CHANGELOG-BODY -->' "$DRAFT"; then
+              echo "::error::changelog marker not substituted in RELEASE_DRAFT.md ($MODE)"
+              exit 1
+            fi
+            CHARS=$(wc -m < "$DRAFT")
+            echo "RELEASE_DRAFT.md ($MODE): $CHARS chars"
+            if [ "$CHARS" -gt 125000 ]; then
+              echo "::error::release draft exceeds GitHub's 125000-char body cap ($CHARS, $MODE)"
+              exit 1
+            fi
+            mkdir -p "changelog-preview/end-to-end-$MODE"
+            cp "$DRAFT" scripts/release/CHANGELOG.md scripts/release/changelog.json \
+              "changelog-preview/end-to-end-$MODE/"
+          done
+
+      - name: Validate changelog.json outputs against the schema
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, jsonschema
+          schema = json.loads(pathlib.Path("scripts/release/changelog/schema.json").read_text())
+          jsonschema.Draft7Validator.check_schema(schema)
+          validator = jsonschema.Draft7Validator(schema)
+          documents = sorted(pathlib.Path("changelog-preview").glob("*/changelog.json"))
+          assert documents, "no rendered changelog.json found to validate"
+          for doc in documents:
+              validator.validate(json.loads(doc.read_text()))
+              print(f"OK: {doc}")
+          PY
+
+      - name: Upload rendered changelogs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: changelog-preview
+          path: changelog-preview/

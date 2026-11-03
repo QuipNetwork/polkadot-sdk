@@ -1,0 +1,27 @@
+title: 'pallet-revive: fix callerIsRoot and callerIsOrigin across delegate calls'
+doc:
+- audience: Runtime User
+  description: |-
+    `System.callerIsRoot()` and `System.callerIsOrigin()` now find the caller of the contract
+    asking the same way `msg.sender` does, so they return what `ISystem.sol` documents when the
+    call path includes a delegate call. Behind a proxy, a Root dispatch now makes
+    `callerIsRoot()` return `true` in the implementation, where it returned `false` before. A
+    contract reached through a regular call made by delegated code now sees `false`, where it
+    saw `true` before, so a contract that a Root dispatch reaches can no longer pass itself off
+    as Root to another contract. `callerIsOrigin()` changes the same way for signed origins.
+    Call paths without delegate calls are unchanged.
+
+    Contracts behind a proxy that use `originIsRoot()` only because `callerIsRoot()` returned
+    `false` there can switch to `callerIsRoot()` once the runtime includes this change.
+- audience: Runtime Dev
+  description: |-
+    No configuration or migration is needed. The change applies to deployed contracts with the
+    runtime upgrade that includes it.
+crates:
+- name: pallet-revive
+  bump: patch
+- name: pallet-revive-fixtures
+  bump: minor
+  validate: false
+- name: pallet-revive-uapi
+  bump: patch

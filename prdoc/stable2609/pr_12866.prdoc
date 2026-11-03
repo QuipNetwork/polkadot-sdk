@@ -1,0 +1,9 @@
+title: '[pallet-revive] expose ReentrancyProtection'
+doc:
+- audience: Runtime Dev
+  description: 'Export ReentrancyProtection from pallet_revive and pallet_revive::precompiles:
+    it is a parameter type of the public Ext::call, so it must be nameable by out-of-crate
+    precompile implementors.'
+crates:
+- name: pallet-revive
+  bump: minor

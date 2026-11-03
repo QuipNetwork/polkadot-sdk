@@ -13,12 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use crate::{
-	imports::{
-		penpal_emulated_chain::penpal_runtime::xcm_config::{
-			CheckingAccount, TELEPORTABLE_ASSET_ID,
-		},
-		*,
-	},
+	imports::*,
 	tests::{
 		assert_bridge_hub_rococo_message_received, assert_bridge_hub_westend_message_accepted,
 		asset_hub_rococo_location, asset_hub_westend_global_location, bridged_roc_at_ah_westend,
@@ -56,7 +51,7 @@ use testnet_parachains_constants::westend::snowbridge::EthereumNetwork;
 use xcm_builder::ExternalConsensusLocationsConverterFor;
 use xcm_executor::traits::ConvertLocation;
 
-const INITIAL_FUND: u128 = 5_000_000_000_000;
+const INITIAL_FUND: u128 = 6_000_000_000_000;
 const ETHEREUM_DESTINATION_ADDRESS: [u8; 20] = hex!("44a57ee2f2FCcb85FDa2B0B18EBD0D8D2333700e");
 const XCM_FEE: u128 = 100_000_000_000;
 const INSUFFICIENT_XCM_FEE: u128 = 1000;
@@ -214,7 +209,7 @@ fn send_weth_from_ethereum_to_penpal() {
 
 	// Create asset on the Penpal parachain.
 	PenpalB::execute_with(|| {
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::force_create(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::force_create(
 			<PenpalB as Chain>::RuntimeOrigin::root(),
 			weth_asset_location.clone(),
 			asset_hub_sovereign.into(),
@@ -222,7 +217,7 @@ fn send_weth_from_ethereum_to_penpal() {
 			1000,
 		));
 
-		assert!(<PenpalB as PenpalBPallet>::ForeignAssets::asset_exists(weth_asset_location));
+		assert!(<PenpalB as PenpalBPallet>::Assets::asset_exists(weth_asset_location));
 	});
 
 	// Send the token
@@ -272,7 +267,7 @@ fn send_weth_from_ethereum_to_penpal() {
 		assert_expected_events!(
 			PenpalB,
 			vec![
-				RuntimeEvent::ForeignAssets(pallet_assets::Event::Deposited { .. }) => {},
+				RuntimeEvent::Assets(pallet_assets::Event::Deposited { .. }) => {},
 			]
 		);
 	});
@@ -296,6 +291,7 @@ fn send_eth_asset_from_asset_hub_to_ethereum_and_back() {
 	AssetHubWestend::force_xcm_version(origin_location.clone(), XCM_VERSION);
 
 	BridgeHubWestend::fund_accounts(vec![(assethub_sovereign.clone(), INITIAL_FUND)]);
+	BridgeHubWestend::fund_accounts(vec![(BridgeHubWestendSender::get(), INITIAL_FUND)]);
 	AssetHubWestend::fund_accounts(vec![
 		(AssetHubWestendReceiver::get(), INITIAL_FUND),
 		(ethereum_sovereign.clone(), INITIAL_FUND),
@@ -317,7 +313,19 @@ fn send_eth_asset_from_asset_hub_to_ethereum_and_back() {
 		));
 
 		// Construct SendToken message and sent to inbound queue
-		assert_ok!(send_inbound_message(make_send_native_eth_message()));
+		let fixture = make_send_native_eth_message();
+		let delivery_cost =
+			EthereumInboundQueue::calculate_delivery_cost(fixture.event.encode().len() as u32);
+		let relayer_balance_before =
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				BridgeHubWestendSender::get(),
+			);
+		let sovereign_balance_before =
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				assethub_sovereign.clone(),
+			);
+
+		assert_ok!(send_inbound_message(fixture));
 
 		// Check that the send token message was sent using xcm
 		assert_expected_events!(
@@ -326,6 +334,27 @@ fn send_eth_asset_from_asset_hub_to_ethereum_and_back() {
 				RuntimeEvent::XcmpQueue(cumulus_pallet_xcmp_queue::Event::XcmpMessageSent { .. }) => {},
 			]
 		);
+
+		let fee_burned = BridgeHubWestend::events()
+			.iter()
+			.find_map(|event| match event {
+				RuntimeEvent::EthereumInboundQueue(
+					snowbridge_pallet_inbound_queue::Event::MessageReceived { fee_burned, .. },
+				) => Some(*fee_burned),
+				_ => None,
+			})
+			.expect("inbound message received");
+		let relayer_balance_after =
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				BridgeHubWestendSender::get(),
+			);
+		let sovereign_balance_after =
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				assethub_sovereign.clone(),
+			);
+
+		assert_eq!(relayer_balance_after, relayer_balance_before + delivery_cost);
+		assert_eq!(sovereign_balance_after, sovereign_balance_before - fee_burned - delivery_cost);
 	});
 
 	AssetHubWestend::execute_with(|| {
@@ -406,6 +435,149 @@ fn send_eth_asset_from_asset_hub_to_ethereum_and_back() {
 				RuntimeEvent::EthereumOutboundQueue(snowbridge_pallet_outbound_queue::Event::MessageQueued {..}) => {},
 			]
 		);
+	});
+}
+
+#[test]
+fn send_eth_asset_from_ethereum_with_empty_asset_hub_sovereign_preserves_liveness() {
+	let ethereum_network: NetworkId = EthereumNetwork::get().into();
+	let origin_location: Location = (Parent, Parent, ethereum_network).into();
+	let assethub_location = BridgeHubWestend::sibling_location_of(AssetHubWestend::para_id());
+	let assethub_sovereign = BridgeHubWestend::sovereign_account_id_of(assethub_location);
+
+	AssetHubWestend::force_default_xcm_version(Some(XCM_VERSION));
+	BridgeHubWestend::force_default_xcm_version(Some(XCM_VERSION));
+	AssetHubWestend::force_xcm_version(origin_location.clone(), XCM_VERSION);
+
+	BridgeHubWestend::fund_accounts(vec![(BridgeHubWestendSender::get(), INITIAL_FUND)]);
+	AssetHubWestend::fund_accounts(vec![
+		(AssetHubWestendReceiver::get(), INITIAL_FUND),
+		(snowbridge_sovereign(), INITIAL_FUND),
+	]);
+
+	BridgeHubWestend::execute_with(|| {
+		type RuntimeEvent = <BridgeHubWestend as Chain>::RuntimeEvent;
+		type RuntimeOrigin = <BridgeHubWestend as Chain>::RuntimeOrigin;
+
+		assert_ok!(<BridgeHubWestend as BridgeHubWestendPallet>::Balances::force_set_balance(
+			RuntimeOrigin::root(),
+			sp_runtime::MultiAddress::Id(assethub_sovereign.clone()),
+			0,
+		));
+		assert_ok!(<BridgeHubWestend as Chain>::System::set_storage(
+			RuntimeOrigin::root(),
+			vec![(
+				EthereumGatewayAddress::key().to_vec(),
+				sp_core::H160(hex!("87d1f7fdfEe7f651FaBc8bFCB6E086C278b77A7d")).encode(),
+			)],
+		));
+
+		let fixture = make_send_native_eth_message();
+		let relayer_balance_before =
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				BridgeHubWestendSender::get(),
+			);
+
+		assert_ok!(send_inbound_message(fixture));
+
+		let fee_burned = BridgeHubWestend::events()
+			.iter()
+			.find_map(|event| match event {
+				RuntimeEvent::EthereumInboundQueue(
+					snowbridge_pallet_inbound_queue::Event::MessageReceived {
+						nonce,
+						fee_burned,
+						..
+					},
+				) if *nonce == 1 => Some(*fee_burned),
+				_ => None,
+			})
+			.expect("inbound message received");
+		let relayer_balance_after =
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				BridgeHubWestendSender::get(),
+			);
+
+		assert_eq!(relayer_balance_after, relayer_balance_before - fee_burned);
+		assert_eq!(
+			<BridgeHubWestend as BridgeHubWestendPallet>::Balances::free_balance(
+				assethub_sovereign.clone()
+			),
+			0
+		);
+		assert_expected_events!(
+			BridgeHubWestend,
+			vec![
+				RuntimeEvent::XcmpQueue(cumulus_pallet_xcmp_queue::Event::XcmpMessageSent { .. }) => {},
+			]
+		);
+	});
+
+	AssetHubWestend::execute_with(|| {
+		type RuntimeEvent = <AssetHubWestend as Chain>::RuntimeEvent;
+
+		assert_expected_events!(
+			AssetHubWestend,
+			vec![
+				RuntimeEvent::ForeignAssets(pallet_assets::Event::Deposited {
+					asset_id,
+					who,
+					..
+				}) => {
+					asset_id: *asset_id == origin_location,
+					who: *who == AssetHubWestendReceiver::get().into(),
+				},
+			]
+		);
+	});
+}
+
+// If the relayer cannot front the teleported Asset Hub execution fee, the inbound message must be
+// rejected and the channel nonce must not advance, so that a funded relayer can resubmit the same
+// message and the channel is not stalled.
+#[test]
+fn send_eth_asset_from_ethereum_fails_when_relayer_cannot_front_fee() {
+	let assethub_location = BridgeHubWestend::sibling_location_of(AssetHubWestend::para_id());
+	let assethub_sovereign = BridgeHubWestend::sovereign_account_id_of(assethub_location);
+
+	// Fund the Asset Hub sovereign so the only possible cause of failure is the relayer's
+	// shortfall.
+	BridgeHubWestend::fund_accounts(vec![(assethub_sovereign, INITIAL_FUND)]);
+
+	BridgeHubWestend::execute_with(|| {
+		type RuntimeOrigin = <BridgeHubWestend as Chain>::RuntimeOrigin;
+		type Runtime = <BridgeHubWestend as Chain>::Runtime;
+
+		// Set the Ethereum gateway so the envelope passes the gateway check.
+		assert_ok!(<BridgeHubWestend as Chain>::System::set_storage(
+			RuntimeOrigin::root(),
+			vec![(
+				EthereumGatewayAddress::key().to_vec(),
+				sp_core::H160(hex!("87d1f7fdfEe7f651FaBc8bFCB6E086C278b77A7d")).encode(),
+			)],
+		));
+
+		// Drain the relayer so it cannot front the teleported fee.
+		assert_ok!(<BridgeHubWestend as BridgeHubWestendPallet>::Balances::force_set_balance(
+			RuntimeOrigin::root(),
+			sp_runtime::MultiAddress::Id(BridgeHubWestendSender::get()),
+			0,
+		));
+
+		let channel_id = snowbridge_core::ChannelId::from(hex!(
+			"c173fac324158e77fb5840738a1a541f633cbec8884c6a601c567d2b376a0539"
+		));
+		assert_eq!(snowbridge_pallet_inbound_queue::Nonce::<Runtime>::get(channel_id), 0);
+
+		let fixture = make_send_native_eth_message();
+
+		// Dispatch inside a storage layer to mimic the on-chain transactional revert.
+		let result = frame_support::storage::with_storage_layer(|| send_inbound_message(fixture));
+		assert_err!(result, sp_runtime::TokenError::FundsUnavailable);
+
+		// The nonce did not advance, so the channel is not stalled and a funded relayer can
+		// resubmit the same message.
+		assert_eq!(snowbridge_pallet_inbound_queue::Nonce::<Runtime>::get(channel_id), 0);
 	});
 }
 
@@ -736,7 +908,7 @@ fn send_token_from_ethereum_to_penpal() {
 
 	// Create asset on the Penpal parachain.
 	PenpalB::execute_with(|| {
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::force_create(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::force_create(
 			<PenpalB as Chain>::RuntimeOrigin::root(),
 			weth_asset_location.clone(),
 			asset_hub_sovereign.clone().into(),
@@ -744,9 +916,7 @@ fn send_token_from_ethereum_to_penpal() {
 			1000,
 		));
 
-		assert!(<PenpalB as PenpalBPallet>::ForeignAssets::asset_exists(
-			weth_asset_location.clone()
-		));
+		assert!(<PenpalB as PenpalBPallet>::Assets::asset_exists(weth_asset_location.clone()));
 	});
 
 	BridgeHubWestend::execute_with(|| {
@@ -793,7 +963,7 @@ fn send_token_from_ethereum_to_penpal() {
 		assert_expected_events!(
 			PenpalB,
 			vec![
-				RuntimeEvent::ForeignAssets(pallet_assets::Event::Deposited { .. }) => {},
+				RuntimeEvent::Assets(pallet_assets::Event::Deposited { .. }) => {},
 			]
 		);
 	});
@@ -1143,10 +1313,9 @@ fn send_weth_from_ethereum_to_ahw_to_ahr_back_to_ahw_and_ethereum() {
 	let bridged_wnd_at_asset_hub_rococo = bridged_wnd_at_ah_rococo();
 	let wnd_reserve = vec![(asset_hub_westend_global_location(), false).into()];
 	create_foreign_on_ah_rococo(bridged_wnd_at_asset_hub_rococo.clone(), true, wnd_reserve);
-	create_pool_with_native_on!(
+	create_foreign_pool_with_parent_native_on!(
 		AssetHubRococo,
 		bridged_wnd_at_asset_hub_rococo.clone(),
-		true,
 		AssetHubRococoSender::get()
 	);
 
@@ -1302,8 +1471,6 @@ fn send_weth_from_ethereum_to_ahw_to_ahr_back_to_ahw_and_ethereum() {
 		assert_expected_events!(
 			BridgeHubRococo,
 			vec![
-				// pay for bridge fees
-				RuntimeEvent::Balances(pallet_balances::Event::Withdraw { .. }) => {},
 				// message exported
 				RuntimeEvent::BridgeWestendMessages(
 					pallet_bridge_messages::Event::MessageAccepted { .. }
@@ -1431,22 +1598,6 @@ fn transfer_penpal_native_asset() {
 
 	let token_id = TokenIdOf::convert_location(&pal_after_reanchored).unwrap();
 
-	let asset_owner = PenpalAssetOwner::get();
-
-	AssetHubWestend::force_create_foreign_asset(
-		pal_at_asset_hub.clone(),
-		asset_owner.clone().into(),
-		true,
-		1,
-		vec![],
-	);
-	// Set "pal" as teleportable between Penpal and AH, using the asset owner account
-	AssetHubWestend::set_foreign_asset_reserves(
-		pal_at_asset_hub.clone(),
-		asset_owner.into(),
-		vec![(pal_at_asset_hub.clone(), true).into()],
-	);
-
 	let penpal_sovereign = AssetHubWestend::sovereign_account_id_of(
 		AssetHubWestend::sibling_location_of(PenpalB::para_id()),
 	);
@@ -1468,7 +1619,7 @@ fn transfer_penpal_native_asset() {
 	});
 
 	PenpalB::execute_with(|| {
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			Location::parent(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
@@ -1526,7 +1677,7 @@ fn transfer_penpal_native_asset() {
 
 		assert_expected_events!(
 			PenpalB,
-			vec![RuntimeEvent::ForeignAssets(pallet_assets::Event::Withdrawn{ .. }) => {},]
+			vec![RuntimeEvent::Assets(pallet_assets::Event::Withdrawn{ .. }) => {},]
 		);
 	});
 
@@ -1632,8 +1783,7 @@ fn transfer_penpal_teleport_enabled_asset() {
 	);
 	BridgeHubWestend::fund_accounts(vec![(assethub_sovereign.clone(), INITIAL_FUND)]);
 
-	let asset_location_on_penpal =
-		PenpalB::execute_with(|| PenpalLocalTeleportableToAssetHub::get());
+	let asset_location_on_penpal = PenpalB::execute_with(|| PenpalLocalPen2Asset::get());
 
 	let pal_at_asset_hub = Location::new(1, [Junction::Parachain(PenpalB::para_id().into())])
 		.appended_with(asset_location_on_penpal.clone())
@@ -1670,14 +1820,14 @@ fn transfer_penpal_teleport_enabled_asset() {
 	});
 
 	// Fund on Penpal
-	PenpalB::fund_accounts(vec![(CheckingAccount::get(), INITIAL_FUND)]);
+	PenpalB::fund_accounts(vec![(PenpalCheckingAccount::get(), INITIAL_FUND)]);
 	PenpalB::execute_with(|| {
 		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
-			TELEPORTABLE_ASSET_ID,
+			PenpalLocalPen2Asset::get(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
 		));
-		assert_ok!(<PenpalB as PenpalBPallet>::ForeignAssets::mint_into(
+		assert_ok!(<PenpalB as PenpalBPallet>::Assets::mint_into(
 			Location::parent(),
 			&PenpalBSender::get(),
 			INITIAL_FUND,
@@ -1735,7 +1885,7 @@ fn transfer_penpal_teleport_enabled_asset() {
 
 		assert_expected_events!(
 			PenpalB,
-			vec![RuntimeEvent::ForeignAssets(pallet_assets::Event::Withdrawn{ .. }) => {},]
+			vec![RuntimeEvent::Assets(pallet_assets::Event::Withdrawn{ .. }) => {},]
 		);
 
 		assert_expected_events!(

@@ -17,6 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Substrate Statement Store RPC API.
+//!
+//! Exposes two JSON-RPC methods: `statement_subscribeStatement` (a subscription streaming matching
+//! statements as `StatementEvent` notifications on `statement_statement`) and `statement_submit`
+//! (submit a SCALE-encoded statement). See the `StatementApi` trait below for the wire-format
+//! examples.
 
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sp_core::Bytes;
@@ -49,6 +54,43 @@ pub trait StatementApi {
 	///
 	///  If there are no statements in the store matching the filter, an empty batch of statements
 	/// is sent.
+	///
+	/// # Examples
+	///
+	/// Subscribe, matching statements that include *all* of the given topics (use `"any"` to match
+	/// everything, or `{ "matchAny": [...] }` for any-of):
+	///
+	/// ```json
+	/// { "jsonrpc": "2.0", "id": 1, "method": "statement_subscribeStatement",
+	///   "params": [{ "matchAll": ["0xdede…", "0xadad…"] }] }
+	/// ```
+	///
+	/// Notifications arrive on `statement_statement`. The already-stored matches are delivered
+	/// first in batches, each carrying `remaining` (how many more are guaranteed to follow). An
+	/// empty initial batch is sent when nothing matches:
+	///
+	/// ```json
+	/// { "jsonrpc": "2.0", "method": "statement_statement",
+	///   "params": { "subscription": 4851578855668545,
+	///     "result": { "event": "newStatements", "data": { "statements": [], "remaining": 0 } } } }
+	/// ```
+	///
+	/// A non-empty batch from the initial set (each statement is hex-encoded SCALE):
+	///
+	/// ```json
+	/// { "jsonrpc": "2.0", "method": "statement_statement",
+	///   "params": { "subscription": 4851578855668545,
+	///     "result": { "event": "newStatements",
+	///       "data": { "statements": ["0x1000010000", "0x100001000000"], "remaining": 10 } } } }
+	/// ```
+	///
+	/// Statements arriving live, after the initial set is drained, carry no `remaining`:
+	///
+	/// ```json
+	/// { "jsonrpc": "2.0", "method": "statement_statement",
+	///   "params": { "subscription": 4851578855668545,
+	///     "result": { "event": "newStatements", "data": { "statements": ["0x1000010000"] } } } }
+	/// ```
 	#[subscription(
 		name = "statement_subscribeStatement" => "statement_statement",
 		unsubscribe = "statement_unsubscribeStatement",
@@ -62,6 +104,15 @@ pub trait StatementApi {
 	/// See `Statement` definition for more details.
 	///
 	/// Returns `SubmitResult` indicating success or failure reason.
+	///
+	/// # Examples
+	///
+	/// ```json
+	/// { "jsonrpc": "2.0", "id": 2, "method": "statement_submit", "params": ["0x…scale-encoded…"] }
+	/// ```
+	///
+	/// On success the result is `{ "status": "new" }`. Other outcomes are `known`, `knownExpired`,
+	/// `rejected` and `invalid` (each with a reason), and `internalError`.
 	#[method(name = "statement_submit")]
 	fn submit(&self, encoded: Bytes) -> RpcResult<SubmitResult>;
 }

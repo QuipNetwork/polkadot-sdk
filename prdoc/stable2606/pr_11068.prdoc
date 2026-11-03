@@ -1,0 +1,24 @@
+title: 'FRAME: Add Peg Stability Module (PSM) pallet'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Introduces `pallet-psm`, a Peg Stability Module that enables 1:1 swaps between a native
+    stablecoin (pUSD) and pre-approved external stablecoins (e.g. USDC, USDT). The PSM
+    strengthens the stablecoin peg by creating arbitrage opportunities bounded by configurable
+    minting and redemption fees.
+
+    Key features:
+    - Minting: deposit an external stablecoin to receive pUSD
+    - Redemption: burn pUSD to receive an external stablecoin
+    - Per-asset circuit breakers to disable minting or all swaps
+    - Configurable ceiling weights and maximum PSM debt ratio
+
+crates:
+- name: pallet-psm
+  bump: major
+- name: kitchensink-runtime
+  bump: major
+- name: frame-support
+  bump: minor
+- name: polkadot-sdk
+  bump: minor

@@ -1,0 +1,18 @@
+title: '[pallet-revive] Reject re-entrant instantiate at an in-construction address'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fixes https://github.com/paritytech/polkadot-sdk/issues/12639
+
+    A contract's `ContractInfo` is not written to `AccountInfoOf` until its constructor
+    frame pops, so the `is_contract` collision guard in `ContractInfo::new` could not see an
+    address that was still being constructed. A re-entrant `CREATE2` with the same salt and
+    code (which is nonce independent) therefore resolved to the same address and ran a second
+    constructor frame for one account, permanently leaking its consumer reference and code
+    refcount and orphaning the second child trie's storage deposit.
+
+    `push_frame` now rejects a nested instantiate whose target address already appears as a
+    `Constructor` frame on the call stack, returning `DuplicateContract` (matching EIP-684).
+crates:
+- name: pallet-revive
+  bump: patch

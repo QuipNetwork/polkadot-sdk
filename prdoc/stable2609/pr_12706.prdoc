@@ -1,0 +1,13 @@
+title: 'Statement RPC: reject invalid inputs and report account size limits'
+doc:
+- audience: Node Dev
+  description: |-
+    The unstable statement RPC now returns `-32602` for SCALE-encoded statements with trailing
+    bytes and empty `matchAll` filters. Use `"any"` to match every statement. Submissions that
+    exceed an account's remaining data allowance now return `dataTooLarge` instead of
+    `accountFull`.
+crates:
+- name: sc-rpc-spec-v2
+  bump: patch
+- name: sc-statement-store
+  bump: patch

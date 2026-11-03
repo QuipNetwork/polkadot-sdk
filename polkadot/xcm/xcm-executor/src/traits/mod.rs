@@ -30,9 +30,6 @@ mod export;
 pub use export::{export_xcm, validate_export, ExportXcm};
 mod fee_manager;
 pub use fee_manager::{FeeManager, FeeReason, WaiveDeliveryFees};
-mod filter_asset_location;
-#[allow(deprecated)]
-pub use filter_asset_location::FilterAssetLocation;
 mod token_matching;
 pub use token_matching::{
 	Error, MatchesFungible, MatchesFungibles, MatchesInstance, MatchesNonFungible,
@@ -56,8 +53,6 @@ mod weight;
 pub use event_emitter::EventEmitter;
 
 pub use record_xcm::RecordXcm;
-#[deprecated = "Use `sp_runtime::traits::` instead"]
-pub use sp_runtime::traits::{Identity, TryConvertInto as JustTry};
 pub use weight::{WeightBounds, WeightTrader};
 
 pub mod prelude {
@@ -68,6 +63,4 @@ pub mod prelude {
 		MatchesNonFungibles, OnResponse, ProcessTransaction, ShouldExecute, TransactAsset,
 		TrapAndClaimAssets, VersionChangeNotifier, WeightBounds, WeightTrader, WithOriginFilter,
 	};
-	#[allow(deprecated)]
-	pub use super::{Identity, JustTry};
 }

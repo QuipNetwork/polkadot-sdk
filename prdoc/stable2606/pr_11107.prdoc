@@ -1,0 +1,14 @@
+title: Add runtime metadata detection for Aura authority ID
+doc:
+- audience: Node Dev
+  description: |-
+    Adds optional runtime metadata-based detection for Aura authority ID types in `polkadot-omni-node-lib`.
+
+    When metadata is available, the node detects whether Aura uses `sr25519` or `ed25519`
+    directly from the runtime. If detection fails or metadata is unavailable, it falls
+    back to chain spec ID heuristics.
+
+    A warning is emitted when the Aura authority ID type is not found in metadata.
+crates:
+- name: polkadot-omni-node-lib
+  bump: minor

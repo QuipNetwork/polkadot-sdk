@@ -19,7 +19,6 @@
 use std::collections::HashSet;
 
 use crate::{xcm_config::LocationConverter, *};
-use approx::assert_relative_eq;
 use frame_support::{
 	assert_ok,
 	traits::{
@@ -27,13 +26,10 @@ use frame_support::{
 		WhitelistedStorageKeys,
 	},
 };
-use pallet_staking::EraPayout;
 use sp_core::{crypto::Ss58Codec, hexdisplay::HexDisplay};
 use sp_keyring::Sr25519Keyring::{self, Alice};
-use sp_runtime::generic::Era;
+use sp_runtime::{generic::Era, traits::AccountIdConversion};
 use xcm_runtime_apis::conversions::LocationToAccountHelper;
-
-const MILLISECONDS_PER_HOUR: u64 = 60 * 60 * 1000;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -105,18 +101,9 @@ fn check_whitelist() {
 	assert!(whitelist.contains("1405f2411d0af5a7ff397e7c9dc68d196323ae84c43568be0d1394d5d0d522c4"));
 }
 
-#[test]
-fn check_treasury_pallet_id() {
-	assert_eq!(
-		<Treasury as frame_support::traits::PalletInfoAccess>::index() as u8,
-		westend_runtime_constants::TREASURY_PALLET_ID
-	);
-}
-
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_support::traits::{TryState, TryStateSelect::All};
 	use frame_try_runtime::{runtime_decl_for_try_runtime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
 	use std::env::var;
@@ -150,204 +137,6 @@ mod remote_tests {
 			.await
 			.unwrap();
 		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::PreAndPost));
-	}
-
-	#[tokio::test]
-	async fn delegate_stake_migration() {
-		// Intended to be run only manually.
-		if var("RUN_MIGRATION_TESTS").is_err() {
-			return;
-		}
-		use frame_support::assert_ok;
-		sp_tracing::try_init_simple();
-
-		let transport_uri = var("WS").unwrap_or("ws://127.0.0.1:9900".to_string());
-		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
-		let online_config = OnlineConfig {
-			transport_uris: vec![transport_uri],
-			state_snapshot: maybe_state_snapshot.clone(),
-			child_trie: false,
-			pallets: vec![
-				"Staking".into(),
-				"System".into(),
-				"Balances".into(),
-				"NominationPools".into(),
-				"DelegatedStaking".into(),
-			],
-			..Default::default()
-		};
-		let mut ext = Builder::<Block>::default()
-			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
-				Mode::OfflineOrElseOnline(
-					OfflineConfig { state_snapshot: state_snapshot.clone() },
-					online_config,
-				)
-			} else {
-				Mode::Online(online_config)
-			})
-			.build()
-			.await
-			.unwrap();
-		ext.execute_with(|| {
-			// create an account with some balance
-			let alice = AccountId::from([1u8; 32]);
-			use frame_support::traits::Currency;
-			let _ = Balances::deposit_creating(&alice, 100_000 * UNITS);
-
-			// iterate over all pools
-			pallet_nomination_pools::BondedPools::<Runtime>::iter_keys().for_each(|k| {
-				if pallet_nomination_pools::Pallet::<Runtime>::api_pool_needs_delegate_migration(k)
-				{
-					assert_ok!(
-						pallet_nomination_pools::Pallet::<Runtime>::migrate_pool_to_delegate_stake(
-							RuntimeOrigin::signed(alice.clone()).into(),
-							k,
-						)
-					);
-				}
-			});
-
-			// member migration stats
-			let mut success = 0;
-			let mut direct_stakers = 0;
-			let mut unexpected_errors = 0;
-
-			// iterate over all pool members
-			pallet_nomination_pools::PoolMembers::<Runtime>::iter_keys().for_each(|k| {
-				if pallet_nomination_pools::Pallet::<Runtime>::api_member_needs_delegate_migration(
-					k.clone(),
-				) {
-					// reasons migrations can fail:
-					let is_direct_staker = pallet_staking::Bonded::<Runtime>::contains_key(&k);
-
-					let migration = pallet_nomination_pools::Pallet::<Runtime>::migrate_delegation(
-						RuntimeOrigin::signed(alice.clone()).into(),
-						sp_runtime::MultiAddress::Id(k.clone()),
-					);
-
-					if is_direct_staker {
-						// if the member is a direct staker, the migration should fail until pool
-						// member unstakes all funds from pallet-staking.
-						direct_stakers += 1;
-						assert_eq!(
-							migration.unwrap_err(),
-							pallet_delegated_staking::Error::<Runtime>::AlreadyStaking.into()
-						);
-					} else if migration.is_err() {
-						unexpected_errors += 1;
-						log::error!(target: "remote_test", "Unexpected error {:?} while migrating {:?}", migration.unwrap_err(), k);
-					} else {
-						success += 1;
-					}
-				}
-			});
-
-			log::info!(
-				target: "remote_test",
-				"Migration stats: success: {}, direct_stakers: {}, unexpected_errors: {}",
-				success,
-				direct_stakers,
-				unexpected_errors
-			);
-		});
-
-		ext.execute_with(|| {
-			AllPalletsWithSystem::try_state(System::block_number(), All).unwrap();
-		});
-	}
-
-	#[tokio::test]
-	async fn staking_curr_fun_migrate() {
-		// Intended to be run only manually.
-		if var("RUN_MIGRATION_TESTS").is_err() {
-			return;
-		}
-		sp_tracing::try_init_simple();
-
-		let transport_uri = var("WS").unwrap_or("ws://127.0.0.1:9944".to_string());
-		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
-		let online_config = OnlineConfig {
-			transport_uris: vec![transport_uri],
-			state_snapshot: maybe_state_snapshot.clone(),
-			child_trie: false,
-			pallets: vec![
-				"Staking".into(),
-				"System".into(),
-				"Balances".into(),
-				"NominationPools".into(),
-				"DelegatedStaking".into(),
-				"VoterList".into(),
-			],
-			..Default::default()
-		};
-		let mut ext = Builder::<Block>::default()
-			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
-				Mode::OfflineOrElseOnline(
-					OfflineConfig { state_snapshot: state_snapshot.clone() },
-					online_config,
-				)
-			} else {
-				Mode::Online(online_config)
-			})
-			.build()
-			.await
-			.unwrap();
-		ext.execute_with(|| {
-			// create an account with some balance
-			let alice = AccountId::from([1u8; 32]);
-			use frame_support::traits::Currency;
-			let _ = Balances::deposit_creating(&alice, 100_000 * UNITS);
-
-			let mut success = 0;
-			let mut err = 0;
-			let mut no_migration_needed = 0;
-			let mut force_withdraw_acc = 0;
-			let mut force_withdraw_count = 0;
-			let mut max_force_withdraw = 0;
-			// iterate over all stakers
-			pallet_staking::Ledger::<Runtime>::iter().for_each(|(ctrl, ledger)| {
-				match pallet_staking::Pallet::<Runtime>::migrate_currency(
-					RuntimeOrigin::signed(alice.clone()).into(),
-					ledger.stash.clone(),
-				) {
-					Ok(_) => {
-						let updated_ledger =
-							pallet_staking::Ledger::<Runtime>::get(&ctrl).expect("ledger exists");
-						let force_withdraw = ledger.total - updated_ledger.total;
-						if force_withdraw > 0 {
-							force_withdraw_acc += force_withdraw;
-							force_withdraw_count += 1;
-							max_force_withdraw = max_force_withdraw.max(force_withdraw);
-							log::debug!(target: "remote_test", "Force withdraw from stash {:?}: value {:?}", ledger.stash, force_withdraw);
-						}
-						success += 1;
-					},
-					Err(e) => {
-						if e == pallet_staking::Error::<Runtime>::AlreadyMigrated.into() {
-							no_migration_needed += 1;
-						} else {
-							log::error!(target: "remote_test", "Error migrating {:?}: {:?}", ledger.stash, e);
-							err += 1;
-						}
-					},
-				}
-			});
-
-			log::info!(
-				target: "remote_test",
-				"Migration stats: success: {}, err: {}, total force withdrawn stake: {}, count {}, maximum amount {}, no_migration_needed: {}",
-				success,
-				err,
-				force_withdraw_acc,
-				force_withdraw_count,
-				max_force_withdraw,
-				no_migration_needed
-			);
-		});
-
-		ext.execute_with(|| {
-			AllPalletsWithSystem::try_state(System::block_number(), All).unwrap();
-		});
 	}
 }
 
@@ -424,97 +213,6 @@ fn location_conversion_works() {
 	}
 }
 
-#[test]
-fn staking_inflation_correct_single_era() {
-	let (to_stakers, to_treasury) = super::EraPayout::era_payout(
-		123, // ignored
-		456, // ignored
-		MILLISECONDS_PER_HOUR,
-	);
-
-	assert_relative_eq!(to_stakers as f64, (4_046 * CENTS) as f64, max_relative = 0.01);
-	assert_relative_eq!(to_treasury as f64, (714 * CENTS) as f64, max_relative = 0.01);
-	// Total per hour is ~47.6 WND
-	assert_relative_eq!(
-		(to_stakers as f64 + to_treasury as f64),
-		(4_760 * CENTS) as f64,
-		max_relative = 0.001
-	);
-}
-
-#[test]
-fn staking_inflation_correct_longer_era() {
-	// Twice the era duration means twice the emission:
-	let (to_stakers, to_treasury) = super::EraPayout::era_payout(
-		123, // ignored
-		456, // ignored
-		2 * MILLISECONDS_PER_HOUR,
-	);
-
-	assert_relative_eq!(to_stakers as f64, (4_046 * CENTS) as f64 * 2.0, max_relative = 0.001);
-	assert_relative_eq!(to_treasury as f64, (714 * CENTS) as f64 * 2.0, max_relative = 0.001);
-}
-
-#[test]
-fn staking_inflation_correct_whole_year() {
-	let (to_stakers, to_treasury) = super::EraPayout::era_payout(
-		123,                                        // ignored
-		456,                                        // ignored
-		(36525 * 24 * MILLISECONDS_PER_HOUR) / 100, // 1 year
-	);
-
-	// Our yearly emissions is about 417k WND:
-	let yearly_emission = 417_307 * UNITS;
-	assert_relative_eq!(
-		to_stakers as f64 + to_treasury as f64,
-		yearly_emission as f64,
-		max_relative = 0.001
-	);
-
-	assert_relative_eq!(to_stakers as f64, yearly_emission as f64 * 0.85, max_relative = 0.001);
-	assert_relative_eq!(to_treasury as f64, yearly_emission as f64 * 0.15, max_relative = 0.001);
-}
-
-// 10 years into the future, our values do not overflow.
-#[test]
-fn staking_inflation_correct_not_overflow() {
-	let (to_stakers, to_treasury) = super::EraPayout::era_payout(
-		123,                                       // ignored
-		456,                                       // ignored
-		(36525 * 24 * MILLISECONDS_PER_HOUR) / 10, // 10 years
-	);
-	let initial_ti: i128 = 5_216_342_402_773_185_773;
-	let projected_total_issuance = (to_stakers as i128 + to_treasury as i128) + initial_ti;
-
-	// In 2034, there will be about 9.39 million WND in existence.
-	assert_relative_eq!(
-		projected_total_issuance as f64,
-		(9_390_000 * UNITS) as f64,
-		max_relative = 0.001
-	);
-}
-
-// Print percent per year, just as convenience.
-#[test]
-fn staking_inflation_correct_print_percent() {
-	let (to_stakers, to_treasury) = super::EraPayout::era_payout(
-		123,                                        // ignored
-		456,                                        // ignored
-		(36525 * 24 * MILLISECONDS_PER_HOUR) / 100, // 1 year
-	);
-	let yearly_emission = to_stakers + to_treasury;
-	let mut ti: i128 = 5_216_342_402_773_185_773;
-
-	for y in 0..10 {
-		let new_ti = ti + yearly_emission as i128;
-		let inflation = 100.0 * (new_ti - ti) as f64 / ti as f64;
-		println!("Year {y} inflation: {inflation}%");
-		ti = new_ti;
-
-		assert!(inflation <= 8.0 && inflation > 2.0, "sanity check");
-	}
-}
-
 fn new_test_ext() -> sp_io::TestExternalities {
 	frame_system::GenesisConfig::<Runtime>::default()
 		.build_storage()
@@ -545,17 +243,19 @@ fn construct_extrinsic(sender: Sr25519Keyring, call: RuntimeCall) -> UncheckedEx
 }
 
 #[test]
-fn tx_fees_go_to_dap_satellite() {
+fn tx_fees_go_to_accumulation_account() {
 	new_test_ext().execute_with(|| {
 		let alice = AccountId::from(Sr25519Keyring::Alice);
-		let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+		let accumulation_account =
+			pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 		let ed = ExistentialDeposit::get();
 
 		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&alice, 100 * ed));
-		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&satellite, ed));
+		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&accumulation_account, ed));
 
 		let alice_before = <Balances as Inspect<AccountId>>::balance(&alice);
-		let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+		let accumulation_account_before =
+			<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 		let issuance_before = <Balances as Inspect<AccountId>>::total_issuance();
 
 		let call = RuntimeCall::System(frame_system::Call::remark { remark: vec![] });
@@ -566,28 +266,31 @@ fn tx_fees_go_to_dap_satellite() {
 		let fee_paid = alice_before - alice_after;
 		assert!(fee_paid > 0, "a fee should have been paid");
 
-		let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
+		let accumulation_account_after =
+			<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 		let issuance_after = <Balances as Inspect<AccountId>>::total_issuance();
 
-		assert_eq!(satellite_after, satellite_before + fee_paid);
+		assert_eq!(accumulation_account_after, accumulation_account_before + fee_paid);
 		assert_eq!(issuance_before, issuance_after);
 	});
 }
 
 #[test]
-fn dust_removal_goes_to_dap_satellite() {
+fn dust_removal_goes_to_accumulation_account() {
 	new_test_ext().execute_with(|| {
 		let alice: AccountId = Sr25519Keyring::Alice.into();
 		let bob: AccountId = Sr25519Keyring::Bob.into();
-		let satellite = pallet_dap_satellite::Pallet::<Runtime>::satellite_account();
+		let accumulation_account =
+			pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account();
 		let ed = ExistentialDeposit::get();
 		let dust = ed / 2;
 
 		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&bob, ed + dust));
 		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&alice, 100 * ed));
-		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&satellite, ed));
+		assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&accumulation_account, ed));
 
-		let satellite_before = <Balances as Inspect<AccountId>>::balance(&satellite);
+		let accumulation_account_before =
+			<Balances as Inspect<AccountId>>::balance(&accumulation_account);
 
 		// Transfer ED away from bob, leaving dust < ED → account reaped.
 		assert_ok!(Balances::transfer_allow_death(
@@ -596,8 +299,126 @@ fn dust_removal_goes_to_dap_satellite() {
 			ed,
 		));
 
-		let satellite_after = <Balances as Inspect<AccountId>>::balance(&satellite);
-		assert_eq!(satellite_after, satellite_before + dust);
+		let accumulation_account_after =
+			<Balances as Inspect<AccountId>>::balance(&accumulation_account);
+		assert_eq!(accumulation_account_after, accumulation_account_before + dust);
 		assert_eq!(<Balances as Inspect<AccountId>>::balance(&bob), 0);
 	});
+}
+
+#[test]
+fn accumulate_forward_account_matches_constant() {
+	assert_eq!(
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account(),
+		AccumulateForwardPalletId::get().into_account_truncating()
+	);
+}
+
+/// Unit tests for `migrations::DrainLegacyTreasuryToAccumulationAccount`.
+mod drain_legacy_treasury_migration {
+	use super::*;
+	use crate::migrations::DrainLegacyTreasuryToAccumulationAccount;
+	use frame_support::{traits::OnRuntimeUpgrade, PalletId};
+
+	const LEGACY_TREASURY_PALLET_ID: PalletId = PalletId(*b"py/trsry");
+
+	fn legacy_account() -> AccountId {
+		LEGACY_TREASURY_PALLET_ID.into_account_truncating()
+	}
+
+	fn accumulation_account() -> AccountId {
+		pallet_accumulate_and_forward::Pallet::<Runtime>::accumulation_account()
+	}
+
+	#[test]
+	fn zero_source_is_a_no_op() {
+		new_test_ext().execute_with(|| {
+			assert_eq!(<Balances as Inspect<AccountId>>::balance(&legacy_account()), 0);
+			let accum_before = <Balances as Inspect<AccountId>>::balance(&accumulation_account());
+			let issuance_before = <Balances as Inspect<AccountId>>::total_issuance();
+
+			DrainLegacyTreasuryToAccumulationAccount::on_runtime_upgrade();
+
+			assert_eq!(
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account()),
+				accum_before
+			);
+			assert_eq!(<Balances as Inspect<AccountId>>::total_issuance(), issuance_before);
+		});
+	}
+
+	#[test]
+	fn only_ed_in_source_is_also_a_no_op() {
+		new_test_ext().execute_with(|| {
+			let ed = ExistentialDeposit::get();
+			// Fund with exactly ED — reducible_balance(Preserve) returns 0.
+			assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&legacy_account(), ed));
+			let accum_before = <Balances as Inspect<AccountId>>::balance(&accumulation_account());
+			let issuance_before = <Balances as Inspect<AccountId>>::total_issuance();
+
+			DrainLegacyTreasuryToAccumulationAccount::on_runtime_upgrade();
+
+			assert_eq!(
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account()),
+				accum_before
+			);
+			assert_eq!(<Balances as Inspect<AccountId>>::total_issuance(), issuance_before);
+		});
+	}
+
+	#[test]
+	fn drains_reducible_balance_to_accumulation_account() {
+		new_test_ext().execute_with(|| {
+			let ed = ExistentialDeposit::get();
+			// reducible = 90 * ED (ED itself kept by Preservation::Preserve).
+			let extra = 90 * ed;
+			assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&legacy_account(), ed + extra));
+			let accum_before = <Balances as Inspect<AccountId>>::balance(&accumulation_account());
+			let issuance_before = <Balances as Inspect<AccountId>>::total_issuance();
+
+			DrainLegacyTreasuryToAccumulationAccount::on_runtime_upgrade();
+
+			assert_eq!(<Balances as Inspect<AccountId>>::balance(&legacy_account()), ed);
+			assert_eq!(
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account()),
+				accum_before + extra
+			);
+			assert_eq!(<Balances as Inspect<AccountId>>::total_issuance(), issuance_before);
+		});
+	}
+
+	#[test]
+	fn idempotent_second_run_is_a_no_op() {
+		new_test_ext().execute_with(|| {
+			let ed = ExistentialDeposit::get();
+			assert_ok!(<Balances as Mutate<AccountId>>::mint_into(&legacy_account(), ed + 50 * ed));
+
+			DrainLegacyTreasuryToAccumulationAccount::on_runtime_upgrade();
+			let accum_after_first =
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account());
+
+			// Second run: legacy reducible is now 0 → early return.
+			DrainLegacyTreasuryToAccumulationAccount::on_runtime_upgrade();
+			assert_eq!(
+				<Balances as Inspect<AccountId>>::balance(&accumulation_account()),
+				accum_after_first
+			);
+		});
+	}
+
+	#[test]
+	fn total_issuance_invariant_holds() {
+		new_test_ext().execute_with(|| {
+			let ed = ExistentialDeposit::get();
+			assert_ok!(<Balances as Mutate<AccountId>>::mint_into(
+				&legacy_account(),
+				ed + 200 * ed
+			));
+			let issuance_before = <Balances as Inspect<AccountId>>::total_issuance();
+
+			DrainLegacyTreasuryToAccumulationAccount::on_runtime_upgrade();
+
+			assert_eq!(<Balances as Inspect<AccountId>>::total_issuance(), issuance_before);
+		});
+	}
 }

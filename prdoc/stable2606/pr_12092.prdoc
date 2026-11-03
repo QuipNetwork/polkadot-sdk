@@ -1,0 +1,22 @@
+title: '[acf] Move py/trsry drain migration from pallet to Westend RC'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `pallet-accumulate-and-forward` is meant to be generic and reusable. Hard-coding a one-shot drain of the legacy `py/trsry` from RC to AH account belongs in a runtime, not the generic pallet.
+    To achieve the above:
+    - Removed `DrainLegacyTreasuryToAccumulationAccount` and its tests from `pallet-accumulate-and-forward`.
+    - Added a runtime-local equivalent inside `westend-runtime`'s migrations module, with the same semantics: drain into the local `ACF` accumulation account, where the existing `Forwarder` teleports to AssetHub's central DAP on the next forwarding interval.
+    - Dropped the migration from BridgeHub / Collectives / Coretime / People Westend: `py/trsry` is empty there, so no migration is needed.
+crates:
+- name: bridge-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major
+- name: people-westend-runtime
+  bump: major
+- name: westend-runtime
+  bump: major
+- name: pallet-accumulate-and-forward
+  bump: major

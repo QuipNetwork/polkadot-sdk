@@ -16,7 +16,7 @@
 
 //! Implementation of `ProcessMessage` for an `ExecuteXcm` implementation.
 
-use codec::{Decode, DecodeLimit, FullCodec, MaxEncodedLen};
+use codec::{Decode, FullCodec, MaxEncodedLen};
 use core::{fmt::Debug, marker::PhantomData};
 use frame_support::{
 	dispatch::GetDispatchInfo,
@@ -24,7 +24,7 @@ use frame_support::{
 };
 use scale_info::TypeInfo;
 use sp_weights::{Weight, WeightMeter};
-use xcm::{prelude::*, MAX_XCM_DECODE_DEPTH};
+use xcm::prelude::*;
 
 const LOG_TARGET: &str = "xcm::process-message";
 
@@ -47,8 +47,7 @@ impl<
 		meter: &mut WeightMeter,
 		id: &mut XcmHash,
 	) -> Result<bool, ProcessMessageError> {
-		let versioned_message = VersionedXcm::<Call>::decode_all_with_depth_limit(
-			MAX_XCM_DECODE_DEPTH,
+		let versioned_message = VersionedXcm::<Call>::decode_all_with_mem_and_depth_limit(
 			&mut &message[..],
 		)
 		.map_err(|e| {

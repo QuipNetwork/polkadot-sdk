@@ -1,0 +1,11 @@
+title: Remove deprecated StorageIterator and StorageKeyIterator
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removes `migration::StorageIterator` and `migration::StorageKeyIterator`, deprecated in July
+    2023. Use `storage_iter` / `storage_iter_with_suffix` and `storage_key_iter` /
+    `storage_key_iter_with_suffix` instead. No remaining in-repo usage.
+
+crates:
+- name: frame-support
+  bump: major

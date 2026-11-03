@@ -1,0 +1,19 @@
+title: 'asset-conversion-pallet: quote respects minimum balance'
+
+doc:
+  - audience: [Runtime Dev, Runtime User]
+    description: |
+      Quote functions (`quote_price_exact_tokens_for_tokens`, `quote_price_tokens_for_exact_tokens`)
+      now return `None` when the computed output exceeds what the pool can actually withdraw while
+      staying alive.
+
+      Swap execution withdraws from pools with `Preserve` preservation, meaning the pool must retain
+      at least `min_balance`. The quote functions did not account for this, so they could return a
+      price for a swap that would fail at execution.
+
+      Both quote functions now check the output against `reducible_balance(Preserve, Polite)` — the
+      same preservation level the swap uses.
+
+crates:
+  - name: pallet-asset-conversion
+    bump: patch

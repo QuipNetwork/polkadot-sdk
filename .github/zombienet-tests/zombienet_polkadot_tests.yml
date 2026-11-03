@@ -2,55 +2,54 @@
 - job-name: "zombienet-polkadot-functional-0001-parachains-pvf"
   test-filter: "functional::parachains_pvf::parachains_pvf_preparation_and_execution_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0002-parachains-disputes"
   test-filter: "functional::parachains_disputes::parachains_disputes_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0003-beefy-and-mmr"
   test-filter: "functional::beefy_and_mmr::beefy_and_mmr_test"
-  runner-type: "large"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0004-parachains-disputes-garbage-candidate"
   test-filter: "functional::parachains_disputes_garbage_candidate::parachains_disputes_garbage_candidate_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0006-parachains-max-tranche0"
   test-filter: "functional::parachains_max_tranche0::parachains_max_tranche0_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0007-dispute-freshly-finalized"
   test-filter: "functional::dispute_freshly_finalized::dispute_freshly_finalized_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0013-systematic-chunk-recovery"
   test-filter: "functional::systematic_chunk_recovery::systematic_chunk_recovery_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-functional-0014-chunk-fetching-network-compatibility"
   test-filter: "functional::chunk_fetching_network_compatibility::chunk_fetching_network_compatibility_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
   additional-setup: |
     BIN_DIR="$(pwd)/bin_old"
     mkdir -p $BIN_DIR
     for bin in polkadot polkadot-parachain; do
       OLD_NAME="$bin-old"
       echo "downloading $bin as $OLD_NAME in $BIN_DIR";
-      curl -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/$bin
+      curl --retry 5 --retry-delay 10 --retry-max-time 120 -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/$bin
       chmod 755 $BIN_DIR/$OLD_NAME;
     done
     for bin in polkadot-execute-worker polkadot-prepare-worker; do
       OLD_NAME="$bin"
       echo "downloading $bin as $OLD_NAME in $BIN_DIR";
-      curl -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/$bin
+      curl --retry 5 --retry-delay 10 --retry-max-time 120 -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/$bin
       chmod 755 $BIN_DIR/$OLD_NAME;
     done
     ls -ltr $BIN_DIR
@@ -60,44 +59,45 @@
   additional-env:
     OLD_SUFFIX: "-old"
 
-- job-name: "zombienet-polkadot-functional-0015-coretime-shared-core"
-  test-filter: "functional::coretime_shared_core::coretime_shared_core_test"
-  runner-type: "large"
-  use-zombienet-sdk: true
+- job-name: "zombienet-polkadot-functional-0015-coretime-shared-core-4-paras"
+  test-filter: "functional::coretime_shared_core::coretime_shared_core_test_4_paras"
+
+
+- job-name: "zombienet-polkadot-functional-0016-coretime-shared-core-3-paras"
+  test-filter: "functional::coretime_shared_core::coretime_shared_core_test_3_paras"
+
 
 - job-name: "zombienet-polkadot-functional-0019-coretime-collation-fetching-fairness"
   test-filter: "functional::coretime_collation_fetching_fairness::coretime_collation_fetching_fairness_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 # Smoke tests using traditional zombienet
 - job-name: "zombienet-polkadot-smoke-0001-parachains-smoke-test"
   test-filter: "smoke::parachains_smoke::parachains_smoke_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-smoke-0003-deregister-register-validator"
   test-filter: "smoke::deregister_register_validator::deregister_register_validator_smoke_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-smoke-0004-coretime-smoke-test"
   test-filter: "smoke::coretime_smoke::coretime_smoke_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-smoke-0005-precompile-pvf-smoke"
   test-filter: "smoke::precompile_pvf_smoke::precompile_pvf_smoke_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 # Misc tests using traditional zombienet
 # TODO: Disabled, occasionally (1 on ~50-70 runs) fails
 - job-name: "zombienet-polkadot-misc-0001-parachains-paritydb"
-  test-definition: "0001-paritydb.zndsl"
-  local-dir: "./polkadot/zombienet_tests/misc"
-  runner-type: "default"
-  use-zombienet-sdk: false
+  test-filter: "misc::paritydb::paritydb_test"
+
 
 # TODO: needs to resolve how to pass the GH_TOKEN to pods
 # - job-name: "zombienet-polkadot-misc-0002-upgrade-node"
@@ -110,84 +110,67 @@
 #   use-zombienet-sdk: false
 
 # Malus tests using traditional zombienet
-- job-name: "zombienet-polkadot-malus-0001-dispute-valid"
-  test-definition: "0001-dispute-valid-block.zndsl"
-  local-dir: "./polkadot/node/malus/integrationtests"
+- job-name: "zombienet-polkadot-misc-malus-0002-dispute-valid"
+  test-filter: "misc::malus_dispute_valid_block::malus_dispute_valid_block_test"
   runner-type: "default"
-  use-zombienet-sdk: false
 
-# SDK tests using zombienet-sdk
+
 # TODO: Disabled
 - job-name: "zombienet-polkadot-coretime-revenue"
   test-filter: "smoke::coretime_revenue::coretime_revenue_test"
   runner-type: "default"
-  use-zombienet-sdk: true
   cumulus-image: "colander"
 
 - job-name: "zombienet-polkadot-elastic-scaling-slot-based-3cores"
   test-filter: "elastic_scaling::slot_based_3cores::slot_based_3cores_test"
-  runner-type: "large"
-  use-zombienet-sdk: true
   cumulus-image: "test-parachain"
 
-# TODO: Disabled, fails very often with zombienet native provider
 - job-name: "zombienet-polkadot-elastic-scaling-slot-based-12cores"
   test-filter: "elastic_scaling::slot_based_12cores::slot_based_12cores_test"
-  runner-type: "default"
-  use-zombienet-sdk: true
   cumulus-image: "test-parachain"
 
 - job-name: "zombienet-polkadot-elastic-scaling-doesnt-break-parachains"
   test-filter: "elastic_scaling::doesnt_break_parachains::doesnt_break_parachains_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-elastic-scaling-basic-3cores"
   test-filter: "elastic_scaling::basic_3cores::basic_3cores_test"
-  runner-type: "default"
-  use-zombienet-sdk: true
   cumulus-image: "colander"
 
 - job-name: "zombienet-polkadot-functional-sync-backing"
   test-filter: "functional::sync_backing::sync_backing_test"
   runner-type: "default"
-  use-zombienet-sdk: true
   cumulus-image: "test-parachain"
 
 - job-name: "zombienet-polkadot-functional-async-backing-6-seconds-rate"
   test-filter: "functional::async_backing_6_seconds_rate::async_backing_6_seconds_rate_test"
-  runner-type: "default"
-  use-zombienet-sdk: true
+
 
 # TODO: Disabled, occasionally (1 on ~50-100 runs) fails
 - job-name: "zombienet-polkadot-functional-duplicate-collations"
   test-filter: "functional::duplicate_collations::duplicate_collations_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 # TODO: Disabled, occasionally (2 on ~50-70 runs) fails
 - job-name: "zombienet-polkadot-disputes-slashing"
   test-filter: "disabling::slashing"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 # TODO: Disabled, occasionally (1 on ~50-100 runs) fails
 - job-name: "zombienet-polkadot-functional-spam-statement-distribution-requests"
   test-filter: "functional::spam_statement_distribution_requests::spam_statement_distribution_requests_test"
-  runner-type: "large"
-  use-zombienet-sdk: true
   cumulus-image: "colander"
 
 - job-name: "zombienet-polkadot-approval-voting-coalescing"
   test-filter: "functional::approval_voting_coalescing::approval_voting_coalescing_test"
   runner-type: "default"
-  use-zombienet-sdk: true
   cumulus-image: "colander"
 
 - job-name: "zombienet-polkadot-approved-peer-mixed-validators"
   test-filter: "functional::approved_peer_mixed_validators::approved_peer_mixed_validators_test"
-  runner-type: "default"
-  use-zombienet-sdk: true
   cumulus-image: "colander"
   additional-setup: |
     BIN_DIR="$(pwd)/bin_old"
@@ -195,13 +178,13 @@
     for bin in polkadot polkadot-parachain; do
       OLD_NAME="$bin-old"
       echo "downloading $bin as $OLD_NAME in $BIN_DIR";
-      curl -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2503/$bin
+      curl --retry 5 --retry-delay 10 --retry-max-time 120 -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2503/$bin
       chmod 755 $BIN_DIR/$OLD_NAME;
     done
     for bin in polkadot-execute-worker polkadot-prepare-worker; do
       OLD_NAME="$bin"
       echo "downloading $bin as $OLD_NAME in $BIN_DIR";
-      curl -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2503/$bin
+      curl --retry 5 --retry-delay 10 --retry-max-time 120 -L -o $BIN_DIR/$OLD_NAME https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2503/$bin
       chmod 755 $BIN_DIR/$OLD_NAME;
     done
     ls -ltr $BIN_DIR
@@ -211,27 +194,230 @@
     OLD_POLKADOT_IMAGE: "docker.io/paritypr/polkadot-debug:master-187cddde"
     OLD_POLKADOT_COMMAND: "polkadot-old"
 
+- job-name: "zombienet-polkadot-approved-peer-mixed-collators"
+  test-filter: "functional::approved_peer_mixed_collators::approved_peer_mixed_collators_test"
+  cumulus-image: "colander"
+
 - job-name: "zombienet-polkadot-functional-validator-disabling"
   test-filter: "functional::validator_disabling::validator_disabling_test"
-  runner-type: "large"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-dispute-old-finalized"
   test-filter: "functional::dispute_old_finalized::dispute_old_finalized"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-shared-core-idle-parachain"
   test-filter: "functional::shared_core_idle_parachain::shared_core_idle_parachain_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-collators-basic-reputation-persistence"
   test-filter: "functional::collators_reputation_persistence"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-polkadot-coretime-partitioning"
   test-filter: "functional::coretime_partitioning::coretime_assignment_boundary_test"
   runner-type: "default"
   use-zombienet-sdk: true
+
+- job-name: "zombienet-polkadot-scheduling-v2-and-v3-collator-with-v3-validators"
+  test-filter: "functional::scheduling_v3::scheduling_v2_and_v3_collator_with_v3_validators"
+  runner-type: "large"
+  use-zombienet-sdk: true
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-polkadot-scheduling-v3-es-collator-with-v3-validators"
+  test-filter: "functional::scheduling_v3::scheduling_v3_es_collator_with_v3_validators"
+  runner-type: "large"
+  use-zombienet-sdk: true
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-polkadot-scheduling-v3-dynamic-enablement-para-rollback"
+  test-filter: "functional::v3_dynamic_enablement::v3_dynamic_enablement_test::case_1_para_rollback"
+  runner-type: "large"
+  use-zombienet-sdk: true
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-polkadot-scheduling-v3-dynamic-enablement-para-rollback-rpo-2"
+  test-filter: "functional::v3_dynamic_enablement::v3_dynamic_enablement_test::case_2_para_rollback_rpo_2"
+  runner-type: "large"
+  use-zombienet-sdk: true
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-polkadot-v4-collation-protocol-version-negotiation"
+  test-filter: "functional::collation_protocol_version_negotiation::collation_protocol_version_negotiation"
+  runner-type: "default"
+  use-zombienet-sdk: true
+  cumulus-image: "test-parachain"
+
+- job-name: "zombienet-polkadot-scheduling-v3-rolling-upgrade"
+  test-filter: "functional::v3_rolling_upgrade::v3_rolling_upgrade"
+  runner-type: "default"
+  use-zombienet-sdk: true
+  cumulus-image: "test-parachain"
+  additional-setup: |
+    BIN_DIR="$(pwd)/bin_old"
+    mkdir -p $BIN_DIR
+    echo "downloading polkadot as polkadot-old in $BIN_DIR"
+    curl --retry 5 --retry-delay 10 --retry-max-time 120 -L -o $BIN_DIR/polkadot-old https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512/polkadot
+    chmod 755 $BIN_DIR/polkadot-old
+    for bin in polkadot-execute-worker polkadot-prepare-worker; do
+      echo "downloading $bin in $BIN_DIR"
+      curl --retry 5 --retry-delay 10 --retry-max-time 120 -L -o $BIN_DIR/$bin https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512/$bin
+      chmod 755 $BIN_DIR/$bin
+    done
+    ls -ltr $BIN_DIR
+    export PATH=$BIN_DIR:$PATH
+    echo "PATH=$PATH" >> $GITHUB_ENV
+  additional-env:
+    OLD_POLKADOT_IMAGE: "docker.io/paritypr/polkadot-debug:master-187cddde"
+    OLD_POLKADOT_COMMAND: "polkadot-old"
+
+#
+# EXPERIMENTAL COLLATOR PROTOCOL JOBS
+#
+# The entries below duplicate the functional and elastic_scaling tests above and run them against
+# the experimental collator protocol implementation. The variant is selected with the
+# `EXPERIMENTAL_COLLATOR_PROTOCOL` env variable, read by
+# `maybe_enable_experimental_collator_protocol()` in `polkadot/zombienet-sdk-tests/tests/utils.rs`.
+# Drop this whole section once the legacy collator protocol is obsolated.
+
+- job-name: "zombienet-polkadot-functional-0001-parachains-pvf-experimental-collator-protocol"
+  test-filter: "functional::parachains_pvf::parachains_pvf_preparation_and_execution_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0002-parachains-disputes-experimental-collator-protocol"
+  test-filter: "functional::parachains_disputes::parachains_disputes_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0003-beefy-and-mmr-experimental-collator-protocol"
+  test-filter: "functional::beefy_and_mmr::beefy_and_mmr_test"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0004-parachains-disputes-garbage-candidate-experimental-collator-protocol"
+  test-filter: "functional::parachains_disputes_garbage_candidate::parachains_disputes_garbage_candidate_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0006-parachains-max-tranche0-experimental-collator-protocol"
+  test-filter: "functional::parachains_max_tranche0::parachains_max_tranche0_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0007-dispute-freshly-finalized-experimental-collator-protocol"
+  test-filter: "functional::dispute_freshly_finalized::dispute_freshly_finalized_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0013-systematic-chunk-recovery-experimental-collator-protocol"
+  test-filter: "functional::systematic_chunk_recovery::systematic_chunk_recovery_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0015-coretime-shared-core-4-paras-experimental-collator-protocol"
+  test-filter: "functional::coretime_shared_core::coretime_shared_core_test_4_paras"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0016-coretime-shared-core-3-paras-experimental-collator-protocol"
+  test-filter: "functional::coretime_shared_core::coretime_shared_core_test_3_paras"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-0019-coretime-collation-fetching-fairness-experimental-collator-protocol"
+  test-filter: "functional::coretime_collation_fetching_fairness::coretime_collation_fetching_fairness_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-elastic-scaling-slot-based-3cores-experimental-collator-protocol"
+  test-filter: "elastic_scaling::slot_based_3cores::slot_based_3cores_test"
+  cumulus-image: "test-parachain"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-elastic-scaling-slot-based-12cores-experimental-collator-protocol"
+  test-filter: "elastic_scaling::slot_based_12cores::slot_based_12cores_test"
+  cumulus-image: "test-parachain"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-elastic-scaling-doesnt-break-parachains-experimental-collator-protocol"
+  test-filter: "elastic_scaling::doesnt_break_parachains::doesnt_break_parachains_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-elastic-scaling-basic-3cores-experimental-collator-protocol"
+  test-filter: "elastic_scaling::basic_3cores::basic_3cores_test"
+  cumulus-image: "colander"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-sync-backing-experimental-collator-protocol"
+  test-filter: "functional::sync_backing::sync_backing_test"
+  runner-type: "default"
+  cumulus-image: "test-parachain"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-async-backing-6-seconds-rate-experimental-collator-protocol"
+  test-filter: "functional::async_backing_6_seconds_rate::async_backing_6_seconds_rate_test"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-duplicate-collations-experimental-collator-protocol"
+  test-filter: "functional::duplicate_collations::duplicate_collations_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-spam-statement-distribution-requests-experimental-collator-protocol"
+  test-filter: "functional::spam_statement_distribution_requests::spam_statement_distribution_requests_test"
+  cumulus-image: "colander"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-approval-voting-coalescing-experimental-collator-protocol"
+  test-filter: "functional::approval_voting_coalescing::approval_voting_coalescing_test"
+  runner-type: "default"
+  cumulus-image: "colander"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-functional-validator-disabling-experimental-collator-protocol"
+  test-filter: "functional::validator_disabling::validator_disabling_test"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-dispute-old-finalized-experimental-collator-protocol"
+  test-filter: "functional::dispute_old_finalized::dispute_old_finalized"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-shared-core-idle-parachain-experimental-collator-protocol"
+  test-filter: "functional::shared_core_idle_parachain::shared_core_idle_parachain_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+
+- job-name: "zombienet-polkadot-coretime-partitioning-experimental-collator-protocol"
+  test-filter: "functional::coretime_partitioning::coretime_assignment_boundary_test"
+  runner-type: "default"
+  additional-env:
+    EXPERIMENTAL_COLLATOR_PROTOCOL: "1"
+#
+# end of EXPERIMENTAL COLLATOR PROTOCOL JOBS
+#

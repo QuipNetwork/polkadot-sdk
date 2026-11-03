@@ -1,0 +1,68 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: Deterministic simulation-based testing for subsystems
+
+doc:
+  - audience: Node Dev
+    description: |
+      Introduces `polkadot-subsystem-test-sim`, a subsystem-agnostic, deterministic
+      simulator for testing Polkadot node subsystems, and adopts it for the
+      collator-protocol (both validator sides) and prospective-parachains.
+
+      Instead of standing up a real overseer and hand-driving its message pump, a test
+      describes the relay chain as *facts* (per-core schedule, claim queues, scheduling
+      lookahead, sessions, validator groups) and drives the subsystem under test (SUT)
+      with stimuli, asserting on its **observable contract** — the effects it emits
+      (`SendRequest`, `DisconnectPeers`, reputation changes, seconding decisions, …).
+      A controlled `MockClock` makes time explicit: timeouts, delays and reputation
+      decay are advanced deterministically rather than waited on, so there are no
+      wall-clock flakes.
+
+      What this buys subsystem authors:
+
+      - **You declare the world, not the subsystem's control flow.** The chain model
+        answers any runtime/chain-API query on demand, in any order — no more
+        `assert_matches!(overseer.recv(), RuntimeApi(..)) => tx.send(..)` ladders that
+        hang the moment the subsystem asks for something in an unexpected order.
+      - **Failures pinpoint the root cause instead of hanging.** An unmet expectation
+        fails immediately with the expected effect, what actually happened, and the full
+        timeline of observed effects in the assertion window.
+      - **Differential testing as a correctness oracle.** When a subsystem has two
+        implementations (collator-protocol's legacy and experimental validator sides),
+        one scenario runs against both via `#[sim_test]` and any divergence in observable
+        behaviour fails the test, locating the bug to one side for free.
+      - **Test-first via known-bug markers.** `#[known_bug]` / `#[sim_test(bug_on = ...)]`
+        let a test assert the *correct* behaviour of something currently broken: the
+        suite stays green while the bug is open, and the test fails loudly once the bug
+        is fixed — prompting removal of the marker. A tracking PR/issue URL is required,
+        so every red-but-expected test is traceable to its fix.
+
+      Writing the edge-case scenarios this way is a five-minute job rather than an
+      afternoon of harness wrestling, which is how the collator-protocol adoption
+      surfaced several distinct production bugs (claim-queue / scheduling-lookahead
+      handling near genesis and at session boundaries among them).
+
+      See `polkadot/node/test-sim/README.md` for the rationale (including why a
+      hand-rolled harness rather than a real overseer) and the collator-protocol
+      consumer crate for the canonical end-to-end example.
+
+      `polkadot-node-clock` additionally gains a fully-virtual `MockClock`
+      (`advance` / `advance_secs` / wakeup-queue-driven `delay`) so subsystems that
+      route their timers through the shared `Clock` trait can be driven deterministically.
+
+crates:
+  - name: polkadot-node-clock
+    bump: minor
+  - name: polkadot-collator-protocol
+    bump: none
+  - name: polkadot-node-core-prospective-parachains
+    bump: none
+  # Test-only churn: the `MockClock` method rename (`inc`/`set_*` → `advance`/`advance_secs`)
+  # rippled into these crates' `src/tests.rs`; no public API change.
+  - name: polkadot-node-core-av-store
+    bump: none
+  - name: polkadot-node-core-chain-selection
+    bump: none
+  - name: polkadot-node-core-dispute-coordinator
+    bump: none

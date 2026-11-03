@@ -66,8 +66,9 @@ mod benchmarks {
 
 	/// Initialize with a single message
 	fn initialize_with_one_message<T: Config>() {
-		let (message, outbound_message) = build_message::<T>();
-		let leaf = <T as Config>::Hashing::hash(&message.encode());
+		let (_, outbound_message) = build_message::<T>();
+		// Use the same leaf encoding as production so the benchmark stays in sync with `commit`.
+		let leaf = OutboundQueue::<T>::message_leaf(&outbound_message);
 		MessageLeaves::<T>::append(leaf);
 		Messages::<T>::append(outbound_message);
 	}

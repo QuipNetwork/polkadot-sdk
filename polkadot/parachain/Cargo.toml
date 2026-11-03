@@ -4,7 +4,7 @@ description = "Types and utilities for creating and working with parachains"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-version = "21.0.0"
+version = "24.0.0"
 homepage.workspace = true
 repository.workspace = true
 

@@ -213,4 +213,21 @@ impl<T: frame_system::Config> crate::weights::traits::pallet_election_provider_m
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(p.into())))
 			.saturating_add(Weight::from_parts(0, 2507).saturating_mul(p.into()))
 	}
+	/// Storage: `MultiBlockElectionSigned::UnpaidRewards` (r:1 w:1)
+	/// Proof: `MultiBlockElectionSigned::UnpaidRewards` (`max_values`: Some(1), `max_size`: Some(833), added: 1328, mode: `Measured`)
+	/// Storage: `System::Account` (r:1 w:1)
+	/// Proof: `System::Account` (`max_values`: None, `max_size`: Some(128), added: 2603, mode: `Measured`)
+	// Storage access and proof size below are from a local run of this file's benchmark under both
+	// presets. The `ref_time` is taken from the reference-hardware run of the same benchmark on
+	// `asset-hub-westend`, since this call touches no election state and the local machine measures
+	// roughly twice as fast as the reference box.
+	fn claim_unpaid_reward() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `1775`
+		//  Estimated: `5240`
+		// Minimum execution time: 63_661_000 picoseconds.
+		Weight::from_parts(67_276_000, 5240)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
 }

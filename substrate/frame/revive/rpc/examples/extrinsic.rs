@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use pallet_revive_eth_rpc::subxt_client::{
-	self, SrcChainConfig, revive::calls::types::InstantiateWithCode,
+	self, SrcChainConfig, revive::calls::InstantiateWithCode,
 };
 use sp_weights::Weight;
 use subxt::OnlineClient;
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let (bytes, _) = pallet_revive_fixtures::compile_module("dummy")?;
 
-	let tx_payload = subxt_client::tx().revive().instantiate_with_code(
+	let tx_payload = subxt_client::transactions().revive().instantiate_with_code(
 		0u32.into(),
 		Weight::from_parts(100_000, 0).into(),
 		3_000_000_000_000_000_000,
@@ -38,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let res = client
 		.tx()
+		.await?
 		.sign_and_submit_then_watch_default(&tx_payload, &dev::alice())
 		.await?
 		.wait_for_finalized()
@@ -46,9 +47,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let block_hash = res.block_hash();
 
-	let block = client.blocks().at(block_hash).await.unwrap();
-	let extrinsics = block.extrinsics().await.unwrap();
-	extrinsics.find_first::<InstantiateWithCode>()?;
+	let at_block = client.at_block(block_hash).await?;
+	let extrinsics = at_block.extrinsics().fetch().await?;
+	// Surface a decode error if the extrinsic is present but malformed; a missing extrinsic is
+	// not an error.
+	extrinsics.find_first::<InstantiateWithCode>().transpose()?;
 
 	Ok(())
 }

@@ -1001,6 +1001,18 @@ pub struct BabeVerifier<Block: BlockT, Client> {
 	telemetry: Option<TelemetryHandle>,
 }
 
+impl<Block: BlockT, Client> BabeVerifier<Block, Client> {
+	pub(crate) fn new(
+		client: Arc<Client>,
+		slot_duration: SlotDuration,
+		config: BabeConfiguration,
+		epoch_changes: SharedEpochChanges<Block, Epoch>,
+		telemetry: Option<TelemetryHandle>,
+	) -> Self {
+		Self { client, slot_duration, config, epoch_changes, telemetry }
+	}
+}
+
 #[async_trait::async_trait]
 impl<Block, Client> Verifier<Block> for BabeVerifier<Block, Client>
 where
@@ -1764,6 +1776,9 @@ where
 }
 
 /// Gets the best finalized block and its slot, and prunes the given epoch tree.
+///
+/// Skips pruning when the finalized header has no BABE pre-digest — not all finalized blocks
+/// have to be BABE-authored.
 fn prune_finalized<Block, Client>(
 	client: Arc<Client>,
 	epoch_changes: &mut EpochChangesFor<Block, Epoch>,
@@ -1774,17 +1789,21 @@ where
 {
 	let info = client.info();
 
-	let finalized_slot = {
-		let finalized_header = client
-			.header(info.finalized_hash)
-			.map_err(|e| ConsensusError::ClientImport(e.to_string()))?
-			.expect(
-				"best finalized hash was given by client; finalized headers must exist in db; qed",
-			);
+	let finalized_header = client
+		.header(info.finalized_hash)
+		.map_err(|e| ConsensusError::ClientImport(e.to_string()))?
+		.expect("best finalized hash was given by client; finalized headers must exist in db; qed");
 
-		find_pre_digest::<Block>(&finalized_header)
-			.expect("finalized header must be valid; valid blocks have a pre-digest; qed")
-			.slot()
+	let finalized_slot = match find_pre_digest::<Block>(&finalized_header) {
+		Ok(pre_digest) => pre_digest.slot(),
+		Err(e) => {
+			debug!(
+				target: LOG_TARGET,
+				"Skipping epoch-tree pruning: finalized header {:?} has no BABE pre-digest ({e:?})",
+				info.finalized_hash,
+			);
+			return Ok(());
+		},
 	};
 
 	epoch_changes
@@ -1850,6 +1869,30 @@ where
 	Ok((import, link))
 }
 
+/// Parameters of [`build_verifier`].
+pub struct BuildVerifierParams<Block: BlockT, Client> {
+	/// The client to interact with the internals of the node.
+	pub client: Arc<Client>,
+	/// Slot duration.
+	pub slot_duration: SlotDuration,
+	/// BABE configuration for this chain.
+	pub config: BabeConfiguration,
+	/// Shared epoch-changes tree.
+	pub epoch_changes: SharedEpochChanges<Block, Epoch>,
+	/// Optional telemetry handle to report telemetry events.
+	pub telemetry: Option<TelemetryHandle>,
+}
+
+/// Build the [`BabeVerifier`]
+pub fn build_verifier<Block: BlockT, Client>(
+	BuildVerifierParams { client, slot_duration, config, epoch_changes, telemetry }: BuildVerifierParams<
+		Block,
+		Client,
+	>,
+) -> BabeVerifier<Block, Client> {
+	BabeVerifier::new(client, slot_duration, config, epoch_changes, telemetry)
+}
+
 /// Parameters passed to [`import_queue`].
 pub struct ImportQueueParams<'a, Block: BlockT, BI, Client, Spawn> {
 	/// The BABE link that is created by [`block_import`].
@@ -1905,13 +1948,13 @@ where
 {
 	const HANDLE_BUFFER_SIZE: usize = 1024;
 
-	let verifier = BabeVerifier {
+	let verifier = build_verifier(BuildVerifierParams {
+		client: client.clone(),
 		slot_duration,
 		config: babe_link.config.clone(),
 		epoch_changes: babe_link.epoch_changes.clone(),
 		telemetry,
-		client: client.clone(),
-	};
+	});
 
 	let (worker_tx, worker_rx) = channel(HANDLE_BUFFER_SIZE);
 

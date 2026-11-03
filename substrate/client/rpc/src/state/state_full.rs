@@ -66,6 +66,7 @@ struct QueryStorageRange<Block: BlockT> {
 pub struct FullState<BE, Block: BlockT, Client> {
 	client: Arc<Client>,
 	executor: SubscriptionTaskExecutor,
+	/// Proof-size-recording block executor; `None` on nodes that do not record proof size.
 	execute_block: Option<Arc<dyn TracingExecuteBlock<Block>>>,
 	_phantom: PhantomData<BE>,
 }
@@ -494,6 +495,28 @@ where
 		)
 		.trace_block()
 		.map_err(|e| invalid_block::<Block>(block, None, e.to_string()))
+	}
+
+	fn call_recorded(
+		&self,
+		block: Block::Hash,
+		method: String,
+		call_data: Bytes,
+	) -> std::result::Result<Bytes, Error> {
+		let execute_block = self.execute_block.as_ref().ok_or(Error::CallRecordedUnsupported)?;
+		execute_block
+			.call_recorded(block, &method, &call_data.0)
+			.map(Into::into)
+			.map_err(|e| match e {
+				sp_blockchain::Error::Application(ref inner)
+					if inner
+						.downcast_ref::<sc_tracing::block::CallRecordedUnsupported>()
+						.is_some() =>
+				{
+					Error::CallRecordedUnsupported
+				},
+				e => Error::Client(Box::new(e)),
+			})
 	}
 }
 

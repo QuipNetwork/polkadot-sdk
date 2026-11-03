@@ -1,0 +1,12 @@
+title: 'pallet-revive: skip non-existent accounts in batch_map_accounts'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    `batch_map_accounts` now skips non-existing accounts in addition to eth-derived accounts. Without this, any caller could permanently insert `OriginalAccount` entries for arbitrary 32-byte values with no `frame_system::Account` backing them, without paying any fees, and with no way to clean them up. The proportion check still uses the original batch length, so padding with skipped entries cannot reach the 90% free-tx threshold.
+
+    `map_no_deposit` is renamed to `map_no_deposit_unchecked` with a doc spelling out the precondition.
+crates:
+- name: pallet-revive
+  bump: major

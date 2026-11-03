@@ -1,0 +1,7 @@
+title: 'Aura: Fetch slot duration at parent and not best block'
+doc:
+- audience: Node Dev
+  description: Fetch the slot duration from the parent we are building on top of and not from the best block.
+crates:
+- name: cumulus-client-consensus-aura
+  bump: patch

@@ -1,0 +1,17 @@
+title: Add statement store e2e integration tests
+doc:
+- audience: Node Dev
+  description: |-
+    Add 2 integration tests and 2 bench tests for the statement store subsystem:
+      - **statement_store_basic_propagation**: basic submission and cross-node propagation via genesis-injected allowances
+      - **statement_store_check_propagation_and_quota_invariants**: concurrent multi-account propagation, quota enforcement, and priority eviction via sudo allowances
+      - **statement_store_memory_stress_bench**: memory usage under extreme load
+      - **statement_store_latency_bench**: submission and propagation latency measurement
+    Add `spawn_network_with_injected_allowances()` helper for per-participant quota configuration.
+crates:
+- name: sc-statement-store
+  bump: patch
+- name: cumulus-zombienet-sdk-tests
+  bump: patch
+- name: polkadot-omni-node-lib
+  bump: patch

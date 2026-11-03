@@ -1,0 +1,20 @@
+title: 'asset-conversion precompile: expose getReserves'
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n- Add `getReserves(bytes asset1, bytes asset2)` view function\
+    \ to the asset-conversion precompile, returning the reserve balances of both tokens\
+    \ in the pool\n- This exposes `pallet_asset_conversion::Pallet::get_reserves()`\
+    \ to EVM/PVM contracts and frontends via the precompile interface\n\n## Motivation\n\
+    The precompile already exposes `quoteExactTokensForTokens` and `quoteTokensForExactTokens`,\
+    \ which allow contracts to estimate swap outputs. However, there is no way to\
+    \ query the raw pool reserves directly. This forces frontends and contracts to\
+    \ probe with arbitrary amounts to infer pool state. Exposing `getReserves` gives\
+    \ direct access to pool balances, enabling:\n- DEX UIs to display pool composition\
+    \ and depth\n- Contracts to make routing decisions based on actual liquidity\n\
+    - Parity with Uniswap V2's `getReserves` interface that Solidity developers expect\n\
+    \n## Test plan\n- [x] `get_reserves_works` \u2014 verifies correct reserve values\
+    \ for an existing pool\n- [x] `get_reserves_fails_for_nonexistent_pool` \u2014\
+    \ verifies revert for missing pool\n- [x] All 23 existing tests continue to pass"
+crates:
+- name: pallet-asset-conversion-precompiles
+  bump: minor

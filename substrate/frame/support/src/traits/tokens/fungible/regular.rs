@@ -38,7 +38,10 @@ use crate::{
 };
 use core::marker::PhantomData;
 use sp_arithmetic::traits::{CheckedAdd, CheckedSub, One};
-use sp_runtime::{traits::Saturating, ArithmeticError, DispatchError, TokenError};
+use sp_runtime::{
+	traits::{Bounded, Saturating},
+	ArithmeticError, DispatchError, TokenError,
+};
 
 use super::{Credit, Debt, HandleImbalanceDrop, Imbalance};
 
@@ -208,11 +211,15 @@ pub trait Unbalanced<AccountId>: Inspect<AccountId> {
 		precision: Precision,
 	) -> Result<Self::Balance, DispatchError> {
 		let old_balance = Self::balance(who);
+		let reserved = Self::total_balance(who).saturating_sub(old_balance);
 		let new_balance = if let BestEffort = precision {
-			old_balance.saturating_add(amount)
+			let max_balance = Self::Balance::max_value().saturating_sub(reserved);
+			old_balance.saturating_add(amount).min(max_balance)
 		} else {
 			old_balance.checked_add(&amount).ok_or(ArithmeticError::Overflow)?
 		};
+		new_balance.checked_add(&reserved).ok_or(ArithmeticError::Overflow)?;
+
 		if new_balance < Self::minimum_balance() {
 			// Attempt to increase from 0 to below minimum -> stays at zero.
 			if let BestEffort = precision {

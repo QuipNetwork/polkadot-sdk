@@ -897,7 +897,10 @@ fn runtime_upgrade_events() {
 
 				// system_version 1: update_code_in_storage writes :code directly,
 				// emitting both the digest and CodeUpdated event in the same block.
-				assert_eq!(events[0].event, RuntimeEvent::System(frame_system::Event::CodeUpdated));
+				assert!(matches!(
+					events[0].event,
+					RuntimeEvent::System(frame_system::Event::CodeUpdated { .. })
+				));
 				assert_eq!(
 					events[1].event,
 					RuntimeEvent::ParachainSystem(crate::Event::ValidationFunctionApplied {
@@ -1757,6 +1760,80 @@ fn ump_fee_factor_increases_and_decreases() {
 }
 
 #[test]
+fn claim_queue_offset_at_the_bound_is_accepted() {
+	let core_info = CoreInfo {
+		selector: CoreSelector(0),
+		claim_queue_offset: ClaimQueueOffset(1),
+		number_of_cores: codec::Compact(1),
+	};
+
+	BlockTests::new()
+		.with_pre_inherent_digests(vec![DigestItem::PreRuntime(
+			CUMULUS_CONSENSUS_ID,
+			CumulusDigestItem::CoreInfo(core_info.clone()).encode(),
+		)])
+		.add_with_post_test(
+			1,
+			|| {},
+			move || {
+				// Forwarded to the relay untouched; the relay resolves the core from it.
+				assert_eq!(
+					UpwardMessages::<Test>::get(),
+					vec![
+						UMP_SEPARATOR,
+						UMPSignal::SelectCore(core_info.selector, core_info.claim_queue_offset)
+							.encode(),
+					]
+				);
+			},
+		);
+}
+
+/// One past the bound is still rejected, so the check has not been widened into a no-op.
+#[test]
+#[should_panic(expected = "claim_queue_offset 2 exceeds maximum allowed 1")]
+fn claim_queue_offset_beyond_the_bound_is_rejected() {
+	BlockTests::new()
+		.with_pre_inherent_digests(vec![DigestItem::PreRuntime(
+			CUMULUS_CONSENSUS_ID,
+			CumulusDigestItem::CoreInfo(CoreInfo {
+				selector: CoreSelector(0),
+				claim_queue_offset: ClaimQueueOffset(2),
+				number_of_cores: codec::Compact(1),
+			})
+			.encode(),
+		)])
+		.add(1, || {});
+}
+
+#[test]
+fn max_allowed_claim_queue_offset_matrix() {
+	assert_eq!(max_allowed_claim_queue_offset(false, 0), 1);
+	assert_eq!(max_allowed_claim_queue_offset(false, 2), 3);
+	assert_eq!(max_allowed_claim_queue_offset(true, 0), 2);
+	assert_eq!(max_allowed_claim_queue_offset(true, 2), 2);
+}
+
+/// The bound in the panic message is the computed one, so this also proves the configured
+/// `RelayParentOffset` reaches the assert: "maximum allowed 3" is only reachable via 1 + 2.
+#[test]
+#[should_panic(expected = "claim_queue_offset 4 exceeds maximum allowed 3")]
+fn claim_queue_offset_beyond_the_relay_parent_offset_bound_is_rejected() {
+	BlockTests::new()
+		.with_relay_parent_offset(2)
+		.with_pre_inherent_digests(vec![DigestItem::PreRuntime(
+			CUMULUS_CONSENSUS_ID,
+			CumulusDigestItem::CoreInfo(CoreInfo {
+				selector: CoreSelector(0),
+				claim_queue_offset: ClaimQueueOffset(4),
+				number_of_cores: codec::Compact(1),
+			})
+			.encode(),
+		)])
+		.add(1, || {});
+}
+
+#[test]
 fn ump_signals_are_sent_correctly() {
 	let core_info = CoreInfo {
 		selector: CoreSelector(1),
@@ -1790,9 +1867,9 @@ fn ump_signals_are_sent_correctly() {
 			vec![
 				b"Test".to_vec(),
 				UMP_SEPARATOR,
+				UMPSignal::SelectCore(core_info.selector, core_info.claim_queue_offset).encode(),
 				UMPSignal::ApprovedPeer(ApprovedPeerId::try_from(b"12345".to_vec()).unwrap())
 					.encode(),
-				UMPSignal::SelectCore(core_info.selector, core_info.claim_queue_offset).encode(),
 			],
 		),
 	]);

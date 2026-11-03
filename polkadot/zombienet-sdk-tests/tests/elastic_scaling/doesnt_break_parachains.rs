@@ -4,9 +4,12 @@
 // Test that a paraid that doesn't use elastic scaling which acquired multiple cores does not brick
 // itself if ElasticScalingMVP feature is enabled in genesis.
 
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
 use codec::Decode;
-use cumulus_zombienet_sdk_helpers::{assert_finality_lag, assert_para_throughput, assign_cores};
+use cumulus_zombienet_sdk_helpers::{
+	assert_finality_lag, assert_para_throughput, assign_cores, wait_for_pvf_prepare,
+};
 use polkadot_primitives::{CoreIndex, Id as ParaId};
 use serde_json::json;
 use std::collections::{BTreeMap, VecDeque};
@@ -29,7 +32,9 @@ async fn doesnt_break_parachains_test() -> Result<(), anyhow::Error> {
 				.with_chain("rococo-local")
 				.with_default_command("polkadot")
 				.with_default_image(images.polkadot.as_str())
-				.with_default_args(vec![("-lparachain=debug").into()])
+				.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+					("-lparachain=debug").into(),
+				]))
 				.with_genesis_overrides(json!({
 					"configuration": {
 						"config": {
@@ -73,9 +78,11 @@ async fn doesnt_break_parachains_test() -> Result<(), anyhow::Error> {
 	assign_cores(&relay_client, 2000, vec![0]).await?;
 
 	let para_id = ParaId::from(2000);
+	// Wait for PVF preparation to complete.
+	wait_for_pvf_prepare(&network, 1).await?;
 	// Expect the parachain to be making normal progress, 1 candidate backed per relay chain block.
 	// Lowering to 12 to make sure CI passes.
-	assert_para_throughput(&relay_client, 15, [(para_id, 12..16)]).await?;
+	assert_para_throughput(&relay_client, 15, [(para_id, 12..16)], []).await?;
 
 	let para_client = para_node.wait_client().await?;
 	// Assert the parachain finalized block height is also on par with the number of backed
@@ -93,11 +100,21 @@ async fn doesnt_break_parachains_test() -> Result<(), anyhow::Error> {
 			.await?[..],
 	)?;
 
+	// Get looakahead config
+	let lookahead = u32::decode(
+		&mut &relay_client
+			.runtime_api()
+			.at_latest()
+			.await?
+			.call_raw("ParachainHost_scheduling_lookahead", None)
+			.await?[..],
+	)?;
+
 	assert_eq!(
 		cq,
 		[
-			(CoreIndex(0), std::iter::repeat_n(para_id, 3).collect()),
-			(CoreIndex(1), std::iter::repeat_n(para_id, 3).collect()),
+			(CoreIndex(0), std::iter::repeat_n(para_id, lookahead as usize).collect()),
+			(CoreIndex(1), std::iter::repeat_n(para_id, lookahead as usize).collect()),
 		]
 		.into_iter()
 		.collect()

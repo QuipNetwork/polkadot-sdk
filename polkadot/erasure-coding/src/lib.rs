@@ -231,6 +231,10 @@ where
 			return Err(Error::UnevenLength);
 		}
 
+		if chunk_idx >= n_validators {
+			return Err(Error::ChunkIndexOutOfBounds { chunk_index: chunk_idx, n_validators });
+		}
+
 		received_shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
 	}
 
@@ -415,6 +419,23 @@ mod tests {
 	fn reconstruct_does_not_panic_on_low_validator_count() {
 		let reconstructed = reconstruct_v1(1, [].iter().cloned());
 		assert_eq!(reconstructed, Err(Error::NotEnoughValidators));
+	}
+
+	#[test]
+	fn reconstruct_returns_error_on_out_of_bounds_chunk_index() {
+		let n_validators = 10;
+		let pov = PoV { block_data: BlockData((0..255).collect()) };
+		let available_data = AvailableData { pov: pov.into(), validation_data: Default::default() };
+		let chunks = obtain_chunks(n_validators, &available_data).unwrap();
+
+		let reconstructed: Result<AvailableData, _> = reconstruct(
+			n_validators,
+			[(&*chunks[0], 0), (&*chunks[1], n_validators)].iter().cloned(),
+		);
+		assert_eq!(
+			reconstructed,
+			Err(Error::ChunkIndexOutOfBounds { chunk_index: n_validators, n_validators })
+		);
 	}
 
 	fn generate_trie_and_generate_proofs(magnitude: u32) {

@@ -1,0 +1,20 @@
+title: Remove deprecated Utility::derivative_account_id method.
+doc:
+- audience: Runtime Dev
+  description: |-
+    Remove the deprecated `pallet_utility::Pallet::derivative_account_id` method.
+
+    ## Integration
+
+    Replace:
+
+    ```rust
+    pallet_utility::Pallet::<T>::derivative_account_id(who, index)
+    ```
+    with:
+    ```rust
+    pallet_utility::derivative_account_id(who, index)
+    ```
+crates:
+- name: pallet-utility
+  bump: major

@@ -209,9 +209,3 @@ where
 pub fn new() -> Client<Backend> {
 	TestClientBuilder::new().build()
 }
-
-/// Create a new native executor.
-#[deprecated(note = "Switch to `WasmExecutor:default()`.")]
-pub fn new_native_or_wasm_executor() -> WasmExecutor {
-	WasmExecutor::default()
-}

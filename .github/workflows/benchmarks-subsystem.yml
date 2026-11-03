@@ -70,7 +70,7 @@ jobs:
           ls -lsa ./charts | grep json
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{matrix.features.bench}}
           path: ./charts
@@ -91,7 +91,7 @@ jobs:
       - run: git checkout master --
 
       - name: Download artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ./charts
 
@@ -101,7 +101,7 @@ jobs:
           git config --global --add safe.directory '*'
           ls -lsR ./charts
 
-      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         id: app-token
         with:
           app-id: ${{ secrets.POLKADOTSDK_GHPAGES_APP_ID }}
@@ -110,7 +110,7 @@ jobs:
       - name: Generate ${{ env.BENCH }}
         env:
           BENCH: availability-recovery-regression-bench
-        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b # v1.20.7
+        uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1.22.0
         with:
           tool: "customSmallerIsBetter"
           name: ${{ env.BENCH }}
@@ -123,7 +123,7 @@ jobs:
       - name: Generate ${{ env.BENCH }}
         env:
           BENCH: availability-distribution-regression-bench
-        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b # v1.20.7
+        uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1.22.0
         with:
           tool: "customSmallerIsBetter"
           name: ${{ env.BENCH }}
@@ -136,7 +136,7 @@ jobs:
       - name: Generate ${{ env.BENCH }}
         env:
           BENCH: approval-voting-regression-bench
-        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b # v1.20.7
+        uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1.22.0
         with:
           tool: "customSmallerIsBetter"
           name: ${{ env.BENCH }}
@@ -149,7 +149,7 @@ jobs:
       - name: Generate ${{ env.BENCH }}
         env:
           BENCH: statement-distribution-regression-bench
-        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b # v1.20.7
+        uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1.22.0
         with:
           tool: "customSmallerIsBetter"
           name: ${{ env.BENCH }}
@@ -162,7 +162,7 @@ jobs:
       - name: Generate ${{ env.BENCH }}
         env:
           BENCH: dispute-coordinator-regression-bench
-        uses: benchmark-action/github-action-benchmark@4bdcce38c94cec68da58d012ac24b7b1155efe8b # v1.20.7
+        uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1.22.0
         with:
           tool: "customSmallerIsBetter"
           name: ${{ env.BENCH }}

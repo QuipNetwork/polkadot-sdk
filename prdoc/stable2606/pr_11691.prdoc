@@ -1,0 +1,5 @@
+title: 'statement-store: test crash mid-sync'
+doc:
+- audience: Node Dev
+  description: Adds a zombienet integration test that verifies statement store recovery after a node crash mid-sync. The test submits statements concurrently to multiple nodes, kills one mid-gossip, submits more while it's down, then asserts all recoverable statements converge after restart.
+crates: []

@@ -270,14 +270,3 @@ where
 		CallExecutor::runtime_version(self, at, call_context).map_err(|e| e.to_string())
 	}
 }
-
-impl<Block, B, E> sp_version::GetNativeVersion for LocalCallExecutor<Block, B, E>
-where
-	B: backend::Backend<Block>,
-	E: CodeExecutor + sp_version::GetNativeVersion + Clone + 'static,
-	Block: BlockT,
-{
-	fn native_version(&self) -> &sp_version::NativeVersion {
-		self.executor.native_version()
-	}
-}

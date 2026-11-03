@@ -47,7 +47,8 @@ pub use v9::{
 	BlakeTwo256, Block, BlockId, BlockNumber, CandidateCommitments, CandidateDescriptorV2,
 	CandidateDescriptorVersion, CandidateDescriptorVersionCheckError, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceiptV2, CheckedDisputeStatementSet,
-	CheckedMultiDisputeStatementSet, ChunkIndex, ClaimQueueOffset, CollatorId, CollatorSignature,
+	CheckedMultiDisputeStatementSet, ChunkIndex, ClaimQueueOffset,
+	CoalescedApprovalCandidateHashes, CollatorId, CollatorSignature,
 	CommittedCandidateReceiptError, CommittedCandidateReceiptV2, CompactStatement, ConsensusLog,
 	CoreIndex, CoreSelector, CoreState, DisputeOffenceKind, DisputeState, DisputeStatement,
 	DisputeStatementSet, DownwardMessage, EncodeAs, ExecutorHostFunction, ExecutorParam,
@@ -66,10 +67,10 @@ pub use v9::{
 	UpgradeRestriction, UpwardMessage, ValidDisputeStatementKind, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 	ValidityError, ASSIGNMENT_KEY_TYPE_ID, DEFAULT_CLAIM_QUEUE_OFFSET,
-	DEFAULT_SCHEDULING_LOOKAHEAD, LEGACY_MIN_BACKING_VOTES, LOWEST_PUBLIC_ID, MAX_CODE_SIZE,
-	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE, MIN_CODE_SIZE, ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE,
-	ON_DEMAND_MAX_QUEUE_MAX_SIZE, PARACHAINS_INHERENT_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-	RELAY_CHAIN_SLOT_DURATION_MILLIS, UMP_SEPARATOR,
+	DEFAULT_SCHEDULING_LOOKAHEAD, LEGACY_MIN_BACKING_VOTES, LOWEST_PUBLIC_ID,
+	MAX_COALESCE_APPROVALS, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE, MIN_CODE_SIZE,
+	ON_DEMAND_DEFAULT_QUEUE_MAX_SIZE, ON_DEMAND_MAX_QUEUE_MAX_SIZE, PARACHAINS_INHERENT_IDENTIFIER,
+	PARACHAIN_KEY_TYPE_ID, RELAY_CHAIN_SLOT_DURATION_MILLIS, UMP_SEPARATOR,
 };
 
 #[cfg(feature = "test")]

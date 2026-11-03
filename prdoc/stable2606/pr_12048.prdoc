@@ -1,0 +1,10 @@
+title: '[pallet-assets-precompiles] replace balance type u64 with u128 in tests'
+doc:
+- audience: Runtime Dev
+  description: |
+    Replace the test runtime's `Balance` type from `u64` to `u128` in
+    `pallet-assets-precompiles` to align with `pallet_revive`'s test
+    convention. Test-only change with no production impact.
+crates:
+- name: pallet-assets-precompiles
+  bump: patch

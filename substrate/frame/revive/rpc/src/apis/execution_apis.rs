@@ -35,8 +35,9 @@ pub trait EthRpc {
 	#[method(name = "eth_call")]
 	async fn call(
 		&self,
-		transaction: GenericTransaction,
-		block: Option<BlockNumberOrTagOrHash>,
+		transaction: GenericTransactionV1,
+		block: Option<BlockId>,
+		state_overrides: Option<StateOverrideSetV1>,
 	) -> RpcResult<Bytes>;
 
 	/// Returns the chain ID of the current network.
@@ -48,7 +49,7 @@ pub trait EthRpc {
 	#[method(name = "eth_estimateGas")]
 	async fn estimate_gas(
 		&self,
-		transaction: GenericTransaction,
+		transaction: GenericTransactionV1,
 		block: Option<BlockNumberOrTag>,
 	) -> RpcResult<U256>;
 
@@ -58,8 +59,7 @@ pub trait EthRpc {
 
 	/// Returns the balance of the account of given address.
 	#[method(name = "eth_getBalance")]
-	async fn get_balance(&self, address: Address, block: BlockNumberOrTagOrHash)
-	-> RpcResult<U256>;
+	async fn get_balance(&self, address: Address, block: BlockId) -> RpcResult<U256>;
 
 	/// Returns information about a block by hash.
 	#[method(name = "eth_getBlockByHash")]
@@ -67,7 +67,7 @@ pub trait EthRpc {
 		&self,
 		block_hash: H256,
 		hydrated_transactions: bool,
-	) -> RpcResult<Option<Block>>;
+	) -> RpcResult<Option<BlockV1>>;
 
 	/// Returns information about a block by number.
 	#[method(name = "eth_getBlockByNumber")]
@@ -75,7 +75,11 @@ pub trait EthRpc {
 		&self,
 		block: BlockNumberOrTag,
 		hydrated_transactions: bool,
-	) -> RpcResult<Option<Block>>;
+	) -> RpcResult<Option<BlockV1>>;
+
+	/// Returns the receipts of all transactions in a block.
+	#[method(name = "eth_getBlockReceipts")]
+	async fn get_block_receipts(&self, block: BlockId) -> RpcResult<Option<Vec<ReceiptInfo>>>;
 
 	/// Returns the number of transactions in a block from a block matching the given block hash.
 	#[method(name = "eth_getBlockTransactionCountByHash")]
@@ -93,7 +97,7 @@ pub trait EthRpc {
 
 	/// Returns code at a given address.
 	#[method(name = "eth_getCode")]
-	async fn get_code(&self, address: Address, block: BlockNumberOrTagOrHash) -> RpcResult<Bytes>;
+	async fn get_code(&self, address: Address, block: BlockId) -> RpcResult<Bytes>;
 
 	/// Returns an array of all logs matching filter with given id.
 	#[method(name = "eth_getLogs")]
@@ -105,7 +109,7 @@ pub trait EthRpc {
 		&self,
 		address: Address,
 		storage_slot: U256,
-		block: BlockNumberOrTagOrHash,
+		block: BlockId,
 	) -> RpcResult<Bytes>;
 
 	/// Returns information about a transaction by block hash and transaction index position.
@@ -114,7 +118,7 @@ pub trait EthRpc {
 		&self,
 		block_hash: H256,
 		transaction_index: U256,
-	) -> RpcResult<Option<TransactionInfo>>;
+	) -> RpcResult<Option<TransactionInfoV1>>;
 
 	/// Returns information about a transaction by block number and transaction index position.
 	#[method(name = "eth_getTransactionByBlockNumberAndIndex")]
@@ -122,22 +126,18 @@ pub trait EthRpc {
 		&self,
 		block: BlockNumberOrTag,
 		transaction_index: U256,
-	) -> RpcResult<Option<TransactionInfo>>;
+	) -> RpcResult<Option<TransactionInfoV1>>;
 
 	/// Returns the information about a transaction requested by transaction hash.
 	#[method(name = "eth_getTransactionByHash")]
 	async fn get_transaction_by_hash(
 		&self,
 		transaction_hash: H256,
-	) -> RpcResult<Option<TransactionInfo>>;
+	) -> RpcResult<Option<TransactionInfoV1>>;
 
 	/// Returns the number of transactions sent from an address.
 	#[method(name = "eth_getTransactionCount")]
-	async fn get_transaction_count(
-		&self,
-		address: Address,
-		block: BlockNumberOrTagOrHash,
-	) -> RpcResult<U256>;
+	async fn get_transaction_count(&self, address: Address, block: BlockId) -> RpcResult<U256>;
 
 	/// Returns the receipt of a transaction by transaction hash.
 	#[method(name = "eth_getTransactionReceipt")]
@@ -157,7 +157,7 @@ pub trait EthRpc {
 
 	/// Signs and submits a transaction.
 	#[method(name = "eth_sendTransaction")]
-	async fn send_transaction(&self, transaction: GenericTransaction) -> RpcResult<H256>;
+	async fn send_transaction(&self, transaction: GenericTransactionV1) -> RpcResult<H256>;
 
 	/// Returns an object with data about the sync status or false.
 	#[method(name = "eth_syncing")]
@@ -186,4 +186,14 @@ pub trait EthRpc {
 		newest_block: BlockNumberOrTag,
 		reward_percentiles: Option<Vec<f64>>,
 	) -> RpcResult<FeeHistoryResult>;
+
+	/// Creates a subscription to specific events, returning a subscription ID.
+	/// Notifications are sent for each event matching the subscription via
+	/// `eth_subscription`.
+	#[subscription(
+		name = "eth_subscribe" => "eth_subscription",
+		unsubscribe = "eth_unsubscribe",
+		item = SubscriptionItem
+	)]
+	async fn eth_subscribe(&self, kind: SubscriptionKind, options: Option<SubscriptionOptions>);
 }

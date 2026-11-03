@@ -20,9 +20,9 @@ codec = { workspace = true, default-features = true }
 futures = { workspace = true }
 log = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
-sc-transaction-pool = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 thiserror = { workspace = true }

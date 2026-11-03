@@ -182,7 +182,7 @@ impl Network for TestNetwork {
 
 	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {
 		let (peer_set, version) = self.peerset_protocol_names.try_get_protocol(&protocol).unwrap();
-		assert_eq!(version, peer_set.get_main_version());
+		assert_eq!(version, self.peerset_protocol_names.get_main_version(peer_set));
 
 		self.action_tx
 			.lock()

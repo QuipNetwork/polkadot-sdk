@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
 description = "Polkadot crate that implements the Candidate Validation subsystem. Handles requests to validate candidates according to a PVF."
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,18 +15,20 @@ workspace = true
 async-trait = { workspace = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 
 codec = { features = ["bit-vec", "derive"], workspace = true }
-polkadot-node-metrics = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+schnellru = { workspace = true }
 sp-application-crypto = { workspace = true }
 sp-keystore = { workspace = true }
+
+polkadot-node-metrics = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
 polkadot-node-core-pvf = { workspace = true, default-features = true }
@@ -36,9 +38,9 @@ polkadot-node-core-pvf-common = { workspace = true, default-features = true }
 assert_matches = { workspace = true }
 futures = { features = ["thread-pool"], workspace = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
-polkadot-primitives = { features = ["test"], workspace = true, default-features = false }
+polkadot-primitives = { workspace = true, features = ["test"] }
 polkadot-primitives-test-helpers = { workspace = true }
 rstest = { workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-maybe-compressed-blob = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-maybe-compressed-blob = { workspace = true, default-features = true }

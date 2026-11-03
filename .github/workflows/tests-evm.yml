@@ -23,7 +23,7 @@ jobs:
     needs: [preflight]
     runs-on: ${{ needs.preflight.outputs.RUNNER }}
     if: ${{ needs.preflight.outputs.changes_rust }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
     permissions:
@@ -42,7 +42,7 @@ jobs:
         id: download
         uses: ./.github/actions/get-resolc
       - name: Run revive differential tests
-        uses: paritytech/revive-differential-tests/.github/actions/run-differential-tests@b9cff329db2c981f706297150c6cb1f4a5d490c3
+        uses: paritytech/revive-differential-tests/.github/actions/run-differential-tests@b12369430ec8184e62cc5fdcae8a140a8f1fadbd
         with:
           platform: ${{ matrix.platform }}
           cargo-command: "forklift cargo"
@@ -78,7 +78,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: paritytech/evm-test-suite
-          ref: 369d53dd76c8e2c7a30d7eefef03fa1728186c8a
+          ref: 8ceb93224ffea9640b3b5bed07cef2a6c2832da3
           path: evm-test-suite
 
       - uses: denoland/setup-deno@v2
@@ -102,7 +102,7 @@ jobs:
 
   confirm-required-test-evm-jobs-passed:
     runs-on: ubuntu-latest
-    name: All test misc tests passed
+    name: All evm tests passed
     # If any new job gets added, be sure to add it to this array
     needs:
       - evm-test-suite

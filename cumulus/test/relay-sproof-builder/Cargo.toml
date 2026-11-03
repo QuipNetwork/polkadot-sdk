@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-test-relay-sproof-builder"
-version = "0.25.0"
+version = "0.28.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -13,8 +13,8 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-primitives-core = { workspace = true }
-polkadot-primitives = { workspace = true }
+
+# Substrate
 sp-consensus-babe = { workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
@@ -22,6 +22,12 @@ sp-keyring = { workspace = true }
 sp-runtime = { workspace = true }
 sp-state-machine = { workspace = true }
 sp-trie = { workspace = true }
+
+# Polkadot
+polkadot-primitives = { workspace = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

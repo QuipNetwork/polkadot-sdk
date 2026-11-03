@@ -1,0 +1,16 @@
+title: 'pallet-dap: expose budget recipients and staging account as view functions'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds two view functions to `pallet-dap`:
+    - `budget_recipients()` returns `Vec<(BudgetKey, AccountId, Perbill)>`: every registered recipient joined with its
+      current allocation share.
+    - `staging()` returns the sub-account that collects burns/slashes before `on_idle` drains them into the buffer.
+
+    Needed by off-chain clients (e.g. pjs app) that would otherwise re-derive sub-accounts and join recipient lists
+      client-side.
+crates:
+- name: pallet-dap
+  bump: minor
+- name: pallet-staking-async-parachain-runtime
+  bump: patch

@@ -73,6 +73,11 @@
 //! ```
 //! Please note that views are only created for the notified blocks.
 //!
+//! The pool can be notified either about every imported block (all forks), or only about the best
+//! blocks. In the former case views are created for all forks, keeping the pool ready to author on
+//! or switch to any fork without a cold-start re-validation; in the latter only the best chain is
+//! tracked.
+//!
 //!
 //! ### View store.
 //! [`ViewStore`] is the helper structure that provides means to perform some actions like
@@ -173,12 +178,14 @@
 //!
 //! ### Maintain
 //! The transaction pool exposes the [task][`notification_future`] that listens to the
-//! finalized and best block streams and executes the [`maintain`] procedure.
+//! finalized and block-import streams and executes the [`maintain`] procedure. The block-import
+//! stream may carry either every imported block (all forks) or best blocks only, depending on the
+//! pool configuration.
 //!
 //! The [`maintain`] is the main procedure of the transaction pool. It handles incoming
 //! [`ChainEvent`]s, as described in the following two sub-sections.
 //!
-//! #### Handling the new (best) block
+//! #### Handling the new block (best or non-best fork)
 //! If the new block actually needs to be handled, the following steps are
 //! executed:
 //! - [find][find_best_view] the best view and clone it to [create a new

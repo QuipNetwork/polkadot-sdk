@@ -1,6 +1,6 @@
 [package]
 name = "sc-transaction-pool-api"
-version = "44.0.0"
+version = "47.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -18,7 +18,7 @@ futures = { workspace = true }
 indexmap = { workspace = true }
 log = { workspace = true, default-features = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
-sp-blockchain = { default-features = true, workspace = true }
+sp-blockchain = { workspace = true, default-features = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 strum = { workspace = true, features = ["derive"] }

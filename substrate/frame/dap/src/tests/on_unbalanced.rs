@@ -17,28 +17,34 @@
 
 //! OnUnbalanced tests for the DAP pallet.
 
-use crate::mock::{new_test_ext, Balances, Test};
-use frame_support::traits::{
-	fungible::{Balanced, Inspect},
-	tokens::{Fortitude, Precision, Preservation},
-	OnUnbalanced,
+use crate::mock::{account_id, build_and_execute, set_default_budget_allocation, Balances, Test};
+use frame_support::{
+	pallet_prelude::Weight,
+	traits::{
+		fungible::{Balanced, Inspect},
+		tokens::{Fortitude, Precision, Preservation},
+		Currency, Hooks, OnUnbalanced,
+	},
 };
 
 type DapPallet = crate::Pallet<Test>;
+type DapLegacy = crate::DapLegacyAdapter<Test, Balances>;
 
 #[test]
-#[should_panic(expected = "Failed to deposit slash to DAP buffer")]
-fn on_unbalanced_panics_when_buffer_not_funded_and_deposit_below_ed() {
-	new_test_ext(false).execute_with(|| {
-		let buffer = DapPallet::buffer_account();
+#[should_panic(expected = "Failed to deposit slash to DAP staging account")]
+fn on_unbalanced_panics_when_staging_not_funded_and_deposit_below_ed() {
+	build_and_execute(false, || {
+		set_default_budget_allocation();
+
+		let staging = DapPallet::staging_account();
 		let ed = <Balances as Inspect<_>>::minimum_balance();
 
-		// Given: buffer is not funded
-		assert_eq!(Balances::free_balance(buffer), 0);
+		// Given: staging is not funded
+		assert_eq!(Balances::free_balance(&staging), 0);
 
 		// When: deposit < ED -> triggers defensive panic
-		let credit = <Balances as Balanced<u64>>::withdraw(
-			&1,
+		let credit = <Balances as Balanced<_>>::withdraw(
+			&account_id(1),
 			ed - 1,
 			Precision::Exact,
 			Preservation::Preserve,
@@ -50,17 +56,19 @@ fn on_unbalanced_panics_when_buffer_not_funded_and_deposit_below_ed() {
 }
 
 #[test]
-fn on_unbalanced_creates_buffer_when_not_funded_and_deposit_at_least_ed() {
-	new_test_ext(false).execute_with(|| {
-		let buffer = DapPallet::buffer_account();
+fn on_unbalanced_creates_staging_when_not_funded_and_deposit_at_least_ed() {
+	build_and_execute(false, || {
+		set_default_budget_allocation();
+
+		let staging = DapPallet::staging_account();
 		let ed = <Balances as Inspect<_>>::minimum_balance();
 
-		// Given: buffer is not funded
-		assert_eq!(Balances::free_balance(buffer), 0);
+		// Given: staging is not funded
+		assert_eq!(Balances::free_balance(&staging), 0);
 
 		// When: deposit >= ED
-		let credit = <Balances as Balanced<u64>>::withdraw(
-			&1,
+		let credit = <Balances as Balanced<_>>::withdraw(
+			&account_id(1),
 			ed,
 			Precision::Exact,
 			Preservation::Preserve,
@@ -69,72 +77,118 @@ fn on_unbalanced_creates_buffer_when_not_funded_and_deposit_at_least_ed() {
 		.unwrap();
 		DapPallet::on_unbalanced(credit);
 
-		// Then: buffer is created and funded
-		assert_eq!(Balances::free_balance(buffer), ed);
+		// Then: staging is created and funded
+		assert_eq!(Balances::free_balance(&staging), ed);
 	});
 }
 
 #[test]
-fn slash_to_dap_accumulates_multiple_slashes_to_buffer() {
-	new_test_ext(true).execute_with(|| {
+fn slash_to_dap_accumulates_to_staging_then_deactivates_on_idle() {
+	build_and_execute(true, || {
+		set_default_budget_allocation();
+
 		let buffer = DapPallet::buffer_account();
+		let staging = DapPallet::staging_account();
 		let ed = <Balances as Inspect<_>>::minimum_balance();
 
-		// Given: buffer has ED, users have balances (1: 100, 2: 200, 3: 300)
-		assert_eq!(Balances::free_balance(buffer), ed);
+		let alice = account_id(1);
+		let bob = account_id(2);
+		let charlie = account_id(3);
+
+		// Given: buffer and staging each have ED; users have balances.
+		assert_eq!(Balances::free_balance(&buffer), ed);
+		assert_eq!(Balances::free_balance(&staging), ed);
 		let initial_active = <Balances as Inspect<_>>::active_issuance();
 		let initial_total = <Balances as Inspect<_>>::total_issuance();
 
-		// When: multiple slashes occur via OnUnbalanced (simulating staking slashes)
-		let credit1 = <Balances as Balanced<u64>>::withdraw(
-			&1,
-			30,
-			Precision::Exact,
-			Preservation::Preserve,
-			Fortitude::Force,
-		)
-		.unwrap();
-		DapPallet::on_unbalanced(credit1);
+		// When: multiple slashes occur via OnUnbalanced (simulating staking slashes).
+		for (who, amount) in [(&alice, 30u64), (&bob, 20), (&charlie, 50)] {
+			let credit = <Balances as Balanced<_>>::withdraw(
+				who,
+				amount,
+				Precision::Exact,
+				Preservation::Preserve,
+				Fortitude::Force,
+			)
+			.unwrap();
+			DapPallet::on_unbalanced(credit);
+		}
 
-		let credit2 = <Balances as Balanced<u64>>::withdraw(
-			&2,
-			20,
-			Precision::Exact,
-			Preservation::Preserve,
-			Fortitude::Force,
-		)
-		.unwrap();
-		DapPallet::on_unbalanced(credit2);
+		// Then: funds land in staging, not buffer.
+		assert_eq!(Balances::free_balance(&staging), ed + 100);
+		assert_eq!(Balances::free_balance(&buffer), ed);
 
-		let credit3 = <Balances as Balanced<u64>>::withdraw(
-			&3,
-			50,
-			Precision::Exact,
-			Preservation::Preserve,
-			Fortitude::Force,
-		)
-		.unwrap();
-		DapPallet::on_unbalanced(credit3);
+		// And: users lost their slashed amounts.
+		assert_eq!(Balances::free_balance(&alice), 100 - 30);
+		assert_eq!(Balances::free_balance(&bob), 200 - 20);
+		assert_eq!(Balances::free_balance(&charlie), 300 - 50);
 
-		// Then: buffer has ED + all slashes
-		assert_eq!(Balances::free_balance(buffer), ed + 100);
+		// And: active issuance is NOT yet decreased (deactivation is deferred to on_idle).
+		assert_eq!(<Balances as Inspect<_>>::active_issuance(), initial_active);
 
-		// And: users lost their slashed amounts
-		assert_eq!(Balances::free_balance(1), 100 - 30);
-		assert_eq!(Balances::free_balance(2), 200 - 20);
-		assert_eq!(Balances::free_balance(3), 300 - 50);
-
-		// And: active issuance decreased by 100 (funds deactivated in DAP buffer)
-		assert_eq!(<Balances as Inspect<_>>::active_issuance(), initial_active - 100);
-
-		// When: slash with zero amount (no-op)
-		let credit = <Balances as Balanced<u64>>::issue(0);
-		DapPallet::on_unbalanced(credit);
-
-		// And: total issuance unchanged (funds moved, not created/destroyed)
+		// And: total issuance unchanged (funds moved, not destroyed).
 		assert_eq!(<Balances as Inspect<_>>::total_issuance(), initial_total);
 
-		// And: active issuance decreased by 100 (funds deactivated in DAP buffer)
+		// When: on_idle drains staging into buffer and deactivates.
+		DapPallet::on_idle(1, Weight::MAX);
+
+		// Then: staging retains only ED; buffer gained all slashed funds.
+		assert_eq!(Balances::free_balance(&staging), ed);
+		assert_eq!(Balances::free_balance(&buffer), ed + 100);
+
+		// And: active issuance decreased by 100 (funds deactivated in DAP buffer).
 		assert_eq!(<Balances as Inspect<_>>::active_issuance(), initial_active - 100);
+
+		// And: total issuance still unchanged.
+		assert_eq!(<Balances as Inspect<_>>::total_issuance(), initial_total);
+	});
+}
+
+#[test]
+fn legacy_adapter_redirects_slash_to_staging_then_deactivates_on_idle() {
+	build_and_execute(true, || {
+		set_default_budget_allocation();
+
+		let buffer = DapPallet::buffer_account();
+		let staging = DapPallet::staging_account();
+		let ed = <Balances as Inspect<_>>::minimum_balance();
+
+		let alice = account_id(1);
+
+		// Given: buffer and staging each have ED, alice has 100.
+		assert_eq!(Balances::free_balance(&buffer), ed);
+		assert_eq!(Balances::free_balance(&staging), ed);
+		let initial_active = <Balances as Inspect<_>>::active_issuance();
+		let initial_total = <Balances as Inspect<_>>::total_issuance();
+
+		// When: legacy slash via Currency::slash -> DapLegacyAdapter.
+		let (imbalance, _) = <Balances as Currency<_>>::slash(&alice, 30);
+		DapLegacy::on_unbalanced(imbalance);
+
+		// Then: funds land in staging, not buffer.
+		assert_eq!(Balances::free_balance(&staging), ed + 30);
+		assert_eq!(Balances::free_balance(&buffer), ed);
+
+		// And: alice lost the slashed amount.
+		assert_eq!(Balances::free_balance(&alice), 100 - 30);
+
+		// And: total issuance unchanged (funds moved, not destroyed).
+		assert_eq!(<Balances as Inspect<_>>::total_issuance(), initial_total);
+
+		// And: active issuance is NOT yet decreased (deactivation is deferred to on_idle).
+		assert_eq!(<Balances as Inspect<_>>::active_issuance(), initial_active);
+
+		// When: on_idle drains staging into buffer and deactivates.
+		DapPallet::on_idle(1, Weight::MAX);
+
+		// Then: staging retains only ED; buffer gained the slashed funds.
+		assert_eq!(Balances::free_balance(&staging), ed);
+		assert_eq!(Balances::free_balance(&buffer), ed + 30);
+
+		// And: active issuance decreased by 30 (funds deactivated in DAP buffer).
+		assert_eq!(<Balances as Inspect<_>>::active_issuance(), initial_active - 30);
+
+		// And: total issuance still unchanged.
+		assert_eq!(<Balances as Inspect<_>>::total_issuance(), initial_total);
 	});
 }

@@ -1,0 +1,11 @@
+title: Remove deprecated RuntimeHelper::execute_as_governance
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    - Removes `RuntimeHelper::execute_as_governance` (deprecated after August 2025).
+    - Callers should use `execute_as_governance_call` instead; no remaining in-repo usages.
+crates:
+- name: parachains-runtimes-test-utils
+  bump: major

@@ -145,6 +145,15 @@ where
 			TransactionStatusUpdate::Dropped(_, DroppedReason::Invalid) => {
 				TransactionStatus::Invalid
 			},
+			TransactionStatusUpdate::Dropped(_, DroppedReason::Viewless) => {
+				// Viewless events are handled by dropped_monitor_task and should never
+				// reach the listener. If they do, treat as dropped.
+				tracing::warn!(
+					target: crate::LOG_TARGET,
+					"Unexpected Viewless event reached the transaction status listener"
+				);
+				TransactionStatus::Dropped
+			},
 			TransactionStatusUpdate::FinalityTimeout(_, block_hash) => {
 				TransactionStatus::FinalityTimeout(*block_hash)
 			},

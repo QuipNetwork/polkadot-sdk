@@ -9,8 +9,9 @@
 //! to ensure most approvals come from tranche0.
 
 use crate::utils::{
-	env_or_default, initialize_network, APPROVAL_CHECKING_FINALITY_LAG_METRIC, COL_IMAGE_ENV,
-	INTEGRATION_IMAGE_ENV, NODE_ROLES_METRIC,
+	assert_nodes_are_validators, env_or_default, initialize_network,
+	maybe_enable_experimental_collator_protocol, APPROVAL_CHECKING_FINALITY_LAG_METRIC,
+	COL_IMAGE_ENV, INTEGRATION_IMAGE_ENV,
 };
 use anyhow::anyhow;
 use cumulus_zombienet_sdk_helpers::assert_para_throughput;
@@ -41,16 +42,11 @@ async fn parachains_max_tranche0_test() -> Result<(), anyhow::Error> {
 
 	let config = build_network_config()?;
 	let network = initialize_network(config).await?;
+	let validator_nodes = network.relaychain().nodes();
 
 	// Check authority status
 	log::info!("Checking validator node roles");
-	for i in 0..NUM_VALIDATORS {
-		let validator = network.get_node(format!("some-validator-{i}"))?;
-		validator
-			.wait_metric_with_timeout(NODE_ROLES_METRIC, |v| v == 4.0, 60u64)
-			.await
-			.map_err(|e| anyhow!("Validator {} role check failed: {}", i, e))?;
-	}
+	assert_nodes_are_validators(&validator_nodes).await?;
 	log::info!("All validators confirmed as authorities");
 
 	// Get a relay client for parachain throughput checks
@@ -70,6 +66,7 @@ async fn parachains_max_tranche0_test() -> Result<(), anyhow::Error> {
 			(ParaId::from(2003u32), 5..100),
 			(ParaId::from(2004u32), 5..100),
 		],
+		[],
 	)
 	.await?;
 	log::info!("All parachains producing blocks");
@@ -99,7 +96,9 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 			.with_chain("rococo-local")
 			.with_default_command("polkadot")
 			.with_default_image(polkadot_image.as_str())
-			.with_default_args(vec!["-lparachain=debug,runtime=debug".into()])
+			.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+				"-lparachain=debug,runtime=debug".into(),
+			]))
 			.with_genesis_overrides(json!({
 				"patch": {
 					"configuration": {

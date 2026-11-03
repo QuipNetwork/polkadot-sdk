@@ -220,6 +220,14 @@ fn invariants() {
 		);
 
 		assert_err!(
+			Configuration::set_approval_voting_params(
+				RuntimeOrigin::root(),
+				ApprovalVotingParams { max_approval_coalesce_count: MAX_COALESCE_APPROVALS + 1 },
+			),
+			Error::<Test>::InvalidNewValue
+		);
+
+		assert_err!(
 			Configuration::set_paras_availability_period(RuntimeOrigin::root(), 0),
 			Error::<Test>::InvalidNewValue
 		);

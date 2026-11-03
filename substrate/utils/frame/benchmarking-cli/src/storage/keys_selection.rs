@@ -52,7 +52,7 @@ where
 {
 	let mut entries: Vec<E> = if let Some(limit) = keys_limit {
 		let first_key =
-			random_seed.map(|seed| sp_core::blake2_256(&seed.to_be_bytes()[..]).to_vec());
+			random_seed.map(|seed| sp_crypto_hashing::blake2_256(&seed.to_be_bytes()[..]).to_vec());
 		let from_first = iter_from_first_key(first_key.as_deref())?;
 		let mut collected: Vec<E> = from_first.take(limit).collect();
 		if collected.len() < limit {

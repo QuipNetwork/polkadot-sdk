@@ -23,7 +23,8 @@ use frame_support::{
 	traits::{GetStorageVersion, PalletInfoAccess},
 	weights::WeightMeter,
 };
-use sp_core::{twox_128, Get};
+use sp_core::Get;
+use sp_crypto_hashing::twox_128;
 use sp_io::{storage::clear_prefix, KillStorageResult};
 use sp_runtime::SaturatedConversion;
 

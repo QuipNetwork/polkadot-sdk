@@ -74,6 +74,18 @@ impl<T: frame_system::Config> pallet_asset_conversion::WeightInfo for WeightInfo
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
+	/// Same as [`Self::create_pool`] plus one extra write to `AssetConversion::PoolFees`.
+	fn create_pool_with_fee() -> Weight {
+		Self::create_pool().saturating_add(T::DbWeight::get().writes(1))
+	}
+	/// Storage: `AssetConversion::Pools` (r:1 w:0)
+	/// Storage: `AssetConversion::PoolFees` (r:0 w:1)
+	fn set_pool_fee() -> Weight {
+		Weight::from_parts(15_000_000, 0)
+			.saturating_add(Weight::from_parts(0, 3495))
+			.saturating_add(T::DbWeight::get().reads(1))
+			.saturating_add(T::DbWeight::get().writes(1))
+	}
 	/// Storage: `AssetConversion::Pools` (r:1 w:0)
 	/// Proof: `AssetConversion::Pools` (`max_values`: None, `max_size`: Some(1224), added: 3699, mode: `MaxEncodedLen`)
 	/// Storage: `ForeignAssets::Asset` (r:1 w:1)
@@ -192,5 +204,14 @@ impl<T: frame_system::Config> pallet_asset_conversion::WeightInfo for WeightInfo
 			.saturating_add(Weight::from_parts(11_930_532, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(n.into())))
+	}
+	/// Storage: `ForeignAssets::Asset` (r:2 w:0)
+	/// Proof: `ForeignAssets::Asset` (`max_values`: None, `max_size`: Some(808), added: 3283, mode: `MaxEncodedLen`)
+	/// Storage: `ForeignAssets::Account` (r:2 w:0)
+	/// Proof: `ForeignAssets::Account` (`max_values`: None, `max_size`: Some(732), added: 3207, mode: `MaxEncodedLen`)
+	fn get_reserves() -> Weight {
+		// Placeholder: will be replaced by running benchmarks.
+		Weight::from_parts(16_000_000, 6566)
+			.saturating_add(T::DbWeight::get().reads(4))
 	}
 }

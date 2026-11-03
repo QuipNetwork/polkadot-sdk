@@ -1,0 +1,53 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'pallet-psm: multi-instance, permissionless Peg Stability Modules'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    Reworks `pallet-psm` from a single, governance-seeded Peg Stability Module into a
+    multi-instance design where many PSMs coexist, each created permissionlessly and
+    managed by its own admins.
+
+    Functional changes:
+    - A runtime can hold any number of PSMs at once, each keyed by its internal
+      (stablecoin) asset id. Each PSM can be backed by several external assets; all
+      per-asset state is keyed by the `(internal_asset, external_asset)` pair.
+    - PSMs are created via the new `create_psm` extrinsic. Creation is controlled by
+      `Config::CreateOrigin`, parameterized by the internal asset. The creator picks the
+      initial admins and parameters.
+    - Per-PSM authorization: each PSM stores a `full_admin` and an `emergency_admin` origin,
+      reassignable via `set_full_admin` / `set_emergency_admin`. This replaces the single,
+      global governance manager origin.
+    - Per-instance configuration now lives entirely in storage (the `Psm` and `PsmAdmin`
+      maps) rather than in `Config` or genesis. The debt ceiling is an absolute balance
+      rather than a fraction of a system-wide cap.
+
+    Breaking changes for runtimes wiring `pallet-psm`:
+    - `Config` reworked. Removed: `InternalAsset`, `FeeDestination`, `MaximumIssuance`, and
+      `ManagerOrigin`. Added: `Consideration`, `CreateOrigin`, and `PalletsOrigin`.
+      `MaxExternalAssets` is renamed `MaxExternals`.
+    - New extrinsics: `create_psm`, `remove_psm`, `set_full_admin`, `set_emergency_admin`.
+      `set_max_psm_debt(ratio: Permill)` is renamed `set_max_debt(value: Balance)` with
+      absolute semantics; the `MaxPsmDebtOfTotalUpdated` event is renamed `MaxDebtUpdated`;
+      `Error::ExceedsMaxIssuance` is removed and `Error::PsmNotFound` is added.
+      `mint` and `redeem` now take a `max_fee` bound and fail with `FeeTooHigh` when the
+      configured fee exceeds it.
+    - The pallet's genesis config and the `InitializePsm` / decimals migration helpers are
+      removed. There is no in-place data migration: the pallet is redeployed from scratch.
+      A runtime upgrading an existing deployment must wipe the old storage. On Asset Hub
+      Westend this is done with `RemovePallet<Psm>`.
+    - `STORAGE_VERSION` remains at the initial version `0`.
+
+    Asset Hub Westend drops `pallet-parameters`: it only ever hosted a system-wide PSM
+    issuance cap, which the per-PSM `max_debt` ceiling replaced, so the pallet is removed
+    from the runtime and a `RemovePallet<Parameters>` migration wipes its on-chain storage.
+
+crates:
+- name: pallet-psm
+  bump: major
+- name: frame-support
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: major

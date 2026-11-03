@@ -2,7 +2,7 @@
 name = "pallet-meta-tx"
 description = "FRAME pallet enabling meta transactions."
 license = "Apache-2.0"
-version = "0.8.0"
+version = "0.12.0"
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -14,22 +14,23 @@ workspace = true
 [dependencies]
 codec = { workspace = true, features = ["max-encoded-len"] }
 docify = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+serde = { features = ["derive"], optional = true, workspace = true }
+
 frame-benchmarking = { workspace = true, optional = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-scale-info = { workspace = true, features = ["derive"] }
-serde = { features = ["derive"], optional = true, workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-transaction-payment = { default-features = true, workspace = true }
-pallet-verify-signature = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-transaction-payment = { workspace = true, default-features = true }
+pallet-verify-signature = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

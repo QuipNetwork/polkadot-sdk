@@ -1,0 +1,25 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'sc-client-db: add prefetched indexed transactions support'
+doc:
+- audience: Node Dev
+  description: |
+    Adds `PrefetchedIndexedTransactions` to `BlockImportParams`, letting upstream
+    block-import wrappers feed indexed-transaction data into the backend out-of-band:
+
+    - `renew_payloads`: `(content_hash, bytes)` pairs consumed by `apply_index_ops`
+      when a runtime-produced `IndexOperation::Renew` references a hash not yet
+      present in the local `TRANSACTION` column.
+
+    - `ops`: synthetic `IndexOperation`s used when the runtime produced no index ops
+      (e.g. gap-sync backfill). Runtime-produced ops always override when non-empty.
+crates:
+- name: sc-client-api
+  bump: major
+- name: sc-client-db
+  bump: minor
+- name: sc-consensus
+  bump: minor
+- name: sc-service
+  bump: minor

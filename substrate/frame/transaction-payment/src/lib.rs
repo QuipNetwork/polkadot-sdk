@@ -55,7 +55,7 @@ use frame_support::{
 		DispatchClass, DispatchInfo, DispatchResult, GetDispatchInfo, Pays, PostDispatchInfo,
 	},
 	pallet_prelude::TransactionSource,
-	traits::{Defensive, EstimateCallFee, Get, Imbalance, SuppressedDrop},
+	traits::{Defensive, EstimateCallFee, EstimateFee, Get, Imbalance, SuppressedDrop},
 	weights::{Weight, WeightToFee},
 	DebugNoBound,
 };
@@ -1091,5 +1091,14 @@ where
 		let len = call.encoded_size() as u32;
 		let info = call.get_dispatch_info();
 		Self::compute_actual_fee(len, &info, &post_info, Zero::zero())
+	}
+}
+
+impl<T: Config> EstimateFee<BalanceOf<T>> for Pallet<T>
+where
+	T::RuntimeCall: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
+{
+	fn estimate_fee(len: u32, info: &DispatchInfo) -> BalanceOf<T> {
+		Self::compute_fee(len, info, Zero::zero())
 	}
 }

@@ -1,0 +1,10 @@
+title: Derive Debug, Clone, PartialEq, Eq for EraPayoutParams
+doc:
+- audience: Runtime Dev
+  description: |-
+    `polkadot_runtime_common::impls::EraPayoutParams` now derives `Debug`, `Clone`,
+    `PartialEq` and `Eq`, so runtimes can log and compare the era-payout parameters they
+    construct.
+crates:
+- name: polkadot-runtime-common
+  bump: minor

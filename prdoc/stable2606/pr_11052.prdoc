@@ -1,0 +1,29 @@
+title: 'update multi asset bounties pallet account derivation logic '
+doc:
+- audience: Runtime Dev
+  description: |-
+    Bounty and child-bounty account derivation now uses raw-byte `[u8; 3]` prefixes `b"mbt"`
+    (multi-asset bounty) and `b"mcb"` (multi-asset child bounty) instead of the `&str` literals
+    `"bt"` and `"cb"` used by the legacy pallets. This avoids collisions with the old bounties
+    pallet (same account for both pallets).
+
+    **Encoding note:** The prefixes are SCALE-encoded as three raw bytes with no length prefix
+    (e.g. `b"mbt"` → `[0x6d, 0x62, 0x74]`). This differs from the legacy `&str` encoding which
+    includes a compact length prefix (e.g. `"bt"` → `[0x08, 0x62, 0x74]`).
+
+    `BountySourceFromPalletId` and `ChildBountySourceFromPalletId` now take a `Prefix` type
+    parameter (`Get<[u8; 3]>`). This is a **breaking API change** — downstream runtimes must
+    update their configuration to supply the prefix type.
+
+    Module and type docs were updated to document the derivation.
+- audience: Runtime User
+  description: |-
+    The account IDs for bounty and child-bounty funding accounts have changed. Off-chain code that
+    derives or hardcodes these addresses must use the new derivation: raw-byte prefix `b"mbt"` for
+    bounties and `b"mcb"` for child bounties, SCALE-encoded as fixed `[u8; 3]` arrays (no length
+    prefix), with the same pallet ID and index encoding as before.
+crates:
+- name: pallet-multi-asset-bounties
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: patch

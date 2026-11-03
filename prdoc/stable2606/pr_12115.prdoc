@@ -1,0 +1,9 @@
+title: 'pallet-revive: recalibrate `contains_storage` benchmark'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The `contains_storage` benchmark now exercises the persistent storage path, matching how `WeightInfo::contains_storage` is dispatched from the precompile. The transient path remains benchmarked separately as `seal_contains_transient_storage`.
+    Also the `clear_storage`, `contains_storage`, `take_storage` and the transient `clear/contains` benchmarks now size their pre-existing value by n.
+crates:
+- name: pallet-revive
+  bump: patch

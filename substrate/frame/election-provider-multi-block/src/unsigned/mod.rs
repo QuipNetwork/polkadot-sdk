@@ -180,6 +180,7 @@ mod pallet {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -370,6 +371,7 @@ mod pallet {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod validate_unsigned {
 	use frame_election_provider_support::Support;
 	use frame_support::{

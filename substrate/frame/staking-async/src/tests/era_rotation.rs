@@ -16,8 +16,15 @@
 // limitations under the License.
 
 use crate::{
+	reward::EraRewardManager,
 	session_rotation::{Eras, Rotator},
 	tests::session_mock::{CurrentIndex, Timestamp},
+	POT_POOL_SIZE,
+};
+use codec::Encode;
+use frame_support::{
+	traits::fungible::{Inspect, Mutate},
+	PalletId,
 };
 
 use super::*;
@@ -72,7 +79,7 @@ fn forcing_no_forcing_default() {
 				Event::SessionRotated { starting_session: 4, active_era: 1, planned_era: 2 },
 				Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 				Event::SessionRotated { starting_session: 5, active_era: 1, planned_era: 2 },
-				Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 7500 },
+				Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 0 },
 				Event::SessionRotated { starting_session: 6, active_era: 2, planned_era: 2 }
 			]
 		);
@@ -95,7 +102,7 @@ fn forcing_force_always() {
 					Event::SessionRotated { starting_session: 4, active_era: 0, planned_era: 1 },
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					Event::SessionRotated { starting_session: 5, active_era: 0, planned_era: 1 },
-					Event::EraPaid { era_index: 0, validator_payout: 15000, remainder: 15000 },
+					Event::EraPaid { era_index: 0, validator_payout: 15000, remainder: 0 },
 					Event::SessionRotated { starting_session: 6, active_era: 1, planned_era: 1 }
 				]
 			);
@@ -112,9 +119,9 @@ fn forcing_force_always() {
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					// by now it is given to mock session, and is buffered
 					Event::SessionRotated { starting_session: 8, active_era: 1, planned_era: 2 },
-					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 7500 },
 					// and by now it is activated. Note how the validator payout is less, since the
 					// era duration is less. Note that we immediately plan the next era as well.
+					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 0 },
 					Event::SessionRotated { starting_session: 9, active_era: 2, planned_era: 3 }
 				]
 			);
@@ -137,7 +144,7 @@ fn forcing_force_new() {
 					Event::SessionRotated { starting_session: 4, active_era: 0, planned_era: 1 },
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					Event::SessionRotated { starting_session: 5, active_era: 0, planned_era: 1 },
-					Event::EraPaid { era_index: 0, validator_payout: 15000, remainder: 15000 },
+					Event::EraPaid { era_index: 0, validator_payout: 15000, remainder: 0 },
 					Event::SessionRotated { starting_session: 6, active_era: 1, planned_era: 1 }
 				]
 			);
@@ -155,9 +162,9 @@ fn forcing_force_new() {
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					// by now it is given to mock session, and is buffered
 					Event::SessionRotated { starting_session: 8, active_era: 1, planned_era: 2 },
-					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 7500 },
 					// and by now it is activated. Note how the validator payout is less, since the
 					// era duration is less.
+					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 0 },
 					Event::SessionRotated { starting_session: 9, active_era: 2, planned_era: 2 }
 				]
 			);
@@ -173,7 +180,7 @@ fn forcing_force_new() {
 					Event::SessionRotated { starting_session: 13, active_era: 2, planned_era: 3 },
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					Event::SessionRotated { starting_session: 14, active_era: 2, planned_era: 3 },
-					Event::EraPaid { era_index: 2, validator_payout: 15000, remainder: 15000 },
+					Event::EraPaid { era_index: 2, validator_payout: 15000, remainder: 0 },
 					Event::SessionRotated { starting_session: 15, active_era: 3, planned_era: 3 }
 				]
 			);
@@ -228,69 +235,6 @@ fn activation_timestamp_when_era_planning_not_complete() {
 }
 
 #[test]
-fn max_era_duration_safety_guard() {
-	ExtBuilder::default().build_and_execute(|| {
-		// let's deduce some magic numbers for the test.
-		let ideal_era_payout = total_payout_for(time_per_era());
-		let ideal_treasury_payout = RemainderRatio::get() * ideal_era_payout;
-		let ideal_validator_payout = ideal_era_payout - ideal_treasury_payout;
-		// max era duration is capped to 7 times the ideal era duration.
-		let max_validator_payout = 7 * ideal_validator_payout;
-		let max_treasury_payout = 7 * ideal_treasury_payout;
-
-		// these are the values we expect to see in the events.
-		assert_eq!(ideal_treasury_payout, 7500);
-		assert_eq!(ideal_validator_payout, 7500);
-		// when the era duration exceeds `MaxEraDuration`, the payouts should be capped to the
-		// following values.
-		assert_eq!(max_treasury_payout, 52500);
-		assert_eq!(max_validator_payout, 52500);
-
-		// GIVEN: we are at end of an era (2).
-		Session::roll_until_active_era(2);
-		assert_eq!(
-			staking_events_since_last_call(),
-			vec![
-				Event::SessionRotated { starting_session: 4, active_era: 1, planned_era: 2 },
-				Event::PagedElectionProceeded { page: 0, result: Ok(2) },
-				Event::SessionRotated { starting_session: 5, active_era: 1, planned_era: 2 },
-				Event::EraPaid {
-					era_index: 1,
-					validator_payout: ideal_validator_payout,
-					remainder: ideal_treasury_payout
-				},
-				Event::SessionRotated { starting_session: 6, active_era: 2, planned_era: 2 }
-			]
-		);
-
-		// WHEN: subsequent era takes longer than MaxEraDuration.
-		// (this can happen either because of a bug or because a long stall in the chain).
-		Timestamp::set(Timestamp::get() + 2 * MaxEraDuration::get());
-		Session::roll_until_active_era(3);
-
-		// THEN: we should see the payouts capped to the max values.
-		assert_eq!(
-			staking_events_since_last_call(),
-			vec![
-				Event::SessionRotated { starting_session: 7, active_era: 2, planned_era: 3 },
-				Event::PagedElectionProceeded { page: 0, result: Ok(2) },
-				Event::SessionRotated { starting_session: 8, active_era: 2, planned_era: 3 },
-				// an event is emitted to indicate something unexpected happened, i.e. the era
-				// duration exceeded the `MaxEraDuration` limit.
-				Event::Unexpected(UnexpectedKind::EraDurationBoundExceeded),
-				// the payouts are capped to the max values.
-				Event::EraPaid {
-					era_index: 2,
-					validator_payout: max_validator_payout,
-					remainder: max_treasury_payout
-				},
-				Event::SessionRotated { starting_session: 9, active_era: 3, planned_era: 3 }
-			]
-		);
-	});
-}
-
-#[test]
 fn era_cleanup_history_depth_works_with_prune_era_step_extrinsic() {
 	ExtBuilder::default().build_and_execute(|| {
 		// Test that era pruning does not happen automatically
@@ -302,10 +246,17 @@ fn era_cleanup_history_depth_works_with_prune_era_step_extrinsic() {
 			&[
 				..,
 				Event::SessionRotated { starting_session: 236, active_era: 78, planned_era: 79 },
-				Event::EraPaid { era_index: 78, validator_payout: 7500, remainder: 7500 },
+				Event::EraPaid { era_index: 78, validator_payout: 7500, remainder: 0 },
 				Event::SessionRotated { starting_session: 237, active_era: 79, planned_era: 79 }
 			]
 		));
+		// Verify era 78 staker pot has been funded (DAP drips into general pot, staking snapshots).
+		let staker_pot_78 = <Test as Config>::RewardPots::pot_account(RewardPot::Era(
+			78,
+			RewardKind::StakerRewards,
+		));
+		let ideal_validator_payout = validator_payout_for(time_per_era());
+		assert_eq!(Balances::balance(&staker_pot_78), ideal_validator_payout);
 		// All eras from 1 to current still present
 		assert_ok!(Eras::<T>::era_fully_present(1));
 		assert_ok!(Eras::<T>::era_fully_present(2));
@@ -328,8 +279,8 @@ fn era_cleanup_history_depth_works_with_prune_era_step_extrinsic() {
 			&staking_events_since_last_call()[..],
 			&[
 				..,
-				Event::EraPaid { era_index: 80, validator_payout: 7500, remainder: 7500 },
 				// NO EraPruned event - pruning is now manual
+				Event::EraPaid { era_index: 80, validator_payout: 7500, remainder: 0 },
 				Event::SessionRotated { starting_session: 243, active_era: 81, planned_era: 81 }
 			]
 		));
@@ -345,11 +296,24 @@ fn era_cleanup_history_depth_works_with_prune_era_step_extrinsic() {
 			&staking_events_since_last_call()[..],
 			&[
 				..,
-				Event::EraPaid { era_index: 81, validator_payout: 7500, remainder: 7500 },
 				// NO EraPruned event - pruning is now manual
+				Event::EraPaid { era_index: 81, validator_payout: 7500, remainder: 0 },
 				Event::SessionRotated { starting_session: 246, active_era: 82, planned_era: 82 }
 			]
 		));
+		// Verify eras 79-81 staker pots were funded with expected amount.
+		let expected_per_era = validator_payout_for(time_per_era());
+		for era in 79..=81 {
+			let staker_pot = <Test as Config>::RewardPots::pot_account(RewardPot::Era(
+				era,
+				RewardKind::StakerRewards,
+			));
+			assert_eq!(
+				Balances::balance(&staker_pot),
+				expected_per_era,
+				"Era {era} staker pot should have {expected_per_era}"
+			);
+		}
 
 		// Only old eras (outside pruning window) can be pruned
 		// Try to prune era 2 (should fail as it's within the history window)
@@ -381,6 +345,7 @@ fn era_cleanup_history_depth_works_with_prune_era_step_extrinsic() {
 			ErasRewardPoints,
 			SingleEntryCleanups,
 			ValidatorSlashInEra,
+			ErasValidatorIncentiveWeight,
 		];
 
 		let _ = staking_events_since_last_call();
@@ -468,14 +433,26 @@ fn era_cleanup_history_depth_works_with_prune_era_step_extrinsic() {
 						!crate::ErasTotalStake::<T>::contains_key(1),
 						"{expected_step:?} should be empty after completing step"
 					);
-					// Also verify ErasNominatorsSlashable is cleaned (piggybacks on this step)
 					assert!(
 						!crate::ErasNominatorsSlashable::<T>::contains_key(1),
 						"ErasNominatorsSlashable should be empty after completing SingleEntryCleanups step"
 					);
+					assert!(
+						!crate::ErasValidatorIncentiveBudget::<T>::contains_key(1),
+						"ErasValidatorIncentiveBudget should be empty after completing SingleEntryCleanups step"
+					);
+					assert!(
+						!crate::ErasSumValidatorIncentiveWeight::<T>::contains_key(1),
+						"ErasSumValidatorIncentiveWeight should be empty after completing SingleEntryCleanups step"
+					);
 				},
 				ValidatorSlashInEra => assert_eq!(
 					crate::ValidatorSlashInEra::<T>::iter_prefix_values(1).count(),
+					0,
+					"{expected_step:?} should be empty after completing step"
+				),
+				ErasValidatorIncentiveWeight => assert_eq!(
+					crate::ErasValidatorIncentiveWeight::<T>::iter_prefix_values(1).count(),
 					0,
 					"{expected_step:?} should be empty after completing step"
 				),
@@ -523,12 +500,12 @@ mod inflation {
 	use super::*;
 
 	#[test]
-	fn max_staked_rewards_default_not_set_works() {
+	fn dap_budget_allocation_determines_staker_rewards() {
 		ExtBuilder::default().build_and_execute(|| {
+			// 50% of time_per_era() goes to stakers (other half to buffer per
+			// mock::default_budget())
 			let default_stakers_payout = validator_payout_for(time_per_era());
-			assert!(default_stakers_payout > 0);
-
-			assert_eq!(<MaxStakedRewards<Test>>::get(), None);
+			assert_eq!(default_stakers_payout, Balance::from(time_per_era()) / 2);
 
 			Session::roll_until_active_era(2);
 
@@ -538,88 +515,194 @@ mod inflation {
 					Event::SessionRotated { starting_session: 4, active_era: 1, planned_era: 2 },
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					Event::SessionRotated { starting_session: 5, active_era: 1, planned_era: 2 },
-					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 7500 },
+					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 0 },
 					Event::SessionRotated { starting_session: 6, active_era: 2, planned_era: 2 }
 				]
 			);
 
-			// the final stakers reward is the same as the reward before applied the cap.
 			assert_eq!(ErasValidatorReward::<Test>::get(0).unwrap(), default_stakers_payout);
 		})
 	}
+}
 
-	#[test]
-	fn max_staked_rewards_default_equal_100() {
-		ExtBuilder::default().build_and_execute(|| {
-			let default_stakers_payout = validator_payout_for(time_per_era());
-			assert!(default_stakers_payout > 0);
-			<MaxStakedRewards<Test>>::set(Some(Percent::from_parts(100)));
+#[test]
+fn era_pot_drained_after_history_depth() {
+	ExtBuilder::default().build_and_execute(|| {
+		// GIVEN: Start at era 2
+		Session::roll_until_active_era(2);
+		let _ = staking_events_since_last_call();
 
-			Session::roll_until_active_era(2);
+		// Verify era-1 staker pot was funded with expected amount.
+		let staker_pot_1 =
+			<Test as Config>::RewardPots::pot_account(RewardPot::Era(1, RewardKind::StakerRewards));
+		let expected_per_era = validator_payout_for(time_per_era());
+		assert_eq!(Balances::balance(&staker_pot_1), expected_per_era);
 
-			assert_eq!(
-				staking_events_since_last_call(),
-				vec![
-					Event::SessionRotated { starting_session: 4, active_era: 1, planned_era: 2 },
-					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
-					Event::SessionRotated { starting_session: 5, active_era: 1, planned_era: 2 },
-					Event::EraPaid { era_index: 1, validator_payout: 7500, remainder: 7500 },
-					Event::SessionRotated { starting_session: 6, active_era: 2, planned_era: 2 }
-				]
+		// era we expect to be drained
+		let drained_era = 1;
+
+		// WHEN: Advance past HistoryDepth so era 1 falls out of the active window.
+		let target_era = drained_era + HistoryDepth::get() + 1;
+		Session::roll_until_active_era(target_era);
+		let _ = staking_events_since_last_call();
+
+		// THEN: era-1's pot account holds zero balance but is kept alive (provider
+		// retained) so a future era reusing the same slot can snapshot into it.
+		let staker_pot = <Test as Config>::RewardPots::pot_account(RewardPot::Era(
+			drained_era,
+			RewardKind::StakerRewards,
+		));
+
+		assert_eq!(Balances::balance(&staker_pot), 0, "Staker pot should have zero balance");
+		assert_eq!(
+			System::providers(&staker_pot),
+			1,
+			"Staker pot is kept alive for slot reuse; provider must be retained"
+		);
+	});
+}
+
+#[test]
+fn pot_slot_reuse_drain_then_recreate_is_idempotent() {
+	// Drain must keep the slot alive, and a subsequent `create()` on a future
+	// era sharing the same slot must not double-increment the provider.
+	ExtBuilder::default().build_and_execute(|| {
+		let era_a = 5;
+		let era_b = era_a + POT_POOL_SIZE;
+
+		// GIVEN: era_a's pot is created and funded.
+		let pot = EraRewardManager::<Test>::create(era_a, RewardKind::StakerRewards);
+		assert_eq!(System::providers(&pot), 1);
+		let funded: Balance = 1_000;
+		Balances::set_balance(&pot, funded);
+		assert_eq!(Balances::balance(&pot), funded);
+
+		// WHEN: era_a's pot is cleaned up past HistoryDepth.
+		EraRewardManager::<Test>::cleanup_era(era_a);
+
+		// THEN: balance drained, provider retained (slot kept alive).
+		assert_eq!(Balances::balance(&pot), 0);
+		assert_eq!(System::providers(&pot), 1, "drain must not release the provider");
+
+		// WHEN: era_b reuses the same slot.
+		EraRewardManager::<Test>::create(era_b, RewardKind::StakerRewards);
+
+		// THEN: provider count unchanged (idempotent create).
+		assert_eq!(
+			System::providers(&pot),
+			1,
+			"create must not double-increment provider on slot reuse"
+		);
+
+		// AND: a fresh snapshot into the reused slot works as if it were new.
+		Balances::set_balance(&pot, 2_000);
+		assert_eq!(Balances::balance(&pot), 2_000);
+	});
+}
+
+#[test]
+fn era_pot_slots_collide_every_pool_size_eras() {
+	// Verifies the production `Seed` provider derives era pots from `(slot, kind)`
+	// rather than `(era, kind)`. Asserted on the encoded seed rather than the
+	// resulting `AccountId` because the mock's `AccountId = u64` is too narrow
+	// to fit the seed and `into_sub_account_truncating` truncates it down to a
+	// constant.
+	let seed_for = |era: u32, kind: RewardKind| -> Vec<u8> {
+		(
+			<PalletId as sp_runtime::TypeId>::TYPE_ID,
+			DapPalletId::get(),
+			RewardPot::Era(crate::pot_slot(era), kind),
+		)
+			.encode()
+	};
+
+	let base_era = 7u32;
+
+	// distinct seeds within a pool window, collision exactly at distance `POT_POOL_SIZE`.
+	for kind in [RewardKind::StakerRewards, RewardKind::ValidatorSelfStake] {
+		let base_seed = seed_for(base_era, kind);
+
+		for offset in 1..POT_POOL_SIZE {
+			assert_ne!(
+				seed_for(base_era + offset, kind),
+				base_seed,
+				"{:?} pot at era +{} must not collide within the pool window",
+				kind,
+				offset,
 			);
+		}
 
-			// the final stakers reward is the same as the reward before applied the cap.
-			assert_eq!(ErasValidatorReward::<Test>::get(0).unwrap(), default_stakers_payout);
-		});
+		assert_eq!(
+			seed_for(base_era + POT_POOL_SIZE, kind),
+			base_seed,
+			"{:?} pot at era +POT_POOL_SIZE must reuse the base era's slot",
+			kind,
+		);
 	}
 
-	#[test]
-	fn max_staked_rewards_works() {
-		ExtBuilder::default().nominate(true).build_and_execute(|| {
-			// sets new max staked rewards through set_staking_configs.
-			assert_ok!(Staking::set_staking_configs(
-				RuntimeOrigin::root(),
-				ConfigOp::Noop,
-				ConfigOp::Noop,
-				ConfigOp::Noop,
-				ConfigOp::Noop,
-				ConfigOp::Noop,
-				ConfigOp::Noop,
-				ConfigOp::Set(Percent::from_percent(10)),
-				ConfigOp::Noop,
-			));
+	// Within a single slot, different reward kinds must remain distinct.
+	assert_ne!(
+		seed_for(base_era, RewardKind::StakerRewards),
+		seed_for(base_era, RewardKind::ValidatorSelfStake),
+		"staker-rewards and incentive pots within the same slot must be distinct",
+	);
+}
 
-			assert_eq!(<MaxStakedRewards<Test>>::get(), Some(Percent::from_percent(10)));
+#[test]
+fn disable_legacy_minting_era_updates_correctly() {
+	ExtBuilder::default().build_and_execute(|| {
+		// GIVEN: DisableMintingGuard is set to 0 in test genesis
+		assert_eq!(DisableMintingGuard::<Test>::get(), Some(0));
 
-			// check validators account state.
-			assert_eq!(Session::validators().len(), 2);
-			assert!(Session::validators().contains(&11) & Session::validators().contains(&21));
+		// WHEN: Era 1 ends with non-zero reward allocation
+		Session::roll_until_active_era(2);
+		let _ = staking_events_since_last_call();
 
-			// balance of the mock treasury account is 0
-			assert_eq!(RewardRemainderUnbalanced::get(), 0);
+		// THEN: DisableMintingGuard remains at 0
+		assert_eq!(DisableMintingGuard::<Test>::get(), Some(0));
+	});
+}
 
-			Session::roll_until_active_era(2);
-			assert_eq!(
-				staking_events_since_last_call(),
-				vec![
-					Event::SessionRotated { starting_session: 4, active_era: 1, planned_era: 2 },
-					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
-					Event::SessionRotated { starting_session: 5, active_era: 1, planned_era: 2 },
-					Event::EraPaid { era_index: 1, validator_payout: 1500, remainder: 13500 },
-					Event::SessionRotated { starting_session: 6, active_era: 2, planned_era: 2 }
-				]
-			);
+#[test]
+fn disable_legacy_minting_era_write_once_semantics() {
+	ExtBuilder::default().build_and_execute(|| {
+		// GIVEN: Clear DisableMintingGuard to simulate pre-migration state
+		DisableMintingGuard::<Test>::kill();
+		assert_eq!(DisableMintingGuard::<Test>::get(), None);
 
-			let treasury_payout = RewardRemainderUnbalanced::get();
-			let validators_payout = ErasValidatorReward::<Test>::get(1).unwrap();
-			let total_payout = treasury_payout + validators_payout;
+		// WHEN: First era ends with rewards
+		Session::roll_until_active_era(2);
+		let _ = staking_events_since_last_call();
 
-			// total payout is the same
-			assert_eq!(total_payout, total_payout_for(time_per_era()));
-			// validators get only 10%
-			assert_eq!(validators_payout, Percent::from_percent(10) * total_payout);
-			// treasury gets 90%
-			assert_eq!(treasury_payout, Percent::from_percent(90) * total_payout);
-		})
-	}
+		// THEN: DisableMintingGuard is set to era 1
+		assert_eq!(DisableMintingGuard::<Test>::get(), Some(1));
+
+		// WHEN: More eras end
+		Session::roll_until_active_era(5);
+		let _ = staking_events_since_last_call();
+
+		// THEN: DisableMintingGuard stays at 1 (not updated to higher values)
+		assert_eq!(DisableMintingGuard::<Test>::get(), Some(1));
+	});
+}
+
+#[test]
+fn dap_era_with_zero_rewards_still_sets_guard() {
+	// A DAP era with nothing to snapshot is still a DAP era. The guard must be set so
+	// payout routing for this era uses the DAP path, not legacy minting.
+	ExtBuilder::default().build_and_execute(|| {
+		// GIVEN: pre-migration state (no guard) and a budget that drips nothing to the
+		// staker reward pot.
+		DisableMintingGuard::<Test>::kill();
+		pallet_dap::BudgetAllocation::<Test>::put(build_budget(&[(buffer_key(), 100)]));
+		assert_eq!(DisableMintingGuard::<Test>::get(), None);
+
+		// WHEN: an era ends with zero staker rewards.
+		Session::roll_until_active_era(2);
+		let _ = staking_events_since_last_call();
+
+		// THEN: guard records this era so future payouts route via DAP.
+		assert_eq!(ErasValidatorReward::<Test>::get(1), Some(0));
+		assert_eq!(DisableMintingGuard::<Test>::get(), Some(1));
+	});
 }

@@ -48,6 +48,9 @@ pub enum Error {
 
 	#[error("Request to runtime API subsystem dropped")]
 	RuntimeApiRequestCanceled(oneshot::Canceled),
+
+	#[error("Relay parent of candidate outside the leaf's scope")]
+	RelayParentOutOfScope,
 }
 
 /// General `Result` type.
@@ -65,7 +68,7 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> FatalResult<()> {
 	match result.into_nested()? {
 		Ok(()) => Ok(()),
 		Err(jfyi) => {
-			gum::debug!(target: LOG_TARGET, error = ?jfyi, ctx);
+			gum::warn!(target: LOG_TARGET, error = ?jfyi, ctx);
 			Ok(())
 		},
 	}

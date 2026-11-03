@@ -1,0 +1,21 @@
+title: Remove deprecated migration::remove_storage_prefix
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    Removes deprecated `migration::remove_storage_prefix` as part of #11561.
+
+    Migrates all in-repo callers to `clear_storage_prefix(..., None, None)` (equivalent behavior). No external usage remains.
+
+crates:
+- name: cumulus-pallet-parachain-system
+  bump: patch
+- name: yet-another-parachain-runtime
+  bump: patch
+- name: polkadot-runtime-common
+  bump: patch
+- name: pallet-scheduler
+  bump: patch
+- name: frame-support
+  bump: major

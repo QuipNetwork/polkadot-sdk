@@ -1,0 +1,29 @@
+title: 'Gap sync: download block bodies for storage chains'
+doc:
+- audience: Node Dev
+  description: |-
+    Gap sync now supports a `GapSyncBodyPolicy`: besides the previous all-or-nothing
+    behavior, `BodiesWithinWindow(window)` requires bodies only for blocks within `window`
+    below the finalized block. The omni-node uses this on storage chains to backfill the
+    bodies of the transaction storage retention period after warp sync, and requires
+    `--blocks-pruning >= retention` there.
+
+    `BuildNetworkParams` (substrate and cumulus) gains an optional `gap_sync_body_policy`
+    field; pass `None` to keep the previous pruning-derived behavior. APIs that took
+    `archive_blocks: bool` now take a policy provider; use
+    `default_gap_sync_body_policy(blocks_pruning)` for the old behavior.
+
+    The syncing engine is now spawned as an essential task: a node whose syncing engine
+    fails (e.g. due to a misconfigured body policy) shuts down instead of continuing
+    without sync. `DefaultSyncingEngineConfig` gains a `spawn_essential_handle` field.
+crates:
+- name: sc-network-sync
+  bump: major
+- name: sc-service
+  bump: major
+- name: cumulus-client-service
+  bump: major
+- name: polkadot-omni-node-lib
+  bump: minor
+- name: polkadot-service
+  bump: patch

@@ -11,22 +11,22 @@ publish = false
 workspace = true
 
 [dependencies]
-anyhow = { workspace = true, default-features = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
 futures = { workspace = true }
-isahc = { workspace = true }
-jsonpath_lib = { workspace = true }
 num-traits = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
 time = { features = ["formatting", "local-offset", "std"], workspace = true }
 tokio = { features = ["macros", "rt", "sync", "time"], workspace = true, default-features = true }
 
-bp-runtime = { default-features = true, workspace = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
 tracing = { workspace = true }
+
+# Bridge dependencies
+bp-runtime = { workspace = true, default-features = true }
+
+# Substrate dependencies
+prometheus-endpoint = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }

@@ -1,0 +1,14 @@
+title: Set a proper proof size block limit
+doc:
+- audience: Runtime Dev
+  description: |-
+    The current block limit of the revive dev node defined its `proof_size` as `u64::MAX`.
+
+    This is a reasonable setting for a standalone chain as the PoV as a limiting resource is only relevant for parachains.
+
+    However, this gives some confusing gas mapping calculations: they are correct and consistent but the resulting `proof_size` weights are unexpectedly high.
+
+    This PR sets the `proof_size` of the block limit to the same value as the Polkadot Asset Hub.
+crates:
+- name: revive-dev-runtime
+  bump: patch

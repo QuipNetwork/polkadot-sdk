@@ -307,7 +307,13 @@ impl ClaimAssets for TestAssetTrap {
 	}
 }
 
-/// Test sender that always succeeds and puts messages in a dummy queue.
+/// A destination that passes validation but whose delivery always fails.
+pub fn undeliverable_destination() -> Location {
+	Location::new(1, [Parachain(9999)])
+}
+
+/// Test sender that puts messages in a dummy queue. Delivery succeeds for every destination
+/// except [`undeliverable_destination`].
 ///
 /// It charges `1` for the delivery fee.
 pub struct TestSender;
@@ -324,6 +330,9 @@ impl SendXcm for TestSender {
 	}
 
 	fn deliver(ticket: Self::Ticket) -> Result<XcmHash, SendError> {
+		if ticket.0 == undeliverable_destination() {
+			return Err(SendError::Transport("undeliverable destination"));
+		}
 		SENT_XCM.with(|q| q.borrow_mut().push(ticket));
 		Ok([0; 32])
 	}

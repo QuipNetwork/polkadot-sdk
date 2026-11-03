@@ -1,0 +1,17 @@
+title: "UnionOf: implement metadata traits"
+doc:
+- audience: Runtime Dev
+  description: |
+    Adds `fungibles::metadata::Inspect` and `fungibles::metadata::Mutate` impls
+    to both `fungibles::UnionOf` and `fungible::UnionOf`. Each dispatches to the
+    `Left` or `Right` backend via the existing `Criterion`.
+
+    Unblocks runtimes that need a metadata-aware fungibles surface across two
+    pallet instances, e.g., a pallet consuming
+    `UnionOf<Assets, ForeignAssets, ...>` that needs to read decimals/name/symbol.
+
+    `metadata::MetadataDeposit` is intentionally not implemented: its method
+    signature has no `AssetId` parameter and can't be dispatched via `Criterion`.
+crates:
+- name: frame-support
+  bump: minor

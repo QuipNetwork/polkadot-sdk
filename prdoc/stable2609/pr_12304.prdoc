@@ -1,0 +1,15 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Statement store: move the query index to disk'
+
+doc:
+  - audience: Node Dev
+    description: |
+      Second stage of the statement-store index refactor. The query index (`by_topic`, `by_dec_key`)
+      and the evicted-hash journal are moved out of memory into dedicated btree-indexed `parity-db`
+      columns.
+
+crates:
+  - name: sc-statement-store
+    bump: patch

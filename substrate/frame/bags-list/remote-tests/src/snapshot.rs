@@ -45,14 +45,14 @@ where
 				.to_string()],
 			at: None,
 			hashed_prefixes: vec![
-				<pallet_staking::Bonded<Runtime>>::prefix_hash().to_vec(),
-				<pallet_staking::Ledger<Runtime>>::prefix_hash().to_vec(),
-				<pallet_staking::Validators<Runtime>>::map_storage_final_prefix(),
-				<pallet_staking::Nominators<Runtime>>::map_storage_final_prefix(),
+				<pallet_staking_async::Bonded<Runtime>>::prefix_hash().to_vec(),
+				<pallet_staking_async::Ledger<Runtime>>::prefix_hash().to_vec(),
+				<pallet_staking_async::Validators<Runtime>>::map_storage_final_prefix(),
+				<pallet_staking_async::Nominators<Runtime>>::map_storage_final_prefix(),
 			],
 			hashed_keys: vec![
-				<pallet_staking::Validators<Runtime>>::counter_storage_final_key().to_vec(),
-				<pallet_staking::Nominators<Runtime>>::counter_storage_final_key().to_vec(),
+				<pallet_staking_async::Validators<Runtime>>::counter_storage_final_key().to_vec(),
+				<pallet_staking_async::Nominators<Runtime>>::counter_storage_final_key().to_vec(),
 			],
 			..Default::default()
 		}))
@@ -65,7 +65,7 @@ where
 		log::info!(
 			target: crate::LOG_TARGET,
 			"{} nodes in bags list.",
-			<Runtime as pallet_staking::Config>::VoterList::count(),
+			<Runtime as pallet_staking_async::Config>::VoterList::count(),
 		);
 
 		let bounds = match voter_limit {
@@ -75,12 +75,12 @@ where
 
 		// single page voter snapshot, thus page index == 0.
 		let voters =
-			<pallet_staking::Pallet<Runtime> as ElectionDataProvider>::electing_voters(bounds, Zero::zero())
+			<pallet_staking_async::Pallet<Runtime> as ElectionDataProvider>::electing_voters(bounds, Zero::zero())
 				.unwrap();
 
 		let mut voters_nominator_only = voters
 			.iter()
-			.filter(|(v, _, _)| pallet_staking::Nominators::<Runtime>::contains_key(v))
+			.filter(|(v, _, _)| pallet_staking_async::Nominators::<Runtime>::contains_key(v))
 			.cloned()
 			.collect::<Vec<_>>();
 		voters_nominator_only.sort_by_key(|(_, w, _)| *w);

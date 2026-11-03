@@ -1,6 +1,6 @@
 [package]
 name = "frame-election-provider-solution-type"
-version = "16.1.1"
+version = "13.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -26,10 +26,10 @@ syn = { features = ["full", "visit"], workspace = true }
 [dev-dependencies]
 codec = { workspace = true, default-features = true }
 scale-info = { workspace = true, default-features = true }
-sp-arithmetic = { default-features = true, workspace = true }
+sp-arithmetic = { workspace = true, default-features = true }
 # used by generate_solution_type:
 # NOTE: we have to explicitly specify `std` because of trybuild
 # https://github.com/paritytech/polkadot-sdk/pull/5167
-frame-election-provider-support = { default-features = true, features = ["std"], workspace = true }
-frame-support = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true, default-features = true, features = ["std"] }
+frame-support = { workspace = true, default-features = true }
 trybuild = { workspace = true }

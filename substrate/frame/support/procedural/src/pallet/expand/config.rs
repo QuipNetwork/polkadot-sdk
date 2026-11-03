@@ -72,6 +72,25 @@ Consequently, a runtime that wants to include this pallet must implement this tr
 		}
 	}
 
+	// insert `frame_system::Config` supertrait with `RuntimeTask: From<Task<Self>>` if tasks are
+	// defined for this pallet.
+	if def.tasks.is_some() && !def.is_frame_system {
+		let frame_system = &def.frame_system;
+
+		let task_use_gen = if def.config.has_instance {
+			quote! { Self, I }
+		} else {
+			quote! { Self }
+		};
+
+		let supertrait_with_task_bound = syn::parse2::<syn::TypeParamBound>(
+			quote! { #frame_system::Config<RuntimeTask: From<Task<#task_use_gen>>> },
+		)
+		.expect("Parsing super trait doesn't fail; qed");
+
+		config_item.supertraits.push(supertrait_with_task_bound.into());
+	}
+
 	// we only emit `DefaultConfig` if there are trait items, so an empty `DefaultConfig` is
 	// impossible consequently.
 	match &config.default_sub_trait {

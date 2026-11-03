@@ -1,0 +1,170 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/scripts/release/changelog/schema.json",
+	"title": "Polkadot SDK release changelog data",
+	"description": "Machine-readable changelog attached to each polkadot-sdk release as changelog.json. Produced by scripts/release/changelog/generate.py from the release's prdoc folder.",
+	"type": "object",
+	"required": ["schema_version", "release", "topics", "changes"],
+	"additionalProperties": false,
+	"properties": {
+		"$schema": {
+			"description": "URL of this schema, pinned at the release tag the document was generated for.",
+			"type": "string"
+		},
+		"schema_version": {
+			"description": "Version of this data format. Bump on breaking format changes.",
+			"const": 1
+		},
+		"release": {
+			"type": "object",
+			"required": ["tag", "previous_tag", "version", "generated_at"],
+			"additionalProperties": false,
+			"properties": {
+				"tag": {
+					"description": "Release tag, e.g. polkadot-stable2606.",
+					"type": ["string", "null"]
+				},
+				"previous_tag": {
+					"description": "Tag of the previous release the changes are relative to.",
+					"type": ["string", "null"]
+				},
+				"version": {
+					"description": "Release version, e.g. stable2606.",
+					"type": ["string", "null"]
+				},
+				"generated_at": {
+					"description": "ISO 8601 timestamp of generation; null for reproducible local runs.",
+					"type": ["string", "null"]
+				}
+			}
+		},
+		"topics": {
+			"description": "Topic taxonomy used for this release, in changelog section order.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["id", "label"],
+				"additionalProperties": false,
+				"properties": {
+					"id": { "type": "string" },
+					"label": { "type": "string" }
+				}
+			}
+		},
+		"changes": {
+			"description": "One entry per PR (prdoc file), sorted by topic order, breaking-first, PR number.",
+			"type": "array",
+			"items": { "$ref": "#/$defs/change" }
+		}
+	},
+	"$defs": {
+		"change": {
+			"type": "object",
+			"required": [
+				"pr", "title", "url", "author", "audiences", "topic",
+				"breaking", "docs", "crates", "migrations", "host_functions"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"pr": { "type": "integer" },
+				"title": { "type": "string" },
+				"url": { "type": "string" },
+				"author": { "type": ["string", "null"] },
+				"audiences": {
+					"description": "Union of the audiences of all doc items, e.g. \"Runtime Dev\".",
+					"type": "array",
+					"items": { "type": "string" }
+				},
+				"topic": {
+					"type": "object",
+					"required": ["id", "label", "source"],
+					"additionalProperties": false,
+					"properties": {
+						"id": { "type": "string" },
+						"label": { "type": "string" },
+						"source": {
+							"description": "explicit = prdoc topic field; derived = crate mapping; fallback = Misc.",
+							"enum": ["explicit", "derived", "fallback"]
+						}
+					}
+				},
+				"breaking": {
+					"description": "True when any crate bump is major.",
+					"type": "boolean"
+				},
+				"docs": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["audiences", "title", "description"],
+						"additionalProperties": false,
+						"properties": {
+							"audiences": { "type": "array", "items": { "type": "string" } },
+							"title": { "type": ["string", "null"] },
+							"description": { "type": "string" }
+						}
+					}
+				},
+				"crates": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["name", "bump", "note"],
+						"additionalProperties": false,
+						"properties": {
+							"name": { "type": "string" },
+							"bump": {
+								"description": "Semver bump; null when the (legacy) prdoc did not specify one.",
+								"type": ["string", "null"]
+							},
+							"note": { "type": ["string", "null"] }
+						}
+					}
+				},
+				"migrations": {
+					"type": "object",
+					"required": ["db", "runtime"],
+					"additionalProperties": false,
+					"properties": {
+						"db": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["name", "description"],
+								"additionalProperties": false,
+								"properties": {
+									"name": { "type": "string" },
+									"description": { "type": "string" }
+								}
+							}
+						},
+						"runtime": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["reference", "description"],
+								"additionalProperties": false,
+								"properties": {
+									"reference": { "type": ["string", "null"] },
+									"description": { "type": "string" }
+								}
+							}
+						}
+					}
+				},
+				"host_functions": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["name", "description"],
+						"additionalProperties": false,
+						"properties": {
+							"name": { "type": "string" },
+							"description": { "type": ["string", "null"] }
+						}
+					}
+				}
+			}
+		}
+	}
+}

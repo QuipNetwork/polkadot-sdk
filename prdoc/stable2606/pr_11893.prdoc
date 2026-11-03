@@ -1,0 +1,26 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Raise relay-chain BlockLength to 10 MiB on test runtimes; decouple AttestedCandidate response cap'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Raises the relay-chain block-length cap from 5 MiB to 10 MiB on `westend-runtime`,
+      `rococo-runtime`, and `polkadot-test-runtime`.
+
+  - audience: Node Dev
+    description: |
+      `polkadot-node-network-protocol` decouples the libp2p response-size cap for the
+      `AttestedCandidateV2` request-response protocol from `polkadot_primitives::MAX_CODE_SIZE`
+      and pins it at a flat 8 MiB. 
+
+      Adds an end-to-end test in `polkadot-test-service`. 
+
+crates:
+  - name: polkadot-node-network-protocol
+    bump: patch
+  - name: westend-runtime
+    bump: minor
+  - name: rococo-runtime
+    bump: minor

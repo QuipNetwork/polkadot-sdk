@@ -1,0 +1,32 @@
+title: Add deferred dispatch support
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Extends `pallet-whitelist` with automatic deferred dispatch to aid governance
+      sequencing. When `dispatch_whitelisted_call` or 
+      `dispatch_whitelisted_call_with_preimage` is invoked by a whitelisted origin but
+      the call hash is not yet whitelisted, the dispatch is no longer rejected. Instead,
+      it is deferred with an expiration block and can be executed later by any signed
+      origin once the call is whitelisted. The relaying signed origin is not charged.
+
+      Adds the permissionless `remove_deferred_dispatch` extrinsic for cleaning up
+      expired deferred entries, with fees refunded on success. Introduces new config
+      types `DeferredDispatchExpiration` and `BlockNumberProvider` to control deferral
+      timeout and block numbering.
+
+crates:
+  - name: pallet-whitelist
+    bump: major
+  - name: asset-hub-westend-runtime
+    bump: minor
+  - name: rococo-runtime
+    bump: minor
+  - name: kitchensink-runtime
+    bump: minor
+  - name: pallet-staking-async-parachain-runtime
+    bump: minor
+  - name: pallet-staking-async-rc-runtime
+    bump: minor
+  - name: governance-westend-integration-tests
+    bump: none

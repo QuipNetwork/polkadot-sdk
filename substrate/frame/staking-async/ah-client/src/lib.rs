@@ -421,6 +421,10 @@ pub mod pallet {
 	pub struct GenesisConfig<T: Config> {
 		/// The initial operating mode of the pallet.
 		pub operating_mode: OperatingMode,
+		/// If set, records that a validator set was applied at this session index at genesis.
+		/// Allows offence-based validator disabling on relays not connected to an AssetHub.
+		/// Defaults to `None` (no-op).
+		pub validator_set_applied_at: Option<SessionIndex>,
 		pub _marker: core::marker::PhantomData<T>,
 	}
 
@@ -429,6 +433,9 @@ pub mod pallet {
 		fn build(&self) {
 			// Set the initial operating mode of the pallet.
 			Mode::<T>::put(self.operating_mode.clone());
+			if let Some(session) = self.validator_set_applied_at {
+				ValidatorSetAppliedAt::<T>::put(session);
+			}
 		}
 	}
 

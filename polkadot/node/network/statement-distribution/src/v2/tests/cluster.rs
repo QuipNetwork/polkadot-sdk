@@ -16,7 +16,11 @@
 
 use super::*;
 
-use polkadot_primitives_test_helpers::make_candidate;
+use polkadot_primitives::{
+	node_features, CandidateDescriptorVersion, CollatorId, CollatorSignature,
+};
+use polkadot_primitives_test_helpers::{make_candidate, CandidateDescriptor};
+use sp_application_crypto::ByteArray;
 
 #[test]
 fn share_seconded_circulated_to_cluster() {
@@ -1272,4 +1276,115 @@ fn delayed_reputation_changes() {
 		},
 		subsystem,
 	));
+}
+
+// V1-backed statement distributed to a V3-capable peer is accepted.
+// The local validator shares a Seconded statement for a V1 candidate
+// descriptor; the cluster peer (connected via V3 protocol) receives it.
+#[test]
+fn v1_backed_statement_distributed_to_v3_capable_peer() {
+	let config =
+		TestConfig { validator_count: 20, group_size: 3, local_validator: LocalRole::Validator };
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_a = PeerId::random();
+
+	test_harness(config, |mut state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+		let local_group_index = local_validator.group_index.unwrap();
+		let local_para = ParaId::from(local_group_index.0);
+
+		// Enable V3 feature — both local and peer are V3-capable.
+		state
+			.node_features
+			.resize(node_features::FeatureIndex::CandidateReceiptV3 as usize + 1, false);
+		state
+			.node_features
+			.set(node_features::FeatureIndex::CandidateReceiptV3 as u8 as usize, true);
+
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
+		// Build a V1 candidate descriptor directly with non-zero collator/signature.
+		// When converted to V2 layout, collator[8..24] maps to `reserved1[0..16]`
+		// which triggers V1 detection even with V3 enabled.
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			local_para,
+			test_leaf.para_data(local_para).head_data.clone(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+
+		// Convert to V1 descriptor with non-zero collator bytes.
+		let mut v1_descriptor: CandidateDescriptor = candidate.descriptor.into();
+		v1_descriptor.collator =
+			CollatorId::from_slice(&(0u8..32).collect::<Vec<_>>()).expect("32 bytes; qed");
+		v1_descriptor.signature =
+			CollatorSignature::from_slice(&(0u8..64).collect::<Vec<_>>()).expect("64 bytes; qed");
+		let candidate = CommittedCandidateReceipt {
+			descriptor: v1_descriptor.into(),
+			commitments: candidate.commitments,
+		};
+
+		assert_eq!(candidate.descriptor.version(), CandidateDescriptorVersion::V1);
+
+		let candidate_hash = candidate.hash();
+
+		// peer A is in group, has scheduling parent in view (V3-capable peer).
+		{
+			let other_group_validators = state.group_validators(local_group_index, true);
+
+			connect_peer(
+				&mut overseer,
+				peer_a.clone(),
+				Some(vec![state.discovery_id(other_group_validators[0])].into_iter().collect()),
+			)
+			.await;
+
+			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
+		}
+
+		activate_leaf(&mut overseer, &test_leaf, &state, true, vec![]).await;
+
+		let full_signed = state
+			.sign_statement(
+				local_validator.validator_index,
+				CompactStatement::Seconded(candidate_hash),
+				&SigningContext { session_index: 1, parent_hash: relay_parent },
+			)
+			.convert_to_superpayload(StatementWithPVD::Seconded(candidate.clone(), pvd.clone()))
+			.unwrap();
+
+		overseer
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::Share(relay_parent, full_signed),
+			})
+			.await;
+
+		// Assert V1-backed statement is sent to the V3-capable cluster peer.
+		assert_matches!(
+			overseer.recv().await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+				peers,
+				ValidationProtocols::V3(protocol_v3::ValidationProtocol::StatementDistribution(
+					protocol_v3::StatementDistributionMessage::Statement(
+						r,
+						s,
+					)
+				))
+			)) => {
+				assert_eq!(peers, vec![peer_a.clone()]);
+				assert_eq!(r, relay_parent);
+				assert_eq!(s.unchecked_payload(), &CompactStatement::Seconded(candidate_hash));
+				assert_eq!(s.unchecked_validator_index(), local_validator.validator_index);
+			}
+		);
+
+		// Sharing a `Seconded` message confirms a candidate, which leads to new
+		// fragment chain updates.
+		answer_expected_hypothetical_membership_request(&mut overseer, vec![]).await;
+
+		overseer
+	});
 }

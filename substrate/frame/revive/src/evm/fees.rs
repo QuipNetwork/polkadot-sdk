@@ -213,8 +213,15 @@ where
 	<E::Config as frame_system::Config>::RuntimeCall:
 		Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 	CallOf<E::Config>: SetWeightLimit,
-	<<E::Config as SysConfig>::Block as BlockT>::Extrinsic:
-		From<UncheckedExtrinsic<Address, CallOf<E::Config>, Signature, E::Extension>>,
+	<<E::Config as SysConfig>::Block as BlockT>::Extrinsic: From<
+		UncheckedExtrinsic<
+			Address,
+			CallOf<E::Config>,
+			Signature,
+			E::ExtensionV0,
+			E::ExtensionOtherVersions,
+		>,
+	>,
 	<<E::Config as TxConfig>::OnChargeTransaction as TxCreditHold<E::Config>>::Credit:
 		SuppressedDrop<Inner = CreditOf<E::Config>>,
 {

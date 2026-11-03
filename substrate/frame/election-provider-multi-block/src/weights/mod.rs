@@ -42,6 +42,7 @@ pub mod traits {
 			fn unset_page() -> Weight;
 			fn bail() -> Weight;
 			fn clear_old_round_data(p: u32) -> Weight;
+			fn claim_unpaid_reward() -> Weight;
 		}
 
 		#[cfg(feature = "std")]
@@ -62,6 +63,9 @@ pub mod traits {
 				Default::default()
 			}
 			fn unset_page() -> Weight {
+				Default::default()
+			}
+			fn claim_unpaid_reward() -> Weight {
 				Default::default()
 			}
 		}

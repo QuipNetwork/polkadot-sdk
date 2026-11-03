@@ -1,7 +1,7 @@
 [package]
 name = "pallet-parachain-template"
 description = "FRAME pallet template for defining custom runtime logic."
-version = "0.1.0"
+version = "0.0.0"
 license = "Unlicense"
 authors.workspace = true
 homepage.workspace = true
@@ -17,8 +17,12 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-frame = { workspace = true, features = ["experimental", "runtime"], default-features = false }
 scale-info = { features = ["derive"], workspace = true }
+
+frame = { workspace = true, default-features = false, features = [
+	"experimental",
+	"runtime",
+] }
 
 [features]
 default = ["std"]

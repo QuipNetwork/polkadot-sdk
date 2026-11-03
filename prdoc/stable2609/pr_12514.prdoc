@@ -1,0 +1,17 @@
+title: Remove unused dependencies found by cargo-udeps
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Removes unused dependencies flagged by `cargo +nightly udeps`:
+      `bitvec` from `pallet-broker`, `rlp` from `snowbridge-beacon-primitives`,
+      and `static_assertions` from `sp-runtime-interface`. Each was confirmed
+      unused in the crate source. Partial fix for #6906.
+
+crates:
+  - name: pallet-broker
+    bump: patch
+  - name: snowbridge-beacon-primitives
+    bump: patch
+  - name: sp-runtime-interface
+    bump: patch

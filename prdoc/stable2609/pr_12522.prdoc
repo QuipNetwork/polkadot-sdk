@@ -1,0 +1,49 @@
+title: '[pallet-revive] Test Versioning Invariants and Conventions'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR just adds a single test which checks that the invariants and conventions that we have for versioning are upheld in code.
+
+    The test is `test_versioned_runtime_api_invariants` in the dev-node's runtime crate. The reason for it being in that crate rather than other crates is because it's the only place where we have access to the metadata and to the runtime which we depend on heavily for this test.
+
+    The primary methodology of this test is asserting that the data that we observe in the frame metadata for pallet-revive matches the expectations we have. This is made more comprehensive due to the fact that the entire types registry is in the metadata so we can do checks such as "check that this function has a single argument which is an enum of this name and that has these variants", so the fact that we have a schema for these types allows us to perform type-system assertions outside of the type-system.
+
+    The test asserts the following:
+
+    1. For each versioned runtime API function:
+        1. That its name ends with the `_versioned` postfix.
+        2. That if it has an unversioned counterpart (e.g., `eth_block` and `eth_block_versioned`) that the unversioned runtime API has been deprecated in order to push people to use the versioned runtime API functions.
+        3. That is has exactly one input argument.
+        4. That the input argument is of the type `${function-name}VersionedInputPayload` and that the output is of the type `${function-name}VersionedOutputPayload`.
+        5. That the input and output types are enums.
+        6. That the input and output type enums have an equal number of variants which is non-zero.
+        7. For each variant on the input and output enums:
+            1. That the variants have a scale index of `N - 1` where N is the version. In this way, v1 would have a scale index of 0, v2 would have a scale index of 1, and so on.
+            2. That the variant name is `V` followed by the version number where the version number is contiguous, without gaps, and starts from 1.
+            3. That it has a single un-named field.
+            4. That if the field is an input field then it's of the type `${function-name}InputPayloadV{N}` and if it's an output field then it's of the type `${function-name}OutputPayloadV{N}`.
+        8. That it has a declaration in the `ReviveRuntimeApiVersionDeclarations` type.
+        9. That the declared version matches the highest observed versions in the enum variants.
+        10. That the `ReviveRuntimeApiVersionDeclarations` does not contain more declarations than it should.
+
+    This test protects from a number of things which we could get wrong as we evolve. Below are just some examples:
+
+    1. Accidentally adding a V5 input without a corresponding V5 output (or vice versa).
+    2. Accidentally not declaring that we support V5 of a given runtime API function through the `ReviveRuntimeApiVersionDeclarations` when it's indeed supported.
+    3. Accidentally changing the scale encoding of the versioned payloads to use indices which aren't the convention with versioning.
+    4. Accidentally versioning a runtime API function without deprecating the old unversioned runtime API function.
+    5. Accidentally not following the conventions we have for versioning of the runtime API functions.
+    6. Accidentally reusing a v2 input in a v3 variant.
+
+    There are more things that this test protects from, but the above is just a short list of the stuff.
+crates:
+- name: pallet-revive
+  bump: major
+- name: pallet-revive-types
+  bump: major
+- name: pallet-revive-eth-rpc
+  bump: major
+- name: revive-dev-runtime
+  bump: major

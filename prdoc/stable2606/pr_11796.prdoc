@@ -1,0 +1,20 @@
+title: Removed OpenGov pallets from Westend relay chain post-AHM
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removed pallet_conviction_voting, pallet_referenda, pallet_custom_origins
+    and pallet_whitelist from the Westend relay chain runtime. Post-AHM, governance
+    lives on AssetHub.
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: bridge-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major
+- name: people-westend-runtime
+  bump: major
+- name: westend-runtime
+  bump: major

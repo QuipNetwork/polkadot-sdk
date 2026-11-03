@@ -1,0 +1,57 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'pallet-asset-conversion: support per-pair swap fee (fallback to global LPFee)'
+
+doc:
+  - audience: Runtime Dev
+    description: |-
+      `pallet-asset-conversion` now supports an optional per-pool swap fee that overrides the
+      global `Config::LPFee`. No storage migration is required: a new `PoolFees` storage map
+      holds per-pool overrides, and when a pool has no entry the global `LPFee` continues to
+      apply. Existing pools are unaffected.
+
+      New items:
+      - `Config::AdminOrigin`: the origin permitted to set per-pool fees.
+      - `Config::MaxSwapFee`: the maximum allowed per-pool fee; must be less than 100%.
+      - `PoolFees` storage map (`PoolId -> Permill`).
+      - `create_pool_with_fee` extrinsic: like `create_pool`, but sets an initial per-pool fee.
+        Gated by `AdminOrigin`; a `creator` account parameter pays the pool setup fee and
+        deposits. `create_pool` is unchanged.
+      - `set_pool_fee` extrinsic: sets the fee of an existing pool, gated by `AdminOrigin`.
+      - `PoolFeeSet` event, `FeeTooHigh` error.
+      - `Pallet::pool_fee` helper resolving a pool's effective fee.
+
+      Breaking: `Pallet::get_amount_out` and `Pallet::get_amount_in` now take the swap fee as
+      their first argument instead of reading `Config::LPFee` internally. Runtimes implementing
+      `pallet_asset_conversion::Config` must provide `AdminOrigin` (e.g. `EnsureRoot`) and
+      `MaxSwapFee`.
+
+  - audience: Runtime User
+    description: |-
+      Liquidity pools on asset-conversion can now charge a swap fee that differs from the global
+      default, set by governance at pool creation via `create_pool_with_fee` or afterwards via
+      `set_pool_fee`, capped by the runtime's `MaxSwapFee`. Pools without an explicit fee behave
+      exactly as before.
+
+crates:
+  - name: pallet-asset-conversion
+    bump: major
+  - name: pallet-asset-conversion-precompiles
+    bump: patch
+  - name: pallet-asset-conversion-ops
+    bump: none
+  - name: pallet-asset-conversion-tx-payment
+    bump: none
+  - name: staging-xcm-builder
+    bump: none
+  - name: asset-hub-rococo-runtime
+    bump: minor
+  - name: asset-hub-westend-runtime
+    bump: minor
+  - name: penpal-runtime
+    bump: minor
+  - name: pallet-staking-async-parachain-runtime
+    bump: minor
+  - name: kitchensink-runtime
+    bump: minor

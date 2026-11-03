@@ -25,6 +25,12 @@ pub fn expand_validate_unsigned(def: &mut Def) -> TokenStream {
 	let macro_ident =
 		Ident::new(&format!("__is_validate_unsigned_part_defined_{}", count), def.item.span());
 
+	let maybe_compile_warning = def
+		.validate_unsigned
+		.as_ref()
+		.and_then(|v| v.warning.as_ref())
+		.map_or_else(|| TokenStream::new(), |w| quote! { #w });
+
 	let maybe_compile_error = if def.validate_unsigned.is_none() {
 		quote! {
 			compile_error!(concat!(
@@ -48,7 +54,7 @@ pub fn expand_validate_unsigned(def: &mut Def) -> TokenStream {
 					#maybe_compile_error
 				}
 			}
-
+			#maybe_compile_warning
 			#[doc(hidden)]
 			pub use #macro_ident as is_validate_unsigned_part_defined;
 		}

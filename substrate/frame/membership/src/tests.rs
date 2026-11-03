@@ -26,7 +26,7 @@ use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::Storage
 
 #[test]
 fn query_membership_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_eq!(crate::Members::<Test>::get(), vec![10, 20, 30]);
 		assert_eq!(MEMBERS.with(|m| m.borrow().clone()), vec![10, 20, 30]);
 	});
@@ -34,7 +34,7 @@ fn query_membership_works() {
 
 #[test]
 fn prime_member_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_noop!(Membership::set_prime(RuntimeOrigin::signed(4), 20), BadOrigin);
 		assert_noop!(
 			Membership::set_prime(RuntimeOrigin::signed(5), 15),
@@ -52,7 +52,7 @@ fn prime_member_works() {
 
 #[test]
 fn add_member_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_noop!(Membership::add_member(RuntimeOrigin::signed(5), 15), BadOrigin);
 		assert_noop!(
 			Membership::add_member(RuntimeOrigin::signed(1), 10),
@@ -66,7 +66,7 @@ fn add_member_works() {
 
 #[test]
 fn remove_member_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_noop!(Membership::remove_member(RuntimeOrigin::signed(5), 20), BadOrigin);
 		assert_noop!(
 			Membership::remove_member(RuntimeOrigin::signed(2), 15),
@@ -83,7 +83,7 @@ fn remove_member_works() {
 
 #[test]
 fn swap_member_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_noop!(Membership::swap_member(RuntimeOrigin::signed(5), 10, 25), BadOrigin);
 		assert_noop!(
 			Membership::swap_member(RuntimeOrigin::signed(3), 15, 25),
@@ -111,7 +111,7 @@ fn swap_member_works() {
 
 #[test]
 fn swap_member_works_that_does_not_change_order() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_ok!(Membership::swap_member(RuntimeOrigin::signed(3), 10, 5));
 		assert_eq!(crate::Members::<Test>::get(), vec![5, 20, 30]);
 		assert_eq!(MEMBERS.with(|m| m.borrow().clone()), crate::Members::<Test>::get().to_vec());
@@ -120,14 +120,14 @@ fn swap_member_works_that_does_not_change_order() {
 
 #[test]
 fn swap_member_with_identical_arguments_changes_nothing() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_storage_noop!(assert_ok!(Membership::swap_member(RuntimeOrigin::signed(3), 10, 10)));
 	});
 }
 
 #[test]
 fn change_key_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_ok!(Membership::set_prime(RuntimeOrigin::signed(5), 10));
 		assert_noop!(
 			Membership::change_key(RuntimeOrigin::signed(3), 25),
@@ -147,7 +147,7 @@ fn change_key_works() {
 
 #[test]
 fn change_key_works_that_does_not_change_order() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_ok!(Membership::change_key(RuntimeOrigin::signed(10), 5));
 		assert_eq!(crate::Members::<Test>::get(), vec![5, 20, 30]);
 		assert_eq!(MEMBERS.with(|m| m.borrow().clone()), crate::Members::<Test>::get().to_vec());
@@ -155,15 +155,26 @@ fn change_key_works_that_does_not_change_order() {
 }
 
 #[test]
+fn change_key_preserves_prime_notification_when_prime_is_unaffected() {
+	ExtBuilder::default().build_and_execute(|| {
+		assert_ok!(Membership::set_prime(RuntimeOrigin::signed(5), 20));
+		assert_ok!(Membership::change_key(RuntimeOrigin::signed(10), 40));
+		assert_eq!(crate::Members::<Test>::get(), vec![20, 30, 40]);
+		assert_eq!(crate::Prime::<Test>::get(), Some(20));
+		assert_eq!(PRIME.with(|m| *m.borrow()), Some(20));
+	});
+}
+
+#[test]
 fn change_key_with_same_caller_as_argument_changes_nothing() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_storage_noop!(assert_ok!(Membership::change_key(RuntimeOrigin::signed(10), 10)));
 	});
 }
 
 #[test]
 fn reset_members_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		assert_ok!(Membership::set_prime(RuntimeOrigin::signed(5), 20));
 		assert_noop!(
 			Membership::reset_members(RuntimeOrigin::signed(1), bounded_vec![20, 40, 30]),
@@ -197,7 +208,7 @@ fn genesis_build_panics_with_duplicate_members() {
 
 #[test]
 fn migration_v4() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::default().build_and_execute(|| {
 		use frame_support::traits::PalletInfo;
 		let old_pallet_name = "OldMembership";
 		let new_pallet_name =

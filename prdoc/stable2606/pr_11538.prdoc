@@ -1,0 +1,13 @@
+title: '[eth-rpc] Detect and backfill gaps in finalized block subscriptions'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Temporary connection drops can result in missed blocks, leaving gaps in the local database and causing incomplete results for RPC methods such as eth_getLogs and eth_getBlockByNumber. This PR introduces automatic gap detection in the finalized block subscription and backfills missing ranges via a background worker.
+
+    - Gap detection: When a newly finalized block arrives with a number higher than expected, the skipped range is queued for backfill.
+    - Gap-fill queue: A bounded in-memory channel (capacity: 32), non-blocking; a separate atomic counter tracks queued and in-flight requests.
+    - Gap-filler task: A background worker processes requests sequentially, reusing sync_backward_range; it does not update Head/Tail sync labels or the first_evm_block boundary.
+    - Sync state (Head advancement): The sync head does not advance while gap fills are in flight, ensuring continuity of the synced block range.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: patch

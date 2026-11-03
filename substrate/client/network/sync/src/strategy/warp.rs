@@ -743,7 +743,6 @@ where
 						}))
 					}
 					.boxed(),
-					remove_obsolete: false,
 				}
 			});
 		self.actions.extend(warp_proof_request);
@@ -767,9 +766,6 @@ where
 						))
 					}
 					.boxed(),
-					// Sending block request implies dropping obsolete pending response as we are
-					// not interested in it anymore.
-					remove_obsolete: true,
 				}
 			});
 		self.actions.extend(target_block_request);
@@ -1371,6 +1367,9 @@ mod test {
 
 	#[test]
 	fn complete_warp_proof_advances_phase() {
+		use crate::{pending_responses::PendingResponses, service::network::ToServiceCommand};
+		use futures::{executor::block_on, StreamExt};
+
 		// Initialize logging
 		sp_tracing::try_init_simple();
 
@@ -1424,26 +1423,40 @@ mod test {
 			config,
 			Some(ProtocolName::Static("")),
 			Arc::new(MockBlockDownloader::new()),
-			None,
+			Some(1),
 		);
 
-		// Make sure we have enough peers to make a request.
-		for best_number in 1..11 {
-			warp_sync.add_peer(PeerId::random(), Hash::random(), best_number);
-		}
+		// One peer must serve both the proof and the subsequent target-block request.
+		let peer_id = PeerId::random();
+		warp_sync.add_peer(peer_id, Hash::random(), 10);
 		assert!(matches!(warp_sync.phase, Phase::WarpProof { .. }));
 
-		let network_provider = NetworkServiceProvider::new();
-		let network_handle = network_provider.handle();
-
-		// Consume `SendWarpProofRequest` action.
-		let actions = warp_sync.actions(&network_handle).collect::<Vec<_>>();
+		let (tx, mut rx) = sc_utils::mpsc::tracing_unbounded("warp_test", 10);
+		let network_handle = NetworkServiceHandle::new(tx);
+		let mut pending = PendingResponses::new();
+		let mut actions = warp_sync.actions(&network_handle).collect::<Vec<_>>();
 		assert_eq!(actions.len(), 1);
-		let SyncingAction::StartRequest { peer_id: request_peer_id, .. } = actions[0] else {
-			panic!("Invalid action.");
+		let SyncingAction::StartRequest { peer_id: request_peer_id, key, request } =
+			actions.pop().unwrap()
+		else {
+			panic!("Expected warp proof request.");
 		};
-
-		warp_sync.on_warp_proof_response(&request_peer_id, EncodedProof(Vec::new()));
+		assert_eq!(request_peer_id, peer_id);
+		pending.insert(request_peer_id, key, request);
+		let ToServiceCommand::StartRequest(_, protocol, _, response_tx, _) =
+			block_on(rx.next()).unwrap()
+		else {
+			panic!("Expected network request.");
+		};
+		response_tx.send(Ok((Vec::new(), protocol))).unwrap();
+		let event = block_on(pending.next()).unwrap();
+		// Receiving the proof already frees this peer's request slot.
+		assert_eq!(pending.len(), 0);
+		let (response, _) = event.response.unwrap().unwrap();
+		warp_sync.on_warp_proof_response(
+			&event.peer_id,
+			EncodedProof(*response.downcast::<Vec<u8>>().unwrap()),
+		);
 
 		assert_eq!(warp_sync.actions.len(), 1);
 		let SyncingAction::ImportBlocks { origin, mut blocks } = warp_sync.actions.pop().unwrap()
@@ -1469,7 +1482,20 @@ mod test {
 				state: None,
 			}
 		);
-		assert!(matches!(warp_sync.phase, Phase::TargetBlock(header) if header == target_header));
+		assert!(matches!(&warp_sync.phase, Phase::TargetBlock(header) if *header == target_header));
+
+		let mut actions = warp_sync.actions(&network_handle).collect::<Vec<_>>();
+		assert_eq!(actions.len(), 1);
+		let SyncingAction::StartRequest { peer_id: target_peer, key, request } =
+			actions.pop().unwrap()
+		else {
+			panic!("Expected target block request.");
+		};
+		assert_eq!(target_peer, request_peer_id);
+		// No explicit cancellation or implicit removal is needed between these requests.
+		pending.insert(target_peer, key, request);
+		assert_eq!(pending.len(), 1);
+		assert_eq!(warp_sync.actions(&network_handle).count(), 0);
 	}
 
 	#[test]

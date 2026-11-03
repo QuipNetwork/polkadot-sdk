@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-subsystem"
 description = "Subsystem traits and message definitions and the generated overseer"
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,5 +12,5 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-polkadot-node-subsystem-types = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
+polkadot-node-subsystem-types = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }

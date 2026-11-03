@@ -35,7 +35,7 @@ use frame_support::{
 use frame_system::{EnsureRoot, EnsureSigned};
 use pallet_xcm::XcmPassthrough;
 use sp_core::{ConstU32, ConstU64, H256};
-use sp_runtime::traits::{Get, IdentityLookup, MaybeEquivalence};
+use sp_runtime::traits::{Get, IdentityLookup, MaybeEquivalence, TryConvertInto};
 
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -45,7 +45,7 @@ use xcm_builder::{
 	NoChecking, ParentAsSuperuser, ParentIsPreset, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, WithComputedOrigin,
 };
-use xcm_executor::{traits::JustTry, Config, XcmExecutor};
+use xcm_executor::{Config, XcmExecutor};
 
 pub type SovereignAccountOf =
 	(AccountId32Aliases<RelayNetwork, AccountId>, ParentIsPreset<AccountId>);
@@ -130,6 +130,7 @@ impl pallet_assets::Config for Runtime {
 	type RemoveItemsLimit = RemoveItemsLimit;
 	type AssetIdParameter = AssetIdForAssets;
 	type CallbackHandle = ();
+	type AssetIdAllocator = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = ();
 }
@@ -207,7 +208,7 @@ pub type ForeignAssetsTransactor = FungiblesAdapter<
 		AssetIdForAssets,
 		Balance,
 		FromLocationToAsset<Location, AssetIdForAssets>,
-		JustTry,
+		TryConvertInto,
 	>,
 	SovereignAccountOf,
 	AccountId,

@@ -1,0 +1,20 @@
+title: "frame-support: stabilize MaybeConsideration by removing experimental gate"
+
+doc:
+  - audience: Runtime Dev
+    description: |-
+      Remove the `experimental` feature gate from the `MaybeConsideration` trait and its
+      implementations (`()`, `FreezeConsideration`, `HoldConsideration`), making it available
+      unconditionally alongside `Consideration`.
+
+      Consumers no longer need to enable `frame-support/experimental` to use `MaybeConsideration`;
+      the feature has been dropped from the `pallet-collective` dependency and the `pallet-balances`
+      dev-dependency accordingly. No public API removals or storage changes.
+
+crates:
+  - name: frame-support
+    bump: minor
+  - name: pallet-collective
+    bump: patch
+  - name: pallet-balances
+    bump: none

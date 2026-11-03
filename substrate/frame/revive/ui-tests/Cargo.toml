@@ -19,7 +19,7 @@ pallet-revive = { workspace = true }
 scale-info = { workspace = true }
 
 [dev-dependencies]
-pallet-revive = { features = ["trybuild"], workspace = true, default-features = false }
+pallet-revive = { workspace = true, features = ["trybuild"] }
 trybuild = { workspace = true }
 
 [features]

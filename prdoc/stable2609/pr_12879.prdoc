@@ -1,0 +1,16 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: "snowbridge: pin removed SSZ merkle-proofs spec link"
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Doc comment only: pin the SSZ merkle-proofs spec link in
+      snowbridge-beacon-primitives to a commit, since ethereum/consensus-specs
+      removed the ssz/ directory and the master-branch link 404s, failing the
+      link-checker CI job on every PR.
+
+crates:
+  - name: snowbridge-beacon-primitives
+    bump: none

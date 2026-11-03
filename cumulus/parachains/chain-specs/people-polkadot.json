@@ -7,11 +7,6 @@
     "/dns/polkadot-people-connect-1.polkadot.io/tcp/30334/p2p/12D3KooWSSfWY3fTGJvGkuNUNBSNVCdLLNJnwkZSNQt7GCRYXu4o",
     "/dns/polkadot-people-connect-0.polkadot.io/tcp/443/wss/p2p/12D3KooWP7BoJ7nAF9QnsreN8Eft1yHNUhvhxFiQyKFEUePi9mu3",
     "/dns/polkadot-people-connect-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSSfWY3fTGJvGkuNUNBSNVCdLLNJnwkZSNQt7GCRYXu4o",
-    "/dns/people-polkadot-boot-ng.dwellir.com/tcp/443/wss/p2p/12D3KooWKMYu1L28TkDf1ooMW8D8PHcztLnjV3bausH9eiVTRUYN",
-    "/dns/people-polkadot-boot-ng.dwellir.com/tcp/30346/p2p/12D3KooWKMYu1L28TkDf1ooMW8D8PHcztLnjV3bausH9eiVTRUYN",
-    "/dns/people-polkadot-01.bootnode.stkd.io/tcp/30633/wss/p2p/12D3KooWDf2aLDKHQyLkDzdEGs6exNzWWw62s2EK9g1wrujJzRZt",
-    "/dns/people-polkadot.boot.rotko.net/tcp/31041/p2p/12D3KooWLg9NPeDFoL54A7WfuHSM3YNxPBGVRAd9ZY6rmVfdT6GJ",
-    "/dns/people-polkadot.boot.rotko.net/tcp/30435/wss/p2p/12D3KooWLg9NPeDFoL54A7WfuHSM3YNxPBGVRAd9ZY6rmVfdT6GJ",
     "/dns/boot-people-polkadot.stakeworld.io/tcp/443/wss/p2p/12D3KooWCS5ENtYsyHMSpK7LjvhKrKF7hVas7qDBQvRSUtCNnd1Z"
   ],
   "telemetryEndpoints": null,

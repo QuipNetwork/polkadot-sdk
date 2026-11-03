@@ -23,16 +23,14 @@
 use super::*;
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
-	sync::{
-		atomic::{AtomicU64, Ordering as AtomicOrdering},
-		Arc,
-	},
+	sync::Arc,
 };
 
 use assert_matches::assert_matches;
 use codec::Encode;
 use futures::channel::oneshot;
 use parking_lot::Mutex;
+use polkadot_node_clock::MockClock;
 use sp_core::testing::TaskExecutor;
 
 use polkadot_node_subsystem::{messages::AllMessages, ActiveLeavesUpdate};
@@ -208,45 +206,26 @@ impl Backend for TestBackend {
 	}
 }
 
-#[derive(Clone)]
-pub struct TestClock(Arc<AtomicU64>);
-
-impl TestClock {
-	fn new(initial: u64) -> Self {
-		TestClock(Arc::new(AtomicU64::new(initial)))
-	}
-
-	fn inc_by(&self, duration: u64) {
-		self.0.fetch_add(duration, AtomicOrdering::Relaxed);
-	}
-}
-
-impl Clock for TestClock {
-	fn timestamp_now(&self) -> Timestamp {
-		self.0.load(AtomicOrdering::Relaxed)
-	}
-}
-
 const TEST_STAGNANT_INTERVAL: Duration = Duration::from_millis(20);
 
 type VirtualOverseer =
 	polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<ChainSelectionMessage>;
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
-	test: impl FnOnce(TestBackend, TestClock, VirtualOverseer) -> T,
+	test: impl FnOnce(TestBackend, MockClock, VirtualOverseer) -> T,
 ) {
 	let pool = TaskExecutor::new();
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 	let backend = TestBackend::default();
-	let clock = TestClock::new(0);
+	let clock = MockClock::default();
 	let subsystem = crate::run(
 		context,
 		backend.clone(),
 		StagnantCheckInterval::new(TEST_STAGNANT_INTERVAL),
 		StagnantCheckMode::CheckAndPrune,
-		Box::new(clock.clone()),
+		Arc::new(clock.clone()),
 	);
 
 	let test_fut = test(backend, clock, virtual_overseer);
@@ -1796,7 +1775,7 @@ fn block_has_correct_stagnant_at() {
 		)
 		.await;
 
-		clock.inc_by(1);
+		clock.advance_secs(1);
 
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_a_ext.clone()).await;
 
@@ -1833,7 +1812,7 @@ fn detects_stagnant() {
 
 		{
 			let (_, write_rx) = backend.await_next_write();
-			clock.inc_by(STAGNANT_TIMEOUT);
+			clock.advance_secs(STAGNANT_TIMEOUT);
 
 			write_rx.await.unwrap();
 		}
@@ -1877,13 +1856,13 @@ fn finalize_stagnant_unlocks_subtree() {
 		)
 		.await;
 
-		clock.inc_by(1);
+		clock.advance_secs(1);
 
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_a_ext.clone()).await;
 
 		{
 			let (_, write_rx) = backend.await_next_write();
-			clock.inc_by(STAGNANT_TIMEOUT - 1);
+			clock.advance_secs(STAGNANT_TIMEOUT - 1);
 
 			write_rx.await.unwrap();
 		}
@@ -1931,13 +1910,13 @@ fn approval_undoes_stagnant_unlocking_subtree() {
 		)
 		.await;
 
-		clock.inc_by(1);
+		clock.advance_secs(1);
 
 		import_blocks_into(&mut virtual_overseer, &backend, None, chain_a_ext.clone()).await;
 
 		{
 			let (_, write_rx) = backend.await_next_write();
-			clock.inc_by(STAGNANT_TIMEOUT - 1);
+			clock.advance_secs(STAGNANT_TIMEOUT - 1);
 
 			write_rx.await.unwrap();
 		}
@@ -1993,7 +1972,7 @@ fn stagnant_preserves_parents_children() {
 
 		{
 			let (_, write_rx) = backend.await_next_write();
-			clock.inc_by(STAGNANT_TIMEOUT);
+			clock.advance_secs(STAGNANT_TIMEOUT);
 
 			write_rx.await.unwrap();
 		}
@@ -2035,7 +2014,7 @@ fn stagnant_makes_childless_parent_leaf() {
 
 		{
 			let (_, write_rx) = backend.await_next_write();
-			clock.inc_by(STAGNANT_TIMEOUT);
+			clock.advance_secs(STAGNANT_TIMEOUT);
 
 			write_rx.await.unwrap();
 		}

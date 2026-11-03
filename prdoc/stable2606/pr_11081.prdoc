@@ -1,0 +1,12 @@
+title: Implement `eth_subscribe`
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    Implemented `eth_subscribe` in the eth-rpc. The subscription kinds implemented is `newHeads` and `logs`.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: minor
+- name: pallet-revive
+  bump: minor

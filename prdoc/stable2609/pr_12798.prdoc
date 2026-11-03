@@ -1,0 +1,10 @@
+title: Add guide for updating versioned runtime API functions
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This is a small PR which adds more information to the versioning guide on how versioned runtime API functions can be upgraded. No code edits, just an edit to the `GUIDE.md` markdown file.
+crates:
+- name: pallet-revive-types
+  bump: patch

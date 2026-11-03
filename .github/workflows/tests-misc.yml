@@ -3,7 +3,7 @@ name: tests misc
 on:
   push:
     branches:
-      - master
+      - stable2609
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
@@ -98,7 +98,7 @@ jobs:
           forklift cargo test --locked -q --profile testnet --manifest-path substrate/primitives/runtime-interface/Cargo.toml ui
 
   test-deterministic-wasm:
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: [preflight, test-frame-examples-compile-to-wasm]
     runs-on: ${{ needs.preflight.outputs.RUNNER }}
     if: ${{ needs.preflight.outputs.changes_rust }}
@@ -127,7 +127,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        branch: [master, current]
+        branch: [stable2609, current]
     runs-on: ${{ needs.preflight.outputs.RUNNER }}
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
@@ -135,9 +135,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # if branch is master, use the branch, otherwise set empty string, so it uses the current context
+          # if branch is stable2609, use the branch, otherwise set empty string, so it uses the current context
           # either PR (including forks) or merge group (main repo)
-          ref: ${{ matrix.branch == 'master' && matrix.branch || '' }}
+          ref: ${{ matrix.branch == 'stable2609' && matrix.branch || '' }}
 
       - name: script
         shell: bash
@@ -154,7 +154,7 @@ jobs:
           forklift cargo run --locked --release -p node-bench -- $BENCH_NODE_IMPORT --json | tee $ARTIFACTS_DIR/bench_transfer_keep_alive.json
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: ./artifacts
           name: cargo-check-benches-${{ matrix.branch }}-${{ github.sha }}
@@ -162,22 +162,22 @@ jobs:
 
   node-bench-regression-guard:
     timeout-minutes: 20
-    if: always() && !cancelled()
+    if: ${{ needs.preflight.outputs.changes_rust }}
     runs-on: ubuntu-latest
     needs: [preflight, cargo-check-benches]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download artifact (master run)
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - name: Download artifact (stable2609 run)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         continue-on-error: true
         with:
-          name: cargo-check-benches-master-${{ github.sha }}
-          path: ./artifacts/master
+          name: cargo-check-benches-stable2609-${{ github.sha }}
+          path: ./artifacts/stable2609
 
       - name: Download artifact (current run)
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         continue-on-error: true
         with:
           name: cargo-check-benches-current-${{ github.sha }}
@@ -186,22 +186,22 @@ jobs:
       - name: script
         id: compare
         run: |
-          if [ "${{ github.ref_name }}" = "master" ]; then
-            echo -e "Exiting on master branch"
+          if [ "${{ github.ref_name }}" = "stable2609" ]; then
+            echo -e "Exiting on stable2609 branch"
             exit 0
           fi
 
           # fail if no artifacts
-          if [ ! -d ./artifacts/master ] || [ ! -d ./artifacts/current ]; then
+          if [ ! -d ./artifacts/stable2609 ] || [ ! -d ./artifacts/current ]; then
             echo "No artifacts found"
             exit 1
           fi
 
           docker run --rm \
-          -v $PWD/artifacts/master:/artifacts/master \
+          -v $PWD/artifacts/stable2609:/artifacts/stable2609 \
           -v $PWD/artifacts/current:/artifacts/current \
           paritytech/node-bench-regression-guard:latest \
-          node-bench-regression-guard --reference /artifacts/master --compare-with /artifacts/current
+          node-bench-regression-guard --reference /artifacts/stable2609 --compare-with /artifacts/current
 
           if [ $? -ne 0 ]; then
             FAILED_MSG='### node-bench-regression-guard failed ❌, check the regression in *cargo-check-benches* job'
@@ -238,7 +238,7 @@ jobs:
 
       - name: Upload artifacts if failed
         if: ${{ steps.tests.outcome != 'success' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: node-metrics-failed
           path: ./artifacts
@@ -318,7 +318,7 @@ jobs:
   #         name: hfuzz-${{ github.sha }}
 
   cargo-check-each-crate:
-    timeout-minutes: 70
+    timeout-minutes: 120
     needs: [preflight]
     runs-on: ${{ needs.preflight.outputs.RUNNER }}
     if: ${{ needs.preflight.outputs.changes_rust }}
@@ -360,7 +360,7 @@ jobs:
           echo $RUST_VERSION
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@1ccc07ccd54b6048295516a3eb89b192c35057dc # master from 12.09.2024
+        uses: Homebrew/actions/setup-homebrew@1ccc07ccd54b6048295516a3eb89b192c35057dc # stable2609 from 12.09.2024
       # Is broken because of different bash versions
       # - name: Install rust ${{ env.RUST_VERSION }}
       #   uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
@@ -383,7 +383,9 @@ jobs:
         uses: ./.github/actions/get-resolc
       - name: Install llvm
         run: |
-          brew install llvm@20
+          # Skip post_install: flaky on Homebrew 6.0 / arm64_tahoe; only writes
+          # clang SDK config files which CLT makes redundant on this runner.
+          brew install --skip-post-install llvm@20
           brew link llvm@20
       - name: cargo info
         run: |

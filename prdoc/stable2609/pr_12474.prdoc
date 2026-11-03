@@ -1,0 +1,12 @@
+title: 'pallet-revive: support finalized/safe/pending block tags in eth_getLogs'
+doc:
+- audience: Node Dev
+  description: |-
+    The `eth_getLogs` filter accepted only explicit block numbers and the `earliest`/`latest`
+    tags, rejecting `finalized`, `safe` and `pending` with an "Unsupported tag" error — even
+    though the rest of the eth-rpc server (`eth_getBalance`, `eth_call`, ...) already accepted
+    them. It now resolves all of these tags, consistently with the other endpoints: `safe` and
+    `finalized` map to the latest finalized block, and `pending` maps to `latest`.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: major

@@ -1,0 +1,42 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: Reorder `VerifySignature` extension variants so `Disabled` encodes to `0x00`
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Swap the order of the `Disabled` and `Signed { .. }` variants in
+      `pallet_verify_signature::VerifySignature` so that `Disabled` is now the first variant
+      and encodes as the SCALE byte `0x00`, while `Signed { .. }` is the second variant and
+      encodes with tag `0x01`.
+
+      The motivation is signer compatibility. Generic signers can default an extension to its
+      passthrough state when that state encodes to a single zero byte — the same convention used
+      by other simple, defaultable transaction extensions (`CheckMetadataHash`'s `Mode::Disabled`,
+      `Option::None`, `bool::false`). Under the previous variant order, the disabled state of
+      `VerifySignature` encoded as `0x01`, which a signer cannot produce without knowing the
+      enum's specific variant layout.
+
+      **On-chain encoding change.** This is a breaking change to the SCALE encoding of the
+      extension: the variant tags for `Disabled` and `Signed` are flipped. To my knowledge there
+      is no production runtime using this extension right now, but the breaking change is
+      reflected in the major bump of the pallet.
+
+crates:
+  - name: pallet-verify-signature
+    bump: major
+  - name: pallet-meta-tx
+    bump: patch
+  - name: pallet-example-authorization-tx-extension
+    bump: patch
+  - name: kitchensink-runtime
+    bump: major
+  - name: asset-hub-westend-runtime
+    bump: major
+  - name: collectives-westend-runtime
+    bump: major
+  - name: coretime-westend-runtime
+    bump: major
+  - name: people-westend-runtime
+    bump: major

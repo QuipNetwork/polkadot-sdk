@@ -1,0 +1,16 @@
+title: '[pallet-revive] Add vestedTransfer to vesting precompile'
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\nAdd `vestedTransfer(address, uint256, uint256, uint256)`\
+    \ to the vesting precompile, allowing Solidity contracts to create vesting schedules\
+    \ for target accounts via `pallet_vesting::vested_transfer`. Updates the `IVesting.sol`\
+    \ interface with the new function signature and NatSpec docs. Includes tests covering\
+    \ success, below-minimum revert, insufficient balance revert, and read-only/delegate-call\
+    \ guards.\n\n## Test plan\n\n- [x] `vested_transfer_succeeds` \u2014 verifies\
+    \ schedule creation on target\n- [x] `vested_transfer_reverts_below_min` \u2014\
+    \ reverts when locked < `MinVestedTransfer`\n- [x] `vested_transfer_reverts_insufficient_balance`\
+    \ \u2014 reverts when caller lacks funds\n- [x] Guard test cases \u2014 rejects\
+    \ in read-only and delegate-call contexts"
+crates:
+- name: pallet-vesting-precompiles
+  bump: minor

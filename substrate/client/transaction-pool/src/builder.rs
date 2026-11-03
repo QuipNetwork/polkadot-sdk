@@ -45,11 +45,19 @@ pub enum TransactionPoolType {
 pub struct TransactionPoolOptions {
 	txpool_type: TransactionPoolType,
 	options: Options,
+	/// If `true`, the pool is only maintained on best blocks (legacy behavior).
+	///
+	/// Only relevant for the fork-aware pool.
+	best_blocks_only: bool,
 }
 
 impl Default for TransactionPoolOptions {
 	fn default() -> Self {
-		Self { txpool_type: TransactionPoolType::SingleState, options: Default::default() }
+		Self {
+			txpool_type: TransactionPoolType::SingleState,
+			options: Default::default(),
+			best_blocks_only: false,
+		}
 	}
 }
 
@@ -61,6 +69,7 @@ impl TransactionPoolOptions {
 		tx_ban_seconds: Option<u64>,
 		txpool_type: TransactionPoolType,
 		is_dev: bool,
+		best_blocks_only: bool,
 	) -> TransactionPoolOptions {
 		let mut options = Options::default();
 
@@ -81,7 +90,7 @@ impl TransactionPoolOptions {
 			Duration::from_secs(30 * 60)
 		};
 
-		TransactionPoolOptions { options, txpool_type }
+		TransactionPoolOptions { options, txpool_type, best_blocks_only }
 	}
 
 	/// Creates predefined options for benchmarking
@@ -100,7 +109,13 @@ impl TransactionPoolOptions {
 				ban_time: Duration::from_secs(30 * 60),
 			},
 			txpool_type: TransactionPoolType::SingleState,
+			best_blocks_only: false,
 		}
+	}
+
+	/// Returns whether the transaction pool should be notified about *every* imported block.
+	pub fn use_all_block_notifications(&self) -> bool {
+		matches!(self.txpool_type, TransactionPoolType::ForkAware) && !self.best_blocks_only
 	}
 }
 

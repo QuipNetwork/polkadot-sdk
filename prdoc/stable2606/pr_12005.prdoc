@@ -1,0 +1,24 @@
+title: Make `TargetBlockRate` runtime API match `BLOCK_PROCESSING_VELOCITY` on test parachains
+
+doc:
+- audience: Runtime Dev
+  description: |-
+
+    This PR aligns the `TargetBlockRate` implementation on every affected runtime with
+    `BLOCK_PROCESSING_VELOCITY`.
+
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: bridge-hub-rococo-runtime
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch
+- name: collectives-westend-runtime
+  bump: patch
+- name: coretime-westend-runtime
+  bump: patch
+- name: glutton-westend-runtime
+  bump: patch
+- name: people-westend-runtime
+  bump: patch

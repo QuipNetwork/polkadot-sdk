@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Test checks that misbehaving validators disabled.
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
 use codec::Decode;
 use cumulus_zombienet_sdk_helpers::assert_para_throughput;
@@ -26,7 +27,9 @@ async fn validator_disabling_test() -> Result<(), anyhow::Error> {
 				.with_chain("westend-local") // Use westend-local so the disabling can take effect.
 				.with_default_command("polkadot")
 				.with_default_image(images.polkadot.as_str())
-				.with_default_args(vec![("-lparachain=debug").into()])
+				.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+					("-lparachain=debug").into(),
+				]))
 				.with_genesis_overrides(json!({
 					"configuration": {
 						"config": {
@@ -88,7 +91,7 @@ async fn validator_disabling_test() -> Result<(), anyhow::Error> {
 	log::info!("Waiting for parablocks to be produced");
 	let honest_validator = network.get_node("honest-validator-0")?;
 	let relay_client: OnlineClient<PolkadotConfig> = honest_validator.wait_client().await?;
-	assert_para_throughput(&relay_client, 20, [(polkadot_primitives::Id::from(1000), 10..30)])
+	assert_para_throughput(&relay_client, 20, [(polkadot_primitives::Id::from(1000), 10..30)], [])
 		.await?;
 
 	log::info!("Wait for a dispute to be initialized.");

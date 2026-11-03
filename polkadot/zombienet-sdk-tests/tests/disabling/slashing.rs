@@ -92,7 +92,7 @@ async fn dispute_past_session_slashing() -> Result<(), anyhow::Error> {
 	let relay_client: OnlineClient<PolkadotConfig> = honest.wait_client().await?;
 
 	// Wait for some para blocks being produced
-	assert_para_throughput(&relay_client, 20, [(ParaId::from(1337), 10..20)]).await?;
+	assert_para_throughput(&relay_client, 20, [(ParaId::from(1337), 10..20)], []).await?;
 
 	// Let's initiate a dispute
 	malus.resume().await?;

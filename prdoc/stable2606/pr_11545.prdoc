@@ -1,0 +1,119 @@
+title: Support State Overrides in ethCall
+doc:
+- audience: Runtime Dev
+  description: "# Description\n\nFollow-up to [#11075](https://github.com/paritytech/polkadot-sdk/pull/11075),\
+    \ scoped down to just `eth_call` state overrides per the feedback there. The original\
+    \ PR bundled state overrides together with `eth_simulateV1` (multi-block simulation,\
+    \ block overrides, transfer tracing, validation), which reviewers felt added too\
+    \ much surface area at once. This PR extracts the state override piece on its\
+    \ own, which is the most immediately useful part for the ecosystem and for our\
+    \ team.\n\nAdds state override support to the `eth_call` JSON-RPC method, matching\
+    \ the [Geth state override specification](https://geth.ethereum.org/docs/interacting-with-geth/rpc/objects#state-override-set).\
+    \ This lets callers temporarily modify account balance, nonce, code, and storage\
+    \ during `eth_call` simulations without touching on-chain state.\n\nTools like\
+    \ Foundry, Hardhat, Tenderly, and really any dApp doing pre-flight simulation\
+    \ rely on state overrides heavily. Without them, our `eth_call` was strictly less\
+    \ capable than what the ecosystem expects.\n\n### Why apply overrides in the runtime,\
+    \ not at the node level?\n\nDuring the review of #11075, there was a suggestion\
+    \ to apply state overrides at the node level using `OverlayedChanges`, bypassing\
+    \ the runtime entirely. That approach works well if you control the node (Anvil\
+    \ does exactly this with a [custom executor](https://github.com/paritytech/foundry-polkadot/blob/24b2973b170779eb399b3fc1f393d7d900281ce5/crates/anvil-polkadot/src/substrate_node/service/executor.rs#L39)),\
+    \ but pallet-revive's eth-rpc is a standalone process that talks to the node over\
+    \ WebSocket via `state_call`. It has no access to `OverlayedChanges` or `StateMachine`.\
+    \ Adding a custom `state_call_with_overrides` RPC to substrate core would need\
+    \ buy-in from the SDK team and would be a much larger change. Applying overrides\
+    \ inside the runtime, within the dry-run's transactional context that always rolls\
+    \ back, keeps everything self-contained and works with **any node out of the box**.\n\
+    \n### Why extend DryRunConfig instead of adding a new runtime API method?\n\n\
+    The codebase already had the pattern of `eth_transact` \u2192 `eth_transact_with_config`\
+    \ (a new method added when `DryRunConfig` was introduced). Adding `eth_transact_with_state_overrides`\
+    \ as yet another method felt like it would keep accumulating, and the fallback\
+    \ chain in the RPC layer was already two levels deep. Instead, we append `state_overrides`\
+    \ as a trailing field on `DryRunConfig` and rely on `sp_api`'s existing behavior:\
+    \ runtime API argument decoding uses `Decode::decode` (not `decode_all`), so trailing\
+    \ bytes from a newer RPC are silently ignored by an older runtime. For the reverse\
+    \ direction, a custom `Decode` impl defaults the missing field. No new method,\
+    \ no new fallback layer, backwards compatible in both directions. The [doc comments\
+    \ on `DryRunConfig`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types.rs#L24-L63)\
+    \ lay out the full reasoning and constraints.\n\n## Integration\n\nThis PR introduces\
+    \ a third optional parameter to `eth_call`:\n\n```jsonc\n// Before\neth_call(transaction,\
+    \ block)\n\n// After\neth_call(transaction, block, stateOverrides?)\n```\n\nThe\
+    \ `stateOverrides` parameter is an address-keyed map where each entry can override:\n\
+    \n- `balance`: fake balance before executing the call\n- `nonce`: fake nonce\n\
+    - `code`: inject EVM or PVM bytecode (promotes EOAs to contracts if needed)\n\
+    - `state`: full storage replacement (wipes everything, then writes the provided\
+    \ slots)\n- `stateDiff`: partial storage patch (only touches specified slots)\n\
+    - `movePrecompileToAddress`: not yet implemented, silently ignored\n\nExisting\
+    \ callers that don't pass the third parameter are completely unaffected. The parameter\
+    \ is `Option`-typed and defaults to `None`.\n\nIf you're a downstream consumer\
+    \ of pallet-revive's runtime API: the `DryRunConfig` struct has a new `state_overrides`\
+    \ field. It's `Option<StateOverrideSet>` and defaults to `None`, so existing code\
+    \ that constructs `DryRunConfig` via `Default` or the builder pattern will continue\
+    \ to work without changes. The SCALE encoding is backwards-compatible in both\
+    \ directions as described above.\n\n## Review Notes\n\nI'd suggest starting with\
+    \ the type definitions, then moving to the application logic, and finally the\
+    \ RPC wiring. The tests are worth skimming at the end to see the coverage.\n\n\
+    ### Type definitions\n\nThe core types live in [`rpc_types_gen.rs`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types_gen.rs#L1338-L1547):\n\
+    \n- [`StateOverrideSet`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types_gen.rs#L1338):\
+    \ newtype around `BTreeMap<Address, StateOverride>` with builder methods and iterator\
+    \ impls. Both the set-level and per-account builder patterns are provided (e.g.\
+    \ `StateOverrideSet::new().with_balance(addr, val)`).\n- [`StorageOverride`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types_gen.rs#L1455):\
+    \ enum encoding the mutual exclusivity of `state` vs `stateDiff` at the type level.\
+    \ Uses `#[serde(flatten)]` with externally-tagged enum representation so the JSON\
+    \ stays flat (`{\"state\": {...}}` or `{\"stateDiff\": {...}}`), matching exactly\
+    \ what Geth produces.\n- [`StateOverride`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types_gen.rs#L1474):\
+    \ the per-account override struct. All fields optional.\n\n### DryRunConfig extension\n\
+    \n[`DryRunConfig` in `rpc_types.rs`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types.rs#L64-L74)\
+    \ has a new `state_overrides: Option<StateOverrideSet>` trailing field. The struct\
+    \ now has a manual `Default` (because `perform_balance_checks` defaults to `Some(true)`)\
+    \ and a [custom `Decode`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types.rs#L82-L89)\
+    \ that tolerates missing bytes for the new field. The backwards compatibility\
+    \ story is documented extensively in the [doc comments](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/evm/api/rpc_types.rs#L24-L63).\n\
+    \n### State override application logic\n\nThis is where most of the actual logic\
+    \ lives: [`state_overrides.rs`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/state_overrides.rs).\
+    \ The [entry point](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/state_overrides.rs#L57)\
+    \ iterates the override set and dispatches to per-field handlers. The ordering\
+    \ (balance, nonce, code, storage) is intentional, because code overrides can promote\
+    \ an EOA to a contract, which needs to happen before storage overrides can write\
+    \ to the contract's child trie.\n\nKey things to look at:\n- [Code override](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/state_overrides.rs#L158):\
+    \ detects PVM vs EVM via `BLOB_MAGIC`, creates a `ContractBlob`, stores code +\
+    \ metadata, promotes EOA to contract if needed. Checks `AllowEVMBytecode` for\
+    \ EVM code.\n- [Storage override](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/state_overrides.rs#L214):\
+    \ `State` clears the child trie then writes; `StateDiff` writes without clearing.\n\
+    \nAll of this runs inside the dry-run's transactional context, so mutations are\
+    \ rolled back after the call.\n\n### RPC wiring\n\n- [`execution_apis.rs`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/rpc/src/apis/execution_apis.rs#L36-L41):\
+    \ added `state_overrides` as the third parameter to the `eth_call` trait method\n\
+    - [`lib.rs`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/rpc/src/lib.rs#L200-L211):\
+    \ forwards the overrides to `runtime_api.dry_run()`\n- [`client/runtime_api.rs`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/rpc/src/client/runtime_api.rs#L142-L160):\
+    \ `dry_run()` now packs state overrides into `DryRunConfig` and sends them through\
+    \ `eth_transact_with_config`\n\n### Call site ordering\n\nIn [`dry_run_eth_transact`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/src/lib.rs#L1937-L1953),\
+    \ state overrides are applied **after** `prepare_dry_run` (which only bumps the\
+    \ nonce). This ordering matters: if a user overrides the nonce of the `from` account,\
+    \ their override takes precedence over the nonce bump.\n\n### Tests\n\n24 integration\
+    \ tests [starting here](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/rpc/src/tests.rs#L2121),\
+    \ all going through alloy-provider's `Provider::call().overrides()`. This is deliberate,\
+    \ by going through alloy we're not just testing our logic but also verifying that\
+    \ the JSON-RPC wire format is compatible with what the wider Ethereum ecosystem\
+    \ actually sends. If alloy can talk to us, so can ethers.js, viem, Foundry, etc.\n\
+    \nCoverage at a glance:\n\n**Balance:** override unfunded account, override to\
+    \ zero, override on `from` account (interaction with `prepare_dry_run`), nonce\
+    \ override.\n\n**Code (full transition matrix):** empty\u2192EVM, empty\u2192\
+    PVM, EOA\u2192EVM, EOA\u2192PVM, EVM\u2192EVM, EVM\u2192PVM, PVM\u2192EVM. All\
+    \ call `Callee.echo(N)` and assert the return value, including PVM variants (Resolc-compiled\
+    \ Callee).\n\n**Storage:** `stateDiff` patches a slot, `state` replaces a slot,\
+    \ `state` clears unspecified slots (new [`TwoSlots.sol`](https://github.com/paritytech/polkadot-sdk/blob/0xOmarA/eth-call-state-overrides/substrate/frame/revive/fixtures/contracts/TwoSlots.sol)\
+    \ fixture), `stateDiff` preserves unspecified slots, multiple slots, empty `state`\
+    \ map clears all, zero-value diff write, combined code+storage, storage on EOA\
+    \ fails.\n\n**Edge cases:** overrides don't persist, empty override set, multiple\
+    \ accounts, combined balance+code.\n\n### New dependencies (dev-only)\n\n`alloy-network`,\
+    \ `alloy-primitives`, `alloy-provider`, `alloy-rpc-types`, `alloy-signer-local`\
+    \ added to the workspace and inherited by the eth-rpc crate as dev-dependencies.\
+    \ Only compiled during `cargo test`.\n\n### Known limitations\n\n- `movePrecompileToAddress`\
+    \ is accepted but silently ignored."
+crates:
+- name: pallet-revive-eth-rpc
+  bump: major
+- name: pallet-revive
+  bump: major
+- name: pallet-revive-fixtures
+  bump: minor

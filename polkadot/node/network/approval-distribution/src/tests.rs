@@ -36,8 +36,8 @@ use polkadot_node_subsystem::messages::{
 };
 use polkadot_node_subsystem_util::{reputation::add_reputation, TimeoutExt as _};
 use polkadot_primitives::{
-	ApprovalVoteMultipleCandidates, AuthorityDiscoveryId, BlakeTwo256, CoreIndex, ExecutorParams,
-	HashT, NodeFeatures, SessionInfo, ValidatorId,
+	ApprovalVoteMultipleCandidates, ApprovalVotingParams, AuthorityDiscoveryId, BlakeTwo256,
+	CoreIndex, HashT, NodeFeatures, SessionInfo, ValidatorId, MAX_COALESCE_APPROVALS,
 };
 use polkadot_primitives_test_helpers::dummy_signature;
 use rand::SeedableRng;
@@ -143,6 +143,15 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 }
 
 async fn provide_session(virtual_overseer: &mut VirtualOverseer, session_info: SessionInfo) {
+	provide_session_with_coalesce_count(virtual_overseer, session_info, MAX_COALESCE_APPROVALS)
+		.await;
+}
+
+async fn provide_session_with_coalesce_count(
+	virtual_overseer: &mut VirtualOverseer,
+	session_info: SessionInfo,
+	max_approval_coalesce_count: u32,
+) {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::RuntimeApi(
@@ -157,22 +166,19 @@ async fn provide_session(virtual_overseer: &mut VirtualOverseer, session_info: S
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(
-				_,
-				RuntimeApiRequest::SessionExecutorParams(_, si_tx),
-			)
-		) => {
-			// Make sure all SessionExecutorParams calls are not made for the leaf (but for its relay parent)
-			si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
 		) => {
 			si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
+		}
+	);
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(_, si_tx))
+		) => {
+			si_tx
+				.send(Ok(ApprovalVotingParams { max_approval_coalesce_count }))
+				.unwrap();
 		}
 	);
 }
@@ -471,7 +477,6 @@ impl AssignmentCriteria for MockAssignmentCriteria {
 			polkadot_primitives::CoreIndex,
 			polkadot_primitives::GroupIndex,
 		)>,
-		_enable_assignments_v2: bool,
 	) -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment> {
 		HashMap::new()
 	}
@@ -1348,6 +1353,162 @@ fn multiple_assignments_covered_with_one_approval_vote() {
 					assert_eq!(signature.1, vec![0, 1]);
 				}
 			}
+			virtual_overseer
+		},
+	);
+}
+
+// Tests that an approval coalescing more candidates than the runtime's
+// `max_approval_coalesce_count` is rejected and costs the sending peer reputation.
+#[test]
+fn coalesced_approval_above_coalesce_limit_is_rejected_early() {
+	let peers = make_peers_and_authority_ids(15);
+
+	let peer_c = peers.get(2).unwrap().0;
+	let peer_d = peers.get(4).unwrap().0;
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+	let candidate_hash_first = polkadot_primitives::CandidateHash(Hash::repeat_byte(0xBB));
+	let candidate_hash_second = polkadot_primitives::CandidateHash(Hash::repeat_byte(0xCC));
+
+	let _ = test_harness(
+		Arc::new(MockAssignmentCriteria { tranche: Ok(0) }),
+		Arc::new(SystemClock {}),
+		state_without_reputation_delay(),
+		|mut virtual_overseer| async move {
+			let overseer = &mut virtual_overseer;
+			for (peer, _) in &peers {
+				setup_peer_with_view(overseer, peer, view![hash], ValidationVersion::V3).await;
+			}
+
+			let mut keystore = LocalKeystore::in_memory();
+			let session = dummy_session_info_valid(1, &mut keystore, 5);
+			let meta = BlockApprovalMeta {
+				hash,
+				parent_hash,
+				number: 1,
+				candidates: vec![
+					(candidate_hash_first, 0.into(), 0.into()),
+					(candidate_hash_second, 1.into(), 1.into()),
+				],
+				slot: 1.into(),
+				session: 1,
+				vrf_story: RelayVRFStory(Default::default()),
+			};
+			let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+			overseer_send(overseer, msg).await;
+
+			let peers_with_optional_peer_id = peers
+				.iter()
+				.map(|(peer_id, authority)| (Some(*peer_id), authority.clone()))
+				.collect_vec();
+			setup_gossip_topology(
+				overseer,
+				make_gossip_topology(1, &peers_with_optional_peer_id, &[0, 1], &[2, 4], 3),
+			)
+			.await;
+
+			let validator_index = ValidatorIndex(2);
+			let candidate_indices: CandidateBitfield =
+				vec![0 as CandidateIndex, 1 as CandidateIndex].try_into().unwrap();
+
+			// Import the assignment for candidate 0. The runtime advertises a coalescing limit of
+			// 1, i.e. coalescing is disabled.
+			let cert = fake_assignment_cert_v2(
+				hash,
+				validator_index,
+				vec![CoreIndex(0)].try_into().unwrap(),
+			);
+			let assignment = IndirectAssignmentCertV2 {
+				block_hash: hash,
+				validator: validator_index,
+				cert: cert.cert,
+			};
+			let msg = protocol_v3::ApprovalDistributionMessage::Assignments(vec![(
+				assignment,
+				(0 as CandidateIndex).into(),
+			)]);
+			send_message_from_peer_v3(overseer, &peer_d, msg).await;
+			provide_session_with_coalesce_count(overseer, session.clone(), 1).await;
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ApprovalVoting(ApprovalVotingMessage::ImportAssignment(
+					assignment,
+					_,
+				)) => {
+					assert_eq!(assignment.tranche(), 0);
+				}
+			);
+			expect_reputation_change(overseer, &peer_d, BENEFIT_VALID_MESSAGE_FIRST).await;
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+					_,
+					ValidationProtocols::V3(protocol_v3::ValidationProtocol::ApprovalDistribution(
+						protocol_v3::ApprovalDistributionMessage::Assignments(assignments)
+					))
+				)) => {
+					assert_eq!(assignments.len(), 1);
+				}
+			);
+
+			// Import the assignment for candidate 1.
+			let cert = fake_assignment_cert_v2(
+				hash,
+				validator_index,
+				vec![CoreIndex(1)].try_into().unwrap(),
+			);
+			let assignment = IndirectAssignmentCertV2 {
+				block_hash: hash,
+				validator: validator_index,
+				cert: cert.cert,
+			};
+			let msg = protocol_v3::ApprovalDistributionMessage::Assignments(vec![(
+				assignment,
+				(1 as CandidateIndex).into(),
+			)]);
+			send_message_from_peer_v3(overseer, &peer_c, msg).await;
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ApprovalVoting(ApprovalVotingMessage::ImportAssignment(
+					assignment,
+					_,
+				)) => {
+					assert_eq!(assignment.tranche(), 0);
+				}
+			);
+			expect_reputation_change(overseer, &peer_c, BENEFIT_VALID_MESSAGE_FIRST).await;
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+					_,
+					ValidationProtocols::V3(protocol_v3::ValidationProtocol::ApprovalDistribution(
+						protocol_v3::ApprovalDistributionMessage::Assignments(assignments)
+					))
+				)) => {
+					assert_eq!(assignments.len(), 1);
+				}
+			);
+
+			// Send an approval coalescing both candidates. With a coalescing limit of 1 this
+			// exceeds the allowed count and must be rejected without being imported or circulated.
+			let approval = IndirectSignedApprovalVoteV2 {
+				block_hash: hash,
+				candidate_indices,
+				validator: validator_index,
+				signature: signature_for(
+					&keystore,
+					&session,
+					vec![candidate_hash_first, candidate_hash_second],
+					validator_index,
+				),
+			};
+			let msg = protocol_v3::ApprovalDistributionMessage::Approvals(vec![approval]);
+			send_message_from_peer_v3(overseer, &peer_d, msg).await;
+
+			expect_reputation_change(overseer, &peer_d, COST_INVALID_MESSAGE).await;
 			virtual_overseer
 		},
 	);

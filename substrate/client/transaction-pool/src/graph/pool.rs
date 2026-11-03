@@ -456,8 +456,11 @@ impl<B: ChainApi, L: EventHandler<B>> Pool<B, L> {
 		// Make sure that we don't revalidate extrinsics that were part of the recently
 		// imported block. This is especially important for UTXO-like chains cause the
 		// inputs are pruned so such transaction would go to future again.
-		self.validated_pool
-			.ban(&Instant::now(), known_imported_hashes.clone().into_iter());
+		self.validated_pool.ban(
+			&Instant::now(),
+			known_imported_hashes.clone().into_iter(),
+			crate::graph::rotator::BanReason::Validation,
+		);
 
 		// Try to re-validate pruned transactions since some of them might be still valid.
 		// note that `known_imported_hashes` will be rejected here due to temporary ban.
@@ -698,7 +701,11 @@ mod tests {
 		});
 
 		// when
-		pool.validated_pool.ban(&Instant::now(), vec![pool.hash_of(&uxt)]);
+		pool.validated_pool.ban(
+			&Instant::now(),
+			vec![pool.hash_of(&uxt)],
+			crate::graph::rotator::BanReason::Validation,
+		);
 		let res = block_on(pool.submit_one(&api.expect_hash_and_number(0), SOURCE, uxt.into()))
 			.map(|o| o.hash());
 		assert_eq!(pool.validated_pool().status().ready, 0);
@@ -1001,45 +1008,7 @@ mod tests {
 		use super::*;
 
 		#[test]
-		fn should_trigger_ready_and_finalized() {
-			// given
-			let (pool, api) = pool();
-			let watcher = block_on(
-				pool.submit_and_watch(
-					&api.expect_hash_and_number(0),
-					SOURCE,
-					uxt(Transfer {
-						from: Alice.into(),
-						to: AccountId::from_h256(H256::from_low_u64_be(2)),
-						amount: 5,
-						nonce: 0,
-					})
-					.into(),
-				),
-			)
-			.unwrap()
-			.expect_watcher();
-			assert_eq!(pool.validated_pool().status().ready, 1);
-			assert_eq!(pool.validated_pool().status().future, 0);
-
-			let han_of_block2 = api.expect_hash_and_number(2);
-
-			// when
-			block_on(pool.prune_tags(&han_of_block2, vec![vec![0u8]], vec![]));
-			assert_eq!(pool.validated_pool().status().ready, 0);
-			assert_eq!(pool.validated_pool().status().future, 0);
-
-			// then
-			let mut stream = futures::executor::block_on_stream(watcher.into_stream());
-			assert_eq!(stream.next(), Some(TransactionStatus::Ready));
-			assert_eq!(
-				stream.next(),
-				Some(TransactionStatus::InBlock((han_of_block2.hash.into(), 0))),
-			);
-		}
-
-		#[test]
-		fn should_trigger_ready_and_finalized_when_pruning_via_hash() {
+		fn should_trigger_ready_and_in_block_when_pruning_via_hash() {
 			// given
 			let (pool, api) = pool();
 			let watcher = block_on(

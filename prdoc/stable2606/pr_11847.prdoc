@@ -1,0 +1,82 @@
+title: '[revive] pgas as storage deposit'
+doc:
+  - audience: [Runtime Dev, Runtime User]
+    description: |
+      ## Storage deposits backed by PGAS
+
+      > PGAS is a protocol-level gas token or gas allowance mechanism for users verified through Polkadot's Proof of Personhood ecosystem.
+
+      This PR adds a second payment backend for pallet-revive storage deposits: instead of always charging the user in native currency (DOT), a runtime can opt in to having deposits denominated in **PGAS**.
+
+      ### New trait: `Deposit`
+
+      `substrate/frame/revive/src/deposit_payment.rs`
+
+      A new sealed `Deposit<T: Config>` trait abstracts over how storage deposits are charged, held, refunded. It has two implementations in-crate:
+
+      - **`()`**: the default, charges and refunds the native currency. Identical to the existing pre-PR behavior.
+      - **`PGasDeposit<Mutator, Holder, Freezer, Id, RefundPercent>`**: the PGAS-backed backend.
+
+      The trait is wired into `Config::Deposit` and called from `charge_deposit` / `refund_deposit` in place of the direct `T::Currency` calls that used to live there.
+
+      ### Account lifecycle: `init_account` / `deinit_account`
+
+      The trait includes `init_account(to)` and `deinit_account(contract)` methods. Rather than transferring the ED from the origin at contract creation (and back to origin on destruction), the EDs are **minted** on init and **burned** on deinit:
+
+      ### New storage: `NativeDepositOf`
+
+      `substrate/frame/revive/src/lib.rs`
+
+      ```rust
+      pub(crate) type NativeDepositOf<T: Config> = StorageDoubleMap<
+          _, Identity, T::AccountId,
+          Blake2_128Concat, T::AccountId,
+          BalanceOf<T>, ValueQuery,
+      >;
+      ```
+
+      Keyed `(holder_account, user) -> native_amount`. It records how much **native currency** a user has contributed to a given account's hold. The holder is either a contract (for storage deposits on contract accounts) or the pallet account (for code-upload deposits).
+
+      It exists because in the mixed PGAS/DOT world, a user's refund cap needs to be tracked explicitly. The map caps how much of a refund can come back as DOT ; anything beyond that is settled in PGAS.
+
+      ### `PGasDeposit<Mutator, Holder, Freezer, Id, RefundPercent>`
+
+      `substrate/frame/revive/src/deposit_payment.rs`
+
+      Parameterized by five type parameters that the runtime wires up:
+
+      - `Mutator: fungibles::Mutate` — the fungibles impl backing PGAS (e.g. `pallet-assets`).
+      - `Holder: fungibles::MutateHold` — the holds backend (e.g. `pallet-assets-holder`).
+      - `Freezer: fungibles::freeze::Mutate` — the freezes backend (e.g. `pallet-assets-freezer`), used to pin each contract's PGAS ED.
+      - `Id: Get<AssetId>` — the PGAS asset id on that fungibles instance.
+      - `RefundPercent: Get<Perbill>` — the fraction of PGAS returned on refund/collect; the rest is burned.
+
+      Charge semantics:
+      - If the user has enough reducible PGAS, the full amount is paid in PGAS via `fungibles::MutateHold::transfer_and_hold`, which emits the `TransferOnHold` event. No DOT is touched.
+      - Otherwise the charge falls through to DOT, and the contribution is recorded in `NativeDepositOf` so it can be refunded as DOT later.
+
+      Refund / collect semantics:
+      - DOT is returned first, capped by `NativeDepositOf[holder][user]` (and by `Precision::BestEffort` on the actual DOT hold).
+      - Any shortfall is taken from the PGAS hold. `RefundPercent` of that PGAS is transferred to the user's free balance; the remainder is burned.
+      - **Sub-ED refunds**: if the `RefundPercent` portion would land below PGAS's ED on the user's account (e.g. the user has no PGAS account and the refund is too small to create one), that portion is folded into the burn rather than aborting the whole refund.
+
+      The `RefundPercent` burn is what prevents free-PGAS harvesting: a user can't deposit storage, release it, and walk away with an allowance they can spend on execution.
+
+      ### Migration (v4)
+
+      `substrate/frame/revive/src/migrations/v4.rs`
+
+      A three-phase multi-block migration brings live chains over:
+
+      - **Phase 1**: record each existing code-upload deposit under `NativeDepositOf[pallet_account][owner]` so it can still be refunded in DOT.
+      - **Phase 2**: flip each contract's storage deposit from DOT to PGAS via `Deposit::migrate_native_to_pgas` — mint + freeze the PGAS ED under `FreezeReason::PGasMinBalance`, burn the native `StorageDepositReserve` hold, re-hold the same amount in PGAS. Needed because pre-PR DOT deposits weren't tracked per-contributor.
+      - **Phase 3**: rewrite `DeletionQueue` from `TrieId` to `DeletionQueueItem { trie_id, account_id }` so the on-idle sweep can also clear the contract's `NativeDepositOf` rows. Runs on every runtime.
+crates:
+  - name: pallet-revive
+    bump: major
+  - name: pallet-revive-fixtures
+    bump: minor
+  - name: asset-hub-westend-runtime
+    bump: major
+  - name: penpal-runtime
+    bump: minor

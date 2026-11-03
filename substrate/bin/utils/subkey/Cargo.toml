@@ -1,6 +1,6 @@
 [package]
 name = "subkey"
-version = "31.0.0"
+version = "36.0.0"
 authors.workspace = true
 description = "Generate and restore keys for Substrate based chains such as Polkadot, Kusama and a growing number of parachains and Substrate based projects."
 edition.workspace = true
@@ -21,4 +21,4 @@ name = "subkey"
 
 [dependencies]
 clap = { features = ["derive"], workspace = true }
-sc-cli = { default-features = true, workspace = true }
+sc-cli = { workspace = true, default-features = true }

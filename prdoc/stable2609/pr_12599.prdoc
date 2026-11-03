@@ -1,0 +1,13 @@
+title: 'pallet-revive: bench the overlay overhead of hot storage accesses'
+doc:
+- audience: Runtime Dev
+  description: "Replace the hardcoded `HOT_STORAGE_OVERLAY_OVERHEAD` (2\xB5s) with\
+    \ a benchmarked value.\n- Add `overlay_probe_full`, which fills the overlay inside\
+    \ the measured block  and reads `n` stored keys, and `overlay_probe_empty`, the\
+    \ same reads without the fill\n - Price each hot storage access with the per-read\
+    \ difference between the two."
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: pallet-revive
+  bump: major

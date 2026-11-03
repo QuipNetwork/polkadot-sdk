@@ -1,6 +1,6 @@
 [package]
 name = "mmr-rpc"
-version = "45.0.0"
+version = "48.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -18,11 +18,11 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { workspace = true, default-features = true }
 jsonrpsee = { features = ["client-core", "macros", "server-core"], workspace = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-mmr-primitives = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-mmr-primitives = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 
 [dev-dependencies]
 serde_json = { workspace = true, default-features = true }

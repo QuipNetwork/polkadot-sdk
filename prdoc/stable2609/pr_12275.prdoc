@@ -1,0 +1,12 @@
+title: In `glutton_westend_config` patch the genesis config with the passed para_id
+doc:
+- audience: Runtime Dev
+  description: |-
+    While running tests on Versi I noticed that while generating chainspec for e.g. `glutton-westend-local-1301` I noticed that the para id in the spec id is ignored and always set to 1300.
+
+    Not sure if there is a good reason for this behaviour but it's misleading.
+crates:
+- name: glutton-westend-runtime
+  bump: patch
+- name: polkadot-parachain-bin
+  bump: patch

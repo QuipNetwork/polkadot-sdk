@@ -1,0 +1,5 @@
+error: #[stored] is only supported on structs and enums, not unions
+  --> tests/stored_ui/reject_union.rs:21:1
+   |
+21 | pub union MyUnion {
+   | ^^^

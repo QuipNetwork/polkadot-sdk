@@ -1,0 +1,9 @@
+title: Implement `bitswap_v1_get` RPC method
+doc:
+- audience: Node Dev
+  description: Implement `bitswap_v1_get` RPC method according to the [spec](https://github.com/paritytech/json-rpc-interface-spec/blob/main/src/api/bitswap_v1_get.md).
+crates:
+- name: sc-rpc-spec-v2
+  bump: major
+- name: sc-service
+  bump: major

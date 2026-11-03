@@ -1,0 +1,15 @@
+title: Remove deprecated GetStorageVersion::current_storage_version
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    Removes deprecated `GetStorageVersion::current_storage_version` as part of #11561.
+
+    The method was renamed to `in_code_storage_version` in March 2024. It has no remaining usage in this repository.
+
+    Does not close #11561.
+
+crates:
+- name: frame-support
+  bump: major

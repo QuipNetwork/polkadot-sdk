@@ -334,6 +334,21 @@ impl CargoCommand {
 		version.major > 1 || (version.major == 1 && version.minor >= 68) || version.is_nightly
 	}
 
+	/// Returns whether this cargo accepts the `-Z json-target-spec` flag.
+	///
+	/// Newer cargo requires the flag to be opted into for any `--target=*.json` invocation,
+	/// older cargo rejects it as unknown. It landed partway through the 1.95 cycle, so a
+	/// toolchain from early in that cycle reports 1.95 while its cargo does not know the
+	/// flag yet: no version comparison can express this, hence the probe.
+	fn supports_json_target_spec(&self) -> bool {
+		// `-Z` flags are nightly-only, so make a stable cargo answer as a nightly would.
+		self.command()
+			.env("RUSTC_BOOTSTRAP", "1")
+			.args(["-Z", "help"])
+			.output()
+			.is_ok_and(|out| String::from_utf8_lossy(&out.stdout).contains("json-target-spec"))
+	}
+
 	/// Returns whether this version of the toolchain supports the `wasm32v1-none` target.
 	fn supports_wasm32v1_none_target(&self) -> bool {
 		self.version.map_or(false, |version| {

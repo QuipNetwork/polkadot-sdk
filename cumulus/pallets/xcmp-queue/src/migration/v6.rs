@@ -77,6 +77,7 @@ impl<T: Config> UncheckedOnRuntimeUpgrade for unversioned::UncheckedMigrateV5ToV
 						last_index: pre_channel_details.last_index,
 						// The new field added by the migration.
 						flags: OutboundChannelFlags::empty(),
+						queued_bytes: 0,
 					})
 					.collect(),
 			)

@@ -38,7 +38,6 @@ use frame_support::{
 	weights::{Weight, WeightMeter},
 };
 use frame_system::{limits::BlockWeights, pallet_prelude::BlockNumberFor, RawOrigin};
-use sp_core::ConstU32;
 use sp_runtime::{traits::BlakeTwo256, BuildStorage};
 use sp_version::RuntimeVersion;
 use std::cell::RefCell;
@@ -98,7 +97,8 @@ impl Config for Test {
 	type CheckAssociatedRelayNumber = AnyRelayNumber;
 	type ConsensusHook = TestConsensusHook;
 	type WeightInfo = ();
-	type RelayParentOffset = ConstU32<0>;
+	type RelayParentOffset = MockRelayParentOffset;
+	type SchedulingSignatureVerifier = ();
 }
 
 std::thread_local! {
@@ -116,6 +116,8 @@ impl ConsensusHook for TestConsensusHook {
 
 parameter_types! {
 	pub const MaxWeight: Weight = Weight::MAX;
+	/// Settable so tests can exercise the non-zero case; `ConstU32` is fixed at compile time.
+	pub static MockRelayParentOffset: u32 = 0;
 }
 
 impl pallet_message_queue::Config for Test {
@@ -150,8 +152,12 @@ pub fn send_message(dest: ParaId, message: Vec<u8>) {
 }
 
 impl XcmpMessageSource for FromThreadLocal {
-	fn take_outbound_messages(maximum_channels: usize) -> Vec<(ParaId, Vec<u8>)> {
-		let mut ids = std::collections::BTreeSet::<ParaId>::new();
+	fn take_outbound_messages(
+		maximum_channels: usize,
+		excluded_recipients: &[ParaId],
+	) -> Vec<(ParaId, Vec<u8>)> {
+		let mut ids =
+			std::collections::BTreeSet::<ParaId>::from_iter(excluded_recipients.iter().copied());
 		let mut taken_messages = 0;
 		let mut taken_bytes = 0;
 		let mut result = Vec::new();
@@ -288,10 +294,14 @@ pub struct BlockTests {
 
 	included_para_head: Option<relay_chain::HeadData>,
 	pending_blocks: VecDeque<relay_chain::HeadData>,
+	pre_inherent_digests: Vec<sp_runtime::DigestItem>,
 }
 
 impl BlockTests {
 	pub fn new() -> BlockTests {
+		// `parameter_types!` statics are thread-local and outlive the test that set them, and a
+		// `should_panic` test never runs cleanup, so reset here rather than at the end of a test.
+		MockRelayParentOffset::set(0);
 		Default::default()
 	}
 
@@ -351,6 +361,17 @@ impl BlockTests {
 		F: 'static + Fn(&BlockTests, RelayChainBlockNumber, &mut ParachainInherentData),
 	{
 		self.inherent_data_hook = Some(Box::new(f));
+		self
+	}
+
+	pub fn with_pre_inherent_digests(mut self, digests: Vec<sp_runtime::DigestItem>) -> Self {
+		self.pre_inherent_digests = digests;
+		self
+	}
+
+	/// Sets `Config::RelayParentOffset` for this test. Reset to 0 by [`BlockTests::new`].
+	pub fn with_relay_parent_offset(self, offset: u32) -> Self {
+		MockRelayParentOffset::set(offset);
 		self
 	}
 
@@ -439,6 +460,9 @@ impl BlockTests {
 			};
 
 			// execute the block
+			for digest in &self.pre_inherent_digests {
+				System::deposit_log(digest.clone());
+			}
 			ParachainSystem::on_initialize(*n);
 			ParachainSystem::create_inherent(&inherent_data)
 				.expect("got an inherent")

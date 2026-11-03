@@ -46,6 +46,7 @@ pub fn expand_outer_validate_unsigned(
 	quote! {
 		#( #query_validate_unsigned_part_macros )*
 
+		#[allow(deprecated)]
 		impl #scrate::unsigned::ValidateUnsigned for #runtime {
 			type Call = RuntimeCall;
 

@@ -1,0 +1,23 @@
+title: 'Fix runtime upgrade zombienet tests exceeding max_code_size'
+doc:
+- audience: Runtime Dev
+  description: |-
+    The wasm-builder's compaction and compression decision now uses the actual
+    blob build profile rather than the outer cargo profile. Since debug builds
+    already compile WASM blobs with the Release profile, they now also get
+    compacted and compressed, producing a properly sized `WASM_BINARY`.
+    Previously `WASM_BINARY` in debug builds was identical to `WASM_BINARY_BLOATY`.
+- audience: Node Dev
+  description: |-
+    Zombienet runtime upgrade tests now use compact (`WASM_BINARY`) runtimes
+    instead of `WASM_BINARY_BLOATY`, which had grown beyond the relay chain's
+    `max_code_size` limit. A new `submit_sudo_runtime_upgrade` helper verifies
+    that the inner sudo dispatch succeeded and renders any dispatch errors using
+    runtime metadata (e.g. `ParachainSystem::TooBig` instead of raw byte indices).
+crates:
+- name: substrate-wasm-builder
+  bump: patch
+- name: cumulus-zombienet-sdk-helpers
+  bump: minor
+- name: cumulus-zombienet-sdk-tests
+  bump: none

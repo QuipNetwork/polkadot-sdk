@@ -590,6 +590,10 @@ pub mod pallet {
 		fn weight_and_dispatch_class(
 			calls: &[<T as Config>::RuntimeCall],
 		) -> (Weight, DispatchClass) {
+			if calls.is_empty() {
+				return (Weight::zero(), DispatchClass::Normal);
+			}
+
 			let dispatch_infos = calls.iter().map(|call| call.get_dispatch_info());
 			let (dispatch_weight, dispatch_class) = dispatch_infos.fold(
 				(Weight::zero(), DispatchClass::Operational),
@@ -614,15 +618,6 @@ struct IndexedUtilityPalletId(u16);
 
 impl TypeId for IndexedUtilityPalletId {
 	const TYPE_ID: [u8; 4] = *b"suba";
-}
-
-impl<T: Config> Pallet<T> {
-	#[deprecated(
-		note = "`Pallet::derivative_account_id` will be removed after August 2025. Please instead use the freestanding module function `derivative_account_id`."
-	)]
-	pub fn derivative_account_id(who: T::AccountId, index: u16) -> T::AccountId {
-		derivative_account_id(who, index)
-	}
 }
 
 /// Derive a derivative account ID from the owner account and the sub-account index.

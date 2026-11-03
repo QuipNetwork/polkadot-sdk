@@ -1262,3 +1262,121 @@ fn vested_transfer_impl_works() {
 		);
 	});
 }
+
+#[test]
+fn vested_payout_edge_cases() {
+	use frame_support::{hypothetically, traits::tokens::VestedPayout};
+	ExtBuilder::default().existential_deposit(ED).build().execute_with(|| {
+		let alice = 3;
+		let bob = 4;
+
+		let alice_balance_before = Balances::free_balance(&alice);
+		let bob_balance_before = Balances::free_balance(&bob);
+
+		// WHEN: zero amount, THEN: no-op.
+		hypothetically!({
+			assert_ok!(<Vesting as VestedPayout<_, _>>::vested_transfer(&alice, &bob, 0, 10, None));
+			assert_eq!(Balances::free_balance(&bob), bob_balance_before);
+			assert!(VestingStorage::<Test>::get(&bob).is_none());
+		});
+
+		// WHEN: zero duration, THEN: liquid transfer, no vesting schedule.
+		hypothetically!({
+			let amount = ED * 5;
+			assert_ok!(<Vesting as VestedPayout<_, _>>::vested_transfer(
+				&alice, &bob, amount, 0, None
+			));
+			assert_eq!(Balances::free_balance(&alice), alice_balance_before - amount);
+			assert_eq!(Balances::free_balance(&bob), bob_balance_before + amount);
+			assert!(VestingStorage::<Test>::get(&bob).is_none());
+		});
+
+		// WHEN: start_at is a future block, THEN: schedule starts at that block and
+		// nothing vests before it, but vesting kicks in once we reach that block.
+		hypothetically!({
+			let amount = ED * 4; // 1024
+			let duration = 10u64;
+			let future_block = 100u64;
+			assert_ok!(<Vesting as VestedPayout<_, _>>::vested_transfer(
+				&alice,
+				&bob,
+				amount,
+				duration,
+				Some(future_block)
+			));
+			let schedule = VestingStorage::<Test>::get(&bob).unwrap();
+			assert_eq!(schedule.len(), 1);
+			assert_eq!(schedule[0].starting_block(), future_block);
+			assert_eq!(schedule[0].locked(), amount);
+
+			// Before start_at: nothing has vested yet, full amount is still locked.
+			System::set_block_number(future_block - 1);
+			assert_eq!(Vesting::vesting_balance(&bob), Some(amount));
+
+			// At start_at: vesting begins, per_block amount is unlocked.
+			System::set_block_number(future_block);
+			assert_eq!(Vesting::vesting_balance(&bob), Some(amount));
+
+			// A few blocks after start_at: partial vesting.
+			System::set_block_number(future_block + 5);
+			let per_block = schedule[0].per_block();
+			assert_eq!(Vesting::vesting_balance(&bob), Some(amount - per_block * 5));
+
+			// After start_at + duration: fully vested.
+			System::set_block_number(future_block + duration);
+			assert_eq!(Vesting::vesting_balance(&bob), Some(0));
+		});
+	});
+}
+
+#[test]
+fn vested_payout_creates_schedule() {
+	use frame_support::traits::tokens::VestedPayout;
+	ExtBuilder::default().existential_deposit(ED).build().execute_with(|| {
+		let alice = 3;
+		let bob = 4;
+
+		// Use amount that doesn't evenly divide by duration to test rounding.
+		// amount=1024, duration=30: floor division would give per_block=34, needing 31 blocks.
+		// Rounding up gives per_block=35, completing in 30 blocks (within duration).
+		let amount = ED * 4; // 1024
+		let duration = 30u64;
+
+		// WHEN
+		assert_ok!(<Vesting as VestedPayout<_, _>>::vested_transfer(
+			&alice, &bob, amount, duration, None
+		));
+
+		// THEN: per_block is rounded up to 35, not floored to 34.
+		let schedule = VestingStorage::<Test>::get(&bob).unwrap();
+		assert_eq!(schedule.len(), 1);
+		assert_eq!(schedule[0].locked(), amount);
+		assert_eq!(schedule[0].per_block(), 35);
+
+		// Vesting completes within duration: ceil(1024/35) = 30 blocks <= 30.
+		let ending = schedule[0].ending_block_as_balance::<Identity>();
+		assert!(ending <= schedule[0].starting_block() + duration);
+	});
+}
+
+#[test]
+fn vested_payout_self_transfer_creates_schedule() {
+	use frame_support::traits::tokens::VestedPayout;
+	ExtBuilder::default().existential_deposit(ED).build().execute_with(|| {
+		let alice = 3;
+		let balance_before = Balances::free_balance(&alice);
+		let amount = ED * 5;
+		let duration = 10u64;
+
+		// WHEN: self-transfer (used by staking to convert holds to vesting).
+		assert_ok!(<Vesting as VestedPayout<_, _>>::vested_transfer(
+			&alice, &alice, amount, duration, None
+		));
+
+		// THEN: balance unchanged (self-transfer), but vesting schedule is created.
+		assert_eq!(Balances::free_balance(&alice), balance_before);
+		let schedule = VestingStorage::<Test>::get(&alice).unwrap();
+		assert_eq!(schedule.len(), 1);
+		assert_eq!(schedule[0].locked(), amount);
+	});
+}

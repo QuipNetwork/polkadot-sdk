@@ -1,0 +1,11 @@
+title: Remove deprecated schedule::v1 module
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    - Remove the deprecated `schedule::v1` module from `frame_support::traits::schedule`.
+    - `schedule::v2` remains unchanged and is still used by `pallet-scheduler`.
+crates:
+- name: frame-support
+  bump: major

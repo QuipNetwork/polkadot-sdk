@@ -60,6 +60,9 @@ pub type HostFunctions =
 pub type HostFunctions = (
 	sp_io::SubstrateHostFunctions,
 	sp_statement_store::runtime_api::HostFunctions,
+	// Unstable: Only needed here for benchmarking. Do not use in production runtimes.
+	// These host functions are not available on Polkadot and subject to breaking changes.
+	sp_virtualization::HostFunctions,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -531,7 +534,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		Vec::default(),
 	));
 
-	let (network, system_rpc_tx, tx_handler_controller, sync_service) =
+	let (network, system_rpc_tx, tx_handler_controller, sync_service, _bitswap_handle) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			net_config,
@@ -544,6 +547,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 			warp_sync_config: Some(WarpSyncConfig::WithProvider(warp_sync)),
 			block_relay: None,
 			metrics,
+			gap_sync_body_policy: None,
 		})?;
 
 	if let Some(mixnet_config) = mixnet_config {
@@ -606,13 +610,14 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	(with_startup_data)(&block_import, &babe_link);
 
 	if let sc_service::config::Role::Authority { .. } = &role {
-		let proposer = sc_basic_authorship::ProposerFactory::new(
+		let mut proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool.clone(),
 			prometheus_registry.as_ref(),
 			telemetry.as_ref().map(|x| x.handle()),
 		);
+		proposer.set_default_block_size_limit(15 * 1024 * 1024);
 
 		let client_clone = client.clone();
 		let slot_duration = babe_link.config().slot_duration();

@@ -40,7 +40,7 @@ async fn parachains_smoke_test() -> Result<(), anyhow::Error> {
 	// Check parachain produces at least 5 blocks (60 seconds)
 	// Using 10 relay blocks as measurement window
 	log::info!("Checking parachain {} is producing blocks", PARA_ID);
-	assert_para_throughput(&alice_client, 5, [(ParaId::from(PARA_ID), 2..6)]).await?;
+	assert_para_throughput(&alice_client, 5, [(ParaId::from(PARA_ID), 2..6)], []).await?;
 	log::info!("Parachain {} is producing blocks successfully", PARA_ID);
 
 	log::info!("Test finished successfully");

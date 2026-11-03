@@ -214,6 +214,24 @@ impl<T: Config> Pallet<T> {
 		// to be in the current session.
 		AllowedSchedulingParents::<T>::mutate(|tracker| tracker.buffer.clear());
 
+		// Prune relay parents from sessions that are now too old.
+		let oldest_allowed_session =
+			session_index.saturating_sub(new_config.max_relay_parent_session_age);
+		let oldest_stored = OldestRelayParentSession::<T>::get();
+
+		// Only prune and advance the pointer if the allowed oldest session has moved
+		// forward. If max_relay_parent_session_age was increased at runtime,
+		// oldest_allowed_session may be less than oldest_stored; in that case, entries
+		// for those older sessions were already pruned in prior blocks and we must not
+		// move the pointer backward.
+		if oldest_allowed_session > oldest_stored {
+			for expired in oldest_stored..oldest_allowed_session {
+				let _ = AllowedRelayParents::<T>::clear_prefix(expired, u32::MAX, None);
+				MinimumRelayParentNumber::<T>::remove(expired);
+			}
+			OldestRelayParentSession::<T>::set(oldest_allowed_session);
+		}
+
 		CurrentSessionIndex::<T>::set(session_index);
 		let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
 
@@ -264,7 +282,6 @@ impl<T: Config> Pallet<T> {
 	/// Called at the beginning of each block to update the allowed scheduling and relay parents.
 	///
 	/// Adds the parent block as an allowed scheduling parent and relay parent.
-	/// Prunes relay parents from sessions that are older than `max_relay_parent_session_age`.
 	pub fn new_block(
 		hash: T::Hash,
 		cq: BTreeMap<CoreIndex, VecDeque<ParaId>>,
@@ -272,7 +289,6 @@ impl<T: Config> Pallet<T> {
 		max_ancestry_len: u32,
 		storage_root: T::Hash,
 		session_index: SessionIndex,
-		max_relay_parent_session_age: u32,
 	) {
 		// Update the allowed scheduling parents.
 		AllowedSchedulingParents::<T>::mutate(|tracker| {
@@ -291,23 +307,6 @@ impl<T: Config> Pallet<T> {
 		// higher numbers).
 		if !MinimumRelayParentNumber::<T>::contains_key(session_index) {
 			MinimumRelayParentNumber::<T>::insert(session_index, block_number);
-		}
-
-		// Prune relay parents from sessions that are now too old.
-		let oldest_allowed_session = session_index.saturating_sub(max_relay_parent_session_age);
-		let oldest_stored = OldestRelayParentSession::<T>::get();
-
-		// Only prune and advance the pointer if the allowed oldest session has moved
-		// forward. If max_relay_parent_session_age was increased at runtime,
-		// oldest_allowed_session may be less than oldest_stored; in that case, entries
-		// for those older sessions were already pruned in prior blocks and we must not
-		// move the pointer backward.
-		if oldest_allowed_session > oldest_stored {
-			for expired in oldest_stored..oldest_allowed_session {
-				let _ = AllowedRelayParents::<T>::clear_prefix(expired, u32::MAX, None);
-				MinimumRelayParentNumber::<T>::remove(expired);
-			}
-			OldestRelayParentSession::<T>::set(oldest_allowed_session);
 		}
 	}
 

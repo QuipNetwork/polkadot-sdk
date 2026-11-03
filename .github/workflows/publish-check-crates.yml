@@ -29,14 +29,14 @@ jobs:
           rustup default $RUST_VERSION
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: install parity-publish
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev pkg-config
-          cargo install parity-publish@0.10.10 --locked -q
+          cargo install parity-publish@0.10.17 --locked -q
 
       - name: parity-publish check
         run: parity-publish --color always check --allow-unpublished

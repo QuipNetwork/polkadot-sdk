@@ -1,6 +1,6 @@
 [package]
 name = "sp-consensus"
-version = "0.47.0"
+version = "0.50.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -20,12 +20,12 @@ targets = ["x86_64-unknown-linux-gnu"]
 async-trait = { workspace = true }
 futures = { features = ["thread-pool"], workspace = true }
 log = { workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-externalities = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

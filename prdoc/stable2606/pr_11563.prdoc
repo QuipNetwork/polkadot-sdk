@@ -1,0 +1,13 @@
+title: '[pallet-broker] introduce Market trait for a generic coretime market'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Introduce a Market trait to decouple the sale mechanism from the rest of the broker logic. 
+    This allows alternative market implementations (e.g. RFC-17) to be swapped in without 
+    modifying the broker pallet itself.
+
+    The purpose of this trait is to be implemented by a pallet containing the
+    logic for RFC-17 market and be exposed as a configuration item in pallet-broker.
+crates:
+- name: pallet-broker
+  bump: minor

@@ -70,6 +70,7 @@ use sp_runtime::{
 use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
 use frame_support::{
+	dispatch::DispatchResult,
 	ensure,
 	traits::{
 		ContainsLengthBound, Currency, EnsureOrigin, ExistenceRequirement::KeepAlive, Get,
@@ -228,6 +229,8 @@ pub mod pallet {
 		StillOpen,
 		/// The tip cannot be claimed/closed because it's still in the countdown period.
 		Premature,
+		/// None of the original tippers is still in the tippers set.
+		NoActiveTippers,
 	}
 
 	#[pallet::call]
@@ -439,8 +442,7 @@ pub mod pallet {
 			// closed.
 			Reasons::<T, I>::remove(&tip.reason);
 			Tips::<T, I>::remove(hash);
-			Self::payout_tip(hash, tip);
-			Ok(())
+			Self::payout_tip(hash, tip)
 		}
 
 		/// Remove and slash an already-open tip.
@@ -564,7 +566,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	fn payout_tip(
 		hash: T::Hash,
 		tip: OpenTip<T::AccountId, BalanceOf<T, I>, BlockNumberFor<T>, T::Hash>,
-	) {
+	) -> DispatchResult {
 		let mut tips = tip.tips;
 		Self::retain_active_tips(&mut tips);
 		tips.sort_by_key(|i| i.1);
@@ -572,7 +574,11 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		let treasury = Self::account_id();
 		let max_payout = pallet_treasury::Pallet::<T, I>::pot();
 
-		let mut payout = tips[tips.len() / 2].1.min(max_payout);
+		let mut payout = tips
+			.get(tips.len() / 2)
+			.ok_or(Error::<T, I>::NoActiveTippers)?
+			.1
+			.min(max_payout);
 		if !tip.deposit.is_zero() {
 			let err_amount = T::Currency::unreserve(&tip.finder, tip.deposit);
 			debug_assert!(err_amount.is_zero());
@@ -592,6 +598,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		let res = T::Currency::transfer(&treasury, &tip.who, payout, KeepAlive);
 		debug_assert!(res.is_ok());
 		Self::deposit_event(Event::TipClosed { tip_hash: hash, who: tip.who, payout });
+		Ok(())
 	}
 
 	pub fn migrate_retract_tip_for_tip_new(module: &[u8], item: &[u8]) {

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-bitfield-signing"
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,11 +13,11 @@ workspace = true
 
 [dependencies]
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 wasm-timer = { workspace = true }
 

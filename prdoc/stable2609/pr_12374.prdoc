@@ -1,0 +1,75 @@
+title: Fix resource exhaustion when replaying finalized-block transactions
+doc:
+- audience:
+  - Node Dev
+  - Runtime Dev
+  description: |-
+    # Description
+
+    Re-applying a finalized block's transactions can reject with `ExhaustsResources` some that
+    originally succeeded, so runtime APIs that replay a block (`pallet-revive`'s `trace_block` /
+    `trace_tx`) drop the rejected tail transactions' traces.
+
+    **Cause.** Each extrinsic is charged its worst-case `proof_size`; `StorageWeightReclaim` refunds
+    the difference down to the actual size read from a proof-size recorder. Authoring has a recorder
+    registered, so the over-charge is reclaimed; the replay has none, so reclaim is skipped,
+    `proof_size` accumulates past the block limit, and `CheckWeight` rejects the tail.
+
+    **Fix.** Replay the block through the runtime API with a proof-size recorder registered.
+
+    # Integration
+
+    - New **unsafe-gated** RPC `state_callRecorded(name, bytes, block)` on `StateApi`, the recorded
+      sibling of `state_call`: runs the call re-enacting `block` at its parent state with a
+      proof-size recorder, replaying `block`'s stored recording when available (fresh recorder
+      otherwise). `bytes` is the opaque SCALE-encoded args — the node doesn't inspect them, so
+      versioned payloads work; `block` only locates the parent state and the recording.
+    - New `TracingExecuteBlock::call_recorded(block, method, call_data)` trait method (default impl
+      errors, non-breaking; implemented for parachains in `cumulus-client-service`).
+    - New `sc-rpc-api` state errors with stable wire codes clients match on to fall back:
+      `CallRecordedUnsupported` (node has no recorder) and `CallRecordedDenied` (unsafe RPCs
+      disabled), both scoped to `state_callRecorded`; the shared `UnsafeRpcCalled` code is unchanged.
+    - `pallet-revive-types` trace types now deserialize the JSON they serialize
+      (`skip_serializing_if` fields also carry `#[serde(default)]`).
+
+    # Review Notes
+
+    **Why a new RPC.** eth-rpc talks to the node remotely, so its typed `runtime_api.trace_block()`
+    already crosses the wire as a `state_call`, and the recorder can only be registered node-side.
+    Recording on every `state_call` would add overhead to all hot paths; the scoped method gives
+    per-call consent.
+
+    **Faithful under bundling.** eth-rpc passes the block's on-chain hash; the node replays `block`'s
+    stored recording, matching `execute_block`. A fresh recorder would re-count already-proven nodes,
+    so a bundle-tail replay could spuriously hit `ExhaustsResources`; nodes without a recording (dev
+    nodes, non-bundling collators) fall back to a fresh recorder.
+
+    **Client fallback.** When a node cannot service `state_callRecorded`, eth-rpc falls back to the
+    plain trace APIs (version-skew and unsafe-disabled warn; the expected recorder-less case is
+    debug) and marks the result degraded: `debug_traceBlock*` returns dropped transactions as
+    geth-style `{txHash, error}` entries, `debug_traceTransaction` returns trace-unavailable rather
+    than "not found".
+
+    **Tests.** An Asset Hub Westend integration test reproduces the bug and confirms the fix through
+    the versioned trace APIs; a new `repeated_storage_read` fixture creates the `proof_size`
+    over-charge (a distinct cold storage key per round). `pallet-revive-eth-rpc` unit tests cover the
+    fallback classification; `sc-rpc` tests pin the unsafe-denied wire contract.
+crates:
+- name: sc-tracing
+  bump: minor
+- name: cumulus-client-service
+  bump: minor
+- name: sc-rpc-api
+  bump: major
+- name: sc-rpc
+  bump: major
+- name: pallet-revive-eth-rpc
+  bump: patch
+- name: pallet-revive
+  bump: patch
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: pallet-revive-fixtures
+  bump: patch
+- name: pallet-revive-types
+  bump: patch

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "25.0.0"
+version = "34.0.0"
 description = "Pallets and constants used in Relay Chain networks."
 authors.workspace = true
 edition.workspace = true
@@ -14,15 +14,28 @@ workspace = true
 [dependencies]
 bitvec = { features = ["alloc"], workspace = true }
 codec = { features = ["derive"], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
+impl-trait-for-tuples = { workspace = true }
+log = { workspace = true }
+rustc-hex = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+serde = { features = ["alloc"], workspace = true }
+static_assertions = { workspace = true, default-features = true }
+
+sp-api = { workspace = true }
+sp-core = { features = ["serde"], workspace = true }
+sp-inherents = { workspace = true }
+sp-io = { workspace = true }
+sp-keyring = { workspace = true }
+sp-npos-elections = { features = ["serde"], workspace = true }
+sp-runtime = { features = ["serde"], workspace = true }
+sp-session = { workspace = true }
+sp-staking = { features = ["serde"], workspace = true }
+
 frame-election-provider-support = { workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-impl-trait-for-tuples = { workspace = true }
-log = { workspace = true }
 pallet-asset-rate = { optional = true, workspace = true }
 pallet-authorship = { workspace = true }
-pallet-babe = { optional = true, workspace = true }
 pallet-balances = { workspace = true }
 pallet-broker = { workspace = true }
 pallet-election-provider-multi-phase = { workspace = true }
@@ -35,23 +48,15 @@ pallet-timestamp = { workspace = true }
 pallet-transaction-payment = { workspace = true }
 pallet-treasury = { workspace = true }
 pallet-vesting = { workspace = true }
-rustc-hex = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
-serde = { features = ["alloc"], workspace = true }
-sp-api = { workspace = true }
-sp-core = { features = ["serde"], workspace = true }
-sp-inherents = { workspace = true }
-sp-io = { workspace = true }
-sp-keyring = { workspace = true }
-sp-npos-elections = { features = ["serde"], workspace = true }
-sp-runtime = { features = ["serde"], workspace = true }
-sp-session = { workspace = true }
-sp-staking = { features = ["serde"], workspace = true }
-static_assertions = { workspace = true, default-features = true }
+
+frame-benchmarking = { optional = true, workspace = true }
+pallet-babe = { optional = true, workspace = true }
 
 libsecp256k1 = { workspace = true }
 polkadot-primitives = { workspace = true }
 polkadot-runtime-parachains = { workspace = true }
+registrar-primitives = { workspace = true }
+
 slot-range-helper = { workspace = true }
 xcm = { workspace = true }
 xcm-builder = { workspace = true }
@@ -61,12 +66,12 @@ xcm-executor = { optional = true, workspace = true }
 frame-support-test = { workspace = true }
 hex-literal = { workspace = true, default-features = true }
 libsecp256k1 = { workspace = true, default-features = true }
-pallet-babe = { default-features = true, workspace = true }
-pallet-treasury = { default-features = true, workspace = true }
+pallet-babe = { workspace = true, default-features = true }
+pallet-treasury = { workspace = true, default-features = true }
 polkadot-primitives-test-helpers = { workspace = true }
 serde_json = { workspace = true, default-features = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -96,6 +101,7 @@ std = [
 	"pallet-vesting/std",
 	"polkadot-primitives/std",
 	"polkadot-runtime-parachains/std",
+	"registrar-primitives/std",
 	"rustc-hex/std",
 	"scale-info/std",
 	"serde/std",

@@ -20,16 +20,37 @@ zombienet-sdk = { workspace = true }
 zombienet-orchestrator = { workspace = true }
 zombienet-configuration = { workspace = true }
 cumulus-zombienet-sdk-helpers = { workspace = true }
-cumulus-test-runtime = { workspace = true }
-sp-statement-store = { workspace = true, features = ["serde"], default-features = true }
-sc-statement-store = { workspace = true, default-features = true }
+sp-rpc = { workspace = true, default-features = true }
+sp-statement-store = { workspace = true, default-features = true, features = ["serde"] }
+sc-network-statement = { workspace = true, default-features = true }
+sc-statement-store = { workspace = true, default-features = true, features = ["test-helpers"] }
 sp-keyring = { workspace = true, default-features = true }
 sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
+parity-wasm = { workspace = true }
+sc-executor = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
+frame-support = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+cumulus-test-runtime = { workspace = true }
 sp-runtime = { workspace = true, default-features = true }
+sp-transaction-storage-proof = { workspace = true, default-features = true }
+verifiable = { workspace = true, default-features = true }
 sp-consensus-aura = { workspace = true, default-features = true }
 sp-consensus-slots = { workspace = true, default-features = true }
 codec = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
 rstest = { workspace = true }
+subxt = { workspace = true, features = ["native"] }
+subxt-signer = { workspace = true, features = ["sr25519"] }
+
+cid = { workspace = true }
+hex = { workspace = true, default-features = true }
+multihash = { workspace = true, default-features = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
 
 [features]
 zombie-ci = []

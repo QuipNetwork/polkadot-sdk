@@ -1,0 +1,14 @@
+title: 'pallet-assets: enforce full deposit transfer in transfer_ownership'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `transfer_ownership` previously discarded the remainder returned by `repatriate_reserved`.
+    Under `Polite` fortitude, a lock or freeze on the current owner that overlaps their free
+    balance can leave part of the reserved deposit behind, leaving the asset's recorded deposit
+    out of sync with what is actually reserved. The call now captures the returned remainder and
+    rejects the dispatch with a new `IncompleteDepositTransfer` error when it is non-zero;
+    the storage layer rolls back the partial move. To recover, the current owner must clear or
+    reduce the offending locks/freezes and retry.
+crates:
+- name: pallet-assets
+  bump: major

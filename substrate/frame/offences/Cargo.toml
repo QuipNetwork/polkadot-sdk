@@ -1,6 +1,6 @@
 [package]
 name = "pallet-offences"
-version = "45.0.0"
+version = "48.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -26,8 +26,8 @@ sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
 
 [dev-dependencies]
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -38,6 +38,8 @@ std = [
 	"log/std",
 	"scale-info/std",
 	"serde",
+	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
 	"sp-staking/std",
 ]

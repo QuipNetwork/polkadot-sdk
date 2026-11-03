@@ -538,7 +538,7 @@ where
 		},
 	}
 
-	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain);
+	runtime_api.set_call_context(sp_core::traits::CallContext::Onchain { import: false });
 	runtime_api
 		.authorities(parent_hash)
 		.ok()

@@ -4,7 +4,7 @@ description = "Procedural macros for XCM"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-version = "11.0.2"
+version = "7.0.0"
 publish = true
 homepage.workspace = true
 repository.workspace = true
@@ -25,6 +25,6 @@ syn = { workspace = true }
 trybuild = { features = ["diff"], workspace = true }
 # NOTE: we have to explicitly specify `std` because of trybuild
 # https://github.com/paritytech/polkadot-sdk/pull/5167
-xcm = { default-features = true, features = ["std"], workspace = true }
+xcm = { workspace = true, default-features = true, features = ["std"] }
 # For testing macros.
-frame-support = { workspace = true, default-features = false }
+frame-support = { workspace = true }

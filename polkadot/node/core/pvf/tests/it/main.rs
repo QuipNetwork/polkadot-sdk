@@ -777,7 +777,7 @@ async fn artifact_does_reprepare_on_meaningful_exec_parameter_change() {
 	let cache_dir = host.cache_dir.path();
 
 	let set1 = ExecutorParams::default();
-	let set2 = ExecutorParams::from(&[ExecutorParam::MaxMemoryPages(128)][..]);
+	let set2 = ExecutorParams::from(&[ExecutorParam::StackLogicalMax(1024)][..]);
 
 	let _stats = host
 		.precheck_pvf(test_parachain_halt::wasm_binary_unwrap(), set1)

@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-availability-distribution"
 description = "The Availability Distribution subsystem. Requests the required availability data. Also distributes availability data and chunks to requesters."
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -21,18 +21,18 @@ required-features = ["subsystem-benchmarks"]
 codec = { features = ["std"], workspace = true, default-features = true }
 fatality = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-erasure-coding = { default-features = true, workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+polkadot-erasure-coding = { workspace = true, default-features = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
-sc-network = { default-features = true, workspace = true }
+sc-network = { workspace = true, default-features = true }
 schnellru = { workspace = true }
 sp-core = { features = ["std"], workspace = true, default-features = true }
-sp-keystore = { default-features = true, workspace = true }
+sp-keystore = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
@@ -42,8 +42,8 @@ polkadot-node-subsystem-test-helpers = { workspace = true }
 polkadot-primitives-test-helpers = { workspace = true }
 polkadot-subsystem-bench = { workspace = true }
 rstest = { workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 subsystem-benchmarks = []

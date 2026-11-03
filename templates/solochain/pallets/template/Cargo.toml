@@ -1,7 +1,7 @@
 [package]
 name = "pallet-template"
 description = "FRAME pallet template for defining custom runtime logic."
-version = "0.1.0"
+version = "0.0.0"
 license = "Unlicense"
 authors.workspace = true
 homepage.workspace = true
@@ -17,15 +17,17 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
+# frame deps
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 
 [dev-dependencies]
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -35,6 +37,9 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-runtime/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

@@ -22,7 +22,10 @@
 use std::sync::Arc;
 
 use crate::runtime::{InstanceCounter, ReleaseInstanceHandle, Store, StoreData};
-use sc_executor_common::error::{Backtrace, Error, MessageWithBacktrace, Result, WasmError};
+use sc_executor_common::{
+	error::{Backtrace, Error, MessageWithBacktrace, Result, WasmError},
+	wasm_runtime::HeapAllocStrategy,
+};
 use sp_wasm_interface::{Pointer, WordSize};
 use wasmtime::{AsContext, AsContextMut, Engine, Instance, InstancePre, Memory};
 
@@ -76,7 +79,7 @@ impl EntryPoint {
 /// Wrapper around [`Memory`] that implements [`sc_allocator::Memory`].
 pub(crate) struct MemoryWrapper<'a, C>(pub &'a wasmtime::Memory, pub &'a mut C);
 
-impl<C: AsContextMut> sc_allocator::Memory for MemoryWrapper<'_, C> {
+impl<C: AsContextMut<Data = StoreData>> sc_allocator::Memory for MemoryWrapper<'_, C> {
 	fn with_access_mut<R>(&mut self, run: impl FnOnce(&mut [u8]) -> R) -> R {
 		run(self.0.data_mut(&mut self.1))
 	}
@@ -104,7 +107,7 @@ impl<C: AsContextMut> sc_allocator::Memory for MemoryWrapper<'_, C> {
 	}
 
 	fn max_pages(&self) -> Option<u32> {
-		self.0.ty(&self.1).maximum().map(|p| p as _)
+		self.1.as_context().data().memory_max_pages
 	}
 }
 
@@ -126,9 +129,16 @@ impl InstanceWrapper {
 		engine: &Engine,
 		instance_pre: &InstancePre<StoreData>,
 		instance_counter: Arc<InstanceCounter>,
+		heap_alloc_strategy: HeapAllocStrategy,
 	) -> Result<Self> {
 		let _release_instance_handle = instance_counter.acquire_instance();
-		let mut store = Store::new(engine, Default::default());
+
+		let (store_limits, memory_max_pages) =
+			Self::build_store_limits(instance_pre, heap_alloc_strategy);
+		let store_data = StoreData { limits: store_limits, memory_max_pages, ..Default::default() };
+		let mut store = Store::new(engine, store_data);
+		store.limiter(|data| &mut data.limits);
+
 		let instance = instance_pre.instantiate(&mut store).map_err(|error| {
 			WasmError::Other(format!(
 				"failed to instantiate a new WASM module instance: {:#}",
@@ -138,9 +148,44 @@ impl InstanceWrapper {
 
 		let memory = get_linear_memory(&instance, &mut store)?;
 
+		if let HeapAllocStrategy::Static { extra_pages } = heap_alloc_strategy {
+			memory.grow(&mut store, extra_pages as u64).map_err(|e| {
+				WasmError::Other(format!("failed to pre-grow memory by {extra_pages} pages: {e:#}"))
+			})?;
+		}
+
 		store.data_mut().memory = Some(memory);
 
 		Ok(InstanceWrapper { instance, store, _release_instance_handle })
+	}
+
+	fn build_store_limits(
+		instance_pre: &InstancePre<StoreData>,
+		heap_alloc_strategy: HeapAllocStrategy,
+	) -> (wasmtime::StoreLimits, Option<u32>) {
+		const WASM_PAGE_SIZE: usize = 65536;
+
+		let initial_pages = instance_pre
+			.module()
+			.exports()
+			.find_map(|e| e.ty().memory().map(|m| m.minimum()))
+			.unwrap_or(0) as u32;
+
+		let (max_memory_bytes, max_pages) = match heap_alloc_strategy {
+			HeapAllocStrategy::Static { extra_pages } => {
+				let total_pages = initial_pages.saturating_add(extra_pages);
+				(Some((total_pages as usize).saturating_mul(WASM_PAGE_SIZE)), Some(total_pages))
+			},
+			HeapAllocStrategy::Dynamic { maximum_pages } => {
+				(maximum_pages.map(|m| (m as usize).saturating_mul(WASM_PAGE_SIZE)), maximum_pages)
+			},
+		};
+
+		let mut builder = wasmtime::StoreLimitsBuilder::new();
+		if let Some(max) = max_memory_bytes {
+			builder = builder.memory_size(max);
+		}
+		(builder.build(), max_pages)
 	}
 
 	/// Resolves a substrate entrypoint by the given name.

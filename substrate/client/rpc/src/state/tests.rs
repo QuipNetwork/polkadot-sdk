@@ -18,7 +18,7 @@
 
 use self::error::Error;
 use super::*;
-use crate::testing::{allow_unsafe, test_executor, timeout_secs};
+use crate::testing::{allow_unsafe, deny_unsafe, test_executor, timeout_secs};
 use assert_matches::assert_matches;
 use futures::executor;
 use jsonrpsee::{core::EmptyServerParams as EmptyParams, MethodsError as RpcError};
@@ -205,6 +205,64 @@ async fn should_call_contract() {
 		client.call("balanceOf".into(), Bytes(vec![1, 2, 3]), Some(genesis_hash).into()),
 		Err(Error::Client(_))
 	)
+}
+
+#[tokio::test]
+async fn call_recorded_is_unsupported_without_recorder() {
+	let client = Arc::new(substrate_test_runtime_client::new());
+	let block_hash = client.chain_info().best_hash;
+	let (state, _child) = new_full(client, test_executor(), None);
+
+	let err = state
+		.call_recorded(&allow_unsafe(), "Core_version".into(), Bytes(vec![]), block_hash)
+		.unwrap_err();
+
+	assert_matches!(err, Error::CallRecordedUnsupported);
+	let object = jsonrpsee::types::ErrorObjectOwned::from(err);
+	assert_eq!(object.code(), error::CALL_RECORDED_UNSUPPORTED_ERROR_CODE);
+}
+
+#[tokio::test]
+async fn call_recorded_denied_when_unsafe() {
+	let client = Arc::new(substrate_test_runtime_client::new());
+	let block_hash = client.chain_info().best_hash;
+	let (state, _child) = new_full(client, test_executor(), None);
+
+	let err = state
+		.call_recorded(&deny_unsafe(), "Core_version".into(), Bytes(vec![]), block_hash)
+		.unwrap_err();
+
+	assert_matches!(err, Error::CallRecordedDenied);
+	let object = jsonrpsee::types::ErrorObjectOwned::from(err);
+	assert_eq!(object.code(), error::CALL_RECORDED_DENIED_ERROR_CODE);
+}
+
+#[tokio::test]
+async fn call_recorded_reports_dispatch_failures_as_client_errors() {
+	struct FailingExecuteBlock;
+	impl<Block: BlockT> sc_tracing::block::TracingExecuteBlock<Block> for FailingExecuteBlock {
+		fn execute_block(&self, _: Block::Hash, _: Block) -> sp_blockchain::Result<()> {
+			unreachable!("not exercised by this test")
+		}
+
+		fn call_recorded(
+			&self,
+			_: Block::Hash,
+			_: &str,
+			_: &[u8],
+		) -> sp_blockchain::Result<Vec<u8>> {
+			Err(sp_blockchain::Error::Backend("dispatch failed".into()))
+		}
+	}
+
+	let client = Arc::new(substrate_test_runtime_client::new());
+	let block_hash = client.chain_info().best_hash;
+	let (state, _child) = new_full(client, test_executor(), Some(Arc::new(FailingExecuteBlock)));
+
+	assert_matches!(
+		state.call_recorded(&allow_unsafe(), "Core_version".into(), Bytes(vec![]), block_hash),
+		Err(Error::Client(e)) if e.to_string().contains("dispatch failed")
+	);
 }
 
 #[tokio::test]

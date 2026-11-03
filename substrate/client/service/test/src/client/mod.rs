@@ -87,7 +87,7 @@ fn construct_block(
 		&header.encode(),
 		&mut Default::default(),
 		&runtime_code,
-		CallContext::Onchain,
+		CallContext::Onchain { import: false },
 	)
 	.execute()
 	.unwrap();
@@ -101,7 +101,7 @@ fn construct_block(
 			&tx.encode(),
 			&mut Default::default(),
 			&runtime_code,
-			CallContext::Onchain,
+			CallContext::Onchain { import: false },
 		)
 		.execute()
 		.unwrap();
@@ -115,7 +115,7 @@ fn construct_block(
 		&[],
 		&mut Default::default(),
 		&runtime_code,
-		CallContext::Onchain,
+		CallContext::Onchain { import: false },
 	)
 	.execute()
 	.unwrap();
@@ -186,7 +186,7 @@ fn construct_genesis_should_work_with_native() {
 		&b1data,
 		&mut Default::default(),
 		&runtime_code,
-		CallContext::Onchain,
+		CallContext::Onchain { import: false },
 	)
 	.execute()
 	.unwrap();
@@ -218,7 +218,7 @@ fn construct_genesis_should_work_with_wasm() {
 		&b1data,
 		&mut Default::default(),
 		&runtime_code,
-		CallContext::Onchain,
+		CallContext::Onchain { import: false },
 	)
 	.execute()
 	.unwrap();

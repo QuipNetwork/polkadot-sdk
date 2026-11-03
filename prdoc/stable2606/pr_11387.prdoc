@@ -1,0 +1,12 @@
+title: 'docs/async_back: Align docs to latest behavior'
+doc:
+- audience: Node Dev
+  description: |-
+    Tiny PR to update the async backing documentation / guidelines:
+    - older params are no longer used `async_backing_params`
+    - UNINCLUDED_SEGMENT_CAPACITY is now 3
+    - no need for `experimental` feature flags
+
+
+    Closes: https://github.com/paritytech/polkadot-sdk/issues/8804
+crates: []

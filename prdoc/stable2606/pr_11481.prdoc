@@ -1,0 +1,21 @@
+title: '[pallet-revive] Add PVM fuel tracing'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Add **`pvm_fuel`** trace steps to PVM execution traces, recording pvm fuel consumption between syscalls and after the execution loop exits.
+
+    Separate synthetic trace steps from the real syscall list: `list_syscalls()` now only contains syscalls contracts can actually import, while new `list_trace_ops()` / `lookup_trace_op_index()` include both real syscalls and synthetic steps like `pvm_fuel`.
+
+    ## Integration
+
+    Code using `list_syscalls()` for trace serialization should switch to `list_trace_ops()` / `lookup_trace_op_index()`. `list_syscalls()` and `lookup_syscall_index()` are unchanged for real syscalls.
+
+    ## Review Notes
+      - Proc-macro wraps `sync_from_executor` with `enter_ecall` / `exit_step` tracing hooks for `pvm_fuel`
+      - PreparedCall::call adds a final `pvm_fuel` trace after the execution loop exits
+      - PVM JSON trace fixtures updated to include `pvm_fuel` steps
+crates:
+- name: pallet-revive-proc-macro
+  bump: patch
+- name: pallet-revive
+  bump: patch

@@ -43,10 +43,12 @@ mod election_provider;
 mod era_rotation;
 mod force_unstake_kill_stash;
 mod ledger;
+mod legacy_reward;
 mod nominators_no_slashing;
 mod payout_stakers;
 mod slashing;
 mod try_state;
+mod validator_incentive;
 
 #[test]
 fn basic_setup_session_queuing_should_work() {
@@ -203,7 +205,7 @@ fn basic_setup_works() {
 				Event::SessionRotated { starting_session: 1, active_era: 0, planned_era: 1 },
 				Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 				Event::SessionRotated { starting_session: 2, active_era: 0, planned_era: 1 },
-				Event::EraPaid { era_index: 0, validator_payout: 7500, remainder: 7500 },
+				Event::EraPaid { era_index: 0, validator_payout: 7500, remainder: 0 },
 				Event::SessionRotated { starting_session: 3, active_era: 1, planned_era: 1 }
 			]
 		);
@@ -255,7 +257,7 @@ fn basic_setup_sessions_per_era() {
 					Event::SessionRotated { starting_session: 4, active_era: 0, planned_era: 1 },
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					Event::SessionRotated { starting_session: 5, active_era: 0, planned_era: 1 },
-					Event::EraPaid { era_index: 0, validator_payout: 15000, remainder: 15000 },
+					Event::EraPaid { era_index: 0, validator_payout: 15000, remainder: 0 },
 					Event::SessionRotated { starting_session: 6, active_era: 1, planned_era: 1 }
 				]
 			);
@@ -275,7 +277,7 @@ fn basic_setup_sessions_per_era() {
 					Event::SessionRotated { starting_session: 10, active_era: 1, planned_era: 2 },
 					Event::PagedElectionProceeded { page: 0, result: Ok(2) },
 					Event::SessionRotated { starting_session: 11, active_era: 1, planned_era: 2 },
-					Event::EraPaid { era_index: 1, validator_payout: 15000, remainder: 15000 },
+					Event::EraPaid { era_index: 1, validator_payout: 15000, remainder: 0 },
 					Event::SessionRotated { starting_session: 12, active_era: 2, planned_era: 2 }
 				]
 			);

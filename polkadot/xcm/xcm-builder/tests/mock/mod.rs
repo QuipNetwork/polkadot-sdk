@@ -26,11 +26,8 @@ use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 use polkadot_parachain_primitives::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
-use xcm::latest::{opaque, prelude::*};
-use xcm_executor::XcmExecutor;
-
 use staging_xcm_builder as xcm_builder;
-
+use xcm::latest::{opaque, prelude::*};
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
@@ -38,6 +35,7 @@ use xcm_builder::{
 	IsChildSystemParachain, IsConcrete, MintLocation, RespectSuspension, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
+use xcm_executor::XcmExecutor;
 use xcm_simulator::helpers::derive_topic_id;
 
 pub type AccountId = AccountId32;

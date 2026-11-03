@@ -1,6 +1,6 @@
 [package]
 name = "pallet-election-provider-multi-block"
-version = "0.8.0"
+version = "0.12.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -18,15 +18,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { features = [
 	"derive",
 ], workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-election-provider-support = { workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 log = { workspace = true }
-rand = { features = ["alloc", "small_rng"], optional = true, workspace = true }
 scale-info = { features = [
 	"derive",
 ], workspace = true }
+
+frame-election-provider-support = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
 sp-arithmetic = { workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
@@ -34,12 +34,16 @@ sp-npos-elections = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 
+# Optional imports for benchmarking
+frame-benchmarking = { optional = true, workspace = true }
+rand = { features = ["alloc", "small_rng"], optional = true, workspace = true }
+
 [dev-dependencies]
-frame-benchmarking = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
+frame-benchmarking = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
-sp-io = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-io = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -50,6 +54,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
 	"rand/std",
 	"scale-info/std",
 	"sp-arithmetic/std",
@@ -58,6 +63,7 @@ std = [
 	"sp-npos-elections/std",
 	"sp-runtime/std",
 	"sp-std/std",
+	"sp-tracing/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

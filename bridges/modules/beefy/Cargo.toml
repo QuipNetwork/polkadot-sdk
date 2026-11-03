@@ -12,26 +12,30 @@ publish = false
 workspace = true
 
 [dependencies]
-bp-beefy = { workspace = true }
-bp-runtime = { workspace = true }
 codec = { workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { optional = true, workspace = true }
+tracing = { workspace = true }
+
+# Bridge Dependencies
+bp-beefy = { workspace = true }
+bp-runtime = { workspace = true }
+
+# Substrate Dependencies
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
-bp-test-utils = { default-features = true, workspace = true }
+bp-test-utils = { workspace = true, default-features = true }
 mmr-lib = { workspace = true, default-features = true }
-pallet-beefy-mmr = { default-features = true, workspace = true }
-pallet-mmr = { default-features = true, workspace = true }
+pallet-beefy-mmr = { workspace = true, default-features = true }
+pallet-mmr = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
-sp-consensus-beefy = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+sp-consensus-beefy = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

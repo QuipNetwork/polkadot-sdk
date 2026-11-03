@@ -41,7 +41,7 @@ use sp_runtime::{
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
 };
 use std::{
-	collections::HashSet,
+	collections::{HashMap, HashSet},
 	future::Future,
 	pin::Pin,
 	sync::{
@@ -132,6 +132,10 @@ where
 	/// Priority of transaction at some block. It is assumed it will not be changed often. None if
 	/// not known.
 	priority: RwLock<Option<TransactionPriority>>,
+	/// Indicates that this transaction has lost all referencing views and should be unbanned
+	/// in view rotators once mempool revalidation confirms it is still valid at the finalized
+	/// block.
+	needs_unban: atomic::AtomicBool,
 }
 
 impl<ChainApi, Block> TxInMemPool<ChainApi, Block>
@@ -205,6 +209,7 @@ where
 			validated_at: AtomicU64::new(validated_at),
 			bytes,
 			priority: priority.into(),
+			needs_unban: atomic::AtomicBool::new(false),
 		}
 	}
 
@@ -224,6 +229,22 @@ where
 	pub(crate) fn priority(&self) -> Option<TransactionPriority> {
 		*self.priority.read()
 	}
+
+	/// Returns `true` if this transaction needs to be unbanned after mempool revalidation.
+	pub(crate) fn needs_unban(&self) -> bool {
+		self.needs_unban.load(atomic::Ordering::Relaxed)
+	}
+
+	/// Marks this transaction as needing to be unbanned after the next successful mempool
+	/// revalidation.
+	pub(crate) fn set_needs_unban(&self) {
+		self.needs_unban.store(true, atomic::Ordering::Relaxed);
+	}
+
+	/// Clears the needs-unban flag.
+	pub(crate) fn clear_needs_unban(&self) {
+		self.needs_unban.store(false, atomic::Ordering::Relaxed);
+	}
 }
 
 impl<ChainApi, Block> std::fmt::Debug for TxInMemPool<ChainApi, Block>
@@ -239,6 +260,7 @@ where
 			.field("source", &self.source)
 			.field("validated_at", &self.validated_at)
 			.field("priority", &self.priority)
+			.field("needs_unban", &self.needs_unban)
 			.finish()
 	}
 }
@@ -255,7 +277,9 @@ where
 			self.source == other.source &&
 			*self.priority.read() == *other.priority.read() &&
 			self.validated_at.load(atomic::Ordering::Relaxed) ==
-				other.validated_at.load(atomic::Ordering::Relaxed)
+				other.validated_at.load(atomic::Ordering::Relaxed) &&
+			self.needs_unban.load(atomic::Ordering::Relaxed) ==
+				other.needs_unban.load(atomic::Ordering::Relaxed)
 	}
 }
 
@@ -633,13 +657,22 @@ where
 			(
 				self.transactions.len(),
 				self.with_transactions(|iter| {
+					let finalized_block_number = finalized_block.number.into().as_u64();
+					// Prioritize transactions that need unbanning — they should be
+					// revalidated first so stale bans can be cleared promptly.
 					iter.filter(|(_, xt)| {
-						let finalized_block_number = finalized_block.number.into().as_u64();
-						xt.validated_at.load(atomic::Ordering::Relaxed) +
-							TXMEMPOOL_REVALIDATION_PERIOD <
-							finalized_block_number
+						xt.needs_unban() ||
+							xt.validated_at.load(atomic::Ordering::Relaxed) +
+								TXMEMPOOL_REVALIDATION_PERIOD <
+								finalized_block_number
 					})
-					.sorted_by_key(|(_, tx)| tx.validated_at.load(atomic::Ordering::Relaxed))
+					.sorted_by_key(|(_, tx)| {
+						(
+							// needs_unban txs come first (false < true, so negate)
+							!tx.needs_unban(),
+							tx.validated_at.load(atomic::Ordering::Relaxed),
+						)
+					})
 					.take(TXMEMPOOL_MAX_REVALIDATION_BATCH_SIZE)
 					.map(|(k, v)| (*k, v.clone()))
 					.collect::<Vec<_>>()
@@ -647,6 +680,11 @@ where
 				.await,
 			)
 		};
+
+		// Build a lookup from the batch so we can check needs_unban after validation
+		// without async mempool access.
+		let tx_lookup: HashMap<_, _> =
+			to_be_validated.iter().map(|(k, v)| (*k, v.clone())).collect();
 
 		let validations_futures = to_be_validated.into_iter().map(|(xt_hash, xt)| {
 			self.api
@@ -666,10 +704,25 @@ where
 		let validated_count = validation_results.len();
 
 		let duration = start.elapsed();
+
 		let invalid_hashes = validation_results
 			.into_iter()
 			.filter_map(|(tx_hash, validation_result)| match validation_result {
 				Ok(Ok(_) | Err(TransactionValidityError::Invalid(InvalidTransaction::Future))) => {
+					// Transaction is valid at finalized block. If it was marked for unbanning,
+					// clear the ban in all active views so it can be picked up by
+					// `update_view_with_mempool` on the next view creation.
+					if let Some(tx) = tx_lookup.get(&tx_hash) {
+						if tx.needs_unban() {
+							trace!(
+								target: LOG_TARGET,
+								?tx_hash,
+								"mempool::revalidate_inner: unbanning viewless transaction"
+							);
+							view_store.unban_transaction(&tx_hash);
+							tx.clear_needs_unban();
+						}
+					}
 					None
 				},
 				Err(ref error) => {

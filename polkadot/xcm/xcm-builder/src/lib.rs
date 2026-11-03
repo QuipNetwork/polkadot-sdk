@@ -30,8 +30,6 @@ mod tests;
 pub mod test_utils;
 
 mod asset_conversion;
-#[allow(deprecated)]
-pub use asset_conversion::ConvertedConcreteAssetId;
 pub use asset_conversion::{
 	AsPrefixedGeneralIndex, ConvertedConcreteId, MatchClasslessInstances, MatchInClassInstances,
 	MatchedConvertedConcreteId,
@@ -55,9 +53,8 @@ pub use controller::{
 	QueryControllerWeightInfo, QueryHandler, SendController, SendControllerWeightInfo,
 };
 
-mod currency_adapter;
-#[allow(deprecated)]
-pub use currency_adapter::CurrencyAdapter;
+mod forwarder;
+pub use forwarder::TeleportForwarderForAccountId32;
 
 mod fee_handling;
 pub use fee_handling::{
@@ -77,16 +74,14 @@ pub use fungibles_adapter::{
 };
 
 mod location_conversion;
-#[allow(deprecated)]
-pub use location_conversion::ForeignChainAliasAccount;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, AliasesIntoAccountId32,
 	ChildParachainConvertsVia, DescribeAccountId32Terminal, DescribeAccountIdTerminal,
 	DescribeAccountKey20Terminal, DescribeAllTerminal, DescribeBodyTerminal, DescribeFamily,
 	DescribeLocation, DescribePalletTerminal, DescribeTerminus, DescribeTreasuryVoiceTerminal,
 	ExternalConsensusLocationsConverterFor, GlobalConsensusConvertsFor,
-	GlobalConsensusParachainConvertsFor, HashedDescription, LocalTreasuryVoiceConvertsVia,
-	ParentIsPreset, SiblingParachainConvertsVia,
+	GlobalConsensusParachainConvertsFor, HashedDescription, LegacyDescribeForeignChainAccount,
+	LocalTreasuryVoiceConvertsVia, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod matches_location;
@@ -138,9 +133,6 @@ pub use routing::{
 
 mod transactional;
 pub use transactional::FrameTransactionalProcessor;
-
-#[allow(deprecated)]
-pub use universal_exports::UnpaidLocalExporter;
 
 mod transfer;
 pub use transfer::{Transfer, TransferOverXcm, TransferOverXcmHelper, TransferStatus};

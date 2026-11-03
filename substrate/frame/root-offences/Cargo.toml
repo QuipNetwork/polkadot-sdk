@@ -1,6 +1,6 @@
 [package]
 name = "pallet-root-offences"
-version = "44.0.0"
+version = "48.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -17,34 +17,40 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 pallet-session = { features = ["historical"], workspace = true }
 pallet-staking = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
+
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-staking-reward-curve = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-staking-reward-curve = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
 
-sp-io = { default-features = true, workspace = true }
+sp-io = { workspace = true, default-features = true }
 
-frame-election-provider-support = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
+	"frame-election-provider-support/std",
 	"frame-support/std",
 	"frame-system/std",
+	"pallet-balances/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-timestamp/std",
 	"scale-info/std",
 	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
 	"sp-staking/std",
 ]

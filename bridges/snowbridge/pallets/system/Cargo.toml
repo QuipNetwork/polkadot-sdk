@@ -1,7 +1,7 @@
 [package]
 name = "snowbridge-pallet-system"
 description = "Snowbridge System Pallet"
-version = "0.19.0"
+version = "0.25.0"
 authors = ["Snowfork <contact@snowfork.com>"]
 edition.workspace = true
 repository.workspace = true
@@ -23,23 +23,26 @@ frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
-snowbridge-core = { workspace = true }
-snowbridge-outbound-queue-primitives = { workspace = true }
+tracing = { workspace = true }
+
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
-tracing = { workspace = true }
+
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
+
+snowbridge-core = { workspace = true }
+snowbridge-outbound-queue-primitives = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true, default-features = true }
 hex-literal = { workspace = true, default-features = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-message-queue = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-snowbridge-pallet-outbound-queue = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-message-queue = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+snowbridge-pallet-outbound-queue = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

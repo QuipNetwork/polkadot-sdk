@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network-bridge"
-version = "29.0.0"
+version = "36.0.0"
 description = "The Network Bridge Subsystem — protocol multiplexer for Polkadot."
 authors.workspace = true
 edition.workspace = true
@@ -18,23 +18,23 @@ bytes = { workspace = true, default-features = true }
 codec = { features = ["derive"], workspace = true }
 fatality = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
-polkadot-node-metrics = { default-features = true, workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
+polkadot-node-metrics = { workspace = true, default-features = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
 futures-timer = { workspace = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
 polkadot-primitives-test-helpers = { workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
 strum = { features = ["derive"], workspace = true }

@@ -43,11 +43,12 @@ use jsonrpsee::RpcModule;
 use log::{debug, error, trace, warn};
 use sc_client_api::{blockchain::HeaderBackend, BlockBackend, BlockchainEvents, ProofProvider};
 use sc_network::{
-	config::MultiaddrWithPeerId, service::traits::NetworkService, NetworkBackend, NetworkBlock,
-	NetworkPeers, NetworkStateInfo,
+	config::MultiaddrWithPeerId, multiaddr::Protocol, service::traits::NetworkService,
+	NetworkBackend, NetworkBlock, NetworkPeers, NetworkStateInfo,
 };
 use sc_network_sync::SyncingService;
 use sc_network_types::PeerId;
+pub use sc_rpc_server::create_rpc_runtime;
 use sc_rpc_server::Server;
 use sc_utils::mpsc::TracingUnboundedReceiver;
 use sp_blockchain::HeaderMetadata;
@@ -57,20 +58,17 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 pub use self::{
 	builder::{
 		build_default_block_downloader, build_default_syncing_engine, build_network,
-		build_network_advanced, build_polkadot_syncing_strategy, gen_rpc_module, init_telemetry,
-		new_client, new_db_backend, new_full_client, new_full_parts, new_full_parts_record_import,
-		new_full_parts_with_genesis_builder, new_wasm_executor,
-		propagate_transaction_notifications, spawn_tasks, BuildNetworkAdvancedParams,
-		BuildNetworkParams, DefaultSyncingEngineConfig, KeystoreContainer, SpawnTasksParams,
-		TFullBackend, TFullCallExecutor, TFullClient,
+		build_network_advanced, build_polkadot_syncing_strategy, default_gap_sync_body_policy,
+		gen_rpc_module, init_telemetry, new_client, new_db_backend, new_full_client,
+		new_full_parts, new_full_parts_record_import, new_full_parts_with_genesis_builder,
+		new_wasm_executor, propagate_transaction_notifications, spawn_tasks,
+		BuildNetworkAdvancedParams, BuildNetworkParams, DefaultSyncingEngineConfig,
+		KeystoreContainer, SpawnTasksParams, TFullBackend, TFullCallExecutor, TFullClient,
 	},
 	client::{ClientConfig, LocalCallExecutor},
 	error::Error,
 	metrics::MetricsService,
 };
-#[allow(deprecated)]
-pub use builder::new_native_or_wasm_executor;
-
 pub use sc_chain_spec::{
 	construct_genesis_block, resolve_state_version_from_wasm, BuildGenesisBlock,
 	GenesisBlockBuilder,
@@ -88,7 +86,6 @@ pub use sc_client_db::PruningFilter;
 use crate::config::RpcConfiguration;
 use prometheus_endpoint::Registry;
 pub use sc_consensus::ImportQueue;
-pub use sc_executor::NativeExecutionDispatch;
 pub use sc_network_sync::WarpSyncConfig;
 #[doc(hidden)]
 pub use sc_network_transactions::config::{TransactionImport, TransactionImportFuture};
@@ -288,12 +285,11 @@ pub async fn build_system_rpc_future<
 				let _ = sender.send(network_service.local_peer_id().to_base58());
 			},
 			sc_rpc::system::Request::LocalListenAddresses(sender) => {
-				let peer_id = (network_service.local_peer_id()).into();
-				let p2p_proto_suffix = sc_network::multiaddr::Protocol::P2p(peer_id);
+				let local_peer_id = network_service.local_peer_id();
 				let addresses = network_service
 					.listen_addresses()
 					.iter()
-					.map(|addr| addr.clone().with(p2p_proto_suffix.clone()).to_string())
+					.map(|address| with_local_peer_id(address.clone(), local_peer_id).to_string())
 					.collect();
 				let _ = sender.send(addresses);
 			},
@@ -380,17 +376,25 @@ pub async fn build_system_rpc_future<
 	debug!("`NetworkWorker` has terminated, shutting down the system RPC future.");
 }
 
+/// Appends `/p2p/<local peer id>` unless the address already carries one.
+fn with_local_peer_id(address: Multiaddr, local_peer_id: PeerId) -> Multiaddr {
+	// litep2p backend appends local peer id to every listen address it reports,
+	// the libp2p backend does not.
+	match address.iter().last() {
+		Some(Protocol::P2p(_)) => address,
+		_ => address.with(Protocol::P2p(local_peer_id.into())),
+	}
+}
+
 /// Starts RPC servers.
-pub fn start_rpc_servers<R>(
+pub fn start_rpc_servers(
 	rpc_configuration: &RpcConfiguration,
 	registry: Option<&Registry>,
 	tokio_handle: &Handle,
-	gen_rpc_module: R,
+	rpc_api: RpcModule<()>,
+	rpc_runtime: tokio::runtime::Runtime,
 	rpc_id_provider: Option<Box<dyn sc_rpc_server::SubscriptionIdProvider>>,
-) -> Result<Server, error::Error>
-where
-	R: Fn() -> Result<RpcModule<()>, Error>,
-{
+) -> Result<Server, error::Error> {
 	let endpoints: Vec<sc_rpc_server::RpcEndpoint> = if let Some(endpoints) =
 		rpc_configuration.addr.as_ref()
 	{
@@ -437,15 +441,14 @@ where
 	};
 
 	let metrics = sc_rpc_server::RpcMetrics::new(registry)?;
-	let rpc_api = gen_rpc_module()?;
 
 	let server_config = sc_rpc_server::Config {
 		endpoints,
-		rpc_api,
 		metrics,
+		rpc_api,
 		id_provider: rpc_id_provider,
-		tokio_handle: tokio_handle.clone(),
 		request_logger_limit: rpc_configuration.request_logger_limit,
+		rpc_runtime,
 	};
 
 	// TODO: https://github.com/paritytech/substrate/issues/13773
@@ -574,12 +577,53 @@ where
 mod tests {
 	use super::*;
 	use futures::executor::block_on;
+	use sc_network_types::multihash::Code;
 	use sc_transaction_pool::BasicPool;
 	use sp_consensus::SelectChain;
 	use substrate_test_runtime_client::{
 		prelude::*,
 		runtime::{ExtrinsicBuilder, Transfer, TransferData},
 	};
+
+	/// `/ip4/1.2.3.4/tcp/30333`, as the libp2p backend reports its listen addresses.
+	fn tcp_address() -> Multiaddr {
+		Multiaddr::empty()
+			.with(Protocol::Ip4([1, 2, 3, 4].into()))
+			.with(Protocol::Tcp(30333))
+	}
+
+	#[test]
+	fn peer_id_appended_when_missing() {
+		let peer_id = PeerId::random();
+
+		assert_eq!(
+			with_local_peer_id(tcp_address(), peer_id),
+			tcp_address().with(Protocol::P2p(peer_id.into())),
+		);
+	}
+
+	#[test]
+	fn peer_id_not_appended_twice() {
+		// The litep2p backend hands out addresses that already carry the local peer id.
+		let peer_id = PeerId::random();
+		let address = tcp_address().with(Protocol::P2p(peer_id.into()));
+
+		assert_eq!(with_local_peer_id(address.clone(), peer_id), address);
+	}
+
+	#[test]
+	fn webrtc_certhash_preserved() {
+		// This is the address shape a WebRTC-enabled node hands to smoldot.
+		let peer_id = PeerId::random();
+		let address = Multiaddr::empty()
+			.with(Protocol::Ip4([1, 2, 3, 4].into()))
+			.with(Protocol::Udp(30334))
+			.with(Protocol::WebRTCDirect)
+			.with(Protocol::Certhash(Code::Sha2_256.digest(b"certificate")))
+			.with(Protocol::P2p(peer_id.into()));
+
+		assert_eq!(with_local_peer_id(address.clone(), peer_id), address);
+	}
 
 	#[test]
 	fn should_not_propagate_transactions_that_are_marked_as_such() {

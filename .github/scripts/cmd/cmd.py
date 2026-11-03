@@ -11,7 +11,10 @@ import difflib
 
 _HelpAction = _help._HelpAction
 
-f = open('.github/workflows/runtimes-matrix.json', 'r')
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, '..', '..', '..'))
+
+f = open(os.path.join(_REPO_ROOT, '.github/workflows/runtimes-matrix.json'), 'r')
 runtimesMatrix = json.load(f)
 
 runtimeNames = list(map(lambda x: x['name'], runtimesMatrix))
@@ -184,7 +187,7 @@ for arg, config in common_args.items():
 PRDOC
 """
 # Import generate-prdoc.py dynamically
-spec = importlib.util.spec_from_file_location("generate_prdoc", ".github/scripts/generate-prdoc.py")
+spec = importlib.util.spec_from_file_location("generate_prdoc", os.path.join(_REPO_ROOT, ".github/scripts/generate-prdoc.py"))
 generate_prdoc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generate_prdoc)
 

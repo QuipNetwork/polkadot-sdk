@@ -173,7 +173,7 @@ pub trait CliConfiguration<DCV: DefaultConfigurationValues = ()>: Sized {
 		node_key: NodeKeyConfig,
 		default_listen_port: u16,
 	) -> Result<NetworkConfiguration> {
-		let network_config = if let Some(network_params) = self.network_params() {
+		let mut network_config = if let Some(network_params) = self.network_params() {
 			network_params.network_config(
 				chain_spec,
 				is_dev,
@@ -191,6 +191,11 @@ pub trait CliConfiguration<DCV: DefaultConfigurationValues = ()>: Sized {
 		// TODO: Return error here in the next release:
 		// https://github.com/paritytech/polkadot-sdk/issues/5266
 		// if is_validator && network_config.public_addresses.is_empty() {}
+
+		// Validated and completed here, before any consumer clones it.
+		network_config
+			.validate_and_complete_webrtc_addresses()
+			.map_err(sc_service::Error::from)?;
 
 		Ok(network_config)
 	}

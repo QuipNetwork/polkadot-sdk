@@ -151,6 +151,8 @@ pub enum RequestFailure {
 	NotConnected,
 	#[error("Given protocol hasn't been registered.")]
 	UnknownProtocol,
+	#[error("The outbound request payload or parameters are invalid for the selected protocol.")]
+	InvalidRequest,
 	#[error("Remote has closed the substream before answering, thereby signaling that it considers the request as valid, but refused to answer it.")]
 	Refused,
 	#[error("The remote replied, but the local node is no longer interested in the response.")]

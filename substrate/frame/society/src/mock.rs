@@ -133,6 +133,7 @@ impl EnvBuilder {
 			}
 			let r = f();
 			migrations::assert_internal_consistency::<Test, ()>();
+			Society::do_try_state().unwrap();
 			r
 		})
 	}

@@ -34,7 +34,8 @@ use codec::{Decode, Encode};
 use frame_support::traits::Time;
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Saturating;
-use sp_core::{H160, H256, U256, keccak_256};
+use sp_core::{H160, H256, U256};
+use sp_crypto_hashing::keccak_256;
 use sp_runtime::traits::{One, Zero};
 
 const LOG_TARGET: &str = "runtime::revive::block_builder";
@@ -298,11 +299,14 @@ impl<T: Config> Default for EthereumBlockBuilderIR<T> {
 mod test {
 	use super::*;
 	use crate::{
-		evm::{Block, ReceiptInfo},
+		evm::Block,
 		tests::{ExtBuilder, Test},
 	};
 	use alloy_core::rlp;
 	use alloy_trie::{HashBuilder, Nibbles};
+	use ethereum_types::Address;
+	use pallet_revive_types::common::Bytes;
+	use serde::Deserialize;
 
 	/// Manual implementation of the Ethereum trie root computation.
 	///
@@ -402,6 +406,24 @@ mod test {
 
 	#[test]
 	fn ensure_identical_hashes() {
+		#[derive(Deserialize)]
+		#[serde(rename_all = "camelCase")]
+		struct ReceiptInfo {
+			block_hash: H256,
+			status: Option<U256>,
+			effective_gas_price: U256,
+			gas_used: U256,
+			transaction_index: U256,
+			logs: Vec<Log>,
+		}
+
+		#[derive(Deserialize)]
+		pub struct Log {
+			address: Address,
+			data: Option<Bytes>,
+			topics: Vec<H256>,
+		}
+
 		// Test data files collected with ./test-assets/get_test_data.sh
 		let test_data = [
 			(
@@ -420,7 +442,10 @@ mod test {
 
 		for (block_path, receipts_path) in test_data {
 			let json = std::fs::read_to_string(block_path).unwrap();
-			let block: Block = serde_json::from_str(&json).unwrap();
+			let block: pallet_revive_types::runtime_api::BlockV1 =
+				serde_json::from_str(&json).unwrap();
+			let block: Block = codec::Decode::decode(&mut &codec::Encode::encode(&block)[..])
+				.expect("BlockV1 and Block must be scale-compatible");
 
 			let json = std::fs::read_to_string(receipts_path).unwrap();
 			let receipts: Vec<ReceiptInfo> = serde_json::from_str(&json).unwrap();

@@ -1,20 +1,20 @@
 - job-name: "zombienet-substrate-0000-block-building"
   test-filter: "zombie_ci::block_building::block_building_test"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-substrate-0001-basic-warp-sync"
   test-filter: "zombie_ci::basic_warp_sync::basic_warp_sync"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 # TODO: Disabled, fails 1 in 50 runs
 - job-name: "zombienet-substrate-0002-validators-warp-sync"
   test-filter: "zombie_ci::validators_warp_sync::validators_warp_sync"
   runner-type: "default"
-  use-zombienet-sdk: true
+
 
 - job-name: "zombienet-substrate-0003-block-building-warp-sync"
   test-filter: "zombie_ci::block_building_warp_sync::block_building_warp_sync"
   runner-type: "default"
-  use-zombienet-sdk: true
+

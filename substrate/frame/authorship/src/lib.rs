@@ -64,6 +64,11 @@ pub mod pallet {
 			// ensure we never go to trie with these values.
 			<Author<T>>::kill();
 		}
+
+		#[cfg(feature = "try-runtime")]
+		fn try_state(_n: BlockNumberFor<T>) -> Result<(), sp_runtime::TryRuntimeError> {
+			Self::do_try_state()
+		}
 	}
 
 	#[pallet::storage]
@@ -88,6 +93,32 @@ impl<T: Config> Pallet<T> {
 		T::FindAuthor::find_author(pre_runtime_digests).inspect(|a| {
 			<Author<T>>::put(&a);
 		})
+	}
+}
+
+#[cfg(any(feature = "try-runtime", test))]
+impl<T: Config> Pallet<T> {
+	/// Ensure the correctness of the state of this pallet.
+	///
+	/// # Invariants
+	///
+	/// * If `Author` storage contains a value, it must match the author derived from the current
+	///   block's digest via `FindAuthor`.
+	pub fn do_try_state() -> Result<(), sp_runtime::TryRuntimeError> {
+		use frame_support::ensure;
+
+		if let Some(stored_author) = <Author<T>>::get() {
+			let digest = <frame_system::Pallet<T>>::digest();
+			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
+			if let Some(expected_author) = T::FindAuthor::find_author(pre_runtime_digests) {
+				ensure!(
+					stored_author == expected_author,
+					"Stored author does not match the author derived from digest"
+				);
+			}
+		}
+
+		Ok(())
 	}
 }
 
@@ -172,6 +203,7 @@ mod tests {
 			System::initialize(&1, &Default::default(), header.digest());
 
 			assert_eq!(Authorship::author(), Some(author));
+			Authorship::do_try_state().unwrap();
 		});
 	}
 }

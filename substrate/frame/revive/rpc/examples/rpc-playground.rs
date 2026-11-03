@@ -15,8 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use jsonrpsee::http_client::HttpClientBuilder;
-use pallet_revive::evm::{Account, BlockTag};
-use pallet_revive_eth_rpc::EthRpcClient;
+use pallet_revive::evm::Account;
+use pallet_revive_eth_rpc::{BlockNumberOrTag, EthRpcClient};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -26,13 +26,13 @@ async fn main() -> anyhow::Result<()> {
 
 	let client = Arc::new(HttpClientBuilder::default().build("http://localhost:8545")?);
 
-	let block = client.get_block_by_number(BlockTag::Latest.into(), false).await?;
+	let block = client.get_block_by_number(BlockNumberOrTag::Latest, false).await?;
 	println!("Latest block: {block:#?}");
 
-	let nonce = client.get_transaction_count(account.address(), BlockTag::Latest.into()).await?;
+	let nonce = client.get_transaction_count(account.address(), Default::default()).await?;
 	println!("Account nonce: {nonce:?}");
 
-	let balance = client.get_balance(account.address(), BlockTag::Latest.into()).await?;
+	let balance = client.get_balance(account.address(), Default::default()).await?;
 	println!("Account balance: {balance:?}");
 
 	let sync_state = client.syncing().await?;

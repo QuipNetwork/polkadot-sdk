@@ -109,12 +109,12 @@ pub fn offence_reports(kind: Kind, time_slot: u128) -> Vec<OffenceDetails<u64, u
 pub struct Offence {
 	pub validator_set_count: u32,
 	pub offenders: Vec<u64>,
-	pub time_slot: u128,
+	pub slot: u128,
 }
 
 impl offence::Offence<u64> for Offence {
 	const ID: offence::Kind = KIND;
-	type TimeSlot = u128;
+	type Slot = u128;
 
 	fn offenders(&self) -> Vec<u64> {
 		self.offenders.clone()
@@ -124,8 +124,8 @@ impl offence::Offence<u64> for Offence {
 		self.validator_set_count
 	}
 
-	fn time_slot(&self) -> u128 {
-		self.time_slot
+	fn slot(&self) -> u128 {
+		self.slot
 	}
 
 	fn session_index(&self) -> SessionIndex {

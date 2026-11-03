@@ -87,9 +87,11 @@ pub use pre_inherents_hook::DynamicMaxBlockWeightHooks;
 pub use transaction_extension::DynamicMaxBlockWeight;
 
 const LOG_TARGET: &str = "runtime::parachain-system::block-weight";
+
 /// Maximum ref time per core
 const MAX_REF_TIME_PER_CORE_NS: u64 =
 	DEFAULT_BACKING_EXECUTION_TIMEOUT.as_secs() * WEIGHT_REF_TIME_PER_SECOND;
+
 /// The available weight per core on the relay chain.
 pub(crate) const FULL_CORE_WEIGHT: Weight =
 	Weight::from_parts(MAX_REF_TIME_PER_CORE_NS, MAX_POV_SIZE as u64);
@@ -297,14 +299,14 @@ fn is_first_block_in_core<T: Config>() -> Option<bool> {
 
 /// Is this the first block in a core? (takes digest as parameter)
 ///
-/// Returns `None` if the [`CumulusDigestItem::BundleInfo`] digest is not set.
+/// Returns `None` if the [`CumulusDigestItem::BlockBundleInfo`] digest is not set.
 fn is_first_block_in_core_with_digest(digest: &Digest) -> Option<bool> {
-	CumulusDigestItem::find_bundle_info(digest).map(|bi| bi.index == 0)
+	CumulusDigestItem::find_block_bundle_info(digest).map(|bi| bi.index == 0)
 }
 
 /// Is the `BlockWeight` already above the target block weight?
 ///
-/// Returns `None` if the [`CumulusDigestItem::BundleInfo`] digest is not set.
+/// Returns `None` if the [`CumulusDigestItem::BlockBundleInfo`] digest is not set.
 fn block_weight_over_target_block_weight<T: Config, TargetBlockRate: Get<u32>>() -> bool {
 	let target_block_weight = MaxParachainBlockWeight::<T, TargetBlockRate>::target_block_weight();
 

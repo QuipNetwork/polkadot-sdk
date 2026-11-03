@@ -1,0 +1,44 @@
+title: Make `pallet-dap-satellite` more generic
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      The DAP satellite pallet is being converted into a generic Accumulate-and-Forward pallet, with
+      the purpose of pooling tokens of a given type into an accumulation account, which is then
+      periodically sent (forwarded) to a specified destination.
+
+      Notable changes:
+      - Crate renamed from `pallet-dap-satellite` to `pallet-accumulate-and-forward`
+      - The `SendToDap` trait is replaced by the `Forwarder` trait
+      - The pallet IDs value changes from `*b"dap/satl"` to `*b"acf/dott"` (at this point we
+        are only forwarding DOT tokens, but new IDs should be added for other future tokens)
+      - Multiple other events and constants get renamed accordingly
+      - The old treasury is now drained via `DrainLegacyTreasuryToAccumulationAccount`
+
+crates:
+  - name: pallet-accumulate-and-forward
+    bump: patch
+  - name: sp-dap
+    bump: major
+  - name: staging-xcm-builder
+    bump: major
+  - name: westend-runtime
+    bump: major
+  - name: asset-hub-westend-runtime
+    bump: major
+  - name: bridge-hub-westend-runtime
+    bump: major
+  - name: collectives-westend-runtime
+    bump: major
+  - name: coretime-westend-runtime
+    bump: major
+  - name: people-westend-runtime
+    bump: major
+  - name: westend-runtime-constants
+    bump: major
+  - name: testnet-parachains-constants
+    bump: patch
+  - name: polkadot-sdk
+    bump: minor
+  - name: emulated-integration-tests-common
+    bump: major

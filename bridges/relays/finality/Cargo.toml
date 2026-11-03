@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 async-trait = { workspace = true }
 backoff = { workspace = true }
-bp-header-chain = { default-features = true, workspace = true }
+bp-header-chain = { workspace = true, default-features = true }
 futures = { workspace = true }
 num-traits = { workspace = true, default-features = true }
 relay-utils = { workspace = true }

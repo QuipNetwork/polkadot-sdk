@@ -23,17 +23,23 @@ mod state;
 mod tests;
 
 use crate::{
-	validator_side_experimental::{common::MIN_FETCH_TIMER_DELAY, peer_manager::PersistentDb},
+	validator_side_experimental::{
+		common::MIN_FETCH_TIMER_DELAY,
+		peer_manager::{Backend, PeerManager, PersistentDb},
+	},
 	LOG_TARGET,
 };
 use collation_manager::CollationManager;
 use common::{ProspectiveCandidate, MAX_STORED_SCORES_PER_PARA};
 use error::{log_error, FatalError, FatalResult, Result};
 use futures::{future::Fuse, select, FutureExt, StreamExt};
-use futures_timer::Delay;
+use polkadot_node_clock::Clock;
 use polkadot_node_network_protocol::{
-	self as net_protocol, peer_set::PeerSet, v1 as protocol_v1, v2 as protocol_v2,
-	v3_collation as protocol_v3, CollationProtocols, PeerId,
+	self as net_protocol,
+	peer_set::PeerSet,
+	v1 as protocol_v1, v2 as protocol_v2, v3_collation as protocol_v3,
+	v4_collation::{self as protocol_v4},
+	CollationProtocols, PeerId,
 };
 use polkadot_node_subsystem::{
 	messages::{CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
@@ -45,7 +51,6 @@ use std::{future, future::Future, pin::Pin, sync::Arc, time::Duration};
 
 #[cfg(test)]
 use peer_manager::Db;
-use peer_manager::PeerManager;
 
 use state::State;
 
@@ -72,6 +77,7 @@ pub(crate) async fn run<Context>(
 	metrics: Metrics,
 	db: Arc<dyn Database>,
 	reputation_config: ReputationConfig,
+	clock: Arc<dyn Clock>,
 ) -> FatalResult<()> {
 	let persist_interval = reputation_config
 		.persist_interval
@@ -81,8 +87,10 @@ pub(crate) async fn run<Context>(
 		persist_interval_secs = persist_interval.as_secs(),
 		"Running experimental collator protocol"
 	);
-	if let Some(state) = initialize(&mut ctx, keystore, metrics, db, reputation_config).await? {
-		run_inner(ctx, state, persist_interval).await?;
+	if let Some(state) =
+		initialize(&mut ctx, keystore, metrics, db, reputation_config, clock.clone()).await?
+	{
+		run_inner(ctx, state, persist_interval, clock).await?;
 	}
 
 	Ok(())
@@ -95,6 +103,7 @@ async fn initialize<Context>(
 	metrics: Metrics,
 	db: Arc<dyn Database>,
 	reputation_config: ReputationConfig,
+	clock: Arc<dyn Clock>,
 ) -> FatalResult<Option<State<PersistentDb>>> {
 	loop {
 		let first_leaf = match wait_for_first_leaf(ctx).await? {
@@ -111,9 +120,18 @@ async fn initialize<Context>(
 		};
 
 		let collation_manager =
-			CollationManager::new(ctx.sender(), keystore.clone(), first_leaf).await?;
+			CollationManager::new(ctx.sender(), keystore.clone(), first_leaf, clock.clone())
+				.await?;
 
 		let scheduled_paras = collation_manager.assignments();
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?scheduled_paras,
+			"Collator protocol initial assignments",
+		);
+
+		metrics.note_assigned_paras(scheduled_paras.len());
 
 		// Create PersistentDb with disk persistence
 		let (backend, task) = match PersistentDb::new(
@@ -140,8 +158,14 @@ async fn initialize<Context>(
 
 		gum::trace!(target: LOG_TARGET, "Spawned background reputation persistence task");
 
-		match PeerManager::startup(backend, ctx.sender(), scheduled_paras.into_iter().collect())
-			.await
+		match PeerManager::startup(
+			backend,
+			ctx.sender(),
+			scheduled_paras.into_iter().collect(),
+			clock.clone(),
+			metrics.clone(),
+		)
+		.await
 		{
 			Ok(peer_manager) => {
 				return Ok(Some(State::new(peer_manager, collation_manager, metrics)))
@@ -173,7 +197,7 @@ async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> FatalResult<Option<A
 					CollatorProtocolMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerConnected(peer_id, ..),
 					) => {
-						gum::info!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?peer_id,
 							"Disconnecting peer that connected before subsystem initialization",
@@ -187,7 +211,7 @@ async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> FatalResult<Option<A
 					CollatorProtocolMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerMessage(peer_id, ..),
 					) => {
-						gum::info!(
+						gum::debug!(
 							target: LOG_TARGET,
 							?peer_id,
 							"Disconnecting peer that sent message before subsystem initialization",
@@ -211,9 +235,12 @@ async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> FatalResult<Option<A
 	}
 }
 
-fn create_timer(maybe_delay: Option<Duration>) -> Fuse<Pin<Box<dyn Future<Output = ()> + Send>>> {
+fn create_timer(
+	clock: &dyn Clock,
+	maybe_delay: Option<Duration>,
+) -> Fuse<Pin<Box<dyn Future<Output = ()> + Send>>> {
 	let timer: Pin<Box<dyn Future<Output = ()> + Send>> = match maybe_delay {
-		Some(delay) => Box::pin(Delay::new(delay)),
+		Some(delay) => clock.delay(delay),
 		None => Box::pin(future::pending::<()>()),
 	};
 
@@ -221,9 +248,11 @@ fn create_timer(maybe_delay: Option<Duration>) -> Fuse<Pin<Box<dyn Future<Output
 }
 
 /// Create the persistence timer that fires after the given interval.
-fn create_persistence_timer(interval: Duration) -> Fuse<Pin<Box<dyn Future<Output = ()> + Send>>> {
-	let delay: Pin<Box<dyn Future<Output = ()> + Send>> = Box::pin(Delay::new(interval));
-	delay.fuse()
+fn create_persistence_timer(
+	clock: &dyn Clock,
+	interval: Duration,
+) -> Fuse<Pin<Box<dyn Future<Output = ()> + Send>>> {
+	clock.delay(interval).fuse()
 }
 
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
@@ -231,9 +260,10 @@ async fn run_inner<Context>(
 	mut ctx: Context,
 	mut state: State<PersistentDb>,
 	persist_interval: Duration,
+	clock: Arc<dyn Clock>,
 ) -> FatalResult<()> {
-	let mut timer = create_timer(None);
-	let mut persistence_timer = create_persistence_timer(persist_interval);
+	let mut timer = create_timer(&*clock, None);
+	let mut persistence_timer = create_persistence_timer(&*clock, persist_interval);
 
 	loop {
 		select! {
@@ -267,26 +297,30 @@ async fn run_inner<Context>(
 				state.handle_fetched_collation(ctx.sender(), resp).await;
 			},
 			_ = &mut timer => {
-				// We don't need to do anything specific here.
 				// If the timer expires, we only need to trigger the advertisement fetching logic.
+				state.mark_replan();
 			},
 			_ = &mut persistence_timer => {
 				// Periodic persistence - write reputation DB to disk
 				state.background_persist_reputations();
 				// Reset the timer for the next interval
-				persistence_timer = create_persistence_timer(persist_interval);
+				persistence_timer = create_persistence_timer(&*clock, persist_interval);
 			},
 		}
 
-		// Now try triggering advertisement fetching, if we have room in any of the active leaves
-		// (any of them are in Waiting state).
-		// We could optimise to not always re-run this code (have the other functions return
-		// whether we should attempt launching fetch requests) However, most messages could
-		// indeed trigger a new legitimate request.
-		// Also, it takes constant time to run because we only try launching new requests for
-		// unfulfilled claims. It's probably not worth optimising.
-		let maybe_delay = state.try_launch_new_fetch_requests(ctx.sender()).await;
-		timer = create_timer(maybe_delay.map(|delay| std::cmp::max(delay, MIN_FETCH_TIMER_DELAY)));
+		// Refresh the in-memory connected peers. Done once per loop iteration, so that
+		// it covers every event source above and cannot be missed by a handler that forgets to
+		// update it.
+		state.note_in_memory_connected_peers();
+
+		// Trigger the advertisement fetching logic only when something happened that
+		// can make a new fetch possible: every such mutation sets the replan flag.
+		if let Some(maybe_delay) = state.maybe_replan(ctx.sender()).await {
+			timer = create_timer(
+				&*clock,
+				maybe_delay.map(|delay| std::cmp::max(delay, MIN_FETCH_TIMER_DELAY)),
+			);
+		}
 	}
 
 	Ok(())
@@ -310,10 +344,10 @@ async fn process_msg<Sender: CollatorProtocolSenderTrait>(
 				"CollateOn message is not expected on the validator side of the protocol",
 			);
 		},
-		DistributeCollation { .. } => {
+		DistributeSegment { .. } => {
 			gum::warn!(
 				target: LOG_TARGET,
-				"DistributeCollation message is not expected on the validator side of the protocol",
+				"DistributeSegment message is not expected on the validator side of the protocol",
 			);
 		},
 		NetworkBridgeUpdate(event) => {
@@ -395,19 +429,24 @@ async fn handle_network_msg<Sender: CollatorProtocolSenderTrait>(
 	Ok(())
 }
 
-async fn process_incoming_peer_message<Sender: CollatorProtocolSenderTrait>(
+async fn process_incoming_peer_message<Sender, B>(
 	sender: &mut Sender,
-	state: &mut State<PersistentDb>,
+	state: &mut State<B>,
 	origin: PeerId,
 	msg: CollationProtocols<
 		protocol_v1::CollatorProtocolMessage,
 		protocol_v2::CollatorProtocolMessage,
 		protocol_v3::CollatorProtocolMessage,
+		protocol_v4::AdvertiseSegment,
 	>,
-) {
+) where
+	Sender: CollatorProtocolSenderTrait,
+	B: Backend,
+{
 	use protocol_v1::CollatorProtocolMessage as V1;
 	use protocol_v2::CollatorProtocolMessage as V2;
 	use protocol_v3::CollatorProtocolMessage as V3;
+	use protocol_v4::AdvertiseSegment as V4;
 
 	match msg {
 		CollationProtocols::V1(V1::Declare(_collator_id, para_id, _signature)) |
@@ -425,7 +464,9 @@ async fn process_incoming_peer_message<Sender: CollatorProtocolSenderTrait>(
 			);
 		},
 		CollationProtocols::V1(V1::AdvertiseCollation(relay_parent)) => {
-			state.handle_advertisement(sender, origin, relay_parent, None, None).await;
+			state
+				.handle_advertisement(sender, origin, relay_parent, vec![], None, None)
+				.await;
 		},
 		CollationProtocols::V2(V2::AdvertiseCollation {
 			scheduling_parent,
@@ -438,7 +479,8 @@ async fn process_incoming_peer_message<Sender: CollatorProtocolSenderTrait>(
 					sender,
 					origin,
 					scheduling_parent,
-					Some(ProspectiveCandidate { candidate_hash, parent_head_data_hash }),
+					vec![ProspectiveCandidate::ByHash { candidate_hash, parent_head_data_hash }],
+					None,
 					None,
 				)
 				.await;
@@ -455,8 +497,33 @@ async fn process_incoming_peer_message<Sender: CollatorProtocolSenderTrait>(
 					sender,
 					origin,
 					scheduling_parent,
-					Some(ProspectiveCandidate { candidate_hash, parent_head_data_hash }),
+					vec![ProspectiveCandidate::ByHash { candidate_hash, parent_head_data_hash }],
 					Some(candidate_descriptor_version),
+					None,
+				)
+				.await;
+		},
+		CollationProtocols::V4(V4 {
+			scheduling_parent,
+			para_id,
+			candidates_descriptor_version,
+			candidates,
+		}) => {
+			let entries = candidates
+				.iter()
+				.map(|candidate_fingerprint| ProspectiveCandidate::ByOutputHead {
+					output_head_data_hash: candidate_fingerprint.output_head_data_hash,
+					parent_head_data_hash: candidate_fingerprint.parent_head_data_hash,
+				})
+				.collect();
+			state
+				.handle_advertisement(
+					sender,
+					origin,
+					scheduling_parent,
+					entries,
+					Some(candidates_descriptor_version),
+					Some(para_id),
 				)
 				.await;
 		},

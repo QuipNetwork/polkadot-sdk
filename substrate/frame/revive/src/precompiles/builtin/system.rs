@@ -74,6 +74,11 @@ impl<T: Config> BuiltinPrecompile for System<T> {
 				let is_root = env.caller_is_root(true);
 				Ok(is_root.abi_encode())
 			},
+			ISystemCalls::originIsRoot(ISystem::originIsRootCall {}) => {
+				env.frame_meter_mut().charge_weight_token(RuntimeCosts::OriginIsRoot)?;
+				let is_root = env.origin_is_root();
+				Ok(is_root.abi_encode())
+			},
 			ISystemCalls::ownCodeHash(ISystem::ownCodeHashCall {}) => {
 				env.frame_meter_mut().charge_weight_token(RuntimeCosts::OwnCodeHash)?;
 				let caller = env.caller();

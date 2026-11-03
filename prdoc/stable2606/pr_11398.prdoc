@@ -1,0 +1,26 @@
+title: '[pallet-revive] Add vesting precompile'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    - Add a new built-in precompile exposing Substrate's vesting pallet to EVM contracts
+    - Implement `IVesting.sol` Solidity interface with methods for `vest`, `vestOther`, and `vestingBalance`
+    - Wire up the precompile in pallet-revive's builtin precompile registry and execution context
+
+    ## Changed files
+    - **`IVesting.sol`** / **`precompiles/vesting.rs`**: Solidity interface and Rust implementation for vesting operations
+    - **`precompiles/builtin.rs`** / **`precompiles.rs`**: Register the new vesting precompile
+    - **`exec.rs`**: Expose vesting functionality to the execution context
+    - **`tests.rs`**: Add tests for the vesting precompile
+
+    ## Test plan
+    - [ ] New vesting precompile tests pass (`vest`, `vestOther`, `vestingBalance`)
+    - [ ] Existing pallet-revive tests unaffected
+crates:
+- name: pallet-vesting-precompiles
+  bump: minor
+- name: pallet-revive
+  bump: minor
+- name: pallet-revive-uapi
+  bump: minor

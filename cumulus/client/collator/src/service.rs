@@ -18,25 +18,21 @@
 //! The Cumulus [`CollatorService`] is a utility struct for performing common
 //! operations used in parachain consensus/authoring.
 
-use cumulus_client_network::WaitToAnnounce;
-use cumulus_primitives_core::{CollationInfo, CollectCollationInfo, ParachainBlockData};
+use cumulus_primitives_core::{
+	CollationInfo, CollectCollationInfo, ParachainBlockData, SchedulingProof,
+};
 
+use polkadot_primitives::UMP_SEPARATOR;
 use sc_client_api::BlockBackend;
-use sp_api::{ApiExt, ProvideRuntimeApi};
+use sp_api::{ApiExt, ProvideRuntimeApi, StorageProof};
 use sp_consensus::BlockStatus;
-use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{Block as BlockT, HashingFor, Header as HeaderT, Zero};
 
 use cumulus_client_consensus_common::ParachainCandidate;
-use polkadot_node_primitives::{
-	BlockData, Collation, CollationSecondedSignal, MaybeCompressedPoV, PoV,
-};
+use polkadot_node_primitives::{BlockData, Collation, MaybeCompressedPoV, PoV};
 
 use codec::Encode;
-use futures::channel::oneshot;
-use parking_lot::Mutex;
 use std::sync::Arc;
-
 /// The logging target.
 const LOG_TARGET: &str = "cumulus-collator";
 
@@ -51,23 +47,32 @@ pub trait ServiceInterface<Block: BlockT> {
 	/// that the underlying block has been fully imported into the underlying client,
 	/// as implementations will fetch underlying runtime API data.
 	///
+	/// `scheduling_proof` is `Some` for V3 candidates (produces [`ParachainBlockData::V2`])
+	/// and `None` for legacy candidates (produces [`ParachainBlockData::V1`]).
+	///
 	/// This also returns the unencoded parachain block data, in case that is desired.
 	fn build_collation(
 		&self,
 		parent_header: &Block::Header,
 		block_hash: Block::Hash,
 		candidate: ParachainCandidate<Block>,
+		scheduling_proof: Option<SchedulingProof>,
 	) -> Option<(Collation, ParachainBlockData<Block>)>;
 
-	/// Inform networking systems that the block should be announced after a signal has
-	/// been received to indicate the block has been seconded by a relay-chain validator.
+	/// Build a multi-block collation.
 	///
-	/// This sets up the barrier and returns the sending side of a channel, for the signal
-	/// to be passed through.
-	fn announce_with_barrier(
+	/// Does the same as [`Self::build_collation`], but includes multiple blocks into one collation.
+	/// The given `parent_header` should be the header from the parent of the first block.
+	///
+	/// `scheduling_proof` is `Some` for V3 candidates (produces [`ParachainBlockData::V2`])
+	/// and `None` for legacy candidates (produces [`ParachainBlockData::V1`]).
+	fn build_multi_block_collation(
 		&self,
-		block_hash: Block::Hash,
-	) -> oneshot::Sender<CollationSecondedSignal>;
+		parent_header: &Block::Header,
+		blocks: Vec<Block>,
+		proof: StorageProof,
+		scheduling_proof: Option<SchedulingProof>,
+	) -> Option<(Collation, ParachainBlockData<Block>)>;
 
 	/// Directly announce a block on the network.
 	fn announce_block(&self, block_hash: Block::Hash, data: Option<Vec<u8>>);
@@ -80,7 +85,6 @@ pub trait ServiceInterface<Block: BlockT> {
 /// and distributing new parachain blocks along the network.
 pub struct CollatorService<Block: BlockT, BS, RA> {
 	block_status: Arc<BS>,
-	wait_to_announce: Arc<Mutex<WaitToAnnounce<Block>>>,
 	announce_block: Arc<dyn Fn(Block::Hash, Option<Vec<u8>>) + Send + Sync>,
 	runtime_api: Arc<RA>,
 }
@@ -89,7 +93,6 @@ impl<Block: BlockT, BS, RA> Clone for CollatorService<Block, BS, RA> {
 	fn clone(&self) -> Self {
 		Self {
 			block_status: self.block_status.clone(),
-			wait_to_announce: self.wait_to_announce.clone(),
 			announce_block: self.announce_block.clone(),
 			runtime_api: self.runtime_api.clone(),
 		}
@@ -103,17 +106,18 @@ where
 	RA: ProvideRuntimeApi<Block>,
 	RA::Api: CollectCollationInfo<Block>,
 {
+	fn split_at_separator(messages: Vec<Vec<u8>>) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+		let mut parts = messages.splitn(2, |m: &Vec<u8>| m.is_empty());
+		(parts.next().unwrap_or(&[]).to_vec(), parts.next().unwrap_or(&[]).to_vec())
+	}
+
 	/// Create a new instance.
 	pub fn new(
 		block_status: Arc<BS>,
-		spawner: Arc<dyn SpawnNamed + Send + Sync>,
 		announce_block: Arc<dyn Fn(Block::Hash, Option<Vec<u8>>) + Send + Sync>,
 		runtime_api: Arc<RA>,
 	) -> Self {
-		let wait_to_announce =
-			Arc::new(Mutex::new(WaitToAnnounce::new(spawner, announce_block.clone())));
-
-		Self { block_status, wait_to_announce, announce_block, runtime_api }
+		Self { block_status, announce_block, runtime_api }
 	}
 
 	/// Checks the status of the given block hash in the Parachain.
@@ -215,53 +219,79 @@ where
 	/// as it fetches underlying runtime API data.
 	///
 	/// This also returns the unencoded parachain block data, in case that is desired.
-	pub fn build_collation(
+	fn build_multi_block_collation(
 		&self,
 		parent_header: &Block::Header,
-		block_hash: Block::Hash,
-		candidate: ParachainCandidate<Block>,
+		blocks: Vec<Block>,
+		proof: StorageProof,
+		scheduling_proof: Option<SchedulingProof>,
 	) -> Option<(Collation, ParachainBlockData<Block>)> {
-		let block = candidate.block;
+		let compact_proof =
+			match proof.into_compact_proof::<HashingFor<Block>>(*parent_header.state_root()) {
+				Ok(proof) => proof,
+				Err(e) => {
+					tracing::error!(target: "cumulus-collator", "Failed to compact proof: {:?}", e);
+					return None;
+				},
+			};
 
-		let compact_proof = match candidate
-			.proof
-			.into_compact_proof::<HashingFor<Block>>(*parent_header.state_root())
-		{
-			Ok(proof) => proof,
-			Err(e) => {
-				tracing::error!(target: "cumulus-collator", "Failed to compact proof: {:?}", e);
-				return None;
-			},
-		};
-
-		// Create the parachain block data for the validators.
-		let (collation_info, _api_version) = self
-			.fetch_collation_info(block_hash, block.header())
-			.map_err(|e| {
-				tracing::error!(
-					target: LOG_TARGET,
-					error = ?e,
-					"Failed to collect collation info.",
-				)
-			})
-			.ok()
-			.flatten()?;
-
-		// Workaround for: https://github.com/paritytech/polkadot-sdk/issues/64
-		//
 		// We are always using the `api_version` of the parent block. The `api_version` can only
-		// change with a runtime upgrade and this is when we want to observe the old `api_version`.
-		// Because this old `api_version` is the one used to validate this block. Otherwise we
-		// already assume the `api_version` is higher than what the relay chain will use and this
-		// will lead to validation errors.
+		// change with a runtime upgrade and this is when we want to observe the old
+		// `api_version`. Because this old `api_version` is the one used to validate this
+		// block. Otherwise, we already assume the `api_version` is higher than what the relay
+		// chain will use and this will lead to validation errors.
 		let api_version = self
 			.runtime_api
 			.runtime_api()
 			.api_version::<dyn CollectCollationInfo<Block>>(parent_header.hash())
 			.ok()
 			.flatten()?;
+		let mut upward_messages = Vec::new();
+		let mut upward_message_signals = Vec::<Vec<u8>>::with_capacity(4);
+		let mut horizontal_messages = Vec::new();
+		let mut new_validation_code = None;
+		let mut processed_downward_messages = 0;
+		let mut hrmp_watermark = None;
+		let mut head_data = None;
 
-		let block_data = ParachainBlockData::<Block>::new(vec![block], compact_proof);
+		for block in &blocks {
+			// Create the parachain block data for the validators.
+			let (collation_info, _api_version) = self
+				.fetch_collation_info(block.hash(), block.header())
+				.map_err(|e| {
+					tracing::error!(
+						target: LOG_TARGET,
+						error = ?e,
+						"Failed to collect collation info.",
+					)
+				})
+				.ok()
+				.flatten()?;
+
+			let (messages, signals) = Self::split_at_separator(collation_info.upward_messages);
+
+			upward_messages.extend(messages);
+			upward_message_signals.extend(signals);
+			horizontal_messages.extend(collation_info.horizontal_messages);
+
+			if let Some(new_code) = collation_info.new_validation_code {
+				if new_validation_code.replace(new_code).is_some() {
+					tracing::warn!(
+						target: LOG_TARGET,
+						block = ?block.hash(),
+						"Overwriting validation code from an earlier block in the bundle.",
+					);
+				}
+			}
+			processed_downward_messages += collation_info.processed_downward_messages;
+			hrmp_watermark = Some(collation_info.hrmp_watermark);
+			head_data = Some(collation_info.head_data);
+		}
+
+		// Sort by recipient as required by the relay chain rules.
+		horizontal_messages.sort_by(|a, b| a.recipient.cmp(&b.recipient));
+
+		let block_data = ParachainBlockData::<Block>::new(blocks, compact_proof, scheduling_proof);
 
 		let pov = polkadot_node_primitives::maybe_compress_pov(PoV {
 			block_data: BlockData(if api_version >= 3 {
@@ -280,8 +310,13 @@ where
 			}),
 		});
 
-		let upward_messages = collation_info
-			.upward_messages
+		// If we got some signals, push them now.
+		if !upward_message_signals.is_empty() {
+			upward_messages.push(UMP_SEPARATOR);
+			upward_messages.extend(upward_message_signals.into_iter());
+		}
+
+		let upward_messages = upward_messages
 			.try_into()
 			.map_err(|e| {
 				tracing::error!(
@@ -291,8 +326,7 @@ where
 				)
 			})
 			.ok()?;
-		let horizontal_messages = collation_info
-			.horizontal_messages
+		let horizontal_messages = horizontal_messages
 			.try_into()
 			.map_err(|e| {
 				tracing::error!(
@@ -305,26 +339,16 @@ where
 
 		let collation = Collation {
 			upward_messages,
-			new_validation_code: collation_info.new_validation_code,
-			processed_downward_messages: collation_info.processed_downward_messages,
+			new_validation_code,
+			processed_downward_messages,
 			horizontal_messages,
-			hrmp_watermark: collation_info.hrmp_watermark,
-			head_data: collation_info.head_data,
+			// If these are `None`, there was no block.
+			hrmp_watermark: hrmp_watermark?,
+			head_data: head_data?,
 			proof_of_validity: MaybeCompressedPoV::Compressed(pov),
 		};
 
 		Some((collation, block_data))
-	}
-
-	/// Inform the networking systems that the block should be announced after an appropriate
-	/// signal has been received. This returns the sending half of the signal.
-	pub fn announce_with_barrier(
-		&self,
-		block_hash: Block::Hash,
-	) -> oneshot::Sender<CollationSecondedSignal> {
-		let (result_sender, signed_stmt_recv) = oneshot::channel();
-		self.wait_to_announce.lock().wait_to_announce(block_hash, signed_stmt_recv);
-		result_sender
 	}
 }
 
@@ -342,20 +366,36 @@ where
 	fn build_collation(
 		&self,
 		parent_header: &Block::Header,
-		block_hash: Block::Hash,
+		_: Block::Hash,
 		candidate: ParachainCandidate<Block>,
+		scheduling_proof: Option<SchedulingProof>,
 	) -> Option<(Collation, ParachainBlockData<Block>)> {
-		CollatorService::build_collation(self, parent_header, block_hash, candidate)
-	}
-
-	fn announce_with_barrier(
-		&self,
-		block_hash: Block::Hash,
-	) -> oneshot::Sender<CollationSecondedSignal> {
-		CollatorService::announce_with_barrier(self, block_hash)
+		CollatorService::build_multi_block_collation(
+			self,
+			parent_header,
+			vec![candidate.block],
+			candidate.proof,
+			scheduling_proof,
+		)
 	}
 
 	fn announce_block(&self, block_hash: Block::Hash, data: Option<Vec<u8>>) {
 		(self.announce_block)(block_hash, data)
+	}
+
+	fn build_multi_block_collation(
+		&self,
+		parent_header: &<Block as BlockT>::Header,
+		blocks: Vec<Block>,
+		proof: StorageProof,
+		scheduling_proof: Option<SchedulingProof>,
+	) -> Option<(Collation, ParachainBlockData<Block>)> {
+		CollatorService::build_multi_block_collation(
+			self,
+			parent_header,
+			blocks,
+			proof,
+			scheduling_proof,
+		)
 	}
 }

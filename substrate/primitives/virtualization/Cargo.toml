@@ -1,0 +1,32 @@
+[package]
+name = "sp-virtualization"
+version = "1.0.0"
+license = "Apache-2.0"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+description = "Spawn a new polkavm instance from within the runtime/pvf"
+
+[lints]
+workspace = true
+
+[dependencies]
+codec = { workspace = true, default-features = false, features = ["bytes"] }
+log = { workspace = true }
+num_enum = { workspace = true, default-features = false }
+sp-runtime-interface = { workspace = true, default-features = false }
+strum = { features = ["derive"], workspace = true }
+
+[target.'cfg(not(substrate_runtime))'.dependencies]
+sp-externalities = { workspace = true, default-features = true }
+sp-storage = { workspace = true, default-features = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"log/std",
+	"num_enum/std",
+	"sp-runtime-interface/std",
+	"strum/std",
+]

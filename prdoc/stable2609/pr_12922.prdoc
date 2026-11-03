@@ -1,0 +1,15 @@
+title: 'staking-async parachain: deny ForeignAssets and PoolAssets transfers to the `NonTransfer` proxy'
+doc:
+- audience: Runtime User
+  description: |-
+    In the `staking-async` parachain runtime, the `ProxyType::NonTransfer` call filter is a
+    deny-list and so fails open: any pallet added to the runtime is reachable by a `NonTransfer`
+    proxy unless it is listed explicitly. The deny-list named only `Assets` (the TrustBackedAssets
+    instance) and omitted the other `pallet-assets` instances, contradicting the documented policy
+    that this proxy type can only execute calls that do not transfer funds or assets.
+
+    `ForeignAssets` and `PoolAssets`, which transfer value exactly as `Assets` does, are now
+    denied to a `NonTransfer` proxy.
+crates:
+- name: pallet-staking-async-parachain-runtime
+  bump: patch

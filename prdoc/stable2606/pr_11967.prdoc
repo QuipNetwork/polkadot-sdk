@@ -1,0 +1,53 @@
+title: Experimental collator protocol — leaf-authoritative capacity tracking
+doc:
+- audience: Node Dev
+  description: |-
+    Reworks the experimental collator protocol's validator side around a leaf-authoritative
+    capacity model. The leaf's per-core claim queue is the single source of truth; capacity at
+    every scheduling parent (SP) on a path to that leaf is derived via offset arithmetic.
+
+    Behavior changes vs. master:
+
+    * **Rotation-boundary bug fixed.** After a group rotation, candidates for both the
+      pre-rotation core's para (advertised at the pre-rotation leaf) and the post-rotation
+      core's para (at the post-rotation leaf) are accepted. Previously, rotation caused
+      claim-queue state for the old core to be overwritten and ancestor-rooted advertisements
+      to be wrongly rejected.
+
+    * **Fork-aware view cleanup.** When a leaf is dropped, SPs are removed from
+      `per_scheduling_parent` (with their in-flight fetches cancelled) only when no remaining
+      leaf still references them. Previously, sibling-fork retention in implicit-view storage
+      could leave SPs orphaned with leaked in-flight fetches.
+
+    * **Free-slot accounting tightened to the current leaf.** Assignments and free CQ
+      positions now reflect only what the current leaf's CQ actually predicts. Previously,
+      claim-queue state for already-produced ancestor blocks lingered until those blocks were
+      pruned, so paras and slots that had already been backed on-chain were still reported as
+      open — keeping peers connected past their relevance and offering capacity for slots that
+      could no longer be filled.
+
+    Internals: the previous `ClaimQueueState` / `PerLeafClaimQueueState` machinery is gone
+    (~2200 LoC deleted). Capacity is now computed per-(leaf, core) by `build_leaf_core_cqs`
+    as a `Vec<LeafCoreCq>`, where each `LeafCoreCq` holds the leaf's CQ as
+    `Vec<Option<ParaId>>` (consumed positions cleared to `None`) and an
+    `sps_by_depth: Vec<Option<Hash>>` masking cross-core ancestors. The fetch planner walks
+    free CQ positions back-to-front and picks the best advertisement among same-core SPs whose
+    window reaches that position.
+
+    Test coverage in `validator_side_experimental/tests.rs`:
+    * `core_rotation_accepts_candidates_for_both_cores` — regression for the original
+      rotation-boundary bug.
+    * Five active-fork tests covering: assignment union across leaves, longest-window capacity
+      at a common ancestor across different-length forks, no double-counting of in-flight
+      candidates across sibling forks, and reclamation of capacity / peer disconnection when a
+      fork is dropped.
+    * Two linear multi-SP tests pinning over-fetch and under-fetch invariants when ancestor
+      and leaf SPs share the same per-core CQ.
+    * Tests for cross-SP reputation arbitration and cross-core slot-reservation correctness.
+    * Three previously-existing tests rewritten to assert the same intent against the new
+      model.
+
+    No public API changes; behavior change is contained to the experimental validator side.
+crates:
+- name: polkadot-collator-protocol
+  bump: patch

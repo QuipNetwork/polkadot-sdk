@@ -1,0 +1,8 @@
+title: Wired pallet_dap weights on Asset Hub Westend
+doc:
+  - audience: Runtime Dev
+    description: |-
+      Replaced type WeightInfo = () with the generated weights::pallet_dap::WeightInfo<Runtime>
+crates:
+  - name: asset-hub-westend-runtime
+    bump: patch

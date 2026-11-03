@@ -16,9 +16,12 @@
 use crate::imports::*;
 use frame_support::traits::OnInitialize;
 use pallet_broker::{ConfigRecord, Configuration, CoreAssignment, CoreMask, ScheduleItem};
+use polkadot_runtime_parachains::scheduler::PartsOf57600;
 use sp_runtime::Perbill;
 use westend_runtime_constants::system_parachain::coretime::TIMESLICE_PERIOD;
-use westend_system_emulated_network::westend_emulated_chain::westend_runtime::Dmp;
+use westend_system_emulated_network::westend_emulated_chain::westend_runtime::{
+	Dmp, Runtime as WestendRuntime,
+};
 
 #[test]
 fn transact_hardcoded_weights_are_sane() {
@@ -225,4 +228,184 @@ fn transact_hardcoded_weights_are_sane() {
 			]
 		);
 	});
+}
+
+#[test]
+fn all_assignments_reach_relay() {
+	type CoretimeEvent = <CoretimeWestend as Chain>::RuntimeEvent;
+	type RelayEvent = <Westend as Chain>::RuntimeEvent;
+
+	Westend::execute_with(|| {
+		Dmp::make_parachain_reachable(CoretimeWestend::para_id());
+	});
+
+	CoretimeWestend::execute_with(|| {
+		// Hooks don't run in emulated tests; tick the broker manually here and inside the loop
+		// below so `do_tick` runs with the current relay block.
+		<CoretimeWestend as CoretimeWestendPallet>::Broker::on_initialize(
+			<CoretimeWestend as Chain>::System::block_number(),
+		);
+
+		let coretime_root_origin = <CoretimeWestend as Chain>::RuntimeOrigin::root();
+
+		let mut schedule = Vec::new();
+		for i in 0..80 {
+			schedule.push(ScheduleItem {
+				mask: CoreMask::void().set(i),
+				assignment: CoreAssignment::Task(2000 + i),
+			})
+		}
+
+		assert_ok!(<CoretimeWestend as CoretimeWestendPallet>::Broker::reserve(
+			coretime_root_origin.clone(),
+			schedule.try_into().expect("Vector is within bounds."),
+		));
+
+		let config = ConfigRecord {
+			advance_notice: 2,
+			interlude_length: 1,
+			leadin_length: 2,
+			region_length: 1,
+			ideal_bulk_proportion: Perbill::from_percent(40),
+			limit_cores_offered: None,
+			renewal_bump: Perbill::from_percent(2),
+			contribution_timeout: 1,
+		};
+		assert_ok!(<CoretimeWestend as CoretimeWestendPallet>::Broker::configure(
+			coretime_root_origin.clone(),
+			config
+		));
+		assert_ok!(<CoretimeWestend as CoretimeWestendPallet>::Broker::start_sales(
+			coretime_root_origin,
+			100,
+			0
+		));
+		assert_eq!(
+			pallet_broker::Status::<<CoretimeWestend as Chain>::Runtime>::get()
+				.unwrap()
+				.core_count,
+			1
+		);
+
+		assert_expected_events!(
+			CoretimeWestend,
+			vec![
+				CoretimeEvent::Broker(
+					pallet_broker::Event::ReservationMade { .. }
+				) => {},
+				CoretimeEvent::Broker(
+					pallet_broker::Event::CoreCountRequested { core_count: 1 }
+				) => {},
+				CoretimeEvent::ParachainSystem(
+					cumulus_pallet_parachain_system::Event::UpwardMessageSent { .. }
+				) => {},
+			]
+		);
+	});
+
+	Westend::execute_with(|| {
+		Westend::assert_ump_queue_processed(true, Some(CoretimeWestend::para_id()), None);
+
+		assert_expected_events!(
+			Westend,
+			vec![
+				RelayEvent::MessageQueue(
+					pallet_message_queue::Event::Processed { success: true, .. }
+				) => {},
+			]
+		);
+	});
+
+	let mut block_number_cursor = Westend::ext_wrapper(<Westend as Chain>::System::block_number);
+
+	let mut found_sale_initialized = false;
+	let mut found_core_assignment = None;
+	let mut found_core_assigned_when = None;
+	let mut found_history_dropped = false;
+	let mut found_relay_core_assignment = None;
+	let mut relay_ump_processed = 0u32;
+	// `HistoryDropped` is the terminal event of the round-trip, so it implies all earlier
+	// broker/relay steps have already fired in prior iterations.
+	while !found_history_dropped && block_number_cursor < TIMESLICE_PERIOD * 100 {
+		CoretimeWestend::execute_with(|| {
+			<CoretimeWestend as CoretimeWestendPallet>::Broker::on_initialize(
+				<CoretimeWestend as Chain>::System::block_number(),
+			);
+
+			for event in &<CoretimeWestend as Chain>::System::events() {
+				match &event.event {
+					CoretimeEvent::Broker(pallet_broker::Event::SaleInitialized { .. }) => {
+						found_sale_initialized = true
+					},
+					CoretimeEvent::Broker(pallet_broker::Event::CoreAssigned {
+						assignment,
+						when,
+						..
+					}) => {
+						found_core_assigned_when = Some(*when);
+						found_core_assignment = Some(
+							assignment
+								.iter()
+								.map(|(assignment, parts)| {
+									(assignment.clone(), PartsOf57600::new_saturating(*parts))
+								})
+								.collect::<Vec<_>>(),
+						);
+					},
+					CoretimeEvent::Broker(pallet_broker::Event::HistoryDropped {
+						when: 0,
+						revenue: 0,
+					}) => found_history_dropped = true,
+					_ => {},
+				}
+			}
+		});
+
+		// `Westend::execute_with` (not `ext_wrapper`) is required: the relay's outgoing DMPs
+		// only get flushed into the emulator's downward queue from within a relay `execute_with`,
+		// and that's the path by which `notify_revenue` reaches the broker.
+		Westend::execute_with(|| {
+			for event in &<Westend as Chain>::System::events() {
+				match &event.event {
+					RelayEvent::MessageQueue(pallet_message_queue::Event::Processed {
+						success: true,
+						..
+					}) => relay_ump_processed += 1,
+					RelayEvent::Coretime(
+						polkadot_runtime_parachains::coretime::Event::CoreAssigned { core },
+					) => {
+						let begin = found_core_assigned_when
+							.expect("broker should have emitted `CoreAssigned`");
+						found_relay_core_assignment =
+							polkadot_runtime_parachains::scheduler::CoreSchedules::<WestendRuntime>::get((
+								begin, core,
+							))
+							.map(|schedule| schedule.assignments().to_vec());
+					},
+					_ => {},
+				}
+			}
+
+			block_number_cursor = <Westend as Chain>::System::block_number();
+		});
+	}
+
+	assert!(found_sale_initialized, "broker never emitted `SaleInitialized`");
+	assert!(found_core_assignment.is_some(), "broker never emitted `CoreAssigned`");
+	assert!(
+		found_history_dropped,
+		"broker never emitted `HistoryDropped` (revenue round-trip did not complete)",
+	);
+	assert!(
+		relay_ump_processed >= 2,
+		"relay processed fewer UMPs than expected: got {relay_ump_processed}",
+	);
+	assert!(
+		found_relay_core_assignment.is_some(),
+		"relay never emitted `coretime::CoreAssigned` (assign_core dispatch failed)",
+	);
+	assert_eq!(
+		found_core_assignment, found_relay_core_assignment,
+		"the relay chain received a different assignment than the one set by the broker"
+	);
 }

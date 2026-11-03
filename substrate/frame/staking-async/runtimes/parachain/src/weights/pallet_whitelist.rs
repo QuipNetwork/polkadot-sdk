@@ -113,4 +113,30 @@ impl<T: frame_system::Config> pallet_whitelist::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
+	/// Storage: `Whitelist::DeferredDispatch` (r:1 w:1)
+	/// Proof: `Whitelist::DeferredDispatch` (`max_values`: None, `max_size`: Some(40), added: 2515, mode: `MaxEncodedLen`)
+	/// Storage: `System::Number` (r:1 w:0)
+	/// Proof: `System::Number` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	fn defer_dispatch(_n: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `3505`
+		// Minimum execution time: 6_000_000 picoseconds.
+		Weight::from_parts(6_410_000, 3505)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	/// Storage: `Whitelist::DeferredDispatch` (r:1 w:1)
+	/// Proof: `Whitelist::DeferredDispatch` (`max_values`: None, `max_size`: Some(40), added: 2515, mode: `MaxEncodedLen`)
+	/// Storage: `System::Number` (r:1 w:0)
+	/// Proof: `System::Number` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
+	fn remove_deferred_dispatch() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `152`
+		//  Estimated: `3505`
+		// Minimum execution time: 6_000_000 picoseconds.
+		Weight::from_parts(6_410_000, 3505)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
 }

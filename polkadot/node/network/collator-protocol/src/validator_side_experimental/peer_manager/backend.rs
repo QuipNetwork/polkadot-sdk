@@ -36,12 +36,15 @@ pub trait Backend {
 	/// decay for the other collators of that para (if the `decay_value` param is present) and
 	/// because if the number of stored reputations go over the `stored_limit_per_para`, we'll 100%
 	/// slash the least recently bumped peers. `leaf_number` needs to be at least equal to the
-	/// `processed_finalized_block_number`
+	/// `processed_finalized_block_number`. `now` is the current wall-clock duration since the
+	/// UNIX epoch used to stamp the bumped entries; passed in so tests can supply a
+	/// deterministic clock.
 	async fn process_bumps(
 		&mut self,
 		leaf_number: BlockNumber,
 		bumps: BTreeMap<ParaId, HashMap<PeerId, Score>>,
 		decay_value: Option<Score>,
+		now: std::time::Duration,
 	) -> Vec<ReputationUpdate>;
 	/// Get the maximum scores for the given paraids.
 	async fn max_scores_for_paras(&self, paras: BTreeSet<ParaId>) -> HashMap<ParaId, Score>;

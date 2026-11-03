@@ -1,7 +1,7 @@
 [package]
 authors.workspace = true
 name = "cumulus-relay-chain-inprocess-interface"
-version = "0.32.0"
+version = "0.42.0"
 edition.workspace = true
 description = "Implementation of the RelayChainInterface trait for Polkadot full-nodes."
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -14,29 +14,35 @@ workspace = true
 [dependencies]
 async-channel = { workspace = true }
 async-trait = { workspace = true }
-cumulus-client-bootnodes = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-relay-chain-interface = { default-features = true, workspace = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
+
+# Substrate
+sc-cli = { workspace = true, default-features = false }
+sc-client-api = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-sysinfo = { workspace = true, default-features = true }
+sc-telemetry = { workspace = true, default-features = true }
+sc-tracing = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+
+# Polkadot
 polkadot-cli = { features = ["cli"], workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-polkadot-service = { default-features = true, workspace = true }
-sc-cli = { default-features = false, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-sysinfo = { default-features = true, workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
-sc-tracing = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-service = { workspace = true, default-features = true }
+
+# Cumulus
+cumulus-client-bootnodes = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-relay-chain-interface = { workspace = true, default-features = true }
 
 [dev-dependencies]
 # Substrate
-sp-keyring = { default-features = true, workspace = true }
+sp-keyring = { workspace = true, default-features = true }
 
 # Polkadot
 metered = { features = ["futures_channel"], workspace = true }

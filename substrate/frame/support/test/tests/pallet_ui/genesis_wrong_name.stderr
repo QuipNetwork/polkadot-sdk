@@ -1,4 +1,4 @@
-error: Invalid pallet::genesis_build, expected impl<..> GenesisBuild<..> for GenesisConfig<..>
+error: Invalid pallet::genesis_build, expected impl<..> BuildGenesisConfig for GenesisConfig<..>
   --> tests/pallet_ui/genesis_wrong_name.rs:36:2
    |
 36 |     impl Foo {}

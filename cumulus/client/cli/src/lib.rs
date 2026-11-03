@@ -290,9 +290,10 @@ pub struct RunCmd {
 
 	/// Creates a less resource-hungry node that retrieves relay chain data from an RPC endpoint.
 	///
-	/// The provided URLs should point to RPC endpoints of the relay chain.
-	/// This node connects to the remote nodes following the order they were specified in. If the
-	/// connection fails, it attempts to connect to the next endpoint in the list.
+	/// The provided URLs should point to RPC endpoints of the relay chain and are used in order of
+	/// preference. The node connects to the first endpoint it can reach and, if that connection
+	/// fails, to the next one in the list. While on a later endpoint, it periodically checks the
+	/// earlier ones and switches back to the first that is reachable and has caught up.
 	///
 	/// Note: This option doesn't stop the node from connecting to the relay chain network but
 	/// reduces bandwidth use.

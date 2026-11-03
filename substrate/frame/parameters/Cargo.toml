@@ -3,26 +3,27 @@ name = "pallet-parameters"
 description = "Pallet to store and configure parameters."
 repository.workspace = true
 license = "Apache-2.0"
-version = "0.17.0"
+version = "0.21.0"
 authors = ["Acala Developers", "Parity Technologies <admin@parity.io>"]
 edition.workspace = true
 
 [dependencies]
 codec = { features = ["max-encoded-len"], workspace = true }
 docify = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { features = ["experimental"], workspace = true }
-frame-system = { workspace = true }
 paste = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { features = ["derive"], optional = true, workspace = true, default-features = true }
+
+frame-benchmarking = { optional = true, workspace = true }
+frame-support = { features = ["experimental"], workspace = true }
+frame-system = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { default-features = true, workspace = true }
-pallet-example-basic = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-example-basic = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

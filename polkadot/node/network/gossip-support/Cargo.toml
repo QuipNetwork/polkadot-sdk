@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-gossip-support"
-version = "29.0.0"
+version = "36.0.0"
 description = "Polkadot Gossip Support subsystem. Responsible for keeping track of session changes and issuing a connection request to the relevant validators on every new session."
 authors.workspace = true
 edition.workspace = true
@@ -12,27 +12,28 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+sc-network = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 
 [dev-dependencies]
-sp-authority-discovery = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-authority-discovery = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 polkadot-node-subsystem-test-helpers = { workspace = true }
 

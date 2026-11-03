@@ -18,13 +18,30 @@
 
 //! RPC middleware to collect prometheus metrics on RPC calls.
 
-use std::time::Instant;
+use std::{
+	collections::HashSet,
+	sync::{Arc, LazyLock},
+	time::Instant,
+};
 
 use jsonrpsee::{types::Request, MethodResponse};
+use prometheus::core::{GenericCounter, GenericGauge};
 use prometheus_endpoint::{
 	register, Counter, CounterVec, HistogramOpts, HistogramVec, Opts, PrometheusError, Registry,
 	U64,
 };
+
+/// Total number of RPC threads created.
+pub(crate) static RPC_THREADS_TOTAL: LazyLock<GenericCounter<U64>> = LazyLock::new(|| {
+	GenericCounter::new("substrate_rpc_threads_total", "Total number of RPC threads created")
+		.expect("Creating of statics doesn't fail. qed")
+});
+
+/// Number of RPC threads currently alive.
+pub(crate) static RPC_THREADS_ALIVE: LazyLock<GenericGauge<U64>> = LazyLock::new(|| {
+	GenericGauge::new("substrate_rpc_threads_alive", "Number of RPC threads currently alive")
+		.expect("Creating of statics doesn't fail. qed")
+});
 
 /// Histogram time buckets in microseconds.
 const HISTOGRAM_BUCKETS: [f64; 11] = [
@@ -51,18 +68,29 @@ pub struct RpcMetrics {
 	calls_started: CounterVec<U64>,
 	/// Number of calls completed.
 	calls_finished: CounterVec<U64>,
+	/// Number of calls rejected due to rate limiting.
+	calls_rejected: CounterVec<U64>,
+	/// Number of rate limit retries.
+	calls_retried: CounterVec<U64>,
 	/// Number of Websocket sessions opened.
 	ws_sessions_opened: Option<Counter<U64>>,
 	/// Number of Websocket sessions closed.
 	ws_sessions_closed: Option<Counter<U64>>,
 	/// Histogram over RPC websocket sessions.
 	ws_sessions_time: HistogramVec,
+	/// Bounds the `method` label to keep series cardinality finite.
+	/// Empty = not configured: fall back to the raw name (old behaviour).
+	known_methods: Arc<HashSet<&'static str>>,
 }
 
 impl RpcMetrics {
 	/// Create an instance of metrics
 	pub fn new(metrics_registry: Option<&Registry>) -> Result<Option<Self>, PrometheusError> {
 		if let Some(metrics_registry) = metrics_registry {
+			// Register RPC thread metrics
+			metrics_registry.register(Box::new(RPC_THREADS_TOTAL.clone()))?;
+			metrics_registry.register(Box::new(RPC_THREADS_ALIVE.clone()))?;
+
 			Ok(Some(Self {
 				calls_time: register(
 					HistogramVec::new(
@@ -95,6 +123,26 @@ impl RpcMetrics {
 					)?,
 					metrics_registry,
 				)?,
+				calls_rejected: register(
+					CounterVec::new(
+						Opts::new(
+							"substrate_rpc_calls_rejected",
+							"Number of RPC calls rejected due to rate limiting",
+						),
+						&["protocol", "method"],
+					)?,
+					metrics_registry,
+				)?,
+				calls_retried: register(
+					CounterVec::new(
+						Opts::new(
+							"substrate_rpc_calls_retried",
+							"Number of rate limit retries for RPC calls",
+						),
+						&["protocol", "method"],
+					)?,
+					metrics_registry,
+				)?,
 				ws_sessions_opened: register(
 					Counter::new(
 						"substrate_rpc_sessions_opened",
@@ -122,9 +170,26 @@ impl RpcMetrics {
 					)?,
 					metrics_registry,
 				)?,
+				known_methods: Default::default(),
 			}))
 		} else {
 			Ok(None)
+		}
+	}
+
+	/// Set the registered methods so unknown names collapse to `"unknown"`.
+	pub fn with_known_methods(mut self, names: impl IntoIterator<Item = &'static str>) -> Self {
+		self.known_methods = Arc::new(names.into_iter().collect());
+		self
+	}
+
+	/// Registered name, else `"unknown"` (raw name if not configured).
+	fn method_label<'a>(&'a self, req: &'a Request) -> &'a str {
+		let name = req.method_name();
+		if self.known_methods.is_empty() || self.known_methods.contains(name) {
+			name
+		} else {
+			"unknown"
 		}
 	}
 
@@ -148,7 +213,29 @@ impl RpcMetrics {
 		);
 
 		self.calls_started
-			.with_label_values(&[transport_label, req.method_name()])
+			.with_label_values(&[transport_label, self.method_label(req)])
+			.inc();
+	}
+
+	pub(crate) fn on_rejected(&self, req: &Request, transport_label: &'static str) {
+		log::trace!(
+			target: "rpc_metrics",
+			"[{transport_label}] {} call rejected due to rate limiting",
+			req.method_name(),
+		);
+		self.calls_rejected
+			.with_label_values(&[transport_label, self.method_label(req)])
+			.inc();
+	}
+
+	pub(crate) fn on_retry(&self, req: &Request, transport_label: &'static str) {
+		log::trace!(
+			target: "rpc_metrics",
+			"[{transport_label}] {} call retrying due to rate limiting",
+			req.method_name(),
+		);
+		self.calls_retried
+			.with_label_values(&[transport_label, self.method_label(req)])
 			.inc();
 	}
 
@@ -170,17 +257,18 @@ impl RpcMetrics {
 			req.method_name(),
 			micros,
 		);
+		let method = self.method_label(req);
 		self.calls_time
 			.with_label_values(&[
 				transport_label,
-				req.method_name(),
+				method,
 				if is_rate_limited { "true" } else { "false" },
 			])
 			.observe(micros as _);
 		self.calls_finished
 			.with_label_values(&[
 				transport_label,
-				req.method_name(),
+				method,
 				// the label "is_error", so `success` should be regarded as false
 				// and vice-versa to be registered correctly.
 				if rp.is_success() { "false" } else { "true" },
@@ -215,6 +303,14 @@ impl Metrics {
 		self.inner.on_call(req, self.transport_label)
 	}
 
+	pub(crate) fn on_rejected(&self, req: &Request) {
+		self.inner.on_rejected(req, self.transport_label)
+	}
+
+	pub(crate) fn on_retry(&self, req: &Request) {
+		self.inner.on_retry(req, self.transport_label)
+	}
+
 	pub(crate) fn on_response(
 		&self,
 		req: &Request,
@@ -223,5 +319,66 @@ impl Metrics {
 		now: Instant,
 	) {
 		self.inner.on_response(req, rp, is_rate_limited, self.transport_label, now)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use jsonrpsee::types::Request;
+	use prometheus::core::Collector;
+	use prometheus_endpoint::Registry;
+	use std::borrow::Cow;
+
+	fn req(method: &'static str) -> Request<'static> {
+		Request {
+			jsonrpc: jsonrpsee::types::TwoPointZero,
+			id: jsonrpsee::types::Id::Number(1),
+			method: Cow::Borrowed(method),
+			params: None,
+			extensions: Default::default(),
+		}
+	}
+
+	fn metrics_with(known: &[&'static str]) -> RpcMetrics {
+		RpcMetrics::new(Some(&Registry::new()))
+			.unwrap()
+			.unwrap()
+			.with_known_methods(known.iter().copied())
+	}
+
+	#[test]
+	fn known_method_keeps_its_name() {
+		let m = metrics_with(&["state_getStorage", "chain_getBlock"]);
+		assert_eq!(m.method_label(&req("state_getStorage")), "state_getStorage");
+	}
+
+	#[test]
+	fn unknown_method_is_bucketed() {
+		let m = metrics_with(&["state_getStorage"]);
+		assert_eq!(m.method_label(&req("totally_made_up_9f3c")), "unknown");
+	}
+
+	#[test]
+	fn empty_set_preserves_raw_name() {
+		// Not configured: fall back to the raw name (backwards compatible).
+		let m = RpcMetrics::new(Some(&Registry::new())).unwrap().unwrap();
+		assert_eq!(m.method_label(&req("anything")), "anything");
+	}
+
+	#[test]
+	fn bounded_series_count_under_junk_flood() {
+		let m = metrics_with(&["state_getStorage", "chain_getBlock"]);
+		for i in 0..1000 {
+			// Leak so the &'static str requirement is satisfied; test-only.
+			let name: &'static str = Box::leak(format!("junk_{i}").into_boxed_str());
+			m.on_call(&req(name), "ws");
+		}
+		m.on_call(&req("state_getStorage"), "ws");
+		// 1000 distinct unregistered names collapse to a single `unknown` series,
+		// plus the one registered method actually called = 2.
+		let families = m.calls_started.collect();
+		let series = families.iter().map(|f| f.get_metric().len()).sum::<usize>();
+		assert_eq!(series, 2);
 	}
 }

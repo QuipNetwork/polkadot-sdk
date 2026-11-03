@@ -11,10 +11,13 @@ publish = false
 workspace = true
 
 [dependencies]
-coretime-westend-runtime = { default-features = true, workspace = true }
+# Substrate
+frame-support = { workspace = true }
+sp-core = { workspace = true }
+
+# Cumulus
+coretime-westend-runtime = { workspace = true, default-features = true }
 cumulus-primitives-core = { workspace = true }
 emulated-integration-tests-common = { workspace = true }
-frame-support = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
-sp-core = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
 testnet-parachains-constants = { features = ["westend"], workspace = true, default-features = true }

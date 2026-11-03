@@ -33,6 +33,8 @@ pub trait VoteTally<Votes, Class> {
 	/// (e.g. conviction, ranks, etc.).
 	fn support(&self, class: Class) -> Perbill;
 	/// Returns the approval ratio (positive to total votes) for the tally.
+	///
+	/// If no votes have been cast (i.e. `ayes + nays == 0`), it should resolve to `0%`.
 	fn approval(&self, class: Class) -> Perbill;
 	/// Returns an instance of the tally representing a unanimous approval, for benchmarking
 	/// purposes.

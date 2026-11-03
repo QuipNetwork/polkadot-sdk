@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-primitives-storage-weight-reclaim"
-version = "17.0.0"
+version = "21.0.0"
 authors.workspace = true
 edition.workspace = true
 description = "Utilities to reclaim storage weight."
@@ -13,20 +13,23 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-primitives-core = { workspace = true }
-cumulus-primitives-proof-size-hostfunction = { workspace = true }
-docify = { workspace = true }
+log = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-log = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
+
 sp-runtime = { workspace = true }
+
+cumulus-primitives-core = { workspace = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true }
+docify = { workspace = true }
 
 [dev-dependencies]
 cumulus-test-runtime = { workspace = true }
-sp-io = { workspace = true, default-features = false }
-sp-trie = { workspace = true, default-features = false }
+sp-io = { workspace = true }
+sp-trie = { workspace = true }
 
 [features]
 default = ["std"]

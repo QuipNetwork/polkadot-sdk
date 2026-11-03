@@ -1,0 +1,55 @@
+title: Runtime safety and fee precision fixes
+doc:
+- audience: Runtime Dev
+  description: |-
+    This PR applies a set of small runtime-facing fixes across FRAME pallets.
+
+    ## `pallet-asset-conversion`
+    - Changes `Config::LPFee` from `Get<u32>` (tenths-of-a-percent encoding) to `Get<Permill>`.
+    - Reworks swap math to use `Permill::ACCURACY` and `left_from_one()` so fee handling is explicit and avoids underflow-prone arithmetic.
+    - Updates runtimes and mocks to configure LP fee via `Permill`.
+
+    ## `frame-system`
+    - Extends `Event::CodeUpdated` to include the updated runtime code hash: `CodeUpdated { hash }`.
+    - Emits this hash from `update_code_in_storage` when scheduling or applying a runtime code update.
+
+    ## `pallet-psm`
+    - Adds a `try-runtime` `pre_upgrade` guard that checks configured asset decimals before initialization.
+
+    ## `pallet-balances`
+    - Removes a tautological internal assertion in account mutation flow.
+
+    ## `pallet-tips`
+    - Hardens tip payout by returning `NoActiveTippers` when all recorded tippers become inactive instead of indexing an empty tip set.
+    - Adds a regression test for the `NoActiveTippers` close-path.
+crates:
+- name: pallet-asset-conversion
+  bump: patch
+- name: pallet-asset-conversion-ops
+  bump: patch
+- name: pallet-asset-conversion-precompiles
+  bump: patch
+- name: pallet-asset-conversion-tx-payment
+  bump: patch
+- name: frame-system
+  bump: major
+- name: frame-executive
+  bump: patch
+- name: frame-system-benchmarking
+  bump: patch
+- name: staging-xcm-builder
+  bump: patch
+- name: asset-hub-rococo-runtime
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: penpal-runtime
+  bump: minor
+- name: pallet-psm
+  bump: patch
+- name: pallet-balances
+  bump: patch
+- name: pallet-tips
+  bump: major
+- name: cumulus-pallet-parachain-system
+  bump: patch

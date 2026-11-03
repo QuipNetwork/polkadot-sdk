@@ -1,0 +1,32 @@
+title: Add virtualization host functions
+doc:
+- audience: Runtime Dev
+  description: |-
+    This PR adds experimental support for the virtualization host functions. Those allow the runtime to spawn and run PolkaVM instances. It is experimental because the behaviour is subject to change until PolkaVM and the host functions have a spec. However, we need to merge the code to go on with development. Docs and tests are all there and hence I argue it is good enough to be merged. I added a note that users should not use those functions in production.
+
+    This PR adds or changes the following components:
+
+    * `sc-executor-wasmtime`: Just exposing our virtualization manager to host functions. Needs to be added here to be available for the whole lifetime of a runtime call.
+    * `sp-virtualization`: New crate that abstracts away the host functions. Meaning that a user (like pallet-contracts) will interface only with this crate and not with the host functions directly. This is necessary so that the natively running test code still works. The host functions also depend on this crate. Those also contain all the tests. Everything PolkaVM is neatly organized into one crate. It also contains the definition of the new host functions.
+    * `sp-wasm-interface`: We  added an interface mirroring the host functions here. This is necessary in order for the host functions to be able to call into the executor.
+crates:
+- name: sc-executor
+  bump: major
+- name: sc-executor-wasmtime
+  bump: major
+- name: sp-io
+  bump: major
+- name: sp-virtualization
+  bump: major
+- name: sp-virtualization-test-fixture
+  bump: major
+- name: sp-wasm-interface
+  bump: major
+- name: polkadot
+  bump: major
+- name: sc-executor-polkavm
+  bump: major
+- name: sp-runtime-interface
+  bump: major
+- name: polkadot-sdk
+  bump: major

@@ -1,0 +1,6 @@
+# Generated release changelog artifacts (see scripts/release/build-changelogs.sh).
+# They target the GitHub release page and embed prdoc content verbatim, so they
+# cannot conform to the repo markdown style; they are gitignored build outputs.
+scripts/release/RELEASE_DRAFT.md
+scripts/release/RELEASE_DRAFT_FALLBACK.md
+scripts/release/CHANGELOG.md

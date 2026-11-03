@@ -1,4 +1,4 @@
-# GHA for test-linux-stable-int, test-linux-stable, test-linux-stable-oldkernel
+# GHA for test-linux-stable-int, test-linux-stable
 name: tests linux stable
 
 on:
@@ -22,7 +22,7 @@ jobs:
   test-linux-stable-int:
     needs: [preflight]
     if: ${{ needs.preflight.outputs.changes_rust }}
-    runs-on: ${{ needs.preflight.outputs.RUNNER_NEW }}
+    runs-on: ${{ needs.preflight.outputs.RUNNER }}
     timeout-minutes: 60
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
@@ -50,7 +50,7 @@ jobs:
   test-linux-stable-runtime-benchmarks:
     needs: [preflight]
     if: ${{ needs.preflight.outputs.changes_rust }}
-    runs-on: ${{ needs.preflight.outputs.RUNNER_NEW }}
+    runs-on: ${{ needs.preflight.outputs.RUNNER }}
     timeout-minutes: 60
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
@@ -75,17 +75,12 @@ jobs:
   test-linux-stable:
     needs: [preflight]
     if: ${{ needs.preflight.outputs.changes_rust }}
-    runs-on: ${{ matrix.runners }}
+    runs-on: ${{ needs.preflight.outputs.RUNNER }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         partition: [1/3, 2/3, 3/3]
-        runners:
-          [
-            "${{ needs.preflight.outputs.RUNNER_NEW }}",
-            "${{ needs.preflight.outputs.RUNNER_OLDLINUX_NEW }}",
-          ]
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
       # needed for tests that use unshare syscall
@@ -101,11 +96,18 @@ jobs:
       - name: Install resolc
         run: |
           VERSION="1.0.0"
-          ASSET_URL="https://github.com/paritytech/revive/releases/download/v$VERSION/resolc-x86_64-unknown-linux-musl"
-          echo "Downloading resolc v$VERSION from $ASSET_URL"
-          curl -Lsf --show-error -o /usr/local/bin/resolc "$ASSET_URL"
-          chmod +x /usr/local/bin/resolc
-          resolc --version
+          if command -v resolc >/dev/null 2>&1 && resolc --version 2>/dev/null | grep -q "$VERSION"; then
+            echo "resolc v$VERSION already present in image at $(command -v resolc)"
+            resolc --version
+          else
+            ASSET_URL="https://github.com/paritytech/revive/releases/download/v$VERSION/resolc-x86_64-unknown-linux-musl"
+            echo "Downloading resolc v$VERSION from $ASSET_URL"
+            curl -Lsf --show-error \
+              --retry 5 --retry-delay 5 --retry-connrefused --retry-all-errors \
+              -o /usr/local/bin/resolc "$ASSET_URL"
+            chmod +x /usr/local/bin/resolc
+            resolc --version
+          fi
       - name: script
         id: required
         run: |
@@ -135,7 +137,7 @@ jobs:
   test-linux-stable-no-try-runtime:
     needs: [preflight]
     if: ${{ needs.preflight.outputs.changes_rust }}
-    runs-on: ${{ needs.preflight.outputs.RUNNER_NEW }}
+    runs-on: ${{ needs.preflight.outputs.RUNNER }}
     timeout-minutes: 60
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
@@ -155,11 +157,18 @@ jobs:
       - name: Install resolc
         run: |
           VERSION="1.0.0"
-          ASSET_URL="https://github.com/paritytech/revive/releases/download/v$VERSION/resolc-x86_64-unknown-linux-musl"
-          echo "Downloading resolc v$VERSION from $ASSET_URL"
-          curl -Lsf --show-error -o /usr/local/bin/resolc "$ASSET_URL"
-          chmod +x /usr/local/bin/resolc
-          resolc --version
+          if command -v resolc >/dev/null 2>&1 && resolc --version 2>/dev/null | grep -q "$VERSION"; then
+            echo "resolc v$VERSION already present in image at $(command -v resolc)"
+            resolc --version
+          else
+            ASSET_URL="https://github.com/paritytech/revive/releases/download/v$VERSION/resolc-x86_64-unknown-linux-musl"
+            echo "Downloading resolc v$VERSION from $ASSET_URL"
+            curl -Lsf --show-error \
+              --retry 5 --retry-delay 5 --retry-connrefused --retry-all-errors \
+              -o /usr/local/bin/resolc "$ASSET_URL"
+            chmod +x /usr/local/bin/resolc
+            resolc --version
+          fi
       - name: script
         id: required
         run: |

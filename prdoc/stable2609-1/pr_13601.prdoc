@@ -1,0 +1,16 @@
+title: 'Fix user losing remainder of swapped funds when pool liquidity goes below ED'
+doc:
+  - audience: Runtime Dev
+    description: |
+      `pallet-asset-conversion`'s `SwapCredit::swap_tokens_for_exact_tokens` split `credit_in`
+      into the amount to swap and the change, and returned only the amount to swap if the swap
+      then failed. The change was dropped inside the storage transaction that is rolled back on
+      failure, so the caller lost it. The full `credit_in` is now returned on failure, as
+      documented.
+crates:
+  - name: staging-xcm-executor
+    bump: patch
+  - name: staging-xcm-builder
+    bump: none
+  - name: pallet-asset-conversion
+    bump: patch

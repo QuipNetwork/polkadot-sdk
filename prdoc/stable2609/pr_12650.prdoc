@@ -1,0 +1,15 @@
+title: '[pallet-revive] EXTCODECOPY zero-fills for an out-of-range code offset'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Fixes https://github.com/paritytech/polkadot-sdk/issues/12643
+
+    `EXTCODECOPY` converted its `code_offset` operand with `as_usize_or_halt`, which halts
+    with `OutOfGas` when the value does not fit in `usize` (>= 2^64). Per the EVM spec and
+    `revm`, an out-of-range code offset must zero-fill the destination rather than fault, and
+    the sibling `CODECOPY`/`CALLDATACOPY`/`RETURNDATACOPY` already use `as_usize_saturated`.
+    `EXTCODECOPY` now does the same, so a contract that reads from a far-out-of-range offset
+    returns zeros (matching Ethereum) instead of trapping and diverging the state root.
+crates:
+- name: pallet-revive
+  bump: patch

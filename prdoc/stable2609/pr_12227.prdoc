@@ -1,0 +1,32 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: "[FRAME] Auto-bound `RuntimeTask: From<Task<Self>>` in pallet Config when using tasks"
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Pallets using `#[pallet::tasks_experimental]` now automatically get
+      `frame_system::Config<RuntimeTask: From<Task<Self>>>` added as a supertrait
+      on their `Config` trait by the macro — mirroring the existing automatic
+      `RuntimeEvent: From<Event<Self>>` bound added for pallets with events.
+
+      Previously, pallet authors had to manually declare a `RuntimeTask` associated
+      type with the correct `From<Task<Self>>` bound, or omit it entirely with no
+      compile-time enforcement. Now the compiler enforces that any runtime including
+      a task-bearing pallet must have a `RuntimeTask` type that can represent that
+      pallet's tasks.
+
+      This change is backward compatible: existing pallets that already declare
+      `RuntimeTask` manually continue to compile unchanged. Runtimes built with
+      `construct_runtime!` already satisfy the new bound since the macro generates
+      the required `From` impl for each pallet with tasks.
+
+      The system pallet itself is exempt via the existing
+      `#[pallet::config(frame_system_config)]` attribute.
+
+crates:
+  - name: frame-support-procedural
+    bump: minor
+  - name: frame-support
+    bump: minor

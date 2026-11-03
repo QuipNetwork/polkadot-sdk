@@ -63,6 +63,16 @@ macro_rules! impl_node_runtime_apis {
 				fn relay_parent_offset() -> u32 {
 					unimplemented!()
 				}
+
+				fn max_claim_queue_offset() -> u8 {
+					unimplemented!()
+				}
+			}
+
+			impl cumulus_primitives_core::SchedulingV3EnabledApi<$block> for $runtime {
+				fn scheduling_v3_enabled() -> bool {
+					unimplemented!()
+				}
 			}
 
 			impl sp_consensus_aura::AuraApi<$block, $aura_id> for $runtime {
@@ -249,6 +259,18 @@ macro_rules! impl_node_runtime_apis {
 
 			impl sp_transaction_storage_proof::runtime_api::TransactionStorageApi<$block> for $runtime {
 				fn retention_period() -> sp_runtime::traits::NumberFor<$block> {
+					unimplemented!()
+				}
+
+				fn indexed_transactions(
+					_block: sp_runtime::traits::NumberFor<$block>,
+				) -> Vec<sp_transaction_storage_proof::IndexedTransactionInfo> {
+					unimplemented!()
+				}
+			}
+
+			impl sp_authority_discovery::AuthorityDiscoveryApi<$block> for $runtime {
+				fn authorities() -> Vec<sp_authority_discovery::AuthorityId> {
 					unimplemented!()
 				}
 			}

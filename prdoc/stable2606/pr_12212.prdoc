@@ -1,0 +1,55 @@
+title: "node: introduce shared `Clock` abstraction and apply to four subsystems"
+
+doc:
+  - audience: Node Dev
+    description: |
+      Introduces a new `polkadot-node-clock` crate exporting a unified `Clock`
+      trait (`now` / `delay` / `duration_since_epoch`) plus a production
+      `SystemClock` implementation and a feature-gated `MockClock` for tests.
+      Migrates four subsystems off their ad-hoc per-crate clock traits and
+      onto the shared abstraction:
+
+      - `polkadot-collator-protocol`: full migration of all time reads
+        (production paths use the shared `SystemClock`; the crate-level
+        `clippy.toml` forbids direct `Instant::now`, `SystemTime::now`,
+        `tokio::time::sleep`, `futures_timer::Delay::new`, and
+        `sp_timestamp::Timestamp::current`).
+      - `polkadot-node-core-chain-selection`: replaces the local `Clock` /
+        `SystemClock` with the shared crate.
+      - `polkadot-node-core-av-store`: replaces the local `Clock` /
+        `SystemClock` with the shared crate. Drops the `Error::Time`
+        variant; reads via the shared trait are infallible.
+      - `polkadot-node-core-dispute-coordinator`: replaces the local
+        `Clock` / `SystemClock` (in `status.rs`) with the shared crate.
+
+      Known gap (documented in `polkadot-node-clock`'s module docs): the
+      chain-selection, av-store, and dispute-coordinator subsystems still
+      call `futures_timer::Delay::new` directly for their internal timers
+      (their previous `Clock` traits did not cover delays either). Those
+      sites are not yet routed through the shared trait and must be
+      migrated before those subsystems can run under a deterministic test
+      harness. The collator-protocol subsystem routes all its time reads
+      through the shared `Clock`.
+
+      The approval-voting / approval-distribution stack has its own
+      tick-aligned clock layer; that migration is deferred to a follow-up
+      PR.
+
+      No production behaviour change.
+
+crates:
+  - name: polkadot-node-clock
+    bump: major
+    validate: false
+  - name: polkadot-collator-protocol
+    bump: major
+  - name: polkadot-node-core-chain-selection
+    bump: major
+  - name: polkadot-node-core-av-store
+    bump: major
+  - name: polkadot-node-core-dispute-coordinator
+    bump: minor
+  - name: polkadot-service
+    bump: minor
+  - name: polkadot-sdk
+    bump: minor

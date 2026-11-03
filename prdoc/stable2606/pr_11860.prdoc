@@ -1,0 +1,9 @@
+title: 'pallet-revive: align eth_substrate_call origin check with other eth dispatchables'
+doc:
+- audience: Runtime Dev
+  description: |-
+    ### Summary
+    Adds `ensure_non_contract_if_signed` to `eth_substrate_call`, matching `eth_call` and `eth_instantiate_with_code`.
+crates:
+- name: pallet-revive
+  bump: patch

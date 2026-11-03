@@ -1,11 +1,16 @@
-name: Binary Build
+name: Binary and Docker image Build for testing
 # This workflow can be used to build a binary like polkadot + workers, omninode or polkadot-parachain
-# from any branch with release or profuction profile to be later used for testing.
-# ⚠️ IT should not be used for release purposes! 
+# from any revision with release or profuction profile to be later used for testing.
+# Also this workflow builds a Docker image for the binary and pushes it to dockerhub.io/paritypr registry
+# ⚠️ IT should not be used for release purposes!
 
 on:
   workflow_dispatch:
     inputs:
+      revision:
+        description: The revision to build the binary from
+        required: true
+        type: string
       binary:
         required: true
         default: "polkadot"
@@ -24,7 +29,6 @@ on:
         description: "Features to enable when building the binary (must be a list of comma-separated features)"
 
 jobs:
-
   setup:
     # GitHub Actions allows using 'env' in a container context.
     # However, env variables don't work for forks: https://github.com/orgs/community/discussions/44322
@@ -47,20 +51,25 @@ jobs:
         env:
           INPUT_BINARY: ${{ inputs.binary }}
         run: |
-          if [[ "$INPUT_BINARY" == "polkadot-parachain" ]]; then
+          if [[ "$INPUT_BINARY" == "polkadot-parachain" || "$INPUT_BINARY" == "eth-rpc" ]]; then
             echo "RUNNER=parity-large" >> $GITHUB_OUTPUT
           else
             echo "RUNNER=ubuntu-latest" >> $GITHUB_OUTPUT
           fi
 
-  build:
+  build-binary:
     needs: [setup]
+    if: inputs.binary != 'eth-rpc'
     runs-on: ${{ needs.setup.outputs.RUNNER }}
     container:
       image: ${{ needs.setup.outputs.IMAGE }}
     steps:
       - name: Checkout
+        env:
+          INPUT_REVISION: ${{ inputs.revision }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.INPUT_REVISION }}
 
       - name: Build binary
         env:
@@ -82,7 +91,142 @@ jobs:
           fi
 
       - name: Upload ${{ inputs.binary }} artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.binary }}
           path: /artifacts/**
+
+  build-docker-image:
+    needs: [build-binary]
+    if: inputs.binary != 'eth-rpc'
+    runs-on: parity-default
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.binary }}
+          path: artifacts-raw
+
+      - name: Flatten artifacts
+        env:
+          INPUT_BINARY: ${{ inputs.binary }}
+        run: |
+          # build-linux-release.sh produces /artifacts/<binary>/<binary>
+          # Debug Dockerfiles expect ./artifacts/<binary> (flat structure)
+          mkdir -p artifacts
+          if [ "$INPUT_BINARY" = "polkadot" ]; then
+            for bin in polkadot polkadot-prepare-worker polkadot-execute-worker; do
+              cp "artifacts-raw/${bin}/${bin}" "artifacts/${bin}"
+            done
+          else
+            cp "artifacts-raw/${INPUT_BINARY}/${INPUT_BINARY}" "artifacts/${INPUT_BINARY}"
+          fi
+          # Copy entrypoint script (needed by binary_injected_debug.Dockerfile)
+          cp docker/scripts/entrypoint.sh artifacts/
+          chmod a+x artifacts/*
+          ls -la artifacts/
+
+      - name: Prepare docker image tag
+        id: docker_tag
+        env:
+          INPUT_REVISION: ${{ inputs.revision }}
+        run: |
+          SHORT_SHA=$(echo "$INPUT_REVISION" | head -c 8)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image for polkadot
+        if: ${{ inputs.binary == 'polkadot' }}
+        run: |
+          # Create empty runtimes dir (debug Dockerfile expects it, but this workflow doesn't build runtimes)
+          mkdir -p artifacts/runtimes
+          docker build \
+            --build-arg VCS_REF="${GITHUB_SHA}" \
+            --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --build-arg IMAGE_NAME="polkadot-debug" \
+            -t "docker.io/paritypr/polkadot-debug:${{ steps.docker_tag.outputs.tag }}" \
+            -f docker/dockerfiles/polkadot/polkadot_injected_debug.Dockerfile \
+            .
+
+      - name: Build Docker image for polkadot-parachain
+        if: ${{ inputs.binary == 'polkadot-parachain' }}
+        run: |
+          docker build \
+            --build-arg VCS_REF="${GITHUB_SHA}" \
+            --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --build-arg IMAGE_NAME="polkadot-parachain-debug" \
+            -t "docker.io/paritypr/polkadot-parachain-debug:${{ steps.docker_tag.outputs.tag }}" \
+            -f docker/dockerfiles/polkadot-parachain/polkadot-parachain-debug_unsigned_injected.Dockerfile \
+            .
+
+      - name: Build Docker image for ${{ inputs.binary }}
+        if: ${{ inputs.binary != 'polkadot' && inputs.binary != 'polkadot-parachain' }}
+        env:
+          INPUT_BINARY: ${{ inputs.binary }}
+        run: |
+          docker build \
+            --build-arg VCS_REF="${GITHUB_SHA}" \
+            --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --build-arg IMAGE_NAME="${INPUT_BINARY}" \
+            --build-arg BINARY="${INPUT_BINARY}" \
+            -t "docker.io/paritypr/${INPUT_BINARY}:${{ steps.docker_tag.outputs.tag }}" \
+            -f docker/dockerfiles/binary_injected_debug.Dockerfile \
+            .
+
+      - name: Login to DockerHub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.PARITYPR_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.PARITYPR_DOCKERHUB_PASSWORD }}
+
+      - name: Push Docker image
+        env:
+          INPUT_BINARY: ${{ inputs.binary }}
+        run: |
+          if [ "$INPUT_BINARY" = "polkadot" ] || [ "$INPUT_BINARY" = "polkadot-parachain" ]; then
+            IMAGE_NAME="${INPUT_BINARY}-debug"
+          else
+            IMAGE_NAME="${INPUT_BINARY}"
+          fi
+          docker images | grep "${IMAGE_NAME}"
+          docker push --all-tags "docker.io/paritypr/${IMAGE_NAME}"
+
+  build-eth-rpc-docker-image:
+    needs: [setup]
+    if: inputs.binary == 'eth-rpc'
+    runs-on: ${{ needs.setup.outputs.RUNNER }}
+    env:
+      ETH_RPC_IMAGE_NAME: "docker.io/paritypr/eth-rpc"
+    steps:
+      - name: Checkout
+        env:
+          INPUT_REVISION: ${{ inputs.revision }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.INPUT_REVISION }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.PARITYPR_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.PARITYPR_DOCKERHUB_PASSWORD }}
+
+      - name: Prepare docker image tag
+        id: docker_tag
+        env:
+          INPUT_REVISION: ${{ inputs.revision }}
+        run: |
+          SHORT_SHA=$(echo "$INPUT_REVISION" | head -c 8)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build eth-rpc Docker image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: ./substrate/frame/revive/rpc/dockerfiles/eth-rpc/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ETH_RPC_IMAGE_NAME }}:${{ steps.docker_tag.outputs.tag }}

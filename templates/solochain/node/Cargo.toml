@@ -1,7 +1,7 @@
 [package]
 name = "solochain-template-node"
 description = "A solochain node template built with Substrate, part of Polkadot Sdk."
-version = "0.1.0"
+version = "0.0.0"
 license = "Unlicense"
 authors.workspace = true
 homepage.workspace = true
@@ -19,42 +19,52 @@ workspace = true
 
 [dependencies]
 clap = { features = ["derive"], workspace = true }
-frame-benchmarking-cli = { default-features = true, workspace = true }
-frame-metadata-hash-extension = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
 futures = { features = ["thread-pool"], workspace = true }
 jsonrpsee = { features = ["server"], workspace = true }
-pallet-transaction-payment = { default-features = true, workspace = true }
-pallet-transaction-payment-rpc = { default-features = true, workspace = true }
-sc-basic-authorship = { default-features = true, workspace = true }
-sc-cli = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus = { default-features = true, workspace = true }
-sc-consensus-aura = { default-features = true, workspace = true }
-sc-consensus-grandpa = { default-features = true, workspace = true }
-sc-executor = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-offchain = { default-features = true, workspace = true }
-sc-service = { default-features = true, workspace = true }
-sc-telemetry = { default-features = true, workspace = true }
-sc-transaction-pool = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
+
+# substrate client
+sc-basic-authorship = { workspace = true, default-features = true }
+sc-cli = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-consensus-aura = { workspace = true, default-features = true }
+sc-consensus-grandpa = { workspace = true, default-features = true }
+sc-executor = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-offchain = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
+sc-telemetry = { workspace = true, default-features = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sp-consensus-aura = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-genesis-builder = { workspace = true, default-features = true }
+
+# substrate primitives
+sp-api = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
+
+# frame and pallets
+frame-metadata-hash-extension = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+pallet-transaction-payment = { workspace = true, default-features = true }
+pallet-transaction-payment-rpc = { workspace = true, default-features = true }
+substrate-frame-rpc-system = { workspace = true, default-features = true }
+
+# These dependencies are used for runtime benchmarking
+frame-benchmarking-cli = { workspace = true, default-features = true }
+
+# Local Dependencies
 solochain-template-runtime = { workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-block-builder = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus-aura = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-genesis-builder = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
-substrate-frame-rpc-system = { default-features = true, workspace = true }
 
 [build-dependencies]
-substrate-build-script-utils = { default-features = true, workspace = true }
+substrate-build-script-utils = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

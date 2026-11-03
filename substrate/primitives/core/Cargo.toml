@@ -1,6 +1,6 @@
 [package]
 name = "sp-core"
-version = "40.0.0"
+version = "28.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -73,8 +73,8 @@ ark-vrf = { optional = true, workspace = true, features = ["bandersnatch", "ring
 
 [target.'cfg(not(substrate_runtime))'.dependencies]
 sp-externalities = { workspace = true, default-features = false }
-futures = { version = "0.3.30", default-features = false, features = ["alloc"] }
-dyn-clone = "1.0.17"
+futures = { workspace = true, features = ["alloc"] }
+dyn-clone = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, default-features = true }

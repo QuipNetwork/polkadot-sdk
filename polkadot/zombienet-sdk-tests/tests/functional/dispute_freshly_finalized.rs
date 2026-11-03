@@ -8,9 +8,9 @@
 //! candidates and verifies that disputes are properly concluded.
 
 use crate::utils::{
-	check_metrics, env_or_default, initialize_network, MetricCheckSetup,
+	assert_nodes_are_validators, check_metrics, env_or_default, initialize_network,
+	maybe_enable_experimental_collator_protocol, MetricCheckSetup,
 	APPROVAL_CHECKING_FINALITY_LAG_METRIC, COL_IMAGE_ENV, INTEGRATION_IMAGE_ENV, MALUS_IMAGE_ENV,
-	NODE_ROLES_METRIC,
 };
 
 use anyhow::anyhow;
@@ -47,12 +47,7 @@ async fn dispute_freshly_finalized_test() -> Result<(), anyhow::Error> {
 
 	// Check authority status
 	log::info!("Checking validator node roles");
-	for validator in &validator_nodes {
-		validator
-			.wait_metric_with_timeout(NODE_ROLES_METRIC, |v| v == 4.0, 60u64)
-			.await
-			.map_err(|e| anyhow!("Validator {} role check failed: {e}", validator.name()))?;
-	}
+	assert_nodes_are_validators(&validator_nodes).await?;
 	log::info!("All validators confirmed as authorities");
 
 	// Ensure parachain is registered
@@ -62,7 +57,7 @@ async fn dispute_freshly_finalized_test() -> Result<(), anyhow::Error> {
 
 	// Ensure parachain made progress
 	log::info!("Waiting for parachain {} to produce blocks", PARA_ID);
-	assert_para_throughput(&relay_client, 5, [(ParaId::from(PARA_ID), 2..6)]).await?;
+	assert_para_throughput(&relay_client, 5, [(ParaId::from(PARA_ID), 2..6)], []).await?;
 	log::info!("Parachain {} is producing blocks", PARA_ID);
 
 	// Ensure that malus is already attempting to dispute
@@ -125,7 +120,9 @@ fn build_network_config() -> Result<NetworkConfig, anyhow::Error> {
 		r.with_chain("rococo-local")
 			.with_default_command("polkadot")
 			.with_default_image(polkadot_image.as_str())
-			.with_default_args(vec![("-lparachain=debug").into()])
+			.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+				("-lparachain=debug").into(),
+			]))
 			.with_genesis_overrides(json!({
 				"patch": {
 					"configuration": {

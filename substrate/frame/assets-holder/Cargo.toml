@@ -1,6 +1,6 @@
 [package]
 name = "pallet-assets-holder"
-version = "0.9.0"
+version = "0.14.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -25,9 +25,9 @@ scale-info = { features = ["derive"], workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-pallet-balances = { workspace = true, default-features = false }
-sp-core = { workspace = true, default-features = false }
-sp-io = { workspace = true, default-features = false }
+pallet-balances = { workspace = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
 
 [features]
 default = ["std"]

@@ -62,6 +62,12 @@ impl ProofSizeExt {
 /// need to be replayed in the exact same order.
 pub struct RecordedProofSizeEstimations(pub VecDeque<usize>);
 
+impl From<Vec<u32>> for RecordedProofSizeEstimations {
+	fn from(recordings: Vec<u32>) -> Self {
+		Self(recordings.into_iter().map(|x| x as usize).collect())
+	}
+}
+
 /// Inner structure of [`RecordingProofSizeProvider`].
 struct RecordingProofSizeProviderInner {
 	inner: Box<dyn ProofSizeProvider + Send + Sync>,

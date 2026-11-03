@@ -4,6 +4,7 @@
 // Test that a parachain using a malus undying collator, sending the same collation to all assigned
 // cores, does not break the relay chain and that blocks are included, backed by a normal collator.
 
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
 use tokio::time::Duration;
 
@@ -32,7 +33,9 @@ async fn duplicate_collations_test() -> Result<(), anyhow::Error> {
 				.with_chain("rococo-local")
 				.with_default_command("polkadot")
 				.with_default_image(images.polkadot.as_str())
-				.with_default_args(vec![("-lparachain=debug").into()])
+				.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+					("-lparachain=debug").into(),
+				]))
 				.with_genesis_overrides(json!({
 					"configuration": {
 						"config": {
@@ -90,7 +93,7 @@ async fn duplicate_collations_test() -> Result<(), anyhow::Error> {
 
 	log::info!("2 more cores assigned to parachain-2000");
 
-	assert_para_throughput(&relay_client, 15, [(ParaId::from(2000), 40..46)]).await?;
+	assert_para_throughput(&relay_client, 15, [(ParaId::from(2000), 40..46)], []).await?;
 
 	let log_line_options = LogLineCountOptions::new(
 		|n| n == 1,

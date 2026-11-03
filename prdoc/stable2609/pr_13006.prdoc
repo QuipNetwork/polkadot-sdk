@@ -1,0 +1,9 @@
+title: Reject duplicate derivative IDs
+doc:
+- audience: Runtime Dev
+  description: |-
+    Reject derivative registration when the derivative ID is already mapped to another original,
+    preserving the one-to-one relationship between registry indexes.
+crates:
+- name: pallet-derivatives
+  bump: patch

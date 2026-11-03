@@ -1,6 +1,6 @@
 [package]
 name = "collectives-westend-emulated-chain"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,10 +11,13 @@ publish = false
 workspace = true
 
 [dependencies]
+# Substrate
+frame-support = { workspace = true }
+sp-core = { workspace = true }
+
+# Cumulus
 collectives-westend-runtime = { workspace = true }
 cumulus-primitives-core = { workspace = true }
 emulated-integration-tests-common = { workspace = true }
-frame-support = { workspace = true }
-parachains-common = { default-features = true, workspace = true }
-sp-core = { workspace = true }
+parachains-common = { workspace = true, default-features = true }
 testnet-parachains-constants = { features = ["westend"], workspace = true, default-features = true }

@@ -1,0 +1,25 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Pass NodeExtraArgs through Dev Chain'
+
+doc:
+  - audience: Node Dev
+    description: |-
+      Enables the statement store when running `polkadot-omni-node` in dev mode with
+      `--enable-statement-store`.
+
+      The dev Aura node path now wires the statement store the same way as the regular node path:
+      it registers the statement network protocol, builds the store, exposes the RPCs, and passes
+      the statement store extension into offchain workers.
+
+      Also wires up the storage monitor in dev mode and emits warnings when
+      collation-specific flags (`--authoring-policy`, `--export-pov`,
+      `--max-pov-percentage`) are passed in dev mode where they have no effect.
+
+      `NodeExtraArgs` is now destructured in `start_dev_node` so the compiler
+      will enforce that any newly added fields are explicitly handled.
+
+crates:
+  - name: polkadot-omni-node-lib
+    bump: patch

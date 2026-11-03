@@ -71,6 +71,8 @@ impl pallet_whitelist::Config for Runtime {
 	type WhitelistOrigin =
 		EitherOf<EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>, Fellows>;
 	type DispatchWhitelistedOrigin = EitherOf<EnsureRoot<Self::AccountId>, WhitelistedCaller>;
+	type DeferredDispatchExpiration = ConstU32<{ 28 * DAYS }>;
+	type BlockNumberProvider = System;
 	type Preimages = Preimage;
 }
 

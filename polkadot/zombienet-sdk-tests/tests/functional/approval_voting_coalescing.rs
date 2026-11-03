@@ -3,8 +3,8 @@
 
 // Test that checks approval voting coalescing does not lag finality.
 
+use crate::utils::maybe_enable_experimental_collator_protocol;
 use anyhow::anyhow;
-
 use cumulus_zombienet_sdk_helpers::{assert_finality_lag, assert_para_throughput};
 use polkadot_primitives::Id as ParaId;
 use serde_json::json;
@@ -26,7 +26,9 @@ async fn approval_voting_coalescing_test() -> Result<(), anyhow::Error> {
 			.with_chain("rococo-local")
 			.with_default_command("polkadot")
 			.with_default_image(images.polkadot.as_str())
-			.with_default_args(vec![("-lparachain=debug,runtime=debug").into()])
+			.with_default_args(maybe_enable_experimental_collator_protocol(vec![
+				("-lparachain=debug,runtime=debug").into(),
+			]))
 			.with_genesis_overrides(json!({
 				"configuration": {
 					"config": {
@@ -90,6 +92,7 @@ async fn approval_voting_coalescing_test() -> Result<(), anyhow::Error> {
 			(ParaId::from(2006), 11..35),
 			(ParaId::from(2007), 11..35),
 		],
+		[],
 	)
 	.await?;
 

@@ -320,6 +320,38 @@ fn close_tip_works() {
 }
 
 #[test]
+fn close_tip_fails_when_all_tippers_are_inactive() {
+	build_and_execute(|| {
+		TenToFourteenTestValue::reset();
+		System::set_block_number(1);
+
+		Balances::make_free_balance_be(&Treasury::account_id(), 101);
+		assert_ok!(Tips::tip_new(RuntimeOrigin::signed(10), b"awesome.dot".to_vec(), 3, 10));
+
+		let h = tip_hash();
+		let reason_hash = BlakeTwo256::hash(b"awesome.dot");
+
+		assert_ok!(Tips::tip(RuntimeOrigin::signed(11), h, 10));
+		assert_ok!(Tips::tip(RuntimeOrigin::signed(12), h, 10));
+		System::set_block_number(2);
+
+		// All original tippers are now inactive.
+		TenToFourteenTestValue::set(Vec::new());
+
+		assert_noop!(
+			Tips::close_tip(RuntimeOrigin::signed(0), h.into()),
+			Error::<Test>::NoActiveTippers
+		);
+
+		// Calls are transactional: failed close must not remove tip state.
+		assert!(Tips::tips(h).is_some());
+		assert!(Tips::reasons(reason_hash).is_some());
+
+		TenToFourteenTestValue::reset();
+	});
+}
+
+#[test]
 fn slash_tip_works() {
 	build_and_execute(|| {
 		System::set_block_number(1);

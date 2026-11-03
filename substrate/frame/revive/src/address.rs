@@ -20,7 +20,9 @@
 use crate::{Config, Error, HoldReason, OriginalAccount, ensure};
 use alloc::vec::Vec;
 use core::marker::PhantomData;
-use frame_support::traits::{fungible::MutateHold, tokens::Precision};
+use frame_support::traits::{
+	OnKilledAccount, OnNewAccount, fungible::MutateHold, tokens::Precision,
+};
 use sp_core::{Get, H160};
 use sp_io::hashing::keccak_256;
 use sp_runtime::{AccountId32, DispatchResult, Saturating};
@@ -62,9 +64,14 @@ pub trait AddressMapper<T: Config>: private::Sealed {
 	/// `account_id` instead of the fallback account id.
 	fn map(account_id: &T::AccountId) -> DispatchResult;
 
-	/// Map an account id without taking any deposit.
-	/// This is only useful for genesis configuration, or benchmarks.
-	fn map_no_deposit(account_id: &T::AccountId) -> DispatchResult {
+	/// Map an account id without taking any deposit, without verifying that the
+	/// account exists.
+	///
+	/// The caller must guarantee that `account_id` exists, or is in the process
+	/// of being created (e.g. from inside `OnNewAccount`). Calling this with an
+	/// arbitrary `AccountId` permanently writes an unbacked `OriginalAccount`
+	/// entry.
+	fn map_no_deposit_unchecked(account_id: &T::AccountId) -> DispatchResult {
 		Self::map(account_id)
 	}
 
@@ -79,6 +86,11 @@ pub trait AddressMapper<T: Config>: private::Sealed {
 	/// This means either the `account_id` doesn't require a stateful mapping
 	/// or a stateful mapping exists.
 	fn is_mapped(account_id: &T::AccountId) -> bool;
+
+	/// Returns true if the account is derived from an eth (secp256k1) key.
+	///
+	/// These accounts don't need a stateful mapping and never hold a mapping deposit.
+	fn is_eth_derived(account_id: &T::AccountId) -> bool;
 }
 
 mod private {
@@ -111,7 +123,7 @@ where
 {
 	fn to_address(account_id: &AccountId32) -> H160 {
 		let account_bytes: &[u8; 32] = account_id.as_ref();
-		if is_eth_derived(account_id) {
+		if Self::is_eth_derived(account_id) {
 			// this was originally an eth address
 			// we just strip the 0xEE suffix to get the original address
 			H160::from_slice(&account_bytes[..20])
@@ -147,7 +159,7 @@ where
 		Ok(())
 	}
 
-	fn map_no_deposit(account_id: &T::AccountId) -> DispatchResult {
+	fn map_no_deposit_unchecked(account_id: &T::AccountId) -> DispatchResult {
 		ensure!(!Self::is_mapped(account_id), <Error<T>>::AccountAlreadyMapped);
 		<OriginalAccount<T>>::insert(Self::to_address(account_id), account_id);
 		Ok(())
@@ -165,8 +177,17 @@ where
 	}
 
 	fn is_mapped(account_id: &T::AccountId) -> bool {
-		is_eth_derived(account_id) ||
+		Self::is_eth_derived(account_id) ||
 			<OriginalAccount<T>>::contains_key(Self::to_address(account_id))
+	}
+
+	/// This is a stateless check that just compares the last 12 bytes. Please note that it is
+	/// theoretically possible to create an ed25519 keypair that passes this filter. However,
+	/// this can't be used for an attack. It also won't happen by accident since everybody is
+	/// using sr25519 where this is not a valid public key.
+	fn is_eth_derived(account_id: &T::AccountId) -> bool {
+		let account_bytes: &[u8; 32] = account_id.as_ref();
+		&account_bytes[20..] == &[0xEE; 12]
 	}
 }
 
@@ -199,17 +220,10 @@ where
 	fn is_mapped(_account_id: &T::AccountId) -> bool {
 		true
 	}
-}
 
-/// Returns true if the passed account id is controlled by an eth key.
-///
-/// This is a stateless check that just compares the last 12 bytes. Please note that it is
-/// theoretically possible to create an ed25519 keypair that passed this filter. However,
-/// this can't be used for an attack. It also won't happen by accident since everybody is using
-/// sr25519 where this is not a valid public key.
-pub fn is_eth_derived(account_id: &AccountId32) -> bool {
-	let account_bytes: &[u8; 32] = account_id.as_ref();
-	&account_bytes[20..] == &[0xEE; 12]
+	fn is_eth_derived(_account_id: &T::AccountId) -> bool {
+		false
+	}
 }
 
 impl<T> AddressMapper<T> for H160Mapper<T>
@@ -240,6 +254,10 @@ where
 	fn is_mapped(_account_id: &T::AccountId) -> bool {
 		true
 	}
+
+	fn is_eth_derived(_account_id: &T::AccountId) -> bool {
+		true
+	}
 }
 
 /// Determine the address of a contract using CREATE semantics.
@@ -266,16 +284,47 @@ pub fn create2(deployer: &H160, code: &[u8], input_data: &[u8], salt: &[u8; 32])
 	H160::from_slice(&hash[12..])
 }
 
+pub struct AutoMapper<T>(PhantomData<T>);
+
+impl<T: Config> OnNewAccount<T::AccountId> for AutoMapper<T> {
+	fn on_new_account(who: &T::AccountId) {
+		if T::AutoMap::get() &&
+			!T::AddressMapper::is_eth_derived(who) &&
+			let Err(err) = T::AddressMapper::map_no_deposit_unchecked(who)
+		{
+			log::warn!(
+				target: crate::LOG_TARGET,
+				"Failed to auto-map account {who:?}: {err:?}",
+			);
+		}
+	}
+}
+
+impl<T: Config> OnKilledAccount<T::AccountId> for AutoMapper<T> {
+	fn on_killed_account(who: &T::AccountId) {
+		if T::AutoMap::get() &&
+			!T::AddressMapper::is_eth_derived(who) &&
+			let Err(err) = T::AddressMapper::unmap(who)
+		{
+			log::warn!(
+				target: crate::LOG_TARGET,
+				"Failed to auto-unmap account {who:?}: {err:?}",
+			);
+		}
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
 	use crate::{
-		AddressMapper, Error,
+		AddressMapper, Error, Pallet,
 		test_utils::*,
-		tests::{ExtBuilder, Test},
+		tests::{AutoMapFlag, ExtBuilder, RuntimeOrigin, Test},
 	};
 	use frame_support::{
 		assert_err,
+		dispatch::Pays,
 		traits::fungible::{InspectHold, Mutate},
 	};
 	use pretty_assertions::assert_eq;
@@ -417,6 +466,239 @@ mod test {
 					&EVE
 				),
 				0
+			);
+		});
+	}
+
+	#[test]
+	fn auto_mapper_maps_on_new_account() {
+		ExtBuilder::default().build().execute_with(|| {
+			AutoMapFlag::set(true);
+
+			assert!(!frame_system::Pallet::<Test>::account_exists(&EVE));
+			assert!(!<Test as Config>::AddressMapper::is_mapped(&EVE));
+			// Funding a new account triggers frame_system's OnNewAccount hook
+			<Test as Config>::Currency::set_balance(&EVE, 1_000_000);
+			assert!(<Test as Config>::AddressMapper::is_mapped(&EVE));
+			// no deposit taken
+			assert_eq!(
+				<Test as Config>::Currency::balance_on_hold(
+					&HoldReason::AddressMapping.into(),
+					&EVE
+				),
+				0
+			);
+		});
+	}
+
+	#[test]
+	fn auto_mapper_unmaps_on_killed_account() {
+		ExtBuilder::default().build().execute_with(|| {
+			AutoMapFlag::set(true);
+			<Test as Config>::Currency::set_balance(&EVE, 1_000_000);
+			assert!(<Test as Config>::AddressMapper::is_mapped(&EVE));
+
+			// Killing the account triggers frame_system's OnKilledAccount hook
+			<Test as Config>::Currency::set_balance(&EVE, 0);
+			assert!(!<Test as Config>::AddressMapper::is_mapped(&EVE));
+		});
+	}
+
+	#[test]
+	fn auto_mapper_noop_when_disabled() {
+		ExtBuilder::default().build().execute_with(|| {
+			AutoMapFlag::set(false);
+
+			assert!(!<Test as Config>::AddressMapper::is_mapped(&EVE));
+			<Test as Config>::Currency::set_balance(&EVE, 1_000_000);
+			assert!(!<Test as Config>::AddressMapper::is_mapped(&EVE));
+		});
+	}
+
+	#[test]
+	fn auto_mapper_ignores_eth_derived_accounts() {
+		ExtBuilder::default().build().execute_with(|| {
+			AutoMapFlag::set(true);
+
+			// ALICE is eth-derived and already considered mapped
+			assert!(<Test as Config>::AddressMapper::is_mapped(&ALICE));
+			// Funding an eth-derived account silently ignores the AccountAlreadyMapped error
+			<Test as Config>::Currency::set_balance(&ALICE, 1_000_000);
+			assert!(<Test as Config>::AddressMapper::is_mapped(&ALICE));
+		});
+	}
+
+	#[test]
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	fn unmap_account_dispatchable_blocked_when_auto_map_enabled() {
+		use frame_support::assert_noop;
+		ExtBuilder::default().build().execute_with(|| {
+			AutoMapFlag::set(true);
+
+			assert_noop!(
+				Pallet::<Test>::unmap_account(RuntimeOrigin::signed(EVE)),
+				<Error<Test>>::AutoMappingEnabled,
+			);
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_empty_pays_yes() {
+		ExtBuilder::default().build().execute_with(|| {
+			let info =
+				Pallet::<Test>::batch_map_accounts(RuntimeOrigin::signed(ALICE), alloc::vec![])
+					.unwrap();
+
+			assert_eq!(info.pays_fee, Pays::Yes);
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_all_eth_derived_pays_yes() {
+		ExtBuilder::default().build().execute_with(|| {
+			// Eth-derived accounts are stateless mapped, so nothing useful happens
+			// and the caller is charged.
+			let info = Pallet::<Test>::batch_map_accounts(
+				RuntimeOrigin::signed(ALICE),
+				alloc::vec![ALICE, BOB, CHARLIE, DJANGO],
+			)
+			.unwrap();
+
+			assert_eq!(info.pays_fee, Pays::Yes);
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_pays_no_when_mostly_unmapped() {
+		ExtBuilder::default().build().execute_with(|| {
+			let unmapped: Vec<AccountId32> =
+				(10u8..19u8).map(|i| AccountId32::new([i; 32])).collect();
+			// fund each account so it exists on chain.
+			for a in &unmapped {
+				<Test as Config>::Currency::set_balance(a, 1_000_000);
+			}
+			let mut accounts = unmapped.clone();
+			accounts.push(ALICE); // 1 eth-derived account, not counted as useful
+
+			// 9 of 10 (90%) become useful → free
+			let info =
+				Pallet::<Test>::batch_map_accounts(RuntimeOrigin::signed(ALICE), accounts).unwrap();
+
+			assert_eq!(info.pays_fee, Pays::No);
+
+			for a in &unmapped {
+				assert!(<Test as Config>::AddressMapper::is_mapped(a));
+
+				// map_no_deposit_unchecked must not take a deposit
+				assert_eq!(
+					<Test as Config>::Currency::balance_on_hold(
+						&HoldReason::AddressMapping.into(),
+						a,
+					),
+					0
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_already_mapped_no_hold_pays_yes() {
+		ExtBuilder::default().build().execute_with(|| {
+			<Test as Config>::AddressMapper::map_no_deposit_unchecked(&EVE).unwrap();
+			assert!(<Test as Config>::AddressMapper::is_mapped(&EVE));
+
+			assert_eq!(
+				<Test as Config>::Currency::balance_on_hold(
+					&HoldReason::AddressMapping.into(),
+					&EVE,
+				),
+				0
+			);
+
+			let info = Pallet::<Test>::batch_map_accounts(
+				RuntimeOrigin::signed(ALICE),
+				alloc::vec![EVE; 10],
+			)
+			.unwrap();
+
+			assert_eq!(info.pays_fee, Pays::Yes);
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_pays_yes_below_threshold() {
+		ExtBuilder::default().build().execute_with(|| {
+			// 1 unmapped non-eth-derived account + 9 eth-derived (= 10% useful)
+			let mut accounts: Vec<AccountId32> = alloc::vec![AccountId32::new([10u8; 32])];
+			<Test as Config>::Currency::set_balance(&accounts[0], 1_000_000);
+			for _ in 0..9 {
+				accounts.push(ALICE);
+			}
+
+			let info =
+				Pallet::<Test>::batch_map_accounts(RuntimeOrigin::signed(ALICE), accounts).unwrap();
+
+			assert_eq!(info.pays_fee, Pays::Yes);
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_pays_yes_mixed() {
+		ExtBuilder::default().build().execute_with(|| {
+			// 17 existing accounts (get mapped) + 1 non-existent + 1 eth-derived.
+			// Below the threshold → Pays::Yes.
+			let existing: Vec<AccountId32> =
+				(10u8..27u8).map(|i| AccountId32::new([i; 32])).collect();
+			for a in &existing {
+				<Test as Config>::Currency::set_balance(a, 1_000_000);
+			}
+			let nonexistent = AccountId32::new([99u8; 32]);
+			let mut accounts = existing.clone();
+			accounts.push(nonexistent.clone());
+			accounts.push(ALICE); // eth-derived
+
+			let info =
+				Pallet::<Test>::batch_map_accounts(RuntimeOrigin::signed(ALICE), accounts).unwrap();
+
+			assert_eq!(info.pays_fee, Pays::Yes);
+			for a in &existing {
+				assert!(
+					<Test as Config>::AddressMapper::is_mapped(a),
+					"existing accounts must still be mapped alongside non-existent or eth-derived entries",
+				);
+			}
+			assert!(
+				!<Test as Config>::AddressMapper::is_mapped(&nonexistent),
+				"non-existent accounts must be skipped, not mapped",
+			);
+		});
+	}
+
+	#[test]
+	fn batch_map_accounts_rejects_nonexistent_accounts() {
+		ExtBuilder::default().build().execute_with(|| {
+			// Non-existent accounts must not be mapped.
+			// Otherwise any caller could insert mappings for arbitrary bytes at no cost.
+			let unknown = AccountId32::new([0xAB; 32]);
+			assert!(
+				!frame_system::Pallet::<Test>::account_exists(&unknown),
+				"unknown account must not pre-exist on chain",
+			);
+
+			let info = Pallet::<Test>::batch_map_accounts(
+				RuntimeOrigin::signed(ALICE),
+				alloc::vec![unknown.clone()],
+			)
+			.unwrap();
+
+			assert_eq!(
+				info.pays_fee,
+				Pays::Yes,
+				"non-existent accounts must not trigger the free path",
+			);
+			assert!(
+				!<Test as Config>::AddressMapper::is_mapped(&unknown),
+				"OriginalAccount must not be written for a non-existent account",
 			);
 		});
 	}

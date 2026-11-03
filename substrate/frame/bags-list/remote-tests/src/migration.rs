@@ -18,7 +18,7 @@
 
 use crate::{RuntimeT, LOG_TARGET};
 use frame_support::traits::PalletInfoAccess;
-use pallet_staking::Nominators;
+use pallet_staking_async::Nominators;
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
@@ -36,7 +36,7 @@ pub async fn execute<Runtime, Block>(
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport_uris: vec![ws_url.to_string()],
-			pallets: vec![pallet_staking::Pallet::<Runtime>::name().to_string()],
+			pallets: vec![pallet_staking_async::Pallet::<Runtime>::name().to_string()],
 			..Default::default()
 		}))
 		.build()
@@ -50,14 +50,15 @@ pub async fn execute<Runtime, Block>(
 
 		use frame_election_provider_support::SortedListProvider;
 		// run the actual migration
-		let moved = <Runtime as pallet_staking::Config>::VoterList::unsafe_regenerate(
-			pallet_staking::Nominators::<Runtime>::iter().map(|(n, _)| n),
-			Box::new(|x| Some(pallet_staking::Pallet::<Runtime>::weight_of(x))),
+		let moved = <Runtime as pallet_staking_async::Config>::VoterList::unsafe_regenerate(
+			pallet_staking_async::Nominators::<Runtime>::iter().map(|(n, _)| n),
+			Box::new(|x| Some(pallet_staking_async::Pallet::<Runtime>::weight_of(x))),
 		);
 		log::info!(target: LOG_TARGET, "Moved {} nominators", moved);
 
-		let voter_list_len = <Runtime as pallet_staking::Config>::VoterList::iter().count() as u32;
-		let voter_list_count = <Runtime as pallet_staking::Config>::VoterList::count();
+		let voter_list_len =
+			<Runtime as pallet_staking_async::Config>::VoterList::iter().count() as u32;
+		let voter_list_count = <Runtime as pallet_staking_async::Config>::VoterList::count();
 		// and confirm it is equal to the length of the `VoterList`.
 		assert_eq!(pre_migrate_nominator_count, voter_list_len);
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);

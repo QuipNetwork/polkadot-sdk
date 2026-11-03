@@ -1,6 +1,6 @@
 [package]
 name = "sc-executor-wasmtime"
-version = "0.44.0"
+version = "0.29.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -22,9 +22,9 @@ parking_lot = { workspace = true, default-features = true }
 # When bumping wasmtime do not forget to also bump rustix
 # to exactly the same version as used by wasmtime!
 anyhow = { workspace = true }
-sc-allocator = { default-features = true, workspace = true }
-sc-executor-common = { default-features = true, workspace = true }
-sp-runtime-interface = { default-features = true, workspace = true }
+sc-allocator = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
+sp-runtime-interface = { workspace = true, default-features = true }
 sp-wasm-interface = { features = ["wasmtime"], workspace = true, default-features = true }
 wasmtime = { features = [
 	"addr2line",
@@ -52,6 +52,6 @@ cargo_metadata = { workspace = true }
 codec = { workspace = true, default-features = true }
 paste = { workspace = true, default-features = true }
 sc-runtime-test = { workspace = true }
-sp-io = { default-features = true, workspace = true }
+sp-io = { workspace = true, default-features = true }
 tempfile = { workspace = true }
 wat = { workspace = true }

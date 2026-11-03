@@ -14,16 +14,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use pallet_revive_eth_rpc::subxt_client::{self, SrcChainConfig, system::calls::types::Remark};
+use pallet_revive_eth_rpc::subxt_client::{self, SrcChainConfig, system::calls::Remark};
 use subxt::OnlineClient;
 use subxt_signer::sr25519::dev;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let client = OnlineClient::<SrcChainConfig>::new().await?;
-	let tx_payload = subxt_client::tx().system().remark(b"bonjour".to_vec());
+	let tx_payload = subxt_client::transactions().system().remark(b"bonjour".to_vec());
 	let res = client
 		.tx()
+		.await?
 		.sign_and_submit_then_watch_default(&tx_payload, &dev::alice())
 		.await?
 		.wait_for_finalized()
@@ -31,12 +32,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	println!("Transaction finalized: {:?}", res.extrinsic_hash());
 	let block_hash = res.block_hash();
-	let block = client.blocks().at(block_hash).await.unwrap();
-	let extrinsics = block.extrinsics().await.unwrap();
+	let at_block = client.at_block(block_hash).await?;
+	let extrinsics = at_block.extrinsics().fetch().await?;
 	let remarks = extrinsics
 		.find::<Remark>()
-		.map(|remark| remark.unwrap().value)
-		.collect::<Vec<_>>();
+		.map(|remark| remark.map(|r| r.remark))
+		.collect::<Result<Vec<_>, _>>()?;
 
 	dbg!(remarks);
 	Ok(())

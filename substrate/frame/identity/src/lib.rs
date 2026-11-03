@@ -445,6 +445,8 @@ pub mod pallet {
 		JudgementGiven { target: T::AccountId, registrar_index: RegistrarIndex },
 		/// A registrar was added.
 		RegistrarAdded { registrar_index: RegistrarIndex },
+		/// A registrar was removed.
+		RegistrarRemoved { registrar_index: RegistrarIndex },
 		/// A sub-identity was added to an identity and the deposit paid.
 		SubIdentityAdded { sub: T::AccountId, main: T::AccountId, deposit: BalanceOf<T> },
 		/// An account's sub-identities were set (in bulk).
@@ -514,6 +516,45 @@ pub mod pallet {
 			Self::deposit_event(Event::RegistrarAdded { registrar_index: i });
 
 			Ok(Some(T::WeightInfo::add_registrar(registrar_count as u32)).into())
+		}
+
+		/// Remove a registrar from the system.
+		///
+		/// The dispatch origin for this call must be `T::RegistrarOrigin`.
+		///
+		/// The registrar's slot is tombstoned (set to `None`) rather than removed, so that the
+		/// `RegistrarIndex` of every other registrar — and any judgements already recorded against
+		/// them — stays stable. The freed index is not reused by `add_registrar`, so each removal
+		/// permanently consumes one slot against `MaxRegistrars` (reusing the slot would let a new
+		/// registrar inherit an index that historical judgements still reference).
+		///
+		/// Deposits reserved by pending `request_judgement` calls against this registrar are
+		/// **not** returned; once the registrar is removed `provide_judgement` can no longer
+		/// release them, so affected users should reclaim their funds manually with
+		/// `cancel_request`.
+		///
+		/// - `index`: the index of the registrar to remove.
+		///
+		/// Emits `RegistrarRemoved` if successful.
+		#[pallet::call_index(24)]
+		#[pallet::weight(T::WeightInfo::remove_registrar(T::MaxRegistrars::get()))]
+		pub fn remove_registrar(
+			origin: OriginFor<T>,
+			#[pallet::compact] index: RegistrarIndex,
+		) -> DispatchResultWithPostInfo {
+			T::RegistrarOrigin::ensure_origin(origin)?;
+
+			let registrar_count =
+				Registrars::<T>::try_mutate(|registrars| -> Result<usize, DispatchError> {
+					let slot =
+						registrars.get_mut(index as usize).ok_or(Error::<T>::InvalidIndex)?;
+					ensure!(slot.take().is_some(), Error::<T>::EmptyIndex);
+					Ok(registrars.len())
+				})?;
+
+			Self::deposit_event(Event::RegistrarRemoved { registrar_index: index });
+
+			Ok(Some(T::WeightInfo::remove_registrar(registrar_count as u32)).into())
 		}
 
 		/// Set an account's identity information and reserve the appropriate deposit.

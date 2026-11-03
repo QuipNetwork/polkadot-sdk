@@ -45,9 +45,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{determine_new_blocks, runtime::RuntimeInfo};
 use polkadot_overseer::SubsystemSender;
 use polkadot_primitives::{
-	node_features, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateReceiptV2 as CandidateReceipt, ConsensusLog, CoreIndex, GroupIndex, Hash, Header,
-	SessionIndex,
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceiptV2 as CandidateReceipt,
+	ConsensusLog, CoreIndex, GroupIndex, Hash, Header, SessionIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
@@ -61,7 +60,7 @@ use super::approval_db::v3;
 use crate::{
 	backend::{Backend, OverlayedBackend},
 	criteria::{AssignmentCriteria, OurAssignment},
-	get_extended_session_info_by_index, get_session_info_by_index,
+	get_session_info_by_index,
 	persisted_entries::CandidateEntry,
 };
 
@@ -136,7 +135,7 @@ async fn imported_block_info<Sender: SubsystemSender<RuntimeApiMessage>>(
 			Ok(Ok(events)) => events,
 			Ok(Err(error)) => return Err(ImportedBlockInfoError::RuntimeError(error)),
 			Err(error) => {
-				return Err(ImportedBlockInfoError::FutureCancelled("CandidateEvents", error))
+				return Err(ImportedBlockInfoError::FutureCancelled("CandidateEvents", error));
 			},
 		};
 
@@ -166,7 +165,7 @@ async fn imported_block_info<Sender: SubsystemSender<RuntimeApiMessage>>(
 			Ok(Ok(s)) => s,
 			Ok(Err(error)) => return Err(ImportedBlockInfoError::RuntimeError(error)),
 			Err(error) => {
-				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error))
+				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error));
 			},
 		};
 
@@ -218,28 +217,16 @@ async fn imported_block_info<Sender: SubsystemSender<RuntimeApiMessage>>(
 			Ok(Ok(s)) => s,
 			Ok(Err(error)) => return Err(ImportedBlockInfoError::RuntimeError(error)),
 			Err(error) => {
-				return Err(ImportedBlockInfoError::FutureCancelled("CurrentBabeEpoch", error))
+				return Err(ImportedBlockInfoError::FutureCancelled("CurrentBabeEpoch", error));
 			},
 		}
 	};
-
-	let extended_session_info =
-		get_extended_session_info_by_index(env.runtime_info, sender, block_hash, session_index)
-			.await;
-	let enable_v2_assignments = extended_session_info.map_or(false, |extended_session_info| {
-		*extended_session_info
-			.node_features
-			.get(node_features::FeatureIndex::EnableAssignmentsV2 as usize)
-			.as_deref()
-			.unwrap_or(&false)
-	});
 
 	let session_info =
 		get_session_info_by_index(env.runtime_info, sender, block_hash, session_index)
 			.await
 			.ok_or(ImportedBlockInfoError::SessionInfoUnavailable)?;
 
-	gum::debug!(target: LOG_TARGET, ?enable_v2_assignments, "V2 assignments");
 	let (assignments, slot, relay_vrf_story) = {
 		let unsafe_vrf = approval_types::v1::babe_unsafe_vrf_info(&block_header);
 
@@ -261,7 +248,6 @@ async fn imported_block_info<Sender: SubsystemSender<RuntimeApiMessage>>(
 								.iter()
 								.map(|(c_hash, _, core, group)| (*c_hash, *core, *group))
 								.collect(),
-							enable_v2_assignments,
 						);
 
 						(assignments, slot, relay_vrf)
@@ -627,8 +613,8 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
 	use polkadot_primitives::{
-		node_features::FeatureIndex, ExecutorParams, Id as ParaId, IndexedVec, MutateDescriptorV2,
-		NodeFeatures, SessionInfo, ValidatorId, ValidatorIndex,
+		node_features::FeatureIndex, ApprovalVotingParams, Id as ParaId, IndexedVec,
+		MutateDescriptorV2, NodeFeatures, SessionInfo, ValidatorId, ValidatorIndex,
 	};
 	use polkadot_primitives_test_helpers::{dummy_candidate_receipt_v2, dummy_hash};
 	use schnellru::{ByLength, LruMap};
@@ -685,9 +671,7 @@ pub(crate) mod tests {
 	}
 
 	#[derive(Default)]
-	struct MockAssignmentCriteria {
-		enable_v2: bool,
-	}
+	struct MockAssignmentCriteria;
 
 	impl AssignmentCriteria for MockAssignmentCriteria {
 		fn compute_assignments(
@@ -700,9 +684,7 @@ pub(crate) mod tests {
 				polkadot_primitives::CoreIndex,
 				polkadot_primitives::GroupIndex,
 			)>,
-			enable_assignments_v2: bool,
 		) -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment> {
-			assert_eq!(enable_assignments_v2, self.enable_v2);
 			HashMap::new()
 		}
 
@@ -804,7 +786,7 @@ pub(crate) mod tests {
 				Box::pin(async move {
 					let env = ImportedBlockInfoEnv {
 						runtime_info: &mut runtime_info,
-						assignment_criteria: &MockAssignmentCriteria { enable_v2 },
+						assignment_criteria: &MockAssignmentCriteria,
 						keystore: &LocalKeystore::in_memory(),
 					};
 
@@ -882,23 +864,18 @@ pub(crate) mod tests {
 				assert_matches!(
 					handle.recv().await,
 					AllMessages::RuntimeApi(
-						RuntimeApiMessage::Request(
-							req_block_hash,
-							RuntimeApiRequest::SessionExecutorParams(idx, si_tx),
-						)
+						RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
 					) => {
-						assert_eq!(session, idx);
-						assert_eq!(req_block_hash, hash);
-						si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+						si_tx.send(Ok(NodeFeatures::repeat(enable_v2, FeatureIndex::EnableAssignmentsV2 as usize + 1))).unwrap();
 					}
 				);
 
 				assert_matches!(
 					handle.recv().await,
 					AllMessages::RuntimeApi(
-						RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
+						RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(_, si_tx), )
 					) => {
-						si_tx.send(Ok(NodeFeatures::repeat(enable_v2, FeatureIndex::EnableAssignmentsV2 as usize + 1))).unwrap();
+						si_tx.send(Ok(ApprovalVotingParams::default())).unwrap();
 					}
 				);
 			});
@@ -1023,23 +1000,18 @@ pub(crate) mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(
-						req_block_hash,
-						RuntimeApiRequest::SessionExecutorParams(idx, si_tx),
-					)
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
 				) => {
-					assert_eq!(session, idx);
-					assert_eq!(req_block_hash, hash);
-					si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+					si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
 				}
 			);
 
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(_, si_tx), )
 				) => {
-					si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
+					si_tx.send(Ok(ApprovalVotingParams::default())).unwrap();
 				}
 			);
 		});
@@ -1267,23 +1239,18 @@ pub(crate) mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(
-						req_block_hash,
-						RuntimeApiRequest::SessionExecutorParams(idx, si_tx),
-					)
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
 				) => {
-					assert_eq!(session, idx);
-					assert_eq!(req_block_hash, hash);
-					si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+					si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
 				}
 			);
 
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(_, si_tx), )
 				) => {
-					si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
+					si_tx.send(Ok(ApprovalVotingParams::default())).unwrap();
 				}
 			);
 		});
@@ -1495,23 +1462,18 @@ pub(crate) mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(
-						req_block_hash,
-						RuntimeApiRequest::SessionExecutorParams(idx, si_tx),
-					)
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
 				) => {
-					assert_eq!(session, idx);
-					assert_eq!(req_block_hash, hash);
-					si_tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+					si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
 				}
 			);
 
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(_, RuntimeApiRequest::NodeFeatures(_, si_tx), )
+					RuntimeApiMessage::Request(_, RuntimeApiRequest::ApprovalVotingParams(_, si_tx), )
 				) => {
-					si_tx.send(Ok(NodeFeatures::EMPTY)).unwrap();
+					si_tx.send(Ok(ApprovalVotingParams::default())).unwrap();
 				}
 			);
 

@@ -1,6 +1,6 @@
 [package]
 name = "pallet-balances"
-version = "47.0.0"
+version = "51.0.2"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -27,10 +27,10 @@ sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 
 [dev-dependencies]
-frame-support = { features = ["experimental"], default-features = true, workspace = true }
-pallet-transaction-payment = { default-features = true, workspace = true }
+frame-support = { workspace = true, default-features = true }
+pallet-transaction-payment = { workspace = true, default-features = true }
 paste = { workspace = true, default-features = true }
-sp-io = { default-features = true, workspace = true }
+sp-io = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -40,8 +40,10 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-transaction-payment/std",
 	"scale-info/std",
 	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 # Enable support for setting the existential deposit to zero.

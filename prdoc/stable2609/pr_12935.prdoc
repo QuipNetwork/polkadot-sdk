@@ -1,0 +1,29 @@
+title: Update trie-db to 0.32.0
+
+doc:
+  - audience: Node Dev
+    description: |
+      Bumps `trie-db` to 0.32.0 and `trie-bench` to 0.42.2.
+
+      Compact proof encoding now deduplicates value nodes that are shared between the top trie
+      and child tries, resulting in smaller compact proofs.
+
+      Breaking change: `sp_trie::decode_compact`, `CompactProof::to_storage_proof` and
+      `CompactProof::to_memory_db` now take the expected root as `&H::Out` instead of
+      `Option<&H::Out>`. The decoded root is always checked against the expected root.
+
+crates:
+  - name: sp-trie
+    bump: major
+  - name: sp-state-machine
+    bump: patch
+  - name: sc-service
+    bump: patch
+  - name: cumulus-pallet-parachain-system
+    bump: patch
+  - name: substrate-state-trie-migration-rpc
+    bump: none
+    validate: false
+  - name: bp-runtime
+    bump: none
+    validate: false

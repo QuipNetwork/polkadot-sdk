@@ -1,0 +1,12 @@
+title: '[pallet-revive] Implement `originIsRoot` precompile method'
+doc:
+- audience: Runtime Dev
+  description: We have the `callerIsRoot` API but this doesn't work with nested calls.
+    `originIsRoot` fills this gap.
+crates:
+- name: pallet-revive-fixtures
+  bump: minor
+- name: pallet-revive
+  bump: minor
+- name: pallet-revive-uapi
+  bump: minor

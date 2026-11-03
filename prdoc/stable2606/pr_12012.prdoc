@@ -1,0 +1,20 @@
+title: 'Allow Emergency origin to set PSM max debt'
+doc:
+- audience: Runtime Dev
+  description: |-
+    - `PsmManagerLevel::can_set_max_psm_debt` now returns `true` for both `Full` and
+      `Emergency`.
+    - Updates the `ManagerOrigin` doc comment to reflect the expanded Emergency
+      capabilities.
+    - Flips the `emergency_origin_cannot_set_max_psm_debt` unit test to
+      `emergency_origin_can_set_max_psm_debt`.
+
+    When the max PSM debt is reached, minting is blocked and the internal stablecoin
+    can depeg to the upside. Arbitrageurs can no longer deposit external stablecoins
+    to mint and sell internal above peg, so demand pressure has nowhere to relieve.
+
+    Allowing the Emergency origin to raise the ratio restores the arbitrage path.
+
+crates:
+- name: pallet-psm
+  bump: minor

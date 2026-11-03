@@ -1,0 +1,13 @@
+title: 'fix(statement-network): split peer metric by kind'
+doc:
+- audience: Node Dev
+  description: |-
+    Impl #12060
+
+    ## Summary
+
+    - Change `substrate_sync_statement_peers_connected` from a plain gauge to a `GaugeVec` labelled by `kind`
+    - Report statement protocol peers as `kind="full"` or `kind="light"`
+crates:
+- name: sc-network-statement
+  bump: patch

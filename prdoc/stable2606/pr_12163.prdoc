@@ -1,0 +1,8 @@
+title: 'RPC: support keccak-256 in `bitswap_v1_get`'
+doc:
+- audience: Node Dev
+  description: Support Keccak-256 hash for parity with transaction storage pallet
+    in Bulletin chain.
+crates:
+- name: sc-rpc-spec-v2
+  bump: minor

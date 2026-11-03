@@ -1,0 +1,8 @@
+title: Improve the sync
+doc:
+- audience: Node Dev
+  description: |-
+    We should not panic and handle it more gracefully.
+crates:
+- name: sc-network-sync
+  bump: patch

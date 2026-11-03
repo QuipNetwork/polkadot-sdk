@@ -1,0 +1,17 @@
+title: '[pallet-revive] storage precompile error-handling refactor and accounting
+  refinements'
+doc:
+- audience: Runtime Dev
+  description: |-
+    This PR bundles three self-contained changes in pallet-revive:
+
+    1. Storage precompile: refactor argument-error handling behind a small StorageArgError enum, replacing the repeated inline map_errs.
+    2. Weight charges: adjust two operations so their charge tracks the measured cost more closely.
+    3. Existential deposit: charge the ED storage deposit only when the account-creating transfer actually succeeds, instead of also counting it for transfers that roll back.
+crates:
+- name: pallet-revive
+  bump: patch
+- name: pallet-revive-fixtures
+  bump: patch
+- name: asset-hub-westend-runtime
+  bump: patch

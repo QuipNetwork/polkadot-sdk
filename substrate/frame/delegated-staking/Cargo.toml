@@ -1,6 +1,6 @@
 [package]
 name = "pallet-delegated-staking"
-version = "13.0.0"
+version = "16.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -22,14 +22,14 @@ sp-runtime = { workspace = true }
 sp-staking = { workspace = true }
 
 [dev-dependencies]
-frame-election-provider-support = { workspace = true, default-features = false }
-pallet-balances = { default-features = true, workspace = true }
-pallet-nomination-pools = { default-features = true, workspace = true }
-pallet-staking = { default-features = true, workspace = true }
-pallet-staking-reward-curve = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-nomination-pools = { workspace = true, default-features = true }
+pallet-staking = { workspace = true, default-features = true }
+pallet-staking-reward-curve = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -39,7 +39,12 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
+	"pallet-balances/std",
+	"pallet-nomination-pools/std",
+	"pallet-staking/std",
+	"pallet-timestamp/std",
 	"scale-info/std",
+	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-staking/std",

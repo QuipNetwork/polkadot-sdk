@@ -297,13 +297,13 @@ impl PartialEq for dyn Function {
 /// Context used by `Function` to interact with the allocator and the memory of the wasm instance.
 pub trait FunctionContext {
 	/// Read memory from `address` into a vector.
-	fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> Result<Vec<u8>> {
+	fn read_memory(&mut self, address: Pointer<u8>, size: WordSize) -> Result<Vec<u8>> {
 		let mut vec = vec![0; size as usize];
 		self.read_memory_into(address, &mut vec)?;
 		Ok(vec)
 	}
 	/// Read memory into the given `dest` buffer from `address`.
-	fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<()>;
+	fn read_memory_into(&mut self, address: Pointer<u8>, dest: &mut [u8]) -> Result<()>;
 	/// Write the given data at `address` into the memory.
 	fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<()>;
 	/// Allocate a memory instance of `size` bytes.

@@ -15,8 +15,6 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 zombienet-sdk = { workspace = true }
 zombienet-orchestrator = { workspace = true }
 zombienet-configuration = { workspace = true }
-subxt = { workspace = true, default-features = false }
-subxt-signer = { workspace = true }
 
 [features]
 zombie-ci = []

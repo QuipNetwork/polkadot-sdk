@@ -1,6 +1,6 @@
 [package]
 name = "frame-metadata-hash-extension"
-version = "0.14.0"
+version = "0.17.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -22,11 +22,11 @@ sp-runtime = { features = ["serde"], workspace = true }
 [dev-dependencies]
 frame-metadata = { features = ["current", "unstable"], workspace = true, default-features = true }
 merkleized-metadata = { workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-sp-transaction-pool = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
+sp-transaction-pool = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
-substrate-wasm-builder = { features = ["metadata-hash"], default-features = true, workspace = true }
+substrate-wasm-builder = { features = ["metadata-hash"], workspace = true, default-features = true }
 
 [features]
 default = ["std"]

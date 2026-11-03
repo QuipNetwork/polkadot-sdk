@@ -1,6 +1,6 @@
 [package]
 name = "pallet-example-kitchensink"
-version = "4.0.0"
+version = "4.0.0-dev"
 authors.workspace = true
 edition.workspace = true
 license = "MIT-0"
@@ -17,17 +17,21 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
+log = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-support = { features = ["experimental"], workspace = true }
 frame-system = { workspace = true }
-log = { workspace = true }
-pallet-balances = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
+
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 
+frame-benchmarking = { optional = true, workspace = true }
+
+pallet-balances = { workspace = true }
+
 [dev-dependencies]
-sp-core = { workspace = true, default-features = false }
+sp-core = { workspace = true }
 
 [features]
 default = ["std"]

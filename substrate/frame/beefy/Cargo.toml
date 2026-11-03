@@ -1,6 +1,6 @@
 [package]
 name = "pallet-beefy"
-version = "47.0.0"
+version = "51.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -26,30 +26,37 @@ sp-session = { workspace = true }
 sp-staking = { features = ["serde"], workspace = true }
 
 [dev-dependencies]
-frame-election-provider-support = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-offences = { default-features = true, workspace = true }
-pallet-staking = { default-features = true, workspace = true }
-pallet-staking-reward-curve = { default-features = true, workspace = true }
-pallet-timestamp = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-staking = { default-features = true, workspace = true }
-sp-state-machine = { workspace = true, default-features = false }
-sp-tracing = { default-features = true, workspace = true }
+frame-election-provider-support = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-offences = { workspace = true, default-features = true }
+pallet-staking = { workspace = true, default-features = true }
+pallet-staking-reward-curve = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-staking = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
+	"frame-election-provider-support/std",
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
 	"pallet-authorship/std",
+	"pallet-balances/std",
+	"pallet-offences/std",
 	"pallet-session/std",
+	"pallet-staking/std",
+	"pallet-timestamp/std",
 	"scale-info/std",
 	"serde/std",
 	"sp-consensus-beefy/std",
+	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
 	"sp-session/std",
 	"sp-staking/std",

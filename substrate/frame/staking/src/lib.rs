@@ -17,6 +17,8 @@
 
 //! # Staking Pallet
 //!
+//! NOTE: This pallet is deprecated and no longer maintained in favour of `pallet-staking-async`.
+//!
 //! The Staking pallet is used to manage funds at stake by network maintainers.
 //!
 //! - [`Config`]
@@ -331,7 +333,7 @@ use sp_staking::{
 	offence::{Offence, OffenceError, OffenceSeverity, ReportOffence},
 	EraIndex, ExposurePage, OnStakingUpdate, Page, PagedExposureMetadata, SessionIndex,
 };
-pub use sp_staking::{Exposure, IndividualExposure, StakerStatus};
+pub use sp_staking::{EraPayout, Exposure, IndividualExposure, StakerStatus};
 pub use weights::WeightInfo;
 
 pub use pallet::{pallet::*, UseNominatorsAndValidatorsMap, UseValidatorsMap};
@@ -977,33 +979,10 @@ impl<AccountId> SessionInterface<AccountId> for () {
 	}
 }
 
-/// Handler for determining how much of a balance should be paid out on the current era.
-pub trait EraPayout<Balance> {
-	/// Determine the payout for this era.
-	///
-	/// Returns the amount to be paid to stakers in this era, as well as whatever else should be
-	/// paid out ("the rest").
-	fn era_payout(
-		total_staked: Balance,
-		total_issuance: Balance,
-		era_duration_millis: u64,
-	) -> (Balance, Balance);
-}
-
-impl<Balance: Default> EraPayout<Balance> for () {
-	fn era_payout(
-		_total_staked: Balance,
-		_total_issuance: Balance,
-		_era_duration_millis: u64,
-	) -> (Balance, Balance) {
-		(Default::default(), Default::default())
-	}
-}
-
 /// Adaptor to turn a `PiecewiseLinear` curve definition into an `EraPayout` impl, used for
 /// backwards compatibility.
 pub struct ConvertCurve<T>(core::marker::PhantomData<T>);
-impl<Balance, T> EraPayout<Balance> for ConvertCurve<T>
+impl<Balance, T> sp_staking::EraPayout<Balance> for ConvertCurve<T>
 where
 	Balance: AtLeast32BitUnsigned + Clone + Copy,
 	T: Get<&'static PiecewiseLinear<'static>>,
@@ -1059,38 +1038,15 @@ impl Default for Forcing {
 	}
 }
 
-/// A typed conversion from stash account ID to the active exposure of nominators
-/// on that account.
+/// Identify a current validator with a default [`Exposure`].
 ///
-/// Active exposure is the exposure of the validator set currently validating, i.e. in
-/// `active_era`. It can differ from the latest planned exposure in `current_era`.
-#[deprecated(note = "Use `DefaultExposureOf` instead")]
-pub struct ExposureOf<T>(core::marker::PhantomData<T>);
-
-#[allow(deprecated)]
-impl<T: Config> Convert<T::AccountId, Option<Exposure<T::AccountId, BalanceOf<T>>>>
-	for ExposureOf<T>
-{
-	fn convert(validator: T::AccountId) -> Option<Exposure<T::AccountId, BalanceOf<T>>> {
-		ActiveEra::<T>::get()
-			.map(|active_era| <Pallet<T>>::eras_stakers(active_era.index, &validator))
-	}
-}
-
-/// Identify a validator with their default exposure.
+/// Returns `Some(Exposure::default())` when the account is in the active validator set, and `None`
+/// otherwise. This keeps `FullIdentification = Exposure<..>` for runtimes that still need to decode
+/// historical session identification data of that shape, without constructing a full exposure for
+/// new identification requests.
 ///
-/// This type should not be used in a fresh runtime, instead use [`UnitIdentificationOf`].
-///
-/// In the past, a type called [`ExposureOf`] used to return the full exposure of a validator to
-/// identify their exposure. This type is kept, marked as deprecated, for backwards compatibility of
-/// external SDK users, but is no longer used in this repo.
-///
-/// In the new model, we don't need to identify a validator with their full exposure anymore, and
-/// therefore [`UnitIdentificationOf`] is perfectly fine. Yet, for runtimes that used to work with
-/// [`ExposureOf`], we need to be able to decode old identification data, possibly stored in the
-/// historical session pallet in older blocks. Therefore, this type is a good compromise, allowing
-/// old exposure identifications to be decoded, and returning a few zero bytes
-/// (`Exposure::default`) for any new identification request.
+/// Prefer [`UnitIdentificationOf`] for fresh runtimes that do not need exposure-shaped
+/// identification.
 ///
 /// A typical usage of this type is:
 ///
@@ -1155,7 +1111,7 @@ where
 		}
 	}
 
-	fn is_known_offence(offenders: &[Offender], time_slot: &O::TimeSlot) -> bool {
+	fn is_known_offence(offenders: &[Offender], time_slot: &O::Slot) -> bool {
 		R::is_known_offence(offenders, time_slot)
 	}
 }

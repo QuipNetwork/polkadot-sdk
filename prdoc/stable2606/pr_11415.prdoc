@@ -1,0 +1,8 @@
+title: Statement store e2e integration tests lite person setup
+doc:
+- audience: Node Dev
+  description: |-
+    ## Summary
+
+    - Add a lite person registration test that exercises the full PeopleLite::attest flow on a live parachain, including ring-VRF key generation, attestation, and subsequent statement submission.
+crates: []

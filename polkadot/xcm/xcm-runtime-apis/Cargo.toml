@@ -1,6 +1,6 @@
 [package]
 name = "xcm-runtime-apis"
-version = "0.13.0"
+version = "0.17.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -12,24 +12,25 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-frame-support = { workspace = true }
 scale-info = { features = ["derive", "serde"], workspace = true }
+
+frame-support = { workspace = true }
 sp-api = { workspace = true }
 sp-weights = { workspace = true }
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
 
 [dev-dependencies]
-frame-system = { workspace = true, default-features = false }
+frame-system = { workspace = true }
 hex-literal = { workspace = true }
-pallet-assets = { workspace = true, default-features = false }
-pallet-balances = { workspace = true, default-features = false }
-pallet-xcm = { workspace = true, default-features = false }
-sp-io = { workspace = true, default-features = false }
-sp-tracing = { default-features = true, workspace = true }
+pallet-assets = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-xcm = { workspace = true }
+sp-io = { workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 tracing = { workspace = true }
-xcm-builder = { workspace = true, default-features = false }
-xcm-simulator = { default-features = true, workspace = true }
+xcm-builder = { workspace = true }
+xcm-simulator = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

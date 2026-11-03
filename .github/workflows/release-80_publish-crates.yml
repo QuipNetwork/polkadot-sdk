@@ -45,7 +45,11 @@ on:
         required: false
         type: string
         default: '0'
-
+      clean_every:
+        description: 'Run cargo clean after every N published crates to free disk space (0 = disabled). Recommend 50 for major releases with 100+ crates, otherwise the job may fail due to disk space.'
+        required: false
+        type: string
+        default: '0'
 
 permissions:
   contents: write
@@ -53,12 +57,14 @@ permissions:
 jobs:
   check-synchronization:
     uses: paritytech-release/sync-workflows/.github/workflows/check-synchronization.yml@main
+    with:
+      concurrency_suffix: publish-crates
     secrets:
       fork_writer_app_key: ${{ secrets.UPSTREAM_CONTENT_SYNC_APP_KEY }}
 
   set-image:
     needs: [ check-synchronization ]
-    if: needs.check-synchronization.outputs.checks_passed == 'true'
+    if: ${{ needs.check-synchronization.outputs.checks_passed == 'true' }}
     runs-on: ubuntu-latest-m
     outputs:
       IMAGE: ${{ steps.set_image.outputs.IMAGE }}
@@ -159,8 +165,8 @@ jobs:
             echo "Resuming from '$RESUME_FROM' - checking out existing branch $CRATES_RELEASE_BRANCH"
             git fetch origin "$CRATES_RELEASE_BRANCH"
             git checkout "$CRATES_RELEASE_BRANCH"
-          elif git rev-parse --verify -q "$CRATES_RELEASE_BRANCH" &>/dev/null; then
-            echo "Branch $CRATES_RELEASE_BRANCH already exists, switching to it"
+          elif git rev-parse --verify -q "origin/$CRATES_RELEASE_BRANCH" &>/dev/null; then
+            echo "Branch $CRATES_RELEASE_BRANCH already exists on remote, switching to it"
             git checkout "$CRATES_RELEASE_BRANCH"
           else
             echo "Creating branch: $CRATES_RELEASE_BRANCH"
@@ -168,15 +174,10 @@ jobs:
           fi
           echo "On branch $CRATES_RELEASE_BRANCH"
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
-        with:
-          cache-on-failure: true
-
       - name: Install parity-publish
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev pkg-config
-          cargo install parity-publish@0.10.13 --locked -q
+          cargo install parity-publish@0.10.17 --locked -q
 
       - name: Run parity-publish plan
         if: inputs.resume_from == 'full'
@@ -282,11 +283,11 @@ jobs:
           echo "Cargo.lock updated"
 
       - name: Verify workspace compiles
-        if: inputs.resume_from == 'full' || inputs.resume_from == 'apply'
+        if: (inputs.resume_from == 'full' || inputs.resume_from == 'apply') && inputs.publish_jobs > 0
         env:
           SKIP_WASM_BUILD: 1
         run: |
-          echo "Checking that rewritten manifests compile..."
+          echo "Checking that rewritten manifests compile (WASM build skipped)..."
           cargo check --workspace --all-targets 2>&1
           echo "Workspace compiles successfully"
 
@@ -318,7 +319,7 @@ jobs:
 
           if [ "$REGISTRY" = "staging.crates.io" ]; then
             cat >> ~/.cargo/config.toml << 'EOF'
-          [registries.crates-io]
+          [registries.staging]
           index = "sparse+https://index.staging.crates.io/"
           EOF
           else
@@ -332,10 +333,12 @@ jobs:
         if: inputs.resume_from != 'push'
         shell: bash
         env:
-          PARITY_PUBLISH_CRATESIO_TOKEN: ${{ inputs.registry == 'staging.crates.io' && secrets.STAGING_CRATES_IO_API_TOKEN || secrets.CRATES_IO_API_TOKEN }}
+          PARITY_PUBLISH_CRATESIO_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+          PARITY_PUBLISH_STAGING_CRATESIO_TOKEN: ${{ secrets.STAGING_CRATES_IO_API_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
           REGISTRY: ${{ inputs.registry }}
           PUBLISH_JOBS: ${{ inputs.publish_jobs }}
+          CLEAN_EVERY: ${{ inputs.clean_every }}
         run: |
           PARALLEL_ARGS=""
           if [ "$PUBLISH_JOBS" -gt 0 ] 2>/dev/null; then
@@ -343,19 +346,50 @@ jobs:
             PARALLEL_ARGS="-j $PUBLISH_JOBS --no-verify"
           fi
 
+          CLEAN_ARGS=""
+          if [ "$CLEAN_EVERY" -gt 0 ] 2>/dev/null; then
+            echo "Disk cleanup enabled: cargo clean every $CLEAN_EVERY crates"
+            CLEAN_ARGS="--clean-every $CLEAN_EVERY"
+          fi
+
+          STAGING_ARG=""
+          if [ "$REGISTRY" = "staging.crates.io" ]; then
+            STAGING_ARG="--staging"
+          fi
+
           if [ "$DRY_RUN" = true ]; then
             echo "DRY RUN - Not actually publishing crates"
             echo "Target registry: $REGISTRY"
-            parity-publish apply -p -d $PARALLEL_ARGS
+            parity-publish apply -p -d $STAGING_ARG $PARALLEL_ARGS $CLEAN_ARGS
           else
             echo "Publishing crates to $REGISTRY..."
-            parity-publish apply -p $PARALLEL_ARGS
+            parity-publish apply -p $STAGING_ARG $PARALLEL_ARGS $CLEAN_ARGS
             echo "Crates published successfully to $REGISTRY!"
           fi
 
+      - name: Restore clean manifests after publish
+        if: inputs.resume_from != 'push'
+        shell: bash
+        env:
+          RELEASE_NAME: ${{ inputs.release_name }}
+        run: |
+          . ./.github/scripts/release/release_lib.sh
+
+          echo "Restoring clean manifests with version bumps only..."
+          parity-publish restore
+
+          git add -A
+          if [[ -n $(git status --porcelain) ]]; then
+            commit_with_message "Restore clean manifests after crates publish for $RELEASE_NAME"
+            echo "Clean manifests committed"
+          else
+            echo "No changes to restore"
+          fi
+
+
       - name: Generate token for paritytech/polkadot-sdk
         id: generate_write_token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         with:
             app-id: ${{ vars.POLKADOT_SDK_RELEASE_RW_APP_ID }}
             private-key: ${{ secrets.POLKADOT_SDK_RELEASE_RW_APP_KEY }}
@@ -372,14 +406,28 @@ jobs:
           git push origin "$CRATES_RELEASE_BRANCH"
           echo "Successfully pushed $CRATES_RELEASE_BRANCH to paritytech/polkadot-sdk"
 
-      - name: Push release branch to fork on failure
-        if: failure()
+      - name: Push release branch to fork on failure or cancellation
+        if: failure() || cancelled()
         env:
           CRATES_RELEASE_BRANCH: ${{ steps.derive_branch.outputs.CRATES_RELEASE_BRANCH }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          echo "Job failed. Pushing branch '$CRATES_RELEASE_BRANCH' to origin (paritytech-release) to preserve state for resume..."
+          echo "Job did not complete successfully. Pushing branch '$CRATES_RELEASE_BRANCH' to origin (paritytech-release) to preserve state for resume..."
           # Restore origin to the fork repo in case it was changed by the upstream push step
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push origin "$CRATES_RELEASE_BRANCH" --force-with-lease
           echo "Branch pushed. To resume, re-run this workflow with resume_from set to the appropriate phase."
+
+      - name: Notify RelEng on failure or cancellation
+        if: failure() || cancelled()
+        uses: s3krit/matrix-message-action@70ad3fb812ee0e45ff8999d6af11cafad11a6ecf # v0.0.3
+        with:
+          room_id: '!GvAyzgCDgaVrvibaAF:parity.io'
+          access_token: ${{ secrets.RELEASENOTES_MATRIX_V2_ACCESS_TOKEN }}
+          server: m.parity.io
+          message: |
+            **Publish Crates workflow did not complete** for `${{ inputs.release_name }}` (registry: `${{ inputs.registry }}`, dry_run: `${{ inputs.dry_run }}`).<br/>
+            Likely causes: the 6h GitHub job timeout, or an error during publishing.<br/>
+            Branch `${{ steps.derive_branch.outputs.CRATES_RELEASE_BRANCH }}` has been pushed to preserve state.<br/>
+            Re-run the workflow with `resume_from` set to the appropriate phase (typically `publish`).<br/>
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

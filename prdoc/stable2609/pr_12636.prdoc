@@ -1,0 +1,14 @@
+title: 'pallet-revive: implement eth_getBlockReceipts'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    The `pallet-revive` Ethereum JSON-RPC server did not implement `eth_getBlockReceipts`, a
+    standard `execution-apis` method that returns every transaction receipt in a block in a
+    single call and is widely used by indexers and block explorers. It is now supported: given
+    a block number, tag, or hash it returns the list of receipts (extracted from the block in a
+    single pass), or `null` if the block does not exist, matching go-ethereum.
+
+crates:
+- name: pallet-revive-eth-rpc
+  bump: major

@@ -2753,9 +2753,7 @@ mod election_provider {
 		Phase,
 	};
 	use frame_election_provider_support::{BoundedSupport, BoundedSupports, ElectionProvider};
-	use frame_support::{
-		assert_storage_noop, testing_prelude::bounded_vec, unsigned::ValidateUnsigned,
-	};
+	use frame_support::{assert_storage_noop, testing_prelude::bounded_vec};
 
 	// This is probably the most important test of all, a basic, correct scenario. This test should
 	// be studied in detail, and all of the branches of how it can go wrong or diverge from the
@@ -3059,7 +3057,9 @@ mod election_provider {
 	}
 
 	#[test]
+	#[allow(deprecated)]
 	fn call_to_elect_should_prevent_any_submission() {
+		use frame_support::unsigned::ValidateUnsigned;
 		ExtBuilder::full().build_and_execute(|| {
 			roll_to_signed_open();
 			assert!(MultiBlock::current_phase().is_signed());

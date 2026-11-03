@@ -1,0 +1,20 @@
+title: '[pallet-revive] Version the Remaining Runtime API Functions'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR versions the final remaining runtime API functions in pallet-revive, fully deprecating the old unversioned runtime API in favor of the new versioned runtime API functions.
+
+    Additionally, this PR adds an `unversioned_runtime_api_functions_are_unchanged_by_versioning` test which is an important test which asserts that every single type which can be seen in the unversioned runtime API functions is identical to the new versioned types in terms of encoding such that if we encode an old unversioned type we can decode as a new versioned type and vice versa. This is made possible through the schema available in the metadata which allows us to check a pre-versioning schema against a post-versioning schema. This test is implemented as a very very simple walker which walks the schema in lock-step and checks that the schema of the pre-versioning types matches that of the post-versioning types. Yes, the code for this test is slightly long, but it's very simple. The moment you see that lots of the code length is due to us wanting to preserve the paths (for printing in assertion messages), you can see that the test is quite simple.
+
+    Aside from the above, and as mentioned at the start, this PR also versioned the remaining runtime API functions. In the process, I combined some runtime API functions into a single versioned runtime API function. For example, `eth_transact` and `eth_transact_with_config` have been combined into a single `eth_transact_versioned` since `eth_transact_with_config` was added as way to version the `eth_transact` runtime API function. Same was done to the `trace_call` and the `trace_call_with_config` in that they've been combined into a single versioned runtime API function.
+crates:
+- name: pallet-revive-eth-rpc
+  bump: major
+- name: pallet-revive
+  bump: major
+- name: pallet-revive-types
+  bump: major
+- name: revive-dev-runtime
+  bump: major

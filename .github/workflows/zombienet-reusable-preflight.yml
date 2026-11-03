@@ -160,12 +160,12 @@ jobs:
     if: github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch' || ! contains(github.event.pull_request.labels.*.name, 'T19-skip-zombienet_tests')
 
     outputs:
-      changes_substrate: ${{ steps.set_changes.outputs.substrate_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
-      changes_cumulus: ${{ steps.set_changes.outputs.cumulus_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
-      changes_polkadot: ${{ steps.set_changes.outputs.polkadot_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
-      changes_bridges: ${{ steps.set_changes.outputs.bridges_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
-      changes_templates: ${{ steps.set_changes.outputs.templates_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
-      changes_zombienet: ${{ steps.set_changes.outputs.zombienet_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
+      changes_substrate: ${{ steps.set_changes.outputs.dependencies == 'true' || steps.set_changes.outputs.substrate_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
+      changes_cumulus: ${{ steps.set_changes.outputs.dependencies == 'true' || steps.set_changes.outputs.cumulus_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
+      changes_polkadot: ${{ steps.set_changes.outputs.dependencies == 'true' || steps.set_changes.outputs.polkadot_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
+      changes_bridges: ${{ steps.set_changes.outputs.dependencies == 'true' || steps.set_changes.outputs.bridges_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
+      changes_templates: ${{ steps.set_changes.outputs.dependencies == 'true' || steps.set_changes.outputs.templates_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
+      changes_zombienet: ${{ steps.set_changes.outputs.dependencies == 'true' || steps.set_changes.outputs.zombienet_any_changed == 'true' || steps.set_changes.outputs.currentWorkflow_any_changed == 'true' }}
 
       CI_IMAGE: ${{ steps.set_vars.outputs.IMAGE }}
 
@@ -210,7 +210,7 @@ jobs:
 
       - name: Set changes
         id: set_changes
-        uses: tj-actions/changed-files@8cba46e29c11878d930bca7870bb54394d3e8b21 #v47.0.2
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 #v47.0.6
         with:
           files_yaml: |
             substrate:
@@ -235,6 +235,9 @@ jobs:
               - '.github/workflows/zombienet-reusable-preflight.yml'
               - '.github/zombienet-env'
               - '.github/zombienet-flaky-tests'
+            dependencies:
+              - 'Cargo.lock'
+              - 'Cargo.toml'
 
       - name: Determine build run id
         id: determine_build
@@ -288,7 +291,7 @@ jobs:
             export SOURCE_REF_NAME=${{ github.head_ref || github.ref_name }}
             SOURCE_REF_SLUG="${SOURCE_REF_NAME//\//_}"
           fi
-          
+
           {
             echo "SOURCE_REF_SLUG=${SOURCE_REF_SLUG}"
 
@@ -344,7 +347,7 @@ jobs:
           cat .github/zombienet-flaky-tests
 
       #
-      #
+      # Set docker images
       #
       - name: Set docker images version
         id: set_images_version

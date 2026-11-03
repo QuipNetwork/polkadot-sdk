@@ -58,7 +58,7 @@ pub mod pallet {
 
 	impl<Offender: Clone> Offence<Offender> for TestSpamOffence<Offender> {
 		const ID: Kind = *b"spamspamspamspam";
-		type TimeSlot = u128;
+		type Slot = u128;
 
 		fn offenders(&self) -> Vec<Offender> {
 			vec![self.offender.clone()]
@@ -68,7 +68,7 @@ pub mod pallet {
 			self.session_index
 		}
 
-		fn time_slot(&self) -> Self::TimeSlot {
+		fn slot(&self) -> Self::Slot {
 			self.time_slot
 		}
 
@@ -84,7 +84,6 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
-		+ pallet_staking::Config
 		+ pallet_session::Config<ValidatorId = <Self as frame_system::Config>::AccountId>
 		+ pallet_session::historical::Config
 	{

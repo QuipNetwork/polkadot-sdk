@@ -1,0 +1,22 @@
+title: Update PolkaVM to 0.35
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Updates all PolkaVM dependencies (`polkavm`, `polkavm-common`,
+      `polkavm-derive`, `polkavm-linker`) from `0.33.0` to `0.35.0`. The
+      `pallet-revive` fixtures and `pallet-revive-uapi` now source their
+      `polkavm-*` versions from the workspace instead of pinning older releases.
+
+      With this version the Revive instruction-set decoder maps the `sbrk`
+      instruction to `invalid`, so `sbrk` is already rejected at decode time
+      rather than by the linker. The now-obsolete `sbrk` "not buildable" fixture
+      and its `sbrk_cannot_be_linked` test have been removed accordingly.
+
+crates:
+  - name: pallet-revive
+    bump: patch
+  - name: pallet-revive-fixtures
+    bump: patch
+  - name: pallet-revive-uapi
+    bump: patch

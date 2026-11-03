@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-omni-node"
-version = "0.14.0"
+version = "0.24.0"
 authors.workspace = true
 edition.workspace = true
 build = "build.rs"
@@ -14,6 +14,8 @@ workspace = true
 
 [dependencies]
 color-eyre = { workspace = true }
+
+# Local
 polkadot-jemalloc-shim = { workspace = true }
 polkadot-omni-node-lib = { workspace = true, features = ["rococo-native", "westend-native"] }
 
@@ -24,7 +26,7 @@ polkadot-jemalloc-shim = { workspace = true, features = ["jemalloc-allocator"] }
 assert_cmd = { workspace = true }
 
 [build-dependencies]
-substrate-build-script-utils = { default-features = true, workspace = true }
+substrate-build-script-utils = { workspace = true, default-features = true }
 
 [features]
 default = []

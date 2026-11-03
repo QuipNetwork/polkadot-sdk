@@ -1,0 +1,31 @@
+title: '[pallet-revive]: Typegraph Generation'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+    This PR is part of https://github.com/paritytech/polkadot-sdk/issues/11923 and closes https://github.com/paritytech/polkadot-sdk/issues/11926.
+
+    This PR adds a single script to the `types` crate of pallet-revive to allow us to generate SVG type-graphs of all of the types defined in the crate.
+
+    We need this to be able to easily answer the following question: "I just made a change to model X in the `types` crate. What other models do I need to change as a result of this change?"
+
+    The generated type-graph looks like the following:
+
+    <img width="2672" height="1522" alt="image" src="https://github.com/user-attachments/assets/62ea62a9-8a0d-4cbb-bb86-bd058c851d6a" />
+
+    Let's take this PR https://github.com/paritytech/polkadot-sdk/pull/11532 as an example of how this type-graph can be used which adds a new field to the `CallLog` type. After generating the type-graph, we can find that node and click it which produces the following:
+
+    <img width="2672" height="1522" alt="image" src="https://github.com/user-attachments/assets/88c91d34-d17f-4b7a-8aa2-a8ce314e356d" />
+
+    This immedietly tells us that we would need to:
+
+    - Update the `CallTrace` type to include the new `CallLog`.
+    - Update the `IndexedTrace` type to include the new `CallTrace`.
+    - Update the following runtime API functions with the new data being returned by the runtime API:
+        - `trace_call`
+        - `trace_tx`
+        - `trace_block`
+crates:
+- name: pallet-revive-types
+  bump: patch

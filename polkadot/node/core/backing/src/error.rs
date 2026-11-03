@@ -105,9 +105,6 @@ pub enum Error {
 
 	#[error("Availability store error")]
 	StoreAvailableData(#[source] StoreAvailableDataError),
-
-	#[error("Runtime API returned None for executor params")]
-	MissingExecutorParams,
 }
 
 /// Utility for eating top level errors and log them.

@@ -40,6 +40,9 @@
 //!   which guarantee eventual book-keeping. May be useful for some sophisticated operations where
 //!   funds must be removed from an account before it is known precisely what should be done with
 //!   them.
+//! - [`metadata::Inspect`]: Inspector functions for token metadata (name, symbol, decimals).
+//! - [`metadata::Mutate`]: Mutator functions for token metadata.
+//! - [`lifetime::Create`]: Trait for creating a new fungible asset.
 //!
 //! ## Terminology
 //!
@@ -158,6 +161,8 @@ pub mod freeze;
 pub mod hold;
 pub(crate) mod imbalance;
 mod item_of;
+mod lifetime;
+pub mod metadata;
 mod regular;
 mod union_of;
 
@@ -179,6 +184,7 @@ pub use hold::{
 };
 pub use imbalance::{Credit, Debt, HandleImbalanceDrop, Imbalance};
 pub use item_of::ItemOf;
+pub use lifetime::Create;
 pub use regular::{
 	Balanced, DecreaseIssuance, Dust, IncreaseIssuance, Inspect, Mutate, Unbalanced,
 };
@@ -187,11 +193,9 @@ use sp_core::Get;
 use sp_runtime::{traits::Convert, DispatchError};
 pub use union_of::{NativeFromLeft, NativeOrWithId, UnionOf};
 
-#[cfg(feature = "experimental")]
-use crate::traits::MaybeConsideration;
 use crate::{
 	ensure,
-	traits::{Consideration, Footprint},
+	traits::{Consideration, Footprint, MaybeConsideration},
 };
 
 /// Consideration method using a `fungible` balance frozen as the cost exacted for the footprint.
@@ -237,7 +241,6 @@ impl<
 		let _ = F::mint_into(who, F::minimum_balance().saturating_add(D::convert(fp)));
 	}
 }
-#[cfg(feature = "experimental")]
 impl<
 		A: 'static + Eq,
 		#[cfg(not(feature = "runtime-benchmarks"))] F: 'static + MutateFreeze<A>,
@@ -306,7 +309,6 @@ impl<
 		let _ = F::mint_into(who, F::minimum_balance().saturating_add(D::convert(fp)));
 	}
 }
-#[cfg(feature = "experimental")]
 impl<
 		A: 'static + Eq,
 		#[cfg(not(feature = "runtime-benchmarks"))] F: 'static + MutateHold<A>,

@@ -43,7 +43,7 @@ pub enum Protocol<'a> {
 	Ip6(Ipv6Addr),
 	P2pWebRtcDirect,
 	P2pWebRtcStar,
-	WebRTC,
+	WebRTCDirect,
 	Certhash(Multihash),
 	P2pWebSocketStar,
 	/// Contains the "port" to contact. Similar to TCP or UDP, 0 means "assign me a port".
@@ -97,84 +97,6 @@ impl From<Ipv6Addr> for Protocol<'_> {
 	}
 }
 
-impl<'a> From<LiteP2pProtocol<'a>> for Protocol<'a> {
-	fn from(protocol: LiteP2pProtocol<'a>) -> Self {
-		match protocol {
-			LiteP2pProtocol::Dccp(port) => Protocol::Dccp(port),
-			LiteP2pProtocol::Dns(str) => Protocol::Dns(str),
-			LiteP2pProtocol::Dns4(str) => Protocol::Dns4(str),
-			LiteP2pProtocol::Dns6(str) => Protocol::Dns6(str),
-			LiteP2pProtocol::Dnsaddr(str) => Protocol::Dnsaddr(str),
-			LiteP2pProtocol::Http => Protocol::Http,
-			LiteP2pProtocol::Https => Protocol::Https,
-			LiteP2pProtocol::Ip4(ipv4_addr) => Protocol::Ip4(ipv4_addr),
-			LiteP2pProtocol::Ip6(ipv6_addr) => Protocol::Ip6(ipv6_addr),
-			LiteP2pProtocol::P2pWebRtcDirect => Protocol::P2pWebRtcDirect,
-			LiteP2pProtocol::P2pWebRtcStar => Protocol::P2pWebRtcStar,
-			LiteP2pProtocol::WebRTC => Protocol::WebRTC,
-			LiteP2pProtocol::Certhash(multihash) => Protocol::Certhash(multihash.into()),
-			LiteP2pProtocol::P2pWebSocketStar => Protocol::P2pWebSocketStar,
-			LiteP2pProtocol::Memory(port) => Protocol::Memory(port),
-			LiteP2pProtocol::Onion(str, port) => Protocol::Onion(str, port),
-			LiteP2pProtocol::Onion3(addr) => {
-				Protocol::Onion3(Cow::Owned(*addr.hash()), addr.port())
-			},
-			LiteP2pProtocol::P2p(multihash) => Protocol::P2p(multihash.into()),
-			LiteP2pProtocol::P2pCircuit => Protocol::P2pCircuit,
-			LiteP2pProtocol::Quic => Protocol::Quic,
-			LiteP2pProtocol::QuicV1 => Protocol::QuicV1,
-			LiteP2pProtocol::Sctp(port) => Protocol::Sctp(port),
-			LiteP2pProtocol::Tcp(port) => Protocol::Tcp(port),
-			LiteP2pProtocol::Tls => Protocol::Tls,
-			LiteP2pProtocol::Noise => Protocol::Noise,
-			LiteP2pProtocol::Udp(port) => Protocol::Udp(port),
-			LiteP2pProtocol::Udt => Protocol::Udt,
-			LiteP2pProtocol::Unix(str) => Protocol::Unix(str),
-			LiteP2pProtocol::Utp => Protocol::Utp,
-			LiteP2pProtocol::Ws(str) => Protocol::Ws(str),
-			LiteP2pProtocol::Wss(str) => Protocol::Wss(str),
-		}
-	}
-}
-
-impl<'a> From<Protocol<'a>> for LiteP2pProtocol<'a> {
-	fn from(protocol: Protocol<'a>) -> Self {
-		match protocol {
-			Protocol::Dccp(port) => LiteP2pProtocol::Dccp(port),
-			Protocol::Dns(str) => LiteP2pProtocol::Dns(str),
-			Protocol::Dns4(str) => LiteP2pProtocol::Dns4(str),
-			Protocol::Dns6(str) => LiteP2pProtocol::Dns6(str),
-			Protocol::Dnsaddr(str) => LiteP2pProtocol::Dnsaddr(str),
-			Protocol::Http => LiteP2pProtocol::Http,
-			Protocol::Https => LiteP2pProtocol::Https,
-			Protocol::Ip4(ipv4_addr) => LiteP2pProtocol::Ip4(ipv4_addr),
-			Protocol::Ip6(ipv6_addr) => LiteP2pProtocol::Ip6(ipv6_addr),
-			Protocol::P2pWebRtcDirect => LiteP2pProtocol::P2pWebRtcDirect,
-			Protocol::P2pWebRtcStar => LiteP2pProtocol::P2pWebRtcStar,
-			Protocol::WebRTC => LiteP2pProtocol::WebRTC,
-			Protocol::Certhash(multihash) => LiteP2pProtocol::Certhash(multihash.into()),
-			Protocol::P2pWebSocketStar => LiteP2pProtocol::P2pWebSocketStar,
-			Protocol::Memory(port) => LiteP2pProtocol::Memory(port),
-			Protocol::Onion(str, port) => LiteP2pProtocol::Onion(str, port),
-			Protocol::Onion3(str, port) => LiteP2pProtocol::Onion3((str.into_owned(), port).into()),
-			Protocol::P2p(multihash) => LiteP2pProtocol::P2p(multihash.into()),
-			Protocol::P2pCircuit => LiteP2pProtocol::P2pCircuit,
-			Protocol::Quic => LiteP2pProtocol::Quic,
-			Protocol::QuicV1 => LiteP2pProtocol::QuicV1,
-			Protocol::Sctp(port) => LiteP2pProtocol::Sctp(port),
-			Protocol::Tcp(port) => LiteP2pProtocol::Tcp(port),
-			Protocol::Tls => LiteP2pProtocol::Tls,
-			Protocol::Noise => LiteP2pProtocol::Noise,
-			Protocol::Udp(port) => LiteP2pProtocol::Udp(port),
-			Protocol::Udt => LiteP2pProtocol::Udt,
-			Protocol::Unix(str) => LiteP2pProtocol::Unix(str),
-			Protocol::Utp => LiteP2pProtocol::Utp,
-			Protocol::Ws(str) => LiteP2pProtocol::Ws(str),
-			Protocol::Wss(str) => LiteP2pProtocol::Wss(str),
-		}
-	}
-}
-
 impl<'a> From<LibP2pProtocol<'a>> for Protocol<'a> {
 	fn from(protocol: LibP2pProtocol<'a>) -> Self {
 		match protocol {
@@ -208,6 +130,7 @@ impl<'a> From<LibP2pProtocol<'a>> for Protocol<'a> {
 			LibP2pProtocol::Utp => Protocol::Utp,
 			LibP2pProtocol::Ws(str) => Protocol::Ws(str),
 			LibP2pProtocol::Wss(str) => Protocol::Wss(str),
+			LibP2pProtocol::WebRTCDirect => Protocol::WebRTCDirect,
 			protocol => {
 				log::error!(
 					target: LOG_TARGET,
@@ -240,7 +163,7 @@ impl<'a> From<Protocol<'a>> for LibP2pProtocol<'a> {
 			Protocol::P2pWebRtcStar => LibP2pProtocol::P2pWebRtcStar,
 			// Protocol #280 is called `WebRTC` in multiaddr-17.0 and `WebRTCDirect` in
 			// multiaddr-18.1.
-			Protocol::WebRTC => LibP2pProtocol::WebRTCDirect,
+			Protocol::WebRTCDirect => LibP2pProtocol::WebRTCDirect,
 			Protocol::Certhash(multihash) => LibP2pProtocol::Certhash(multihash.into()),
 			Protocol::P2pWebSocketStar => LibP2pProtocol::P2pWebSocketStar,
 			Protocol::Memory(port) => LibP2pProtocol::Memory(port),

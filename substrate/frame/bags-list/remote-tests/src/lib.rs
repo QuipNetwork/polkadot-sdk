@@ -31,12 +31,12 @@ pub mod try_state;
 ///
 /// For example, this can be the `Runtime` type of the Polkadot runtime.
 pub trait RuntimeT<I: 'static>:
-	pallet_staking::Config + pallet_bags_list::Config<I> + frame_system::Config
+	pallet_staking_async::Config + pallet_bags_list::Config<I> + frame_system::Config
 {
 }
 impl<
 		I: 'static,
-		T: pallet_staking::Config + pallet_bags_list::Config<I> + frame_system::Config,
+		T: pallet_staking_async::Config + pallet_bags_list::Config<I> + frame_system::Config,
 	> RuntimeT<I> for T
 {
 }
@@ -53,10 +53,10 @@ pub fn display_and_check_bags<Runtime: RuntimeT<Instance1>>(
 	use frame_election_provider_support::SortedListProvider;
 	use frame_support::traits::Get;
 
-	let min_nominator_bond = <pallet_staking::MinNominatorBond<Runtime>>::get();
+	let min_nominator_bond = <pallet_staking_async::MinNominatorBond<Runtime>>::get();
 	log::info!(target: LOG_TARGET, "min nominator bond is {:?}", min_nominator_bond);
 
-	let voter_list_count = <Runtime as pallet_staking::Config>::VoterList::count();
+	let voter_list_count = <Runtime as pallet_staking_async::Config>::VoterList::count();
 
 	// go through every bag to track the total number of voters within bags and log some info about
 	// how voters are distributed within the bags.
@@ -93,7 +93,7 @@ pub fn display_and_check_bags<Runtime: RuntimeT<Instance1>>(
 				.try_into()
 				.map_err(|_| "runtime must configure score to at most u64 to use this test")
 				.unwrap();
-			let vote_weight_as_balance: pallet_staking::BalanceOf<Runtime> =
+			let vote_weight_as_balance: pallet_staking_async::BalanceOf<Runtime> =
 				vote_weight_thresh_u64.try_into().map_err(|_| "can't convert").unwrap();
 
 			if vote_weight_as_balance < min_nominator_bond {

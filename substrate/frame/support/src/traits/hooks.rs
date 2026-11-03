@@ -128,6 +128,7 @@ impl_for_tuples_attr! {
 		fn on_idle(n: BlockNumber, remaining_weight: Weight) -> Weight {
 			let on_idle_functions: &[fn(BlockNumber, Weight) -> Weight] =
 				&[for_tuples!( #( Tuple::on_idle ),* )];
+
 			let mut weight = Weight::zero();
 			let len = on_idle_functions.len();
 
@@ -571,7 +572,7 @@ pub trait Hooks<BlockNumber> {
 
 /// A trait to define the build function of a genesis config for both runtime and pallets.
 ///
-/// Replaces deprecated [`GenesisBuild<T,I>`].
+/// A trait to define the build function of a genesis config.
 pub trait BuildGenesisConfig: sp_runtime::traits::MaybeSerializeDeserialize {
 	/// The build function puts initial `GenesisConfig` keys/values pairs into the storage.
 	fn build(&self);
@@ -579,34 +580,6 @@ pub trait BuildGenesisConfig: sp_runtime::traits::MaybeSerializeDeserialize {
 
 impl BuildGenesisConfig for () {
 	fn build(&self) {}
-}
-
-/// A trait to define the build function of a genesis config, T and I are placeholder for pallet
-/// trait and pallet instance.
-#[deprecated(
-	note = "GenesisBuild is planned to be removed in December 2023. Use BuildGenesisConfig instead of it."
-)]
-pub trait GenesisBuild<T, I = ()>: sp_runtime::traits::MaybeSerializeDeserialize {
-	/// The build function is called within an externalities allowing storage APIs.
-	/// Thus one can write to storage using regular pallet storages.
-	fn build(&self);
-
-	/// Build the storage using `build` inside default storage.
-	#[cfg(feature = "std")]
-	fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
-		let mut storage = Default::default();
-		self.assimilate_storage(&mut storage)?;
-		Ok(storage)
-	}
-
-	/// Assimilate the storage for this module into pre-existing overlays.
-	#[cfg(feature = "std")]
-	fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
-		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
-			self.build();
-			Ok(())
-		})
-	}
 }
 
 impl_for_tuples_attr! {

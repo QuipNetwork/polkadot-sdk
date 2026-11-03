@@ -1,0 +1,24 @@
+title: Add issuance drip and budget distribution to pallet-dap
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds issuance drip and budget distribution to `pallet-dap`. DAP mints new tokens on a
+    configurable cadence via `IssuanceCurve` and distributes them to registered
+    `BudgetRecipient`s according to a governance-updatable allocation map.
+
+    Includes `set_budget_allocation` extrinsic, `OnUnbalanced` slash handling with buffer
+    deactivation, safety ceiling on elapsed time, and a V1→V2 migration struct (not yet applied).
+
+    All runtimes are configured with a noop `IssuanceCurve` (`()` impl that returns 0) so there
+    is no behavior change. Minting will be enabled when staking is integrated with DAP.
+crates:
+- name: pallet-dap
+  bump: major
+- name: sp-staking
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: major
+- name: pallet-staking-async-parachain-runtime
+  bump: patch
+- name: pallet-ahm-test
+  bump: patch

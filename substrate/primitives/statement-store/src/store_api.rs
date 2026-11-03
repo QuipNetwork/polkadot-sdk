@@ -20,6 +20,33 @@ use crate::{Hash, Statement, Topic, MAX_ANY_TOPICS, MAX_TOPICS};
 use sp_core::{bounded_vec::BoundedVec, Bytes, ConstU32};
 use std::collections::HashSet;
 
+/// Identifier for a filter attached to a multi-filter subscription
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FilterId(u64);
+
+impl FilterId {
+	/// Creates a filter id from its numeric representation
+	pub fn new(id: u64) -> Self {
+		FilterId(id)
+	}
+
+	/// Returns the numeric representation of this filter id
+	pub fn as_u64(&self) -> u64 {
+		self.0
+	}
+}
+
+/// Live statement event emitted by a multi-filter subscription
+#[derive(Debug, Clone)]
+pub struct LiveStatementEvent {
+	/// Hash of the statement
+	pub hash: Hash,
+	/// SCALE-encoded statement bytes
+	pub encoded: Vec<u8>,
+	/// Filter ids that matched the statement
+	pub matched_filter_ids: Vec<FilterId>,
+}
+
 /// Statement store error.
 #[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -72,8 +99,7 @@ impl OptimizedTopicFilter {
 		match self {
 			OptimizedTopicFilter::Any => true,
 			OptimizedTopicFilter::MatchAll(topics) => {
-				statement.topics().iter().filter(|topic| topics.contains(*topic)).count() ==
-					topics.len()
+				topics.iter().all(|topic| statement.topics().contains(topic))
 			},
 			OptimizedTopicFilter::MatchAny(topics) => {
 				statement.topics().iter().any(|topic| topics.contains(topic))
@@ -170,6 +196,18 @@ pub enum InvalidReason {
 	AlreadyExpired,
 }
 
+impl InvalidReason {
+	/// Returns a short string label suitable for use in metrics.
+	pub fn label(&self) -> &'static str {
+		match self {
+			InvalidReason::NoProof => "no_proof",
+			InvalidReason::BadProof => "bad_proof",
+			InvalidReason::EncodingTooLarge { .. } => "encoding_too_large",
+			InvalidReason::AlreadyExpired => "already_expired",
+		}
+	}
+}
+
 /// Statement submission outcome
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -187,6 +225,127 @@ pub enum SubmitResult {
 	Invalid(InvalidReason),
 	/// Internal store error.
 	InternalError(Error),
+}
+
+/// Rejection reason as exposed by the spec-v2 `statement_unstable_submit` RPC.
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+	feature = "serde",
+	serde(tag = "reason", rename_all = "camelCase", rename_all_fields = "camelCase")
+)]
+pub enum SubmitRejectionReason {
+	/// Statement data exceeds the maximum allowed size for the account.
+	DataTooLarge {
+		/// The size of the submitted statement data.
+		submitted_size: usize,
+		/// Still available data size for the account.
+		available_size: usize,
+	},
+	/// Attempting to replace a channel message with lower or equal expiry.
+	ChannelPriorityTooLow {
+		/// The expiry of the submitted statement.
+		submitted_expiry: u64,
+		/// The minimum expiry of the existing channel message.
+		min_expiry: u64,
+	},
+	/// Account reached its statement limit and submitted expiry is too low to evict existing.
+	AccountFull {
+		/// The expiry of the submitted statement.
+		submitted_expiry: u64,
+		/// The minimum expiry of the existing statement.
+		min_expiry: u64,
+	},
+	/// The global statement store is full and cannot accept new statements.
+	StoreFull,
+	/// Account has no allowance set.
+	NoAllowance,
+}
+
+impl From<RejectionReason> for SubmitRejectionReason {
+	fn from(reason: RejectionReason) -> Self {
+		match reason {
+			RejectionReason::DataTooLarge { submitted_size, available_size } => {
+				SubmitRejectionReason::DataTooLarge { submitted_size, available_size }
+			},
+			RejectionReason::ChannelPriorityTooLow { submitted_expiry, min_expiry } => {
+				SubmitRejectionReason::ChannelPriorityTooLow { submitted_expiry, min_expiry }
+			},
+			RejectionReason::AccountFull { submitted_expiry, min_expiry } => {
+				SubmitRejectionReason::AccountFull { submitted_expiry, min_expiry }
+			},
+			RejectionReason::StoreFull => SubmitRejectionReason::StoreFull,
+			RejectionReason::NoAllowance => SubmitRejectionReason::NoAllowance,
+		}
+	}
+}
+
+/// Invalid reason as exposed by the spec-v2 `statement_unstable_submit` RPC.
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+	feature = "serde",
+	serde(tag = "reason", rename_all = "camelCase", rename_all_fields = "camelCase")
+)]
+pub enum SubmitInvalidReason {
+	/// Statement has no proof.
+	NoProof,
+	/// Proof validation failed.
+	BadProof,
+	/// Statement exceeds max allowed statement size.
+	EncodingTooLarge {
+		/// The size of the submitted statement encoding.
+		submitted_size: usize,
+		/// The maximum allowed size.
+		max_size: usize,
+	},
+	/// Statement has already expired. The expiry field is in the past.
+	AlreadyExpired,
+}
+
+impl From<InvalidReason> for SubmitInvalidReason {
+	fn from(reason: InvalidReason) -> Self {
+		match reason {
+			InvalidReason::NoProof => SubmitInvalidReason::NoProof,
+			InvalidReason::BadProof => SubmitInvalidReason::BadProof,
+			InvalidReason::EncodingTooLarge { submitted_size, max_size } => {
+				SubmitInvalidReason::EncodingTooLarge { submitted_size, max_size }
+			},
+			InvalidReason::AlreadyExpired => SubmitInvalidReason::AlreadyExpired,
+		}
+	}
+}
+
+/// Statement submission outcome exposed by the spec-v2 `statement_unstable_submit` RPC.
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "status", rename_all = "camelCase"))]
+pub enum SubmitOutcome {
+	/// Statement was accepted as new
+	New,
+	/// Statement was already known
+	Known,
+	/// Statement was rejected because the store is full or priority is too low
+	Rejected(SubmitRejectionReason),
+	/// Statement failed validation
+	Invalid(SubmitInvalidReason),
+}
+
+impl SubmitOutcome {
+	/// Converts a store submission result into the RPC-visible outcome
+	pub fn from_submit_result(result: SubmitResult) -> std::result::Result<Self, Error> {
+		match result {
+			SubmitResult::New => Ok(SubmitOutcome::New),
+			SubmitResult::Known => Ok(SubmitOutcome::Known),
+			// The store only returns `KnownExpired` for `Network` sources; the RPC path is `Local`.
+			SubmitResult::KnownExpired => {
+				Err(Error::Storage("unexpected KnownExpired on local submission".into()))
+			},
+			SubmitResult::Rejected(reason) => Ok(SubmitOutcome::Rejected(reason.into())),
+			SubmitResult::Invalid(reason) => Ok(SubmitOutcome::Invalid(reason.into())),
+			SubmitResult::InternalError(error) => Err(error),
+		}
+	}
 }
 
 /// An item returned by the statement subscription stream.
@@ -222,16 +381,29 @@ pub enum FilterDecision {
 	Abort,
 }
 
+/// A batch of statements read from the admission journal by
+/// [`StatementStore::admitted_statements`].
+#[derive(Debug)]
+pub struct AdmittedBatch {
+	/// The taken statements, oldest admission first.
+	pub statements: Vec<(Hash, Statement)>,
+	/// Admission sequence number to resume the walk from.
+	pub cursor: u64,
+	/// Whether the walk reached the watermark; always equals `cursor >= watermark`.
+	pub done: bool,
+}
+
 /// Statement store API.
 pub trait StatementStore: Send + Sync {
 	/// Return all statements.
 	fn statements(&self) -> Result<Vec<(Hash, Statement)>>;
 
-	/// Return recent statements and clear the internal index.
+	/// Return recent statements with their admission sequence numbers, oldest admission
+	/// first, and clear the internal index.
 	///
 	/// This consumes and clears the recently received statements,
 	/// allowing new statements to be collected from this point forward.
-	fn take_recent_statements(&self) -> Result<Vec<(Hash, Statement)>>;
+	fn take_recent_statements(&self) -> Result<Vec<(u64, Hash, Statement)>>;
 
 	/// Get statement by hash.
 	fn statement(&self, hash: &Hash) -> Result<Option<Statement>>;
@@ -240,9 +412,6 @@ pub trait StatementStore: Send + Sync {
 	///
 	/// Fast index check without accessing the DB.
 	fn has_statement(&self, hash: &Hash) -> bool;
-
-	/// Return all statement hashes.
-	fn statement_hashes(&self) -> Vec<Hash>;
 
 	/// Fetch statements by their hashes with a filter callback.
 	///
@@ -257,6 +426,36 @@ pub trait StatementStore: Send + Sync {
 		hashes: &[Hash],
 		filter: &mut dyn FnMut(&Hash, &[u8], &Statement) -> FilterDecision,
 	) -> Result<(Vec<(Hash, Statement)>, usize)>;
+
+	/// One past the newest assigned admission sequence number.
+	///
+	/// Every statement currently in the store was admitted below this boundary, so it
+	/// serves as the watermark for a subsequent [`Self::admitted_statements`] walk.
+	fn admission_watermark(&self) -> Result<u64>;
+
+	/// Walk the admission journal from `cursor` (inclusive) towards `watermark`
+	/// (exclusive), collecting statements through a filter callback.
+	///
+	/// The callback receives (hash, encoded_bytes, decoded_statement) and returns:
+	/// - `Skip`: leave this statement out of the batch, continue to next
+	/// - `Take`: include this statement in the batch, continue to next
+	/// - `Abort`: stop the walk before this statement
+	///
+	/// Sequence numbers whose statement has left the store are passed over. The returned
+	/// cursor sits after every visited statement except an `Abort`ed one, which the next
+	/// walk revisits first.
+	///
+	/// A call visits at most `scan_limit` journal entries, passed-over ones included, so
+	/// its cost stays bounded even when the filter takes nothing. `scan_limit` must be
+	/// positive: a walk that visits no entries cannot advance the cursor. A walk stopped
+	/// by the limit returns a partial cursor to resume from, exactly like an `Abort`.
+	fn admitted_statements(
+		&self,
+		cursor: u64,
+		watermark: u64,
+		scan_limit: usize,
+		filter: &mut dyn FnMut(&Hash, &[u8], &Statement) -> FilterDecision,
+	) -> Result<AdmittedBatch>;
 
 	/// Return the data of all known statements which include all topics and have no `DecryptionKey`
 	/// field.

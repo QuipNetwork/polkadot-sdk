@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{foreign_balance_on, foreign_issuance_on, imports::*};
+use crate::{assets_balance_on, foreign_balance_on, foreign_issuance_on, imports::*};
 
 fn relay_origin_assertions(t: RelayToSystemParaTest) {
 	type RuntimeEvent = <Westend as Chain>::RuntimeEvent;
@@ -41,7 +41,7 @@ fn penpal_to_ah_foreign_assets_sender_assertions(t: ParaToSystemParaTest) {
 	assert_expected_events!(
 		PenpalA,
 		vec![
-			RuntimeEvent::ForeignAssets(
+			RuntimeEvent::Assets(
 				pallet_assets::Event::Withdrawn { asset_id, who, .. }
 			) => {
 				asset_id: *asset_id == system_para_native_asset_location,
@@ -81,7 +81,7 @@ fn penpal_to_ah_foreign_assets_receiver_assertions(t: ParaToSystemParaTest) {
 				who: *who == t.receiver.account_id,
 			},
 			RuntimeEvent::ForeignAssets(pallet_assets::Event::Deposited { asset_id, who, amount }) => {
-				asset_id: *asset_id == PenpalATeleportableAssetLocation::get(),
+				asset_id: *asset_id == PenpalAPen2TeleportableAssetLocation::get(),
 				who: *who == t.receiver.account_id,
 				amount: *amount == expected_foreign_asset_amount,
 			},
@@ -134,7 +134,7 @@ fn ah_to_penpal_foreign_assets_receiver_assertions(t: SystemParaToParaTest) {
 				amount: *amount == expected_asset_amount,
 			},
 			// native asset for fee is deposited to receiver
-			RuntimeEvent::ForeignAssets(pallet_assets::Event::Deposited { asset_id, who, .. }) => {
+			RuntimeEvent::Assets(pallet_assets::Event::Deposited { asset_id, who, .. }) => {
 				asset_id: *asset_id == system_para_native_asset_location,
 				who: *who == t.receiver.account_id,
 			},
@@ -514,12 +514,7 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 ) {
 	// Init values for Parachain
 	let fee_amount_to_send: Balance = ASSET_HUB_WESTEND_ED * 1000;
-	let asset_location_on_penpal =
-		PenpalA::execute_with(|| PenpalLocalTeleportableToAssetHub::get());
-	let asset_id_on_penpal = match asset_location_on_penpal.last() {
-		Some(Junction::GeneralIndex(id)) => *id as u32,
-		_ => unreachable!(),
-	};
+	let asset_location_on_penpal = PenpalA::execute_with(|| PenpalLocalPen2Asset::get());
 	let asset_amount_to_send = ASSET_HUB_WESTEND_ED * 1000;
 	let asset_owner = PenpalAssetOwner::get();
 	let system_para_native_asset_location = RelayLocation::get();
@@ -544,10 +539,11 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 		sender.clone(),
 		fee_amount_to_send * 2,
 	);
+
 	// No need to create the asset (only mint) as it exists in genesis.
-	PenpalA::mint_asset(
+	PenpalA::mint_foreign_asset(
 		<PenpalA as Chain>::RuntimeOrigin::signed(asset_owner.clone()),
-		asset_id_on_penpal,
+		asset_location_on_penpal.clone(),
 		sender.clone(),
 		asset_amount_to_send * 2,
 	);
@@ -568,7 +564,7 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 	// Init values for System Parachain
 	let foreign_asset_at_asset_hub =
 		Location::new(1, [Junction::Parachain(PenpalA::para_id().into())])
-			.appended_with(asset_location_on_penpal)
+			.appended_with(asset_location_on_penpal.clone())
 			.unwrap();
 	let penpal_to_ah_beneficiary_id = AssetHubWestendReceiver::get();
 
@@ -581,12 +577,12 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 			penpal_to_ah_beneficiary_id,
 			asset_amount_to_send,
 			penpal_assets,
-			Some(asset_id_on_penpal),
+			Some(asset_location_on_penpal.clone()),
 			fee_asset_index,
 		),
 	};
 	let mut penpal_to_ah = ParaToSystemParaTest::new(penpal_to_ah_test_args);
-	let penpal_sender_balance_before = foreign_balance_on!(
+	let penpal_sender_balance_before = assets_balance_on!(
 		PenpalA,
 		system_para_native_asset_location.clone(),
 		&PenpalASender::get()
@@ -594,10 +590,8 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 
 	let ah_receiver_balance_before = penpal_to_ah.receiver.balance;
 
-	let penpal_sender_assets_before = PenpalA::execute_with(|| {
-		type Assets = <PenpalA as PenpalAPallet>::Assets;
-		<Assets as Inspect<_>>::balance(asset_id_on_penpal, &PenpalASender::get())
-	});
+	let penpal_sender_assets_before =
+		assets_balance_on!(PenpalA, asset_location_on_penpal.clone(), &PenpalASender::get());
 	let ah_receiver_assets_before = foreign_balance_on!(
 		AssetHubWestend,
 		foreign_asset_at_asset_hub.clone(),
@@ -611,7 +605,7 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 	penpal_to_ah.set_dispatchable::<PenpalA>(para_to_ah_dispatchable);
 	penpal_to_ah.assert();
 
-	let penpal_sender_balance_after = foreign_balance_on!(
+	let penpal_sender_balance_after = assets_balance_on!(
 		PenpalA,
 		system_para_native_asset_location.clone(),
 		&PenpalASender::get()
@@ -619,10 +613,8 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 
 	let ah_receiver_balance_after = penpal_to_ah.receiver.balance;
 
-	let penpal_sender_assets_after = PenpalA::execute_with(|| {
-		type Assets = <PenpalA as PenpalAPallet>::Assets;
-		<Assets as Inspect<_>>::balance(asset_id_on_penpal, &PenpalASender::get())
-	});
+	let penpal_sender_assets_after =
+		assets_balance_on!(PenpalA, asset_location_on_penpal.clone(), &PenpalASender::get());
 	let ah_receiver_assets_after = foreign_balance_on!(
 		AssetHubWestend,
 		foreign_asset_at_asset_hub.clone(),
@@ -688,14 +680,14 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 			ah_to_penpal_beneficiary_id,
 			asset_amount_to_send,
 			ah_assets,
-			Some(asset_id_on_penpal),
+			Some(asset_location_on_penpal.clone()),
 			fee_asset_index,
 		),
 	};
 	let mut ah_to_penpal = SystemParaToParaTest::new(ah_to_penpal_test_args);
 
 	let ah_sender_balance_before = ah_to_penpal.sender.balance;
-	let penpal_receiver_balance_before = foreign_balance_on!(
+	let penpal_receiver_balance_before = assets_balance_on!(
 		PenpalA,
 		system_para_native_asset_location.clone(),
 		&PenpalAReceiver::get()
@@ -706,10 +698,8 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 		foreign_asset_at_asset_hub.clone(),
 		&AssetHubWestendSender::get()
 	);
-	let penpal_receiver_assets_before = PenpalA::execute_with(|| {
-		type Assets = <PenpalA as PenpalAPallet>::Assets;
-		<Assets as Inspect<_>>::balance(asset_id_on_penpal, &PenpalAReceiver::get())
-	});
+	let penpal_receiver_assets_before =
+		assets_balance_on!(PenpalA, asset_location_on_penpal.clone(), &PenpalAReceiver::get());
 	let ah_issuance_before =
 		foreign_issuance_on!(AssetHubWestend, foreign_asset_at_asset_hub.clone());
 
@@ -720,17 +710,15 @@ pub fn do_bidirectional_teleport_foreign_assets_between_para_and_asset_hub_using
 
 	let ah_sender_balance_after = ah_to_penpal.sender.balance;
 	let penpal_receiver_balance_after =
-		foreign_balance_on!(PenpalA, system_para_native_asset_location, &PenpalAReceiver::get());
+		assets_balance_on!(PenpalA, system_para_native_asset_location, &PenpalAReceiver::get());
 
 	let ah_sender_assets_after = foreign_balance_on!(
 		AssetHubWestend,
 		foreign_asset_at_asset_hub.clone(),
 		&AssetHubWestendSender::get()
 	);
-	let penpal_receiver_assets_after = PenpalA::execute_with(|| {
-		type Assets = <PenpalA as PenpalAPallet>::Assets;
-		<Assets as Inspect<_>>::balance(asset_id_on_penpal, &PenpalAReceiver::get())
-	});
+	let penpal_receiver_assets_after =
+		assets_balance_on!(PenpalA, asset_location_on_penpal.clone(), &PenpalAReceiver::get());
 	let ah_issuance_after = foreign_issuance_on!(AssetHubWestend, foreign_asset_at_asset_hub);
 
 	// Sender's balance is reduced
@@ -809,4 +797,16 @@ fn teleport_to_untrusted_chain_fails() {
 		);
 		assert!(result.is_err());
 	});
+}
+
+#[test]
+fn accumulate_forward_relay_transfers_native_to_asset_hub() {
+	// Required so the relay's XCM router knows the version for the AssetHub parachain.
+	Westend::execute_with(|| {
+		Dmp::make_parachain_reachable(AssetHubWestend::para_id());
+	});
+	emulated_integration_tests_common::dap_helpers::test_accumulate_forward_transfers_to_asset_hub::<
+		Westend,
+		AssetHubWestend,
+	>();
 }

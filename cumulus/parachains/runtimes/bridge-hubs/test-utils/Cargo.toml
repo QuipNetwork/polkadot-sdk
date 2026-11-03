@@ -1,6 +1,6 @@
 [package]
 name = "bridge-hub-test-utils"
-version = "0.29.0"
+version = "0.41.0"
 authors.workspace = true
 edition.workspace = true
 description = "Utils for BridgeHub testing"
@@ -12,7 +12,37 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-asset-test-utils = { default-features = true, workspace = true }
+codec = { features = ["derive", "max-encoded-len"], workspace = true }
+impl-trait-for-tuples = { workspace = true }
+tracing = { workspace = true }
+
+# Substrate
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-utility = { workspace = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
+sp-tracing = { workspace = true, default-features = true }
+
+# Cumulus
+asset-test-utils = { workspace = true, default-features = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-xcmp-queue = { workspace = true }
+parachains-common = { workspace = true }
+parachains-runtimes-test-utils = { workspace = true }
+
+# Polkadot
+pallet-xcm = { workspace = true }
+xcm = { workspace = true }
+xcm-builder = { workspace = true }
+xcm-executor = { workspace = true }
+
+# Bridges
 bp-header-chain = { workspace = true }
 bp-messages = { workspace = true }
 bp-parachains = { workspace = true }
@@ -20,33 +50,11 @@ bp-polkadot-core = { workspace = true }
 bp-relayers = { workspace = true }
 bp-runtime = { workspace = true }
 bp-test-utils = { workspace = true }
-codec = { features = ["derive", "max-encoded-len"], workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-xcmp-queue = { workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
-impl-trait-for-tuples = { workspace = true }
-pallet-balances = { workspace = true }
 pallet-bridge-grandpa = { workspace = true }
 pallet-bridge-messages = { features = ["test-helpers"], workspace = true }
 pallet-bridge-parachains = { workspace = true }
 pallet-bridge-relayers = { workspace = true }
-pallet-timestamp = { workspace = true }
-pallet-utility = { workspace = true }
-pallet-xcm = { workspace = true }
 pallet-xcm-bridge-hub = { workspace = true }
-parachains-common = { workspace = true }
-parachains-runtimes-test-utils = { workspace = true }
-sp-core = { workspace = true }
-sp-io = { workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { workspace = true }
-sp-std = { workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-tracing = { workspace = true }
-xcm = { workspace = true }
-xcm-builder = { workspace = true }
-xcm-executor = { workspace = true }
 
 [features]
 default = ["std"]
@@ -83,4 +91,23 @@ std = [
 	"xcm-builder/std",
 	"xcm-executor/std",
 	"xcm/std",
+]
+try-runtime = [
+	"asset-test-utils/try-runtime",
+	"cumulus-pallet-parachain-system/try-runtime",
+	"cumulus-pallet-xcmp-queue/try-runtime",
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-bridge-grandpa/try-runtime",
+	"pallet-bridge-messages/try-runtime",
+	"pallet-bridge-parachains/try-runtime",
+	"pallet-bridge-relayers/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"pallet-utility/try-runtime",
+	"pallet-xcm-bridge-hub/try-runtime",
+	"pallet-xcm/try-runtime",
+	"parachains-common/try-runtime",
+	"parachains-runtimes-test-utils/try-runtime",
+	"sp-runtime/try-runtime",
 ]

@@ -168,8 +168,20 @@ pub struct RunCmd {
 	pub collator_protocol_hold_off: Option<u64>,
 
 	/// Enable experimental collator protocol. TESTING ONLY! Don't use on production
-	#[arg(long, hide = true, default_value = "false")]
-	pub experimental_collator_protocol: bool,
+	/// Defaults to enabled on Kusama and disabled everywhere else. Pass `=false` to opt out.
+	#[arg(
+		long,
+		hide = true,
+		// to support `--experimental-collator-protocol=[true|false]` and
+		// just `--experimental-collator-protocol`
+		num_args = 0..=1,
+		// otherwise the parameter becomes greedy and consumes the first value after it,
+		// e.g. `--experimental-collator-protocol chain-info`
+		require_equals = true,
+		// means that `--experimental-collator-protocol` w/o explicit value equals to "on" (`true`)
+		default_missing_value = "true"
+	)]
+	pub experimental_collator_protocol: Option<bool>,
 
 	/// Collator reputation persistence interval in seconds.
 	/// If not specified, defaults to 600 seconds (10 minutes).

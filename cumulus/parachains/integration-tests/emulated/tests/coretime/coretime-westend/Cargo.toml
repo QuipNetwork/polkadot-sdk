@@ -1,6 +1,6 @@
 [package]
 name = "coretime-westend-integration-tests"
-version = "0.1.0"
+version = "0.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -11,14 +11,20 @@ publish = false
 workspace = true
 
 [dependencies]
-cumulus-pallet-parachain-system = { default-features = true, workspace = true }
-emulated-integration-tests-common = { workspace = true }
+# Substrate
 frame-support = { workspace = true }
-pallet-broker = { default-features = true, workspace = true }
+pallet-broker = { workspace = true, default-features = true }
 pallet-message-queue = { workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
 sp-runtime = { workspace = true }
-westend-runtime-constants = { default-features = true, workspace = true }
-westend-system-emulated-network = { workspace = true }
+
+# Polkadot
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+westend-runtime-constants = { workspace = true, default-features = true }
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
+
+# Cumulus
+coretime-westend-runtime = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true, default-features = true }
+emulated-integration-tests-common = { workspace = true }
+westend-system-emulated-network = { workspace = true }

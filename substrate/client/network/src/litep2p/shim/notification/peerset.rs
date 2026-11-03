@@ -40,7 +40,10 @@
 
 use crate::{
 	peer_store::{PeerStoreProvider, ProtocolHandle},
-	service::traits::{self, ValidationResult},
+	service::{
+		metrics::NotificationMetrics,
+		traits::{self, ValidationResult},
+	},
 	ProtocolName, ReputationChange as Reputation,
 };
 
@@ -368,6 +371,9 @@ pub struct Peerset {
 
 	/// Next time when [`Peerset`] should perform slot allocation.
 	next_slot_allocation: Delay,
+
+	/// Notification metrics.
+	metrics: NotificationMetrics,
 }
 
 macro_rules! decrement_or_warn {
@@ -412,6 +418,7 @@ impl Peerset {
 		reserved_peers: HashSet<PeerId>,
 		connected_peers: Arc<AtomicUsize>,
 		peerstore_handle: Arc<dyn PeerStoreProvider>,
+		metrics: NotificationMetrics,
 	) -> (Self, TracingUnboundedSender<PeersetCommand>) {
 		let (cmd_tx, cmd_rx) = tracing_unbounded("mpsc-peerset-protocol", 100_000);
 		let peers = reserved_peers
@@ -447,6 +454,7 @@ impl Peerset {
 				connected_peers,
 				pending_backoffs: FuturesUnordered::new(),
 				next_slot_allocation: Delay::new(SLOT_ALLOCATION_FREQUENCY),
+				metrics,
 			},
 			cmd_tx,
 		)
@@ -929,6 +937,44 @@ impl Peerset {
 			Direction::Outbound(Reserved::No) => self.num_out += 1,
 			_ => {},
 		}
+	}
+
+	/// Report connected peer counts to metrics.
+	fn update_slot_metrics(&self) {
+		let (mut in_reserved, mut in_non_reserved) = (0usize, 0usize);
+		let (mut out_reserved, mut out_non_reserved) = (0usize, 0usize);
+		let (mut num_disconnected, mut num_backoff) = (0usize, 0usize);
+
+		for state in self.peers.values() {
+			match state {
+				PeerState::Connected { direction: Direction::Inbound(Reserved::Yes) } => {
+					in_reserved += 1
+				},
+				PeerState::Connected { direction: Direction::Inbound(Reserved::No) } => {
+					in_non_reserved += 1
+				},
+				PeerState::Connected { direction: Direction::Outbound(Reserved::Yes) } => {
+					out_reserved += 1
+				},
+				PeerState::Connected { direction: Direction::Outbound(Reserved::No) } => {
+					out_non_reserved += 1
+				},
+				PeerState::Disconnected => num_disconnected += 1,
+				PeerState::Backoff => num_backoff += 1,
+
+				_ => {},
+			}
+		}
+
+		self.metrics.set_peerset_num_connected(
+			&self.protocol,
+			in_reserved,
+			in_non_reserved,
+			out_reserved,
+			out_non_reserved,
+			num_disconnected,
+			num_backoff,
+		);
 	}
 
 	/// Connect to all reserved peers.
@@ -1515,9 +1561,13 @@ impl Stream for Peerset {
 				}
 			}
 
-			// start timer for the next allocation and if there were peers which the `Peerset`
+			// Start timer for the next allocation and if there were peers which the `Peerset`
 			// wasn't connected but should be, send command to litep2p to start opening substreams.
 			self.next_slot_allocation = Delay::new(SLOT_ALLOCATION_FREQUENCY);
+
+			// Update metrics on every tick of slot allocation. This ensures metrics are
+			// eventually consistent at 1s intervals.
+			self.update_slot_metrics();
 
 			if !connect_to.is_empty() {
 				log::trace!(

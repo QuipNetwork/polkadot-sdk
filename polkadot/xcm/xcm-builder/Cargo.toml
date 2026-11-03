@@ -4,7 +4,7 @@ description = "Tools & types for building with XCM and its executor."
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-version = "26.0.0"
+version = "31.0.0"
 homepage.workspace = true
 repository.workspace = true
 
@@ -17,9 +17,9 @@ environmental = { workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 impl-trait-for-tuples = { workspace = true }
+pallet-accumulate-and-forward = { workspace = true }
 pallet-asset-conversion = { workspace = true }
 pallet-transaction-payment = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 sp-arithmetic = { workspace = true }
 sp-core = { workspace = true }
@@ -30,23 +30,27 @@ tracing = { workspace = true }
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
 
+# Polkadot dependencies
+polkadot-parachain-primitives = { workspace = true }
+
 [dev-dependencies]
-pallet-assets = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-salary = { default-features = true, workspace = true }
-pallet-xcm = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
+pallet-assets = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-salary = { workspace = true, default-features = true }
+pallet-xcm = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
 polkadot-test-runtime = { workspace = true }
 primitive-types = { features = ["codec", "num-traits", "scale-info"], workspace = true }
-sp-tracing = { default-features = true, workspace = true }
-xcm-simulator = { default-features = true, workspace = true }
+sp-tracing = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
 runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"pallet-accumulate-and-forward/runtime-benchmarks",
 	"pallet-asset-conversion/runtime-benchmarks",
 	"pallet-assets/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
@@ -66,6 +70,7 @@ std = [
 	"environmental/std",
 	"frame-support/std",
 	"frame-system/std",
+	"pallet-accumulate-and-forward/std",
 	"pallet-asset-conversion/std",
 	"pallet-transaction-payment/std",
 	"polkadot-parachain-primitives/std",

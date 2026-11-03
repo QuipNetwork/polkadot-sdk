@@ -1,7 +1,7 @@
 [package]
 name = "parachain-template-node"
 description = "A parachain node template built with Substrate and Cumulus, part of Polkadot Sdk."
-version = "0.1.0"
+version = "0.0.0"
 license = "Unlicense"
 authors.workspace = true
 homepage.workspace = true
@@ -21,10 +21,14 @@ docify = { workspace = true }
 futures = { workspace = true }
 jsonrpsee = { features = ["server"], workspace = true }
 log = { workspace = true, default-features = true }
-parachain-template-runtime = { workspace = true }
-polkadot-sdk = { workspace = true, features = ["node", "polkadot-primitives"] }
-prometheus-endpoint = { default-features = true, workspace = true }
 serde = { features = ["derive"], workspace = true, default-features = true }
+
+polkadot-sdk = { workspace = true, features = ["node", "polkadot-primitives"] }
+
+parachain-template-runtime = { workspace = true }
+
+# Substrate
+prometheus-endpoint = { workspace = true, default-features = true }
 
 [build-dependencies]
 polkadot-sdk = { workspace = true, features = ["substrate-build-script-utils"] }

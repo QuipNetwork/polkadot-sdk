@@ -77,6 +77,11 @@ pub struct OnlineConfig<H> {
 	pub hashed_prefixes: Vec<Vec<u8>>,
 	/// Storage entry keys to be injected into the externalities. The *hashed* key must be given.
 	pub hashed_keys: Vec<Vec<u8>>,
+	/// Disable verifying the downloaded storage root against the block header's state root.
+	///
+	/// The check fails `build` when the scraped state is incomplete or corrupted. Set this to
+	/// bypass it when deliberately overwriting the state version. Use with care.
+	pub disable_root_check: bool,
 }
 
 impl<H: Clone> OnlineConfig<H> {
@@ -95,6 +100,7 @@ impl<H> Default for OnlineConfig<H> {
 			pallets: Default::default(),
 			hashed_keys: Default::default(),
 			hashed_prefixes: Default::default(),
+			disable_root_check: false,
 		}
 	}
 }

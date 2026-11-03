@@ -1,0 +1,8 @@
+title: Expose BLS host functions to the omni-bencher
+doc:
+- audience: Runtime Dev
+  description: |-
+    Expose BLS host functions to frame-omni-bencher.
+crates:
+- name: frame-omni-bencher
+  bump: minor

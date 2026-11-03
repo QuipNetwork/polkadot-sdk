@@ -44,7 +44,7 @@ use super::{
 	pool::{
 		BlockHash, ChainApi, EventStream, ExtrinsicFor, ExtrinsicHash, Options, TransactionFor,
 	},
-	rotator::PoolRotator,
+	rotator::{BanReason, PoolRotator},
 	watcher::Watcher,
 };
 
@@ -260,14 +260,27 @@ impl<B: ChainApi, L: EventHandler<B>> ValidatedPool<B, L> {
 		}
 	}
 
-	/// Bans given set of hashes.
-	pub fn ban(&self, now: &Instant, hashes: impl IntoIterator<Item = ExtrinsicHash<B>>) {
-		self.rotator.ban(now, hashes)
+	/// Bans given set of hashes with the specified reason.
+	pub fn ban(
+		&self,
+		now: &Instant,
+		hashes: impl IntoIterator<Item = ExtrinsicHash<B>>,
+		reason: BanReason,
+	) {
+		self.rotator.ban(now, hashes, reason)
 	}
 
 	/// Returns true if transaction with given hash is currently banned from the pool.
 	pub fn is_banned(&self, hash: &ExtrinsicHash<B>) -> bool {
 		self.rotator.is_banned(hash)
+	}
+
+	/// Removes the ban for a transaction, but only if it was banned for
+	/// [`BanReason::Validation`].
+	///
+	/// Returns `true` if the ban was removed.
+	pub fn unban_if_validation(&self, hash: &ExtrinsicHash<B>) -> bool {
+		self.rotator.unban_if_validation(hash)
 	}
 
 	/// A fast check before doing any further processing of a transaction, like validation.
@@ -375,7 +388,8 @@ impl<B: ChainApi, L: EventHandler<B>> ValidatedPool<B, L> {
 					?error,
 					"ValidatedPool::submit_one invalid"
 				);
-				self.rotator.ban(&Instant::now(), std::iter::once(tx_hash));
+				self.rotator
+					.ban(&Instant::now(), std::iter::once(tx_hash), BanReason::Validation);
 				Err(error)
 			},
 			ValidatedTransaction::Unknown(tx_hash, error) => {
@@ -417,7 +431,11 @@ impl<B: ChainApi, L: EventHandler<B>> ValidatedPool<B, L> {
 					.map(|x| x.hash)
 					.collect::<HashSet<_>>();
 				// ban all removed transactions
-				self.rotator.ban(&Instant::now(), removed.iter().copied());
+				self.rotator.ban(
+					&Instant::now(),
+					removed.iter().copied(),
+					BanReason::LimitsEnforced,
+				);
 				removed
 			};
 			if !removed.is_empty() {
@@ -455,7 +473,7 @@ impl<B: ChainApi, L: EventHandler<B>> ValidatedPool<B, L> {
 					.map(|outcome| outcome.with_watcher(watcher))
 			},
 			ValidatedTransaction::Invalid(hash, err) => {
-				self.rotator.ban(&Instant::now(), std::iter::once(hash));
+				self.rotator.ban(&Instant::now(), std::iter::once(hash), BanReason::Validation);
 				Err(err)
 			},
 			ValidatedTransaction::Unknown(_, err) => Err(err),
@@ -660,21 +678,16 @@ impl<B: ChainApi, L: EventHandler<B>> ValidatedPool<B, L> {
 	) {
 		debug_assert_eq!(pruned_hashes.len(), pruned_xts.len());
 
-		// Resubmit pruned transactions
-		let results = self.submit(pruned_xts);
+		// Resubmit pruned transactions back to the pool. Tag-based pruning may over-prune
+		// (removing dependents in the subtree), so still-valid collateral txs need to be
+		// re-added. In the fork-aware pool this is likely redundant — `update_view_with_mempool`
+		// resubmits everything from the mempool right after pruning — and could be removed in
+		// the future.
+		self.submit(pruned_xts);
 
-		// Collect the hashes of transactions that now became invalid (meaning that they are
-		// successfully pruned).
-		let hashes = results.into_iter().enumerate().filter_map(|(idx, r)| {
-			match r.map_err(error::IntoPoolError::into_pool_error) {
-				Err(Ok(error::Error::InvalidTransaction(_))) => Some(pruned_hashes[idx]),
-				_ => None,
-			}
-		});
-		// Fire `pruned` notifications for collected hashes and make sure to include
-		// `known_imported_hashes` since they were just imported as part of the block.
-		let hashes = hashes.chain(known_imported_hashes.into_iter());
-		self.fire_pruned(at, hashes);
+		// Fire `pruned` (InBlock) notifications only for `known_imported_hashes` — the
+		// hashes of extrinsics actually present in the imported block body.
+		self.fire_pruned(at, known_imported_hashes.into_iter());
 
 		// perform regular cleanup of old transactions in the pool
 		// and update temporary bans.
@@ -865,7 +878,7 @@ impl<B: ChainApi, L: EventHandler<B>> ValidatedPool<B, L> {
 	{
 		// temporarily ban removed transactions if requested
 		if ban_transactions {
-			self.rotator.ban(&Instant::now(), hashes.iter().cloned());
+			self.rotator.ban(&Instant::now(), hashes.iter().cloned(), BanReason::Validation);
 		};
 		let removed = self.pool.write().remove_subtree(hashes);
 

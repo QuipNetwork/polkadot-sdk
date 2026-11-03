@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-pallet-aura-ext"
-version = "0.26.0"
+version = "0.32.0"
 authors.workspace = true
 edition.workspace = true
 description = "AURA consensus extension pallet for parachains"
@@ -13,40 +13,47 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
+log = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
+# Substrate
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 pallet-aura = { workspace = true }
 pallet-timestamp = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-application-crypto = { workspace = true }
 sp-consensus-aura = { workspace = true }
 sp-runtime = { workspace = true }
+
+# Cumulus
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-primitives-core = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
 
 # Cumulus
-cumulus-pallet-parachain-system = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-primitives-proof-size-hostfunction = { default-features = true, workspace = true }
-cumulus-test-relay-sproof-builder = { default-features = true, workspace = true }
+cumulus-pallet-parachain-system = { workspace = true, default-features = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true, default-features = true }
+cumulus-test-relay-sproof-builder = { workspace = true, default-features = true }
 
 # Substrate
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
-sp-version = { default-features = true, workspace = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
+sp-version = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
 	"cumulus-pallet-parachain-system/std",
+	"cumulus-primitives-core/std",
 	"frame-support/std",
 	"frame-system/std",
+	"log/std",
 	"pallet-aura/std",
 	"pallet-timestamp/std",
 	"scale-info/std",

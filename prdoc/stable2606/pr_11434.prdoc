@@ -1,0 +1,60 @@
+title: 'pallet-dap-satellite: Add token transfers via XCM to DAP from the satellites'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    Adds XCM-based transfer support to `pallet-dap-satellite`, enabling system parachains
+    that accumulate native token burns (fees, dust, coretime revenue) to periodically
+    teleport those funds to the central DAP buffer account on AssetHub.
+
+    ## New components:
+
+    **`sp-dap`**: Contains the `SendToDap` trait, to be implemented when funds need to be
+      sent to the central DAP buffer, as well as the DAP and DAP satellite pallet IDs.
+
+    **`xcm-builder`**: Two new adapters are added:
+    - `SendToDapViaTeleport` — implements `SendToDap` and wraps it in a storage transaction
+      so that any failure rolls back all local state changes.
+
+    ## Integration (Westend system parachains):
+
+    All five Westend system parachains (AssetHub, BridgeHub, Collectives, Coretime, People)
+    and the Westend relay chain are configured with `SendToDapViaTeleport`.
+
+    ## Testing:
+
+    Integration tests covering the full round-trip (satellite accumulates → `on_idle` fires →
+    XCM teleport → DAP buffer receives) are provided for the Westend relay chain and all
+    system parachains (via `xcm-emulator`). Additional unit tests are also provided.
+
+crates:
+- name: sp-dap
+  bump: patch
+- name: pallet-dap-satellite
+  bump: major
+- name: pallet-dap
+  bump: minor
+- name: staging-xcm-builder
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: bridge-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major
+- name: people-westend-runtime
+  bump: major
+- name: westend-runtime
+  bump: major
+- name: polkadot-sdk
+  bump: minor
+- name: westend-runtime-constants
+  bump: minor
+- name: emulated-integration-tests-common
+  bump: minor
+- name: testnet-parachains-constants
+  bump: patch
+- name: pallet-staking-async
+  bump: patch

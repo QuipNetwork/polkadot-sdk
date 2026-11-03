@@ -41,17 +41,21 @@ use sp_runtime::traits::Block as BlockT;
 use std::{
 	hash::{Hash, Hasher},
 	sync::Arc,
-	time::Duration,
+	time::{Duration, Instant},
 };
 
 const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024; // Actual reponse may be bigger.
 const MAX_NUMBER_OF_SAME_REQUESTS_PER_PEER: usize = 2;
 
+/// Reset duplicate counts this long after the first fulfilled response, allowing legitimate
+/// retries.
+const SAME_REQUEST_WINDOW: Duration = Duration::from_secs(60);
+
 mod rep {
 	use sc_network::ReputationChange as Rep;
 
 	/// Reputation change when a peer sent us the same request multiple times.
-	pub const SAME_REQUEST: Rep = Rep::new(i32::MIN, "Same state request multiple times");
+	pub const SAME_REQUEST: Rep = Rep::new(-(1 << 12), "Same state request multiple times");
 }
 
 /// Generates a `RequestResponseProtocolConfig` for the state request protocol, refusing incoming
@@ -112,8 +116,8 @@ impl<B: BlockT> Hash for SeenRequestsKey<B> {
 enum SeenRequestsValue {
 	/// First time we have seen the request.
 	First,
-	/// We have fulfilled the request `n` times.
-	Fulfilled(usize),
+	/// Requests seen since the first fulfilled response.
+	Fulfilled { requests: usize, since: Instant },
 }
 
 /// Handler for incoming block requests from a remote peer.
@@ -190,12 +194,17 @@ where
 
 		match self.seen_requests.get(&key) {
 			Some(SeenRequestsValue::First) => {},
-			Some(SeenRequestsValue::Fulfilled(ref mut requests)) => {
+			Some(SeenRequestsValue::Fulfilled { requests, since })
+				if since.elapsed() <= SAME_REQUEST_WINDOW =>
+			{
 				*requests = requests.saturating_add(1);
 
 				if *requests > MAX_NUMBER_OF_SAME_REQUESTS_PER_PEER {
 					reputation_changes.push(rep::SAME_REQUEST);
 				}
+			},
+			Some(value @ SeenRequestsValue::Fulfilled { .. }) => {
+				*value = SeenRequestsValue::First;
 			},
 			None => {
 				self.seen_requests.insert(key.clone(), SeenRequestsValue::First);
@@ -256,10 +265,8 @@ where
 					.map(|e| sp_core::hexdisplay::HexDisplay::from(&e.key))),
 			);
 			if let Some(value) = self.seen_requests.get(&key) {
-				// If this is the first time we have processed this request, we need to change
-				// it to `Fulfilled`.
 				if let SeenRequestsValue::First = value {
-					*value = SeenRequestsValue::Fulfilled(1);
+					*value = SeenRequestsValue::Fulfilled { requests: 1, since: Instant::now() };
 				}
 			}
 
@@ -292,4 +299,87 @@ enum HandleRequestError {
 
 	#[error("Failed to send response.")]
 	SendResponse,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use substrate_test_runtime_client::{
+		runtime::Block, DefaultTestClientBuilderExt, TestClient, TestClientBuilder,
+		TestClientBuilderExt,
+	};
+
+	fn test_handler() -> StateRequestHandler<Block, TestClient> {
+		let client = Arc::new(TestClientBuilder::new().build());
+		let (_tx, request_receiver) = async_channel::bounded(1);
+		StateRequestHandler {
+			client,
+			request_receiver,
+			seen_requests: LruMap::new(ByLength::new(16)),
+		}
+	}
+
+	fn send_request(
+		handler: &mut StateRequestHandler<Block, TestClient>,
+		peer: &PeerId,
+		no_proof: bool,
+	) -> OutgoingResponse {
+		let request = StateRequest {
+			block: Encode::encode(&handler.client.chain_info().genesis_hash),
+			start: Vec::new(),
+			no_proof,
+		};
+		let (tx, mut rx) = oneshot::channel();
+		handler.handle_request(request.encode_to_vec(), tx, peer).unwrap();
+		rx.try_recv().unwrap().unwrap()
+	}
+
+	fn check_same_request_limit_resets_after_window(no_proof: bool) {
+		let mut handler = test_handler();
+		let peer = PeerId::random();
+
+		for _ in 0..MAX_NUMBER_OF_SAME_REQUESTS_PER_PEER {
+			let response = send_request(&mut handler, &peer, no_proof);
+			assert!(response.result.is_ok());
+			assert!(response.reputation_changes.is_empty());
+		}
+
+		let response = send_request(&mut handler, &peer, no_proof);
+		assert!(response.result.is_err());
+		assert_eq!(response.reputation_changes, vec![rep::SAME_REQUEST]);
+		assert!(rep::SAME_REQUEST.value > i32::MIN);
+
+		// Expire the window without sleeping.
+		let key = SeenRequestsKey::<Block> {
+			peer,
+			block: handler.client.chain_info().genesis_hash,
+			start: Vec::new(),
+		};
+		match handler.seen_requests.get(&key) {
+			Some(SeenRequestsValue::Fulfilled { since, .. }) => {
+				*since = Instant::now() - SAME_REQUEST_WINDOW - Duration::from_secs(1)
+			},
+			_ => panic!("entry must be in the fulfilled state"),
+		}
+
+		// The new window has the same limit and no penalties for allowed requests.
+		for _ in 0..MAX_NUMBER_OF_SAME_REQUESTS_PER_PEER {
+			let response = send_request(&mut handler, &peer, no_proof);
+			assert!(response.result.is_ok());
+			assert!(response.reputation_changes.is_empty());
+		}
+		let response = send_request(&mut handler, &peer, no_proof);
+		assert!(response.result.is_err());
+		assert_eq!(response.reputation_changes, vec![rep::SAME_REQUEST]);
+	}
+
+	#[test]
+	fn same_request_limit_resets_after_window_with_proof() {
+		check_same_request_limit_resets_after_window(false);
+	}
+
+	#[test]
+	fn same_request_limit_resets_after_window_without_proof() {
+		check_same_request_limit_resets_after_window(true);
+	}
 }

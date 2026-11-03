@@ -32,8 +32,7 @@ pub mod v1 {
 
 	use codec::{Decode, Encode};
 	use polkadot_primitives::{
-		BlockNumber, CandidateHash, CandidateIndex, CoreIndex, GroupIndex, Hash, Header,
-		SessionIndex, ValidatorIndex, ValidatorSignature,
+		BlockNumber, CandidateHash, CoreIndex, GroupIndex, Hash, Header, SessionIndex,
 	};
 	/// Validators assigning to check a particular candidate are split up into tranches.
 	/// Earlier tranches of validators check first, with later tranches serving as backup.
@@ -62,65 +61,6 @@ pub mod v1 {
 	/// block author as a credential and used as input to approval assignment criteria.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub struct RelayVRFStory(pub [u8; 32]);
-
-	/// Different kinds of input data or criteria that can prove a validator's assignment
-	/// to check a particular parachain.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum AssignmentCertKind {
-		/// An assignment story based on the VRF that authorized the relay-chain block where the
-		/// candidate was included combined with a sample number.
-		///
-		/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
-		RelayVRFModulo {
-			/// The sample number used in this cert.
-			sample: u32,
-		},
-		/// An assignment story based on the VRF that authorized the relay-chain block where the
-		/// candidate was included combined with the index of a particular core.
-		///
-		/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
-		RelayVRFDelay {
-			/// The core index chosen in this cert.
-			core_index: CoreIndex,
-		},
-	}
-
-	/// A certification of assignment.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub struct AssignmentCert {
-		/// The criterion which is claimed to be met by this cert.
-		pub kind: AssignmentCertKind,
-		/// The VRF signature showing the criterion is met.
-		pub vrf: VrfSignature,
-	}
-
-	/// An assignment criterion which refers to the candidate under which the assignment is
-	/// relevant by block hash.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub struct IndirectAssignmentCert {
-		/// A block hash where the candidate appears.
-		pub block_hash: Hash,
-		/// The validator index.
-		pub validator: ValidatorIndex,
-		/// The cert itself.
-		pub cert: AssignmentCert,
-	}
-
-	/// A signed approval vote which references the candidate indirectly via the block.
-	///
-	/// In practice, we have a look-up from block hash and candidate index to candidate hash,
-	/// so this can be transformed into a `SignedApprovalVote`.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub struct IndirectSignedApprovalVote {
-		/// A block hash where the candidate appears.
-		pub block_hash: Hash,
-		/// The index of the candidate in the list of candidates fully included as-of the block.
-		pub candidate_index: CandidateIndex,
-		/// The validator index.
-		pub validator: ValidatorIndex,
-		/// The signature by the validator.
-		pub signature: ValidatorSignature,
-	}
 
 	/// Metadata about a block which is now live in the approval protocol.
 	#[derive(Debug, Clone)]
@@ -353,8 +293,10 @@ pub mod v2 {
 		}
 	}
 
-	/// Certificate is changed compared to `AssignmentCertKind`:
-	/// - introduced RelayVRFModuloCompact
+	/// The criterion which is claimed to be met by an assignment cert.
+	///
+	/// Note: SCALE codec index 2 was previously the deprecated non-compact `RelayVRFModulo`
+	/// variant and has been removed. Do not reuse index 2 for any future variant.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AssignmentCertKindV2 {
 		/// Multiple assignment stories based on the VRF that authorized the relay-chain block
@@ -375,16 +317,6 @@ pub mod v2 {
 			/// The core index chosen in this cert.
 			core_index: CoreIndex,
 		},
-		/// Deprecated assignment. Soon to be removed.
-		///  An assignment story based on the VRF that authorized the relay-chain block where the
-		/// candidate was included combined with a sample number.
-		///
-		/// The context used to produce bytes is [`super::v1::RELAY_VRF_MODULO_CONTEXT`]
-		#[codec(index = 2)]
-		RelayVRFModulo {
-			/// The sample number used in this cert.
-			sample: u32,
-		},
 	}
 
 	/// A certification of assignment.
@@ -394,48 +326,6 @@ pub mod v2 {
 		pub kind: AssignmentCertKindV2,
 		/// The VRF showing the criterion is met.
 		pub vrf: VrfSignature,
-	}
-
-	impl From<super::v1::AssignmentCert> for AssignmentCertV2 {
-		fn from(cert: super::v1::AssignmentCert) -> Self {
-			Self {
-				kind: match cert.kind {
-					super::v1::AssignmentCertKind::RelayVRFDelay { core_index } => {
-						AssignmentCertKindV2::RelayVRFDelay { core_index }
-					},
-					super::v1::AssignmentCertKind::RelayVRFModulo { sample } => {
-						AssignmentCertKindV2::RelayVRFModulo { sample }
-					},
-				},
-				vrf: cert.vrf,
-			}
-		}
-	}
-
-	/// Errors that can occur when trying to convert to/from assignment v1/v2
-	#[derive(Debug)]
-	pub enum AssignmentConversionError {
-		/// Assignment certificate is not supported in v1.
-		CertificateNotSupported,
-	}
-
-	impl TryFrom<AssignmentCertV2> for super::v1::AssignmentCert {
-		type Error = AssignmentConversionError;
-		fn try_from(cert: AssignmentCertV2) -> Result<Self, AssignmentConversionError> {
-			Ok(Self {
-				kind: match cert.kind {
-					AssignmentCertKindV2::RelayVRFDelay { core_index } => {
-						super::v1::AssignmentCertKind::RelayVRFDelay { core_index }
-					},
-					AssignmentCertKindV2::RelayVRFModulo { sample } => {
-						super::v1::AssignmentCertKind::RelayVRFModulo { sample }
-					},
-					// Not supported
-					_ => return Err(AssignmentConversionError::CertificateNotSupported),
-				},
-				vrf: cert.vrf,
-			})
-		}
 	}
 
 	/// An assignment criterion which refers to the candidate under which the assignment is
@@ -448,66 +338,6 @@ pub mod v2 {
 		pub validator: ValidatorIndex,
 		/// The cert itself.
 		pub cert: AssignmentCertV2,
-	}
-
-	impl From<super::v1::IndirectAssignmentCert> for IndirectAssignmentCertV2 {
-		fn from(indirect_cert: super::v1::IndirectAssignmentCert) -> Self {
-			Self {
-				block_hash: indirect_cert.block_hash,
-				validator: indirect_cert.validator,
-				cert: indirect_cert.cert.into(),
-			}
-		}
-	}
-
-	impl TryFrom<IndirectAssignmentCertV2> for super::v1::IndirectAssignmentCert {
-		type Error = AssignmentConversionError;
-		fn try_from(
-			indirect_cert: IndirectAssignmentCertV2,
-		) -> Result<Self, AssignmentConversionError> {
-			Ok(Self {
-				block_hash: indirect_cert.block_hash,
-				validator: indirect_cert.validator,
-				cert: indirect_cert.cert.try_into()?,
-			})
-		}
-	}
-
-	impl From<super::v1::IndirectSignedApprovalVote> for IndirectSignedApprovalVoteV2 {
-		fn from(value: super::v1::IndirectSignedApprovalVote) -> Self {
-			Self {
-				block_hash: value.block_hash,
-				validator: value.validator,
-				candidate_indices: value.candidate_index.into(),
-				signature: value.signature,
-			}
-		}
-	}
-
-	/// Errors that can occur when trying to convert to/from approvals v1/v2
-	#[derive(Debug)]
-	pub enum ApprovalConversionError {
-		/// More than one candidate was signed.
-		MoreThanOneCandidate(usize),
-	}
-
-	impl TryFrom<IndirectSignedApprovalVoteV2> for super::v1::IndirectSignedApprovalVote {
-		type Error = ApprovalConversionError;
-
-		fn try_from(value: IndirectSignedApprovalVoteV2) -> Result<Self, Self::Error> {
-			if value.candidate_indices.count_ones() != 1 {
-				return Err(ApprovalConversionError::MoreThanOneCandidate(
-					value.candidate_indices.count_ones(),
-				));
-			}
-			Ok(Self {
-				block_hash: value.block_hash,
-				validator: value.validator,
-				candidate_index: value.candidate_indices.first_one().expect("Qed we checked above")
-					as u32,
-				signature: value.signature,
-			})
-		}
 	}
 
 	/// A signed approval vote which references the candidate indirectly via the block.
@@ -578,5 +408,23 @@ mod test {
 		assert!(bitfield.bit_at(BitIndex(20)));
 		assert_eq!(bitfield.inner_mut().count_ones(), 1);
 		assert_eq!(bitfield.len(), 21);
+	}
+
+	#[test]
+	fn assignment_cert_kind_v2_codec_indices_are_stable() {
+		use super::v2::{AssignmentCertKindV2, CoreBitfield};
+		use codec::Encode;
+
+		// `RelayVRFModuloCompact` must stay at codec index 0 and `RelayVRFDelay` at index 1.
+		// The deprecated non-compact `RelayVRFModulo` (previously index 2) has been removed; this
+		// guards against accidentally shifting the surviving wire-format discriminants, which would
+		// break decoding of assignments from peers that have not yet upgraded.
+		let compact = AssignmentCertKindV2::RelayVRFModuloCompact {
+			core_bitfield: CoreBitfield::try_from(vec![CoreIndex(0)]).unwrap(),
+		};
+		let delay = AssignmentCertKindV2::RelayVRFDelay { core_index: CoreIndex(0) };
+
+		assert_eq!(compact.encode()[0], 0);
+		assert_eq!(delay.encode()[0], 1);
 	}
 }

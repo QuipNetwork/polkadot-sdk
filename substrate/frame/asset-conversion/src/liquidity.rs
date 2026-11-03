@@ -93,7 +93,7 @@ impl<T: Config> MutateLiquidity<T::AccountId> for Pallet<T> {
 		asset1: T::AssetKind,
 		asset2: T::AssetKind,
 	) -> Result<T::PoolId, DispatchError> {
-		Self::do_create_pool(creator, asset1, asset2)
+		Self::do_create_pool(creator, asset1, asset2, None)
 	}
 
 	#[transactional]

@@ -37,7 +37,6 @@ use frame_metadata::v16::{
 	StorageEntryMetadata, TransactionExtensionMetadata, VariantDeprecationInfo,
 };
 
-use codec::Compact;
 use scale_info::form::MetaForm;
 
 impl From<MetadataIR> for RuntimeMetadataV16 {
@@ -181,17 +180,23 @@ impl From<TransactionExtensionMetadataIR> for TransactionExtensionMetadata {
 
 impl ExtrinsicMetadataIR {
 	fn into_v16_with_call_ty(self, call_ty: scale_info::MetaType) -> ExtrinsicMetadata {
-		// Assume version 0 for all extensions.
-		let indexes = (0..self.extensions.len()).map(|index| Compact(index as u32)).collect();
-		let transaction_extensions_by_version = [(0, indexes)].iter().cloned().collect();
-
 		ExtrinsicMetadata {
 			versions: self.versions,
 			address_ty: self.address_ty,
 			call_ty,
 			signature_ty: self.signature_ty,
-			transaction_extensions_by_version,
-			transaction_extensions: self.extensions.into_iter().map(Into::into).collect(),
+			transaction_extensions_by_version: self
+				.extensions_by_version
+				.into_iter()
+				.map(|(version, extensions)| {
+					(version, extensions.into_iter().map(Into::into).collect())
+				})
+				.collect(),
+			transaction_extensions: self
+				.extensions_in_versions
+				.into_iter()
+				.map(Into::into)
+				.collect(),
 		}
 	}
 }

@@ -16,7 +16,7 @@
 #[cfg(test)]
 mod imports {
 	// Substrate
-	pub(crate) use frame_support::assert_ok;
+	pub(crate) use frame_support::{assert_ok, pallet_prelude::Weight};
 
 	// Polkadot
 	pub(crate) use xcm::{latest::WESTEND_GENESIS_HASH, prelude::*};

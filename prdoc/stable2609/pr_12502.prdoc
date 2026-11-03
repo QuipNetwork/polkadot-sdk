@@ -1,0 +1,11 @@
+title: Remove deprecated ForeignChainAliasAccount type alias
+doc:
+- audience: Runtime Dev
+  description: |-
+    ## Summary
+
+    Removes the deprecated `ForeignChainAliasAccount` type alias from `staging-xcm-builder`. Use `HashedDescription<AccountId, LegacyDescribeForeignChainAccount>` directly.
+
+crates:
+- name: staging-xcm-builder
+  bump: major

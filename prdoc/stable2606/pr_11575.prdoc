@@ -1,0 +1,10 @@
+title: '[Penpal] fix genesis presets - assign proper ED to accounts'''
+doc:
+- audience: Runtime Dev
+  description: |-
+    Penpal had values below the ED for initializing asset balances for some accounts. This has not been detected as no unit tests actually use the presets. This PR fixes the invalid values, and it also adds some unit tests for validating that the presets build at least.
+
+    Closes #11558.
+crates:
+- name: penpal-runtime
+  bump: patch

@@ -1,6 +1,6 @@
 [package]
 name = "sc-statement-store"
-version = "27.0.0"
+version = "32.0.1"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -12,35 +12,61 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+test-helpers = ["anyhow", "scale-info", "subxt", "subxt-signer"]
+
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+anyhow = { workspace = true, optional = true }
 async-channel = { workspace = true }
+codec = { workspace = true, default-features = true }
 futures = { workspace = true }
 itertools = { workspace = true }
 log = { workspace = true, default-features = true }
 parity-db = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
-prometheus-endpoint = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-keystore = { default-features = true, workspace = true }
-sc-network-statement = { default-features = true, workspace = true }
+prometheus-endpoint = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-keystore = { workspace = true, default-features = true }
+sc-network-statement = { workspace = true, default-features = true }
 sc-utils = { workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-statement-store = { default-features = true, workspace = true }
-sp-storage = { default-features = true, workspace = true }
+scale-info = { workspace = true, default-features = true, optional = true }
+schnellru = { workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-statement-store = { workspace = true, default-features = true }
+sp-storage = { workspace = true, default-features = true }
+subxt = { workspace = true, features = ["jsonrpsee", "native"], optional = true }
+subxt-signer = { workspace = true, features = ["sr25519"], optional = true }
 tokio = { features = ["time"], workspace = true, default-features = true }
 
 [dev-dependencies]
 criterion = { workspace = true, default-features = true }
-sp-tracing = { workspace = true, default-features = false }
+sp-tracing = { workspace = true }
 tempfile = { workspace = true }
 
 [[bench]]
 name = "statement_store"
+harness = false
+required-features = []
+
+[[bench]]
+name = "full_store"
+path = "benches/full_store/main.rs"
+harness = false
+required-features = []
+
+[[bench]]
+name = "add_filter"
+harness = false
+required-features = []
+
+[[bench]]
+name = "enforce_limits"
+path = "benches/enforce_limits.rs"
 harness = false
 required-features = []

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-dispute-distribution"
-version = "29.0.0"
+version = "36.0.0"
 description = "Polkadot Dispute Distribution subsystem, which ensures all concerned validators are aware of a dispute and have the relevant votes."
 authors.workspace = true
 edition.workspace = true
@@ -16,16 +16,16 @@ codec = { features = ["std"], workspace = true, default-features = true }
 fatality = { workspace = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 indexmap = { workspace = true }
-polkadot-node-network-protocol = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+polkadot-node-network-protocol = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
@@ -34,6 +34,6 @@ async-channel = { workspace = true }
 async-trait = { workspace = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
 polkadot-primitives-test-helpers = { workspace = true }
-sc-keystore = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }

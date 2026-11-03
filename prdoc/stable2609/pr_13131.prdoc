@@ -1,0 +1,16 @@
+title: Reset duplicate sync request counters after 60 seconds
+
+doc:
+  - audience: Node Operator
+    description: |
+      Duplicate block and state request counters now reset after 60 seconds from
+      the first fulfilled response. Legitimate retries after sync restarts can
+      therefore recover instead of remaining blocked by stale counters.
+
+      Repeated requests now incur a smaller, non-fatal reputation penalty. This
+      addresses cases where gap sync became stuck in a cycle of reconnecting to
+      peers, retrying requests, and being banned again.
+
+crates:
+  - name: sc-network-sync
+    bump: patch

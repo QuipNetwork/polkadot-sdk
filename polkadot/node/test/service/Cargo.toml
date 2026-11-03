@@ -10,45 +10,49 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-frame-system = { default-features = true, workspace = true }
 futures = { workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-staking = { default-features = true, workspace = true }
-pallet-transaction-payment = { default-features = true, workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-overseer = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-polkadot-runtime-common = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
-polkadot-service = { default-features = true, workspace = true }
-polkadot-test-runtime = { workspace = true }
 rand = { workspace = true, default-features = true }
-sc-chain-spec = { default-features = true, workspace = true }
-sc-cli = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-consensus = { default-features = true, workspace = true }
-sc-consensus-grandpa = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-service = { workspace = true }
-sc-tracing = { default-features = true, workspace = true }
 serde_json = { workspace = true, default-features = true }
-sp-arithmetic = { default-features = true, workspace = true }
-sp-authority-discovery = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-consensus-babe = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-state-machine = { default-features = true, workspace = true }
-substrate-test-client = { workspace = true }
-test-runtime-constants = { default-features = true, workspace = true }
 tokio = { workspace = true, default-features = true }
 
+# Polkadot dependencies
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-runtime-common = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+polkadot-service = { workspace = true, default-features = true }
+polkadot-test-runtime = { workspace = true }
+test-runtime-constants = { workspace = true, default-features = true }
+
+# Substrate dependencies
+frame-system = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-staking = { workspace = true, default-features = true }
+pallet-transaction-payment = { workspace = true, default-features = true }
+sc-chain-spec = { workspace = true, default-features = true }
+sc-cli = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-consensus-grandpa = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-service = { workspace = true }
+sc-tracing = { workspace = true, default-features = true }
+sp-arithmetic = { workspace = true, default-features = true }
+sp-authority-discovery = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+substrate-test-client = { workspace = true }
+
 [dev-dependencies]
-pallet-balances = { workspace = true, default-features = false }
+pallet-balances = { workspace = true }
 tokio = { features = ["macros"], workspace = true, default-features = true }
 
 [features]

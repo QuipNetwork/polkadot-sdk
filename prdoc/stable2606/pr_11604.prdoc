@@ -1,0 +1,40 @@
+title: 'Refactor: candidate-validation fetches executor_params itself'
+doc:
+- audience: Runtime Dev
+  description: |-
+    # Description
+
+      Remove `executor_params` from `CandidateValidationMessage::ValidateFromExhaustive`
+      and have `candidate-validation` derive the session index from the candidate
+      descriptor and fetch `executor_params` via the runtime API internally.
+
+      This simplifies backing, approval-voting, and dispute-coordinator by removing
+      executor_params threading through `Action::LaunchApproval`, `RetryApprovalInfo`,
+      `ParticipationRequest`, `BackgroundValidationParams`, and `PerSessionCache`.
+
+    This PR is a follow up of this [comment](https://github.com/paritytech/polkadot-sdk/pull/11566#discussion_r3015664660)
+crates:
+- name: polkadot-node-core-approval-voting
+  bump: none
+- name: polkadot-node-core-backing
+  bump: none
+- name: polkadot-node-core-candidate-validation
+  bump: minor
+- name: polkadot-node-core-dispute-coordinator
+  bump: none
+- name: polkadot-overseer
+  bump: none
+- name: polkadot-node-subsystem-types
+  bump: major
+- name: polkadot-node-subsystem-util
+  bump: major
+- name: polkadot-approval-distribution
+  bump: none
+- name: polkadot-availability-distribution
+  bump: none
+- name: polkadot-availability-recovery
+  bump: none
+- name: polkadot-dispute-distribution
+  bump: none
+- name: polkadot-collator-protocol
+  bump: none

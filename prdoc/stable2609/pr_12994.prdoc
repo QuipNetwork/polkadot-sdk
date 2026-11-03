@@ -1,0 +1,9 @@
+title: 'statement gossip: allocate the validation queue lazily'
+doc:
+- audience: Node Operator
+  description: |-
+    The statement validation queue no longer pre-allocates its full capacity,
+    its memory tracks actual occupancy. The queue limit still holds.
+crates:
+- name: sc-network-statement
+  bump: patch

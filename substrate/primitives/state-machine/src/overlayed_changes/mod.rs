@@ -244,6 +244,8 @@ struct StorageTransactionCache<H: Hasher> {
 	transaction: BackendTransaction<H>,
 	/// The storage root after applying the transaction.
 	transaction_storage_root: H::Out,
+	/// The state version that was used to compute the transaction and the root.
+	state_version: StateVersion,
 }
 
 impl<H: Hasher> StorageTransactionCache<H> {
@@ -257,6 +259,7 @@ impl<H: Hasher> Clone for StorageTransactionCache<H> {
 		Self {
 			transaction: self.transaction.clone(),
 			transaction_storage_root: self.transaction_storage_root,
+			state_version: self.state_version,
 		}
 	}
 }
@@ -651,7 +654,9 @@ impl<H: Hasher> OverlayedChanges<H> {
 		H::Out: Ord + Encode,
 	{
 		if let Some(cache) = &self.storage_transaction_cache {
-			return (cache.transaction_storage_root, true);
+			if cache.state_version == state_version {
+				return (cache.transaction_storage_root, true);
+			}
 		}
 
 		let delta = self.top.changes_mut().map(|(k, v)| (&k[..], v.value().map(|v| &v[..])));
@@ -663,8 +668,11 @@ impl<H: Hasher> OverlayedChanges<H> {
 
 		let (root, transaction) = backend.full_storage_root(delta, child_delta, state_version);
 
-		self.storage_transaction_cache =
-			Some(StorageTransactionCache { transaction, transaction_storage_root: root });
+		self.storage_transaction_cache = Some(StorageTransactionCache {
+			transaction,
+			transaction_storage_root: root,
+			state_version,
+		});
 
 		(root, false)
 	}
@@ -1053,6 +1061,36 @@ mod tests {
 		let mut ext = Ext::new(&mut overlay, &backend, None);
 		let root = "5c0a4e35cb967de785e1cb8743e6f24b6ff6d45155317f2078f6eb3fc4ff3e3d";
 		assert_eq!(bytes2hex("", &ext.storage_root(state_version)), root);
+	}
+
+	#[test]
+	fn storage_root_cache_invalidates_on_state_version_change() {
+		// `TRIE_VALUE_NODE_THRESHOLD` is 33, so a value of 64 bytes is inlined under V0
+		// but stored as a separate hashed node under V1, producing distinct roots.
+		let backend = InMemoryBackend::<Blake2Hasher>::default();
+		let mut overlay = OverlayedChanges::<Blake2Hasher>::default();
+		overlay.start_transaction();
+		overlay.set_storage(b"key".to_vec(), Some(vec![0x42; 64]));
+		overlay.commit_transaction().unwrap();
+
+		let (root_v0_first, cached) = overlay.storage_root(&backend, StateVersion::V0);
+		assert!(!cached);
+		let (root_v0_second, cached) = overlay.storage_root(&backend, StateVersion::V0);
+		assert!(cached);
+		assert_eq!(root_v0_first, root_v0_second);
+
+		// A request for a different state version must NOT return the cached V0 root.
+		let (root_v1, cached) = overlay.storage_root(&backend, StateVersion::V1);
+		assert!(!cached, "cache must be invalidated when state version changes");
+		assert_ne!(
+			root_v0_first, root_v1,
+			"V0 and V1 roots must differ for values exceeding the inline threshold",
+		);
+
+		// And switching back to V0 must again recompute, not reuse the V1 cache.
+		let (root_v0_third, cached) = overlay.storage_root(&backend, StateVersion::V0);
+		assert!(!cached);
+		assert_eq!(root_v0_first, root_v0_third);
 	}
 
 	#[test]

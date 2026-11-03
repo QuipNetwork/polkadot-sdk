@@ -40,8 +40,8 @@ use sp_staking::{
 
 pub use pallet::*;
 
-/// A binary blob which represents a SCALE codec-encoded `O::TimeSlot`.
-type OpaqueTimeSlot = Vec<u8>;
+/// A binary blob which represents a SCALE codec-encoded `O::Slot`.
+type OpaqueSlot = Vec<u8>;
 
 /// A type alias for a report identifier.
 type ReportIdOf<T> = <T as frame_system::Config>::Hash;
@@ -88,7 +88,7 @@ pub mod pallet {
 		Twox64Concat,
 		Kind,
 		Twox64Concat,
-		OpaqueTimeSlot,
+		OpaqueSlot,
 		Vec<ReportIdOf<T>>,
 		ValueQuery,
 	>;
@@ -99,8 +99,8 @@ pub mod pallet {
 	pub enum Event {
 		/// There is an offence reported of the given `kind` happened at the `session_index` and
 		/// (kind-specific) time slot. This event is not deposited for duplicate slashes.
-		/// \[kind, timeslot\].
-		Offence { kind: Kind, timeslot: OpaqueTimeSlot },
+		/// \[kind, slot\].
+		Offence { kind: Kind, slot: OpaqueSlot },
 	}
 }
 
@@ -111,12 +111,12 @@ where
 {
 	fn report_offence(reporters: Vec<T::AccountId>, offence: O) -> Result<(), OffenceError> {
 		let offenders = offence.offenders();
-		let time_slot = offence.time_slot();
+		let slot = offence.slot();
 
 		// Go through all offenders in the offence report and find all offenders that were spotted
 		// in unique reports.
 		let TriageOutcome { concurrent_offenders } =
-			match Self::triage_offence_report::<O>(reporters, &time_slot, offenders) {
+			match Self::triage_offence_report::<O>(reporters, &slot, offenders) {
 				Some(triage) => triage,
 				// The report contained only duplicates, so there is no need to slash again.
 				None => return Err(OffenceError::DuplicateReport),
@@ -136,14 +136,14 @@ where
 		);
 
 		// Deposit the event.
-		Self::deposit_event(Event::Offence { kind: O::ID, timeslot: time_slot.encode() });
+		Self::deposit_event(Event::Offence { kind: O::ID, slot: slot.encode() });
 
 		Ok(())
 	}
 
-	fn is_known_offence(offenders: &[T::IdentificationTuple], time_slot: &O::TimeSlot) -> bool {
+	fn is_known_offence(offenders: &[T::IdentificationTuple], slot: &O::Slot) -> bool {
 		let any_unknown = offenders.iter().any(|offender| {
-			let report_id = Self::report_id::<O>(time_slot, offender);
+			let report_id = Self::report_id::<O>(slot, offender);
 			!<Reports<T>>::contains_key(&report_id)
 		});
 
@@ -163,24 +163,24 @@ impl<T: Config> Pallet<T> {
 	///
 	/// The report id depends on the offence kind, time slot and the id of offender.
 	fn report_id<O: Offence<T::IdentificationTuple>>(
-		time_slot: &O::TimeSlot,
+		slot: &O::Slot,
 		offender: &T::IdentificationTuple,
 	) -> ReportIdOf<T> {
-		(O::ID, time_slot.encode(), offender).using_encoded(T::Hashing::hash)
+		(O::ID, slot.encode(), offender).using_encoded(T::Hashing::hash)
 	}
 
 	/// Triages the offence report and returns the set of offenders that was involved in unique
 	/// reports along with the list of the concurrent offences.
 	fn triage_offence_report<O: Offence<T::IdentificationTuple>>(
 		reporters: Vec<T::AccountId>,
-		time_slot: &O::TimeSlot,
+		slot: &O::Slot,
 		offenders: Vec<T::IdentificationTuple>,
 	) -> Option<TriageOutcome<T>> {
-		let mut storage = ReportIndexStorage::<T, O>::load(time_slot);
+		let mut storage = ReportIndexStorage::<T, O>::load(slot);
 
 		let mut any_new = false;
 		for offender in offenders {
-			let report_id = Self::report_id::<O>(time_slot, &offender);
+			let report_id = Self::report_id::<O>(slot, &offender);
 
 			if !<Reports<T>>::contains_key(&report_id) {
 				any_new = true;
@@ -222,19 +222,19 @@ struct TriageOutcome<T: Config> {
 /// accessed directly meanwhile.
 #[must_use = "The changes are not saved without called `save`"]
 struct ReportIndexStorage<T: Config, O: Offence<T::IdentificationTuple>> {
-	opaque_time_slot: OpaqueTimeSlot,
+	slot: OpaqueSlot,
 	concurrent_reports: Vec<ReportIdOf<T>>,
 	_phantom: PhantomData<O>,
 }
 
 impl<T: Config, O: Offence<T::IdentificationTuple>> ReportIndexStorage<T, O> {
-	/// Preload indexes from the storage for the specific `time_slot` and the kind of the offence.
-	fn load(time_slot: &O::TimeSlot) -> Self {
-		let opaque_time_slot = time_slot.encode();
+	/// Preload indexes from the storage for the specific `slot` and the kind of the offence.
+	fn load(slot: &O::Slot) -> Self {
+		let slot = slot.encode();
 
-		let concurrent_reports = <ConcurrentReportsIndex<T>>::get(&O::ID, &opaque_time_slot);
+		let concurrent_reports = <ConcurrentReportsIndex<T>>::get(&O::ID, &slot);
 
-		Self { opaque_time_slot, concurrent_reports, _phantom: Default::default() }
+		Self { slot, concurrent_reports, _phantom: Default::default() }
 	}
 
 	/// Insert a new report to the index.
@@ -245,10 +245,6 @@ impl<T: Config, O: Offence<T::IdentificationTuple>> ReportIndexStorage<T, O> {
 
 	/// Dump the indexes to the storage.
 	fn save(self) {
-		<ConcurrentReportsIndex<T>>::insert(
-			&O::ID,
-			&self.opaque_time_slot,
-			&self.concurrent_reports,
-		);
+		<ConcurrentReportsIndex<T>>::insert(&O::ID, &self.slot, &self.concurrent_reports);
 	}
 }

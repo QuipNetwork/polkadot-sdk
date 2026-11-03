@@ -1,0 +1,36 @@
+title: fix `sload` undercharge on cross-VM storage
+doc:
+- audience: Runtime Dev
+  description: "## Summary\n\nEVM `sload` previously charged a fixed `RuntimeCosts::GetStorage(32)`\
+    \ regardless of the actual byte size of the storage value read. This is correct\
+    \ under the EVM-only assumption that every slot holds a 32-byte word, but it breaks\
+    \ under cross-VM execution where a PVM contract sharing the storage namespace\
+    \ (via delegatecall) can have written values up to `limits::STORAGE_BYTES`.\n\n\
+    The bug: `sload` reads the full value from the trie \u2014 consuming PoV proportional\
+    \ to the actual length \u2014 but only bills for 32 bytes. The subsequent length-check\
+    \ trap doesn't refund PoV. A crafted PVM caller could repeatedly delegate-call\
+    \ into an EVM contract over storage slots it had previously populated with large\
+    \ values, under-paying for the proof space consumed.\n\n## Fix\n\nMirror the PVM\
+    \ `get_storage` host fn pattern: charge `RuntimeCosts::GetStorage(limits::STORAGE_BYTES)`\
+    \ upfront, then `adjust_weight` to `RuntimeCosts::GetStorage(actual_len)` after\
+    \ the read.\n\n```rust\nlet charged = interpreter.ext.charge_or_halt(RuntimeCosts::GetStorage(limits::STORAGE_BYTES))?;\n\
+    let key = Key::Fix(index.to_big_endian());\nlet value = interpreter.ext.get_storage(&key);\n\
+    \nlet actual_len = value.as_ref().map(|v| v.len() as u32).unwrap_or(0);\ninterpreter\n\
+    \    .ext\n    .frame_meter_mut()\n    .adjust_weight(charged, RuntimeCosts::GetStorage(actual_len));\n\
+    ```\n\nThe length-check trap continues to fire for non-32-byte values; only the\
+    \ metering is corrected.\n\n## Attack surface\n\nRequires both:\n- A PVM execution\
+    \ that wrote a non-32-byte value into a storage namespace (Rust-PVM contracts\
+    \ via `seal_set_storage` with arbitrary length; Solidity-compiled-to-PVM does\
+    \ not since `sstore` is always 32 bytes).\n- A subsequent EVM execution in that\
+    \ same namespace, via PVM\u2192EVM delegatecall.\n\nBoth halves are already supported\
+    \ and tested individually (e.g. `Resolc\u2192Solc` in `delegatecall_works`, `multi_store.rs`\
+    \ for non-32-byte PVM writes); only the combination is unexercised, and is what\
+    \ this PR closes.\n\n## Test plan\n\n- [x] `sload_charges_for_actual_storage_value_size`\
+    \ \u2014 injects a value of length `L` directly into a Solc-deployed `Counter`'s\
+    \ storage slot 0, calls `number()` (which compiles to `SLOAD(0)`), and asserts\
+    \ gas consumed for `L=256` is strictly greater than for `L=32`. Fails with the\
+    \ legacy fixed-32 charge, passes with the fix.\n- [x] Full `tests::sol` suite\
+    \ (225 tests) \u2014 no regressions."
+crates:
+- name: pallet-revive
+  bump: patch

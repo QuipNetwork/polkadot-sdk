@@ -1,0 +1,12 @@
+title: Fix gap sync stalls during ancestry search
+doc:
+- audience: [Node Operator, Node Dev]
+  description: |-
+    Fix stalls when a peer switches from downloading gap blocks to ancestry search.
+    Clear stale gap sync state once the database gap is closed.
+    Remove `remove_obsolete` from `SyncingAction::StartRequest`. Replaced requests
+    must now be canceled explicitly with `CancelRequest`.
+crates:
+- name: sc-network-sync
+  bump: major
+  validate: false

@@ -119,6 +119,40 @@ fn unbalanced_trait_set_total_issuance_works() {
 }
 
 #[test]
+fn inactive_issuance_survives_reverted_rescind() {
+	ExtBuilder::default().build_and_execute_with(|| {
+		assert_ok!(Balances::mint_into(&1, 100));
+		Balances::deactivate(80);
+		assert_eq!(Balances::active_issuance(), 20);
+
+		let debt = <Balances as fungible::Balanced<_>>::rescind(30);
+		assert_eq!(Balances::total_issuance(), 70);
+		assert_eq!(crate::InactiveIssuance::<Test>::get(), 80);
+
+		drop(debt);
+		assert_eq!(Balances::total_issuance(), 100);
+		assert_eq!(crate::InactiveIssuance::<Test>::get(), 80);
+		assert_eq!(Balances::active_issuance(), 20);
+	});
+}
+
+#[test]
+fn deactivate_zero_does_not_reduce_inactive_issuance() {
+	ExtBuilder::default().build_and_execute_with(|| {
+		assert_ok!(Balances::mint_into(&1, 100));
+		Balances::deactivate(80);
+
+		let debt = <Balances as fungible::Balanced<_>>::rescind(30);
+		assert_eq!(Balances::total_issuance(), 70);
+		assert_eq!(crate::InactiveIssuance::<Test>::get(), 80);
+
+		assert_storage_noop!(Balances::deactivate(0));
+
+		drop(debt);
+	});
+}
+
+#[test]
 fn unbalanced_trait_decrease_balance_simple_works() {
 	ExtBuilder::default().build_and_execute_with(|| {
 		// An Account that starts at 100
@@ -212,6 +246,31 @@ fn unbalanced_trait_increase_balance_works() {
 		assert_noop!(Balances::increase_balance(&1337, 0, Exact), TokenError::BelowMinimum);
 		assert_eq!(Balances::increase_balance(&1337, 1, Exact), Ok(1));
 		assert_noop!(Balances::increase_balance(&1337, u64::MAX, Exact), ArithmeticError::Overflow);
+	});
+}
+
+#[test]
+fn increase_balance_rejects_total_balance_overflow() {
+	ExtBuilder::default().build_and_execute_with(|| {
+		// The free-balance addition is checked, but free and reserved are then combined with
+		// saturating arithmetic. That masks the aggregate overflow and accepts an account whose
+		// mathematical total cannot be represented by `Balance`.
+		let account = 1;
+
+		Balances::set_balance(&account, u64::MAX - 1);
+		assert_ok!(Balances::hold(&TestId::Foo, &account, 1));
+		assert_eq!(get_test_account_data(account).free, u64::MAX - 2);
+		assert_eq!(get_test_account_data(account).reserved, 1);
+
+		// Exact cannot credit the requested amount because it would make the aggregate overflow.
+		assert_noop!(Balances::increase_balance(&account, 2, Exact), ArithmeticError::Overflow);
+
+		// BestEffort must credit only the remaining aggregate headroom, not hide the overflow by
+		// saturating `total_balance` after writing both components.
+		assert_eq!(Balances::increase_balance(&account, 2, BestEffort), Ok(1));
+		assert_eq!(get_test_account_data(account).free, u64::MAX - 1);
+		assert_eq!(get_test_account_data(account).reserved, 1);
+		assert_eq!(Balances::total_balance(&account), u64::MAX);
 	});
 }
 

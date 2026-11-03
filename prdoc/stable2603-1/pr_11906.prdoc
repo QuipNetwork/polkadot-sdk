@@ -1,0 +1,12 @@
+title: 'cli: Update list of AH Polkadot relay chain side peers'
+doc:
+- audience: Node Dev
+  description: |-
+    This PR updates the list of relay chain side peer IDs corresponding to the AH Polkadot collators.
+
+    Previously, the list contained the parachain side peer IDs. This behavior resulted in all collations being held off for 300 ms.
+
+    The peer IDs have been confirmed with their respective node operators.
+crates:
+- name: polkadot-cli
+  bump: patch

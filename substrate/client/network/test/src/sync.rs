@@ -1195,23 +1195,79 @@ async fn syncs_indexed_blocks() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn warp_sync_gap_sync_skips_bodies_if_blocks_pruning() {
+async fn warp_sync_gap_sync_downloads_required_bodies_within_window() {
 	sp_tracing::try_init_simple();
 	let mut net = TestNet::new(0);
 	// Create 3 synced peers and 1 peer trying to warp sync.
 	net.add_full_peer_with_config(Default::default());
 	net.add_full_peer_with_config(Default::default());
 	net.add_full_peer_with_config(Default::default());
+	// A storage-chain node requires bodies within the (safety-adjusted) window of 72
+	// blocks. The chain has 200 blocks and the warp target (#200) is finalized, so the
+	// body cutoff is `200 - 72 = 128`: gap sync backfills #1..=#128 with headers only
+	// and #129..=#199 with bodies. The cutoff is aligned to a request-range boundary
+	// (`max_blocks_per_request` = 64) so no request straddles it.
 	net.add_full_peer_with_config(FullPeerConfig {
 		sync_mode: SyncMode::Warp,
-		blocks_pruning: Some(256), // Pruning enabled, gap sync expected to not request bodies
+		blocks_pruning: Some(256),
+		gap_sync_body_policy: Some(GapSyncBodyPolicy::BodiesWithinWindow(72)),
 		..Default::default()
 	});
 
-	// Splitting blocks into chunks to demonstrate how gap sync works
-	let gap_start = net.peer(0).push_blocks(1, false);
-	let blocks = net.peer(0).push_blocks(61, false);
-	let gap_end = net.peer(0).push_blocks(1, false);
+	let headers_only = net.peer(0).push_blocks(128, false);
+	let with_bodies = net.peer(0).push_blocks(71, false);
+	let target = net.peer(0).push_blocks(1, false).pop().unwrap();
+	net.peer(1).push_blocks(200, false);
+	net.peer(2).push_blocks(200, false);
+
+	// Wait for peer 3 to sync state.
+	net.run_until_sync().await;
+	// Make sure it was not a full sync.
+	assert!(!net.peer(3).client().has_state_at(&BlockId::Number(1)));
+	// Make sure warp sync was successful.
+	assert!(net.peer(3).client().has_state_at(&BlockId::Number(200)));
+
+	// Wait for peer 3 to download block history (gap sync).
+	futures::future::poll_fn::<(), _>(|cx| {
+		net.poll(cx);
+		let peer = net.peer(3);
+
+		// Blocks below the body cutoff should only have headers.
+		let below_cutoff_headers_only =
+			headers_only.iter().all(|b| peer.has_block(*b) && !peer.has_body(*b));
+
+		// Blocks inside the required window should have bodies.
+		let within_window_have_bodies = with_bodies.iter().all(|b| peer.has_body(*b));
+
+		// Target block should have body (downloaded during warp sync)
+		let target_has_body = peer.has_body(target);
+
+		if below_cutoff_headers_only && within_window_have_bodies && target_has_body {
+			Poll::Ready(())
+		} else {
+			Poll::Pending
+		}
+	})
+	.await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn warp_sync_gap_sync_skips_bodies_by_default_when_pruning() {
+	sp_tracing::try_init_simple();
+	let mut net = TestNet::new(0);
+	// Create 3 synced peers and 1 peer trying to warp sync.
+	net.add_full_peer_with_config(Default::default());
+	net.add_full_peer_with_config(Default::default());
+	net.add_full_peer_with_config(Default::default());
+	// A pruned node without an explicit gap sync body policy backfills the whole gap
+	// header-only.
+	net.add_full_peer_with_config(FullPeerConfig {
+		sync_mode: SyncMode::Warp,
+		blocks_pruning: Some(256),
+		..Default::default()
+	});
+
+	let gap_blocks = net.peer(0).push_blocks(63, false);
 	let target = net.peer(0).push_blocks(1, false).pop().unwrap();
 	net.peer(1).push_blocks(64, false);
 	net.peer(2).push_blocks(64, false);
@@ -1228,17 +1284,14 @@ async fn warp_sync_gap_sync_skips_bodies_if_blocks_pruning() {
 		net.poll(cx);
 		let peer = net.peer(3);
 
-		// Gap blocks should only have headers (not bodies) due to pruning
-		let gap_blocks_dont_have_bodies = gap_start
-			.iter()
-			.chain(blocks.iter())
-			.chain(gap_end.iter())
-			.all(|b| peer.has_block(*b) && !peer.has_body(*b));
+		// Gap blocks should only have headers (not bodies).
+		let gap_blocks_headers_only =
+			gap_blocks.iter().all(|b| peer.has_block(*b) && !peer.has_body(*b));
 
-		// Target block should have body (downloaded during warp sync)
+		// Target block should have body (downloaded during warp sync).
 		let target_has_body = peer.has_body(target);
 
-		if gap_blocks_dont_have_bodies && target_has_body {
+		if gap_blocks_headers_only && target_has_body {
 			Poll::Ready(())
 		} else {
 			Poll::Pending

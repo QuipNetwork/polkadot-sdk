@@ -1,0 +1,8 @@
+title: 'beefy: lower peer reputation for bad responses'
+doc:
+  - audience: Node Operator
+    description: |-
+      Bad BEEFY justifications are refused and also the sending peer penalized.
+crates:
+  - name: sc-consensus-beefy
+    bump: patch

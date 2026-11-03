@@ -1,7 +1,7 @@
 [package]
 description = "Substrate offchain workers"
 name = "sc-offchain"
-version = "51.0.0"
+version = "55.0.0"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 authors.workspace = true
 edition.workspace = true
@@ -30,27 +30,27 @@ once_cell = { workspace = true }
 parking_lot = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
 rustls = { workspace = true }
-sc-client-api = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sc-transaction-pool-api = { default-features = true, workspace = true }
-sc-utils = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-externalities = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-offchain = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sc-utils = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-offchain = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 threadpool = { workspace = true }
 tracing = { workspace = true, default-features = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
+sc-block-builder = { workspace = true, default-features = true }
 sc-client-db = { default-features = true, workspace = true }
-sc-transaction-pool = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client = { workspace = true }
 tokio = { workspace = true, default-features = true }
 

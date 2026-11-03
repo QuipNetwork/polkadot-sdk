@@ -2,7 +2,7 @@
 authors.workspace = true
 edition.workspace = true
 name = "cumulus-ping"
-version = "0.26.0"
+version = "0.29.0"
 license = "Apache-2.0"
 description = "Ping Pallet for Cumulus XCM/UMP testing."
 homepage.workspace = true
@@ -13,13 +13,16 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-xcm = { workspace = true }
-cumulus-primitives-core = { workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-runtime = { workspace = true }
+
 xcm = { workspace = true }
+
+cumulus-pallet-xcm = { workspace = true }
+cumulus-primitives-core = { workspace = true }
 
 [features]
 default = ["std"]

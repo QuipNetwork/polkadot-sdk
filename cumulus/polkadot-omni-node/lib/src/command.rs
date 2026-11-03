@@ -301,11 +301,14 @@ where
 			}
 
 			runner.run_node_until_exit(|config| async move {
+				let node_extra_args = cli.node_extra_args();
 				let node_spec =
-					new_node_spec(&config, &cmd_config.runtime_resolver, &cli.node_extra_args())?;
+					new_node_spec(&config, &cmd_config.runtime_resolver, &node_extra_args)?;
 
 				if let Some(dev_mode) = cli.dev_mode() {
-					return node_spec.start_dev_node(config, dev_mode).map_err(Into::into);
+					return node_spec
+						.start_dev_node(config, dev_mode, node_extra_args)
+						.map_err(Into::into);
 				}
 
 				// If Statemint (Statemine, Westmint, Rockmine) DB exists and we're using the
@@ -359,9 +362,19 @@ where
 					})
 					.flatten();
 				let tokio_handle = config.tokio_handle.clone();
-				let polkadot_config =
+				let mut polkadot_config =
 					SubstrateCli::create_configuration(&polkadot_cli, &polkadot_cli, tokio_handle)
 						.map_err(|err| format!("Relay chain argument error: {}", err))?;
+
+				// The relay chain side of a collator doesn't listen on WebRTC by default;
+				// `--force-enable-webrtc` or explicit `--listen-addr` take precedence.
+				let relay_network_params = &polkadot_cli.base.base.network_params;
+				if config.role.is_authority() &&
+					!relay_network_params.force_enable_webrtc &&
+					relay_network_params.listen_addr.is_empty()
+				{
+					polkadot_config.network.remove_webrtc_addresses();
+				}
 
 				info!("✍️ Is collating: {}", if config.role.is_authority() { "yes" } else { "no" });
 

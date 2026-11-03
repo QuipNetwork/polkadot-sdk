@@ -28,6 +28,7 @@ use futures::{
 
 use sc_keystore::LocalKeystore;
 
+use polkadot_node_clock::Clock;
 use polkadot_node_primitives::{
 	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement,
 	Timestamp, DISPUTE_WINDOW,
@@ -58,7 +59,7 @@ use crate::{
 	is_potential_spam,
 	metrics::Metrics,
 	scraping::ScrapedUpdates,
-	status::{get_active_with_status, Clock},
+	status::get_active_with_status,
 	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
 
@@ -172,7 +173,7 @@ impl Initialized {
 		mut ctx: Context,
 		mut backend: B,
 		mut initial_data: Option<InitialData>,
-		clock: Box<dyn Clock>,
+		clock: Arc<dyn Clock>,
 	) -> FatalResult<()>
 	where
 		B: Backend,
@@ -244,7 +245,7 @@ impl Initialized {
 				ctx,
 				&mut overlay_db,
 				on_chain_votes,
-				clock.now(),
+				clock.duration_since_epoch().as_secs(),
 				first_leaf.hash,
 			)
 			.await;
@@ -289,7 +290,7 @@ impl Initialized {
 								candidate_receipt,
 								session,
 								valid,
-								clock.now(),
+								clock.duration_since_epoch().as_secs(),
 							)
 							.await?;
 						} else {
@@ -305,7 +306,7 @@ impl Initialized {
 								ctx,
 								&mut overlay_db,
 								update,
-								clock.now(),
+								clock.duration_since_epoch().as_secs(),
 							)
 							.await?;
 							default_confirm
@@ -316,7 +317,13 @@ impl Initialized {
 							default_confirm
 						},
 						FromOrchestra::Communication { msg } => {
-							self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?
+							self.handle_incoming(
+								ctx,
+								&mut overlay_db,
+								msg,
+								clock.duration_since_epoch().as_secs(),
+							)
+							.await?
 						},
 					},
 				};
@@ -1273,7 +1280,6 @@ impl Initialized {
 					ParticipationRequest::new(
 						new_state.candidate_receipt().clone(),
 						session,
-						env.executor_params().clone(),
 						request_timer,
 					),
 					self.v3_ever_seen,

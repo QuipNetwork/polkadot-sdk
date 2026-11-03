@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-network-protocol"
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -19,15 +19,15 @@ codec = { features = ["derive"], workspace = true }
 derive_more = { workspace = true, default-features = true }
 fatality = { workspace = true }
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
 hex = { workspace = true, default-features = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
 rand = { workspace = true, default-features = true }
-sc-authority-discovery = { default-features = true, workspace = true }
-sc-network = { default-features = true, workspace = true }
-sc-network-types = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sc-authority-discovery = { workspace = true, default-features = true }
+sc-network = { workspace = true, default-features = true }
+sc-network-types = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 strum = { features = ["derive"], workspace = true, default-features = true }
 thiserror = { workspace = true }
 

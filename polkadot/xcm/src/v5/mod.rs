@@ -62,11 +62,14 @@ pub type QueryId = u64;
 #[derive(Default, DecodeWithMemTracking, Encode, TypeInfo)]
 #[derive_where(Clone, Eq, PartialEq, Debug)]
 #[codec(encode_bound())]
-#[codec(decode_bound())]
+#[codec(decode_with_mem_tracking_bound(Call: Decode))]
 #[scale_info(bounds(), skip_type_params(Call))]
 pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 
-impl<Call> Decode for Xcm<Call> {
+impl<Call> Decode for Xcm<Call>
+where
+	Call: Decode,
+{
 	fn decode<I: CodecInput>(input: &mut I) -> core::result::Result<Self, CodecError> {
 		Ok(Xcm(decode_xcm_instructions(input)?))
 	}
@@ -386,8 +389,8 @@ impl XcmContext {
 )]
 #[derive_where(Clone, Eq, PartialEq, Debug)]
 #[codec(encode_bound())]
-#[codec(decode_bound())]
-#[codec(decode_with_mem_tracking_bound())]
+#[codec(decode_bound(Call: Decode))]
+#[codec(decode_with_mem_tracking_bound(Call: Decode))]
 #[scale_info(bounds(), skip_type_params(Call))]
 pub enum Instruction<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into the Holding
@@ -1194,7 +1197,7 @@ impl<Call> Instruction<Call> {
 				HrmpChannelClosing { initiator, sender, recipient }
 			},
 			Transact { origin_kind, call, fallback_max_weight } => {
-				Transact { origin_kind, call: call.into(), fallback_max_weight }
+				Transact { origin_kind, call: call.transmute_encoded(), fallback_max_weight }
 			},
 			ReportError(response_info) => ReportError(response_info),
 			DepositAsset { assets, beneficiary } => DepositAsset { assets, beneficiary },

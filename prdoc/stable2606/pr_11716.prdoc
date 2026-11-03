@@ -1,0 +1,20 @@
+title: Add legacy NegativeImbalance support to DAP and DAP satellite
+doc:
+- audience: Runtime Dev
+  description: |-
+    Add `DapLegacyAdapter` and `DapSatelliteLegacyAdapter` wrapper structs that implement `OnUnbalanced<NegativeImbalance>` from the legacy `Currency` trait, bridging pallets not yet migrated to fungible traits.
+
+    Wire Westend runtimes: AH referenda slash to DAP, collectives (fellowship, ambassador, alliance) and people identity slash to DAP satellite.
+
+    Closes #11704.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch
+- name: collectives-westend-runtime
+  bump: patch
+- name: people-westend-runtime
+  bump: patch
+- name: pallet-dap-satellite
+  bump: minor
+- name: pallet-dap
+  bump: minor

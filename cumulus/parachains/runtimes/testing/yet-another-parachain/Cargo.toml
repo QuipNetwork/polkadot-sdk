@@ -1,6 +1,6 @@
 [package]
 name = "yet-another-parachain-runtime"
-version = "0.8.0"
+version = "0.16.0"
 authors.workspace = true
 edition.workspace = true
 description = "Simple runtime used by the testing parachain(s)"
@@ -13,10 +13,45 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-polkadot-sdk = { workspace = true, features = ["cumulus-pallet-aura-ext", "cumulus-pallet-weight-reclaim", "cumulus-pallet-xcm", "cumulus-pallet-xcmp-queue", "cumulus-primitives-aura", "cumulus-primitives-core", "cumulus-primitives-utility", "pallet-aura", "pallet-authorship", "pallet-balances", "pallet-collator-selection", "pallet-message-queue", "pallet-session", "pallet-sudo", "pallet-timestamp", "pallet-transaction-payment", "pallet-transaction-payment-rpc-runtime-api", "pallet-utility", "pallet-verify-signature", "pallet-xcm", "parachains-common", "polkadot-parachain-primitives", "polkadot-runtime-common", "runtime", "staging-parachain-info", "staging-xcm", "staging-xcm-builder", "staging-xcm-executor"], default-features = false }
 scale-info = { features = ["derive"], workspace = true }
 serde_json = { features = ["alloc"], workspace = true }
+
+polkadot-sdk = { workspace = true, default-features = false, features = [
+	"pallet-aura",
+	"pallet-authorship",
+	"pallet-balances",
+	"pallet-message-queue",
+	"pallet-session",
+	"pallet-sudo",
+	"pallet-timestamp",
+	"pallet-transaction-payment",
+	"pallet-transaction-payment-rpc-runtime-api",
+	"pallet-utility",
+	"pallet-verify-signature",
+
+	"pallet-xcm",
+	"polkadot-parachain-primitives",
+	"polkadot-runtime-common",
+	"staging-xcm",
+	"staging-xcm-builder",
+	"staging-xcm-executor",
+
+	"cumulus-pallet-aura-ext",
+	"cumulus-pallet-weight-reclaim",
+	"cumulus-pallet-xcm",
+	"cumulus-pallet-xcmp-queue",
+	"cumulus-primitives-aura",
+	"cumulus-primitives-core",
+	"cumulus-primitives-utility",
+	"pallet-collator-selection",
+	"parachains-common",
+	"staging-parachain-info",
+
+	"runtime",
+] }
+
+# Cumulus
+cumulus-pallet-parachain-system = { workspace = true }
 
 [build-dependencies]
 substrate-wasm-builder = { optional = true, workspace = true, default-features = true }

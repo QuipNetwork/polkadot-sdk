@@ -184,9 +184,11 @@ impl CompactProof {
 	}
 
 	/// Decode to a full storage_proof.
+	///
+	/// The decoded root is always checked against `expected_root`.
 	pub fn to_storage_proof<H: Hasher>(
 		&self,
-		expected_root: Option<&H::Out>,
+		expected_root: &H::Out,
 	) -> Result<(StorageProof, H::Out), crate::CompactProofError<H::Out, crate::Error<H::Out>>> {
 		let mut db = crate::MemoryDB::<H>::new(&[]);
 		let root = crate::decode_compact::<Layout<H>, _, _>(
@@ -208,12 +210,13 @@ impl CompactProof {
 
 	/// Convert self into a [`MemoryDB`](crate::MemoryDB).
 	///
-	/// `expected_root` is the expected root of this compact proof.
+	/// `expected_root` is the expected root of this compact proof. The decoded root is always
+	/// checked against it.
 	///
 	/// Returns the memory db and the root of the trie.
 	pub fn to_memory_db<H: Hasher>(
 		&self,
-		expected_root: Option<&H::Out>,
+		expected_root: &H::Out,
 	) -> Result<(crate::MemoryDB<H>, H::Out), crate::CompactProofError<H::Out, crate::Error<H::Out>>>
 	{
 		let mut db = crate::MemoryDB::<H>::new(&[]);
@@ -250,7 +253,8 @@ pub mod tests {
 	#[test]
 	fn invalid_compact_proof_does_not_panic_when_decoding() {
 		let invalid_proof = CompactProof { encoded_nodes: vec![vec![135]] };
-		let result = invalid_proof.to_memory_db::<Hasher>(None);
+		// Decoding fails before the root is ever compared, so any expected root will do.
+		let result = invalid_proof.to_memory_db::<Hasher>(&Default::default());
 		assert!(result.is_err());
 	}
 }

@@ -36,7 +36,7 @@ use sp_runtime::{
 	impl_tx_ext_default,
 	traits::{
 		AsSystemOriginSigner, AsTransactionAuthorizedOrigin, CheckedSub, DispatchInfoOf,
-		Dispatchable, TransactionExtension, Zero,
+		Dispatchable, Saturating, TransactionExtension, Zero,
 	},
 	transaction_validity::{
 		InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
@@ -240,6 +240,9 @@ pub mod pallet {
 		InvalidStatement,
 		/// The account already has a vested balance.
 		VestedBalanceExists,
+		/// The claim has a vesting schedule but its value is below the existential deposit, so the
+		/// destination account could not be kept alive to carry the vesting lock.
+		ClaimBelowExistentialDeposit,
 	}
 
 	#[pallet::storage]
@@ -377,7 +380,6 @@ pub mod pallet {
 			statement: Option<StatementKind>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-
 			Total::<T>::mutate(|t| *t += value);
 			Claims::<T>::insert(who, value);
 			if let Some(vs) = vesting_schedule {
@@ -496,6 +498,7 @@ pub mod pallet {
 		}
 	}
 
+	#[allow(deprecated)]
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -594,8 +597,20 @@ impl<T: Config> Pallet<T> {
 			Total::<T>::get().checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
 
 		let vesting = Vesting::<T>::get(&signer);
-		if vesting.is_some() && T::VestingSchedule::vesting_balance(&dest).is_some() {
-			return Err(Error::<T>::VestedBalanceExists.into());
+		if let Some(_) = vesting {
+			if T::VestingSchedule::vesting_balance(&dest).is_some() {
+				return Err(Error::<T>::VestedBalanceExists.into());
+			}
+
+			// A vesting schedule installs a balance lock, which requires the account to stay alive,
+			// otherwise it is dusted and the lock placed on a non-existent account. The `dest` may
+			// already hold funds, so a small claim that tops an existing account over the ED is
+			// valid.
+			let free_after = CurrencyOf::<T>::free_balance(&dest).saturating_add(balance_due);
+			ensure!(
+				free_after >= CurrencyOf::<T>::minimum_balance(),
+				Error::<T>::ClaimBelowExistentialDeposit,
+			);
 		}
 
 		// We first need to deposit the balance to ensure that the account exists.
@@ -603,10 +618,10 @@ impl<T: Config> Pallet<T> {
 
 		// Check if this claim should have a vesting schedule.
 		if let Some(vs) = vesting {
-			// This can only fail if the account already has a vesting schedule,
-			// but this is checked above.
+			// This can only fail if the account already has a vesting schedule or its balance is
+			// below the existential deposit, both of which are checked above.
 			T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)
-				.expect("No other vesting schedule exists, as checked above; qed");
+				.map_err(|_| Error::<T>::VestedBalanceExists)?;
 		}
 
 		Total::<T>::put(new_total);

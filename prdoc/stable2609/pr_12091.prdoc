@@ -1,0 +1,17 @@
+title: Add resubmission store for parablock resubmission
+doc:
+- audience: Node Dev
+  description: |-
+    Introduces `cumulus-client-resubmission-store`, a new crate that persists per imported
+    parablock the data needed to resubmit it without relying on the relay parent still being
+    available in the blockchain state: the storage proof, the relay parent header and the
+    relay-parent session. Entries are pruned on finality.
+crates:
+- name: cumulus-client-resubmission-store
+  bump: minor
+- name: cumulus-client-consensus-aura
+  bump: minor
+- name: cumulus-client-consensus-common
+  bump: minor
+- name: polkadot-sdk
+  bump: minor

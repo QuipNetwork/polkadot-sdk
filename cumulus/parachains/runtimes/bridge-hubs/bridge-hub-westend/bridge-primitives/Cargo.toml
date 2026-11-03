@@ -1,7 +1,7 @@
 [package]
 name = "bp-bridge-hub-westend"
 description = "Primitives of BridgeHubWestend parachain runtime."
-version = "0.24.0"
+version = "0.35.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -14,11 +14,15 @@ exclude-from-umbrella = true
 workspace = true
 
 [dependencies]
+codec = { features = ["derive"], workspace = true }
+
+# Bridge Dependencies
 bp-bridge-hub-cumulus = { workspace = true }
 bp-messages = { workspace = true }
 bp-runtime = { workspace = true }
 bp-xcm-bridge-hub = { workspace = true }
-codec = { features = ["derive"], workspace = true }
+
+# Substrate Based Dependencies
 frame-support = { workspace = true }
 sp-api = { workspace = true }
 sp-runtime = { workspace = true }

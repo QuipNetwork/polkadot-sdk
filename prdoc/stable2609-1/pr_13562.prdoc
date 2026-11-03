@@ -1,0 +1,17 @@
+title: 'collator-discovery: keep a reserved peer whose address set changed'
+
+doc:
+  - audience: Node Operator
+    description: |
+      The collator-discovery reserved-peer refresh removed peers by multiaddr: when a selected
+      peer republished its authority-discovery record with a different address set, every
+      address that disappeared turned into a removal of that peer, while the addresses that
+      stayed produced no addition, so the peer silently lost its reservation until its record
+      changed again. A collator restart triggers exactly this, because the node publishes its
+      record before it has discovered all of its external addresses. The refresh now removes
+      only the peers that have no address left in the current selection; a peer whose addresses
+      changed keeps its reservation and receives the new addresses.
+
+crates:
+  - name: cumulus-client-collator-discovery
+    bump: patch

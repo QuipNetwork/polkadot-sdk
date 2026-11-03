@@ -1,0 +1,88 @@
+title: '[pallet-revive] `System.terminate` deletes the contract despite locks, freezes and holds'
+
+doc:
+- audience: Runtime User
+  description: |-
+    `System.terminate` now always deletes the calling contract when it returns success. Before,
+    a lock, a freeze or a foreign hold on the contract account, for example from a vested
+    transfer to the contract, made the destruction at the end of the call stack fail without an
+    error: the call returned success and the contract stayed alive.
+
+    The storage deposit is now refunded to the origin when `System.terminate` is called, before
+    the balance is paid out to the beneficiary, instead of at the end of the call stack. If that
+    refund fails, the call to `System.terminate` now fails. Before, it returned success. In both
+    cases the contract stays alive. Only the part of the deposit that a freeze on the account
+    needs stays on hold. That part stays on the leftover account and the origin does not get it
+    back. If a contract is later deployed to the same address, whoever terminates that contract
+    receives it. The payout sends the transferable balance as before.
+
+    If the account cannot be reaped because something still pins funds on it, the contract is
+    deleted and the account stays behind as a plain account holding those funds. A contract
+    deployed to the same address later takes the account over. Funds sent to the contract after
+    `System.terminate` are forwarded to the beneficiary at the end of the call stack, before the
+    ED is burned. This only holds as far as the balance covers the locks and freezes on the
+    account: under a lock or freeze larger than the balance only the part below one native unit
+    is forwarded and the rest of the late funds stays on the account. If the transfer fails, the
+    funds stay on the account as well, and the contract is deleted anyway. The ED is only burned
+    when the account holds nothing else afterwards, not even a part of a balance below one native
+    unit. Otherwise the ED stays on the account together with the rest, so `BALANCE` of the
+    address does not change. Under an encumbrance the ED stays on the account as well. A provider
+    or sufficient reference from another pallet, for example a sufficient asset the contract
+    holds, does not keep the ED: it is burned and the account stays alive on that reference.
+
+    A contract that names itself as the beneficiary, of `System.terminate` or of a `SELFDESTRUCT`
+    in the transaction that created it, is deleted and its balance stays on the account, as in
+    EIP-8246. This includes funds that arrive after the call. With a zero balance the ED is burned
+    and the account is reaped. Otherwise the ED stays on the account, so `BALANCE` of the address
+    keeps returning what the contract held, plus the funds that arrived after the call, including
+    the part below one native unit. Before, the ED was burned, which lowered that balance by the
+    ED or removed a balance below the ED as dust, and the part below one native unit was dropped.
+    On its own, a `SELFDESTRUCT` of a pre-existing contract that names itself still changes no
+    balance. A contract that is terminated more than once in a transaction, for example by
+    `System.terminate` and a `SELFDESTRUCT`, sends the funds that arrive afterwards to the
+    beneficiary it named last.
+
+    A `SELFDESTRUCT` run after `System.terminate`, in the same frame or in a later one, no longer
+    cancels the termination: the contract is deleted and its deposit is refunded once.
+
+    `SELFDESTRUCT` keeps its EIP-6780 semantics. A contract created in the same transaction is
+    now deleted even if its account carries a lock, which leaves the locked funds on the account.
+    This now also holds for `SELFDESTRUCT` in the constructor of a top-level instantiation, which
+    before left the contract alive. A `SELFDESTRUCT` in a nested EVM constructor (`new X()`) also
+    left the contract alive, because the teardown aborted on the init code hash. When an EVM
+    constructor runs `SELFDESTRUCT`, the contract is now deleted and the runtime code it deployed
+    and its deposit are released. A pre-existing contract keeps its code and deposits and only
+    has its balance moved.
+
+    `ISystem.sol` no longer lists balance locks as a reason for `terminate` to revert. It never
+    reverted for that reason.
+
+- audience: Runtime Dev
+  description: |-
+    No migration or configuration change is needed.
+
+    `seal_terminate_logic` still measures one storage deposit refund and the teardown. The
+    refund now runs when `System.terminate` is called instead of at the end of the call stack,
+    and each teardown step runs in its own storage layer. The `pallet_revive` weights are not
+    regenerated for this release and no benchmark was run on it. The existing
+    `seal_terminate_logic` weight is 222.45M ps ref_time, 6713 bytes proof size and 7 storage
+    reads. The measurement after this change on master is 235.88M ps, 6348 bytes and 6 reads.
+    The ref_time here is about 6% below that measurement, while the proof size and reads are
+    above it.
+
+    `Deposit::refund_all` now releases the native storage deposit only as far as the freezes on
+    the account allow and returns the amount actually released, instead of failing. The PGAS
+    backend delegates its native part to the same code, so this applies to both backends.
+    `Deposit` is sealed, so no downstream implementation is affected.
+
+    `pallet-revive-fixtures` gains the `TerminateCombined` fixture, which adds the generated
+    `TerminateCombined` and `TerminateCombinedCaller` modules. The existing `Terminate` and
+    `TerminateCaller` fixtures are unchanged.
+
+crates:
+- name: pallet-revive
+  bump: patch
+- name: pallet-revive-uapi
+  bump: patch
+- name: pallet-revive-fixtures
+  bump: minor

@@ -43,7 +43,11 @@ pub trait Config: frame_system::Config {
 	///
 	/// Default is checking for `CodeUpdated` event .
 	fn verify_set_code() {
-		System::<Self>::assert_last_event(frame_system::Event::<Self>::CodeUpdated.into());
+		let code = Self::prepare_set_code_data();
+		let hash = Self::Hashing::hash(&code);
+		let want: Self::RuntimeEvent = frame_system::Event::<Self>::CodeUpdated { hash }.into();
+
+		System::<Self>::assert_last_event(want);
 	}
 }
 

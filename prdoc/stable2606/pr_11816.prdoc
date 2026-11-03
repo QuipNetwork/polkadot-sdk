@@ -1,0 +1,7 @@
+title: 'pallet-beefy: Allow unsigned execution of an unsigned method'
+doc:
+- audience: Runtime Dev
+  description: Allow unsigned execution of `report_future_block_voting_unsigned` in beefy.
+crates:
+- name: pallet-beefy
+  bump: patch

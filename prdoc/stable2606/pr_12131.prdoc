@@ -1,0 +1,16 @@
+title: "Remove deprecated ToStakingPot from parachains-common"
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removes `parachains_common::ToStakingPot`, deprecated since March 2024 with no remaining
+    in-repo usage. `DealWithFees` already routes fees via `ResolveTo<StakingPotAccountId, Balances>`.
+
+    Migration:
+
+    ```diff
+    - type OnChargeTransaction = ToStakingPot<Runtime>;
+    + type OnChargeTransaction = ResolveTo<StakingPotAccountId<Runtime>, Balances>;
+    ```
+crates:
+- name: parachains-common
+  bump: major

@@ -40,7 +40,6 @@ Formally, `Statement` is equivalent to the type `Vec<Field>` and `Field` is the 
 - 0: `Sr25519 { signature: [u8; 64], signer: [u8; 32] }`
 - 1: `Ed25519 { signature: [u8; 64], signer: [u8; 32] )`
 - 2: `Secp256k1Ecdsa { signature: [u8; 65], signer: [u8; 33] )`
-- 3: `OnChain { who: [u8; 32], block_hash: [u8; 32], event_index: u64 }`
 
 ## Potential uses
 

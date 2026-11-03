@@ -1,0 +1,13 @@
+title: 'statement-store: enforce allowance against best and finalized blocks'
+doc:
+- audience:
+  - Node Dev
+  - Node Operator
+  description: |-
+    Allowance enforcement now checks each account against the larger of its best-block and
+    finalized-block allowances. Submission checks only the best block, so enforcing the finalized
+    allowance alone evicted, and banned for up to 48h, statements accepted after an allowance
+    increase that was not finalized yet.
+crates:
+- name: sc-statement-store
+  bump: patch

@@ -1,0 +1,34 @@
+title: 'pallet-psm: switch Westend Asset Hub to Location AssetId backed by LocalAndForeignAssets'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    On Asset Hub Westend, `pallet-psm` is switched from `u32` (trust-backed
+    asset id) to `xcm::v5::Location` as its `AssetId`, and from `Assets` to
+    `LocalAndForeignAssets` as its `Fungibles`. PSM can now mint and redeem
+    against both trust-backed and foreign-registered external stablecoins,
+    addressed uniformly by `Location`.
+
+    Storage migration: every `AssetId`-keyed PSM storage item is encoded under
+    the old `u32` key. The runtime wipes the existing PSM storage with
+    `frame_support::migrations::RemovePallet` and re-seeds the pallet from
+    `PsmInitialConfig` via `InitializePsm`. USDT (trust-backed asset `1984`)
+    is reseeded under its `Location` representation as the first external
+    asset.
+
+    `pallet-psm`'s `BenchmarkHelper` trait gains a `get_asset_id(index: u32)`
+    method so benchmark scenarios can derive a runtime-specific `AssetId`
+    (e.g. a `Location`) from a `u32` index. Existing impls need to add this
+    method.
+
+crates:
+- name: pallet-psm
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: major
+- name: kitchensink-runtime
+  bump: patch
+- name: pallet-psm-remote-tests
+  bump: major
+- name: remote-ext-tests-psm
+  bump: patch

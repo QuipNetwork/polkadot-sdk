@@ -1,0 +1,51 @@
+title: XCM hardening - fix some regressions
+doc:
+  - audience: Runtime Dev
+    description: |-
+      This PR fixes some regressions, improves code and adds more defense-in-depth in a couple places.
+      
+      ### xcm-executor: drain holdings by ownership in deposit_assets_with_retry
+      
+      Add `AssetsInHolding::into_per_asset_holdings()` and use it in `deposit_assets_with_retry` so each pass consumes the input via owning `BTreeMap`/`BTreeSet` iterators instead of `assets_iter().collect()` + `try_take`. Per asset this drops one `AssetId` clone, one or two `BTreeMap` lookups, one dynamic dispatch on `saturating_take`, and one internal `subsume_assets` call; per pass it drops the intermediate `Vec<Asset>` allocation. Behaviour is unchanged: same iteration order, same partial-failure / retry semantics.
+      
+      ### xcm-executor: remove now dead code related do dust deposit errors
+      
+      `deposit_assets_with_retry` previously tried to silently drop "dust" (below-minimum) deposit failures, comparing the returned `XcmError` string against the canonical `TokenError::BelowMinimum` text. After PR https://github.com/paritytech/polkadot-sdk/pull/10384 within `FungiblesAdapter::deposit_asset` the underlying `DispatchError` is discarded and the adapter returns `XcmError::FailedToTransactAsset("")` - an empty string. The dust check never matched, so classifying the error is no longer possible.
+      Remove the special handling of dust deposit errors (which can no longer be identified from returned error), and treat all errors the same.
+      
+      ### xcm-executor: rollback all side-effects of partial instruction execution
+      
+      Defense-in-depth: higher components in the stack leading up to xcm-executor are already using
+      transactional layers to discard all state side effects on failed execution, but even so, this
+      commit adds defense-in-depth by making sure even at the xcm-executor level, side effects are
+      properly cleaned up on error.
+      
+      ### cumulus/utility: fix inverted ED guard in `TakeFirstAssetTrader::refund_weight`
+      
+      The else-branch was refunding ED to the user and leaving sub-ED dust for the `OnUnbalanced` drop handler, the inverse of the intended behavior.
+      Refund `outstanding - ED` instead so the handler keeps at least ED (or all of it when outstanding < ED), preventing silent fee burns.
+      
+      This was actually a bug, but `TakeFirstAssetTrader` is not used by any production runtimes.
+      
+      ### snowbridge: short-circuit on register-token error path
+      
+      Minor optimization and defense-in-depth - short-circuit on errors and don't directly compare `Option`s.
+      
+      ### snowbridge: harden BLS public key deserialization
+      
+      Defense-in-depth: validate all cryptographic inputs.
+      
+      The Merkle proof binding means the public keys must match exactly what the Ethereum beacon chain committed. Since the beacon chain itself enforces G1 subgroup membership for validator keys, invalid subgroup points cannot appear in honest beacon chain state.
+      An attacker would need to compromise the Merkle proof verification (e.g., via a SHA-256 collision or another bug in the verification chain) to inject a public key that is on the BLS12-381 curve but not in the G1 subgroup.
+      The performance cost of the subgroup check is a one-time cost during sync committee preparation (512 checks per sync committee period, approximately every 27 hours). This is negligible compared to the BLS signature verification that occurs on every update. So just check it as defense-in-depth.
+crates:
+  - name: staging-xcm-executor
+    bump: minor
+  - name: cumulus-primitives-utility
+    bump: patch
+  - name: snowbridge-runtime-common
+    bump: patch
+  - name: bridge-hub-westend-runtime
+    bump: patch
+  - name: snowbridge-beacon-primitives
+    bump: patch

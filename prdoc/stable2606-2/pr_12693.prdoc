@@ -1,0 +1,10 @@
+title: 'sc-network: derive the WebRTC DTLS certificate from the node key'
+doc:
+- audience: Node Dev
+  description: |-
+    Derive the WebRTC DTLS certificate deterministically from the node's Ed25519 secret key
+    instead of persisting it to a separate file on disk.
+
+crates:
+- name: sc-network
+  bump: minor

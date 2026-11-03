@@ -1,0 +1,20 @@
+title: 'collator-protocol: Enhance visibility into failed to fetch collations'
+doc:
+- audience: Node Dev
+  description: |-
+    This PR enhances the observability of our logs when validators refuse to fetch advertised collations.
+
+    The validator keeps track of advertised collations from collators.
+    Then, the validator checks if it has sufficient slots (`is_slot_available`) and if the collation can be seconded (`can_second`).
+    If either of the mentioned functions fails, the validator silently ignores the collation.
+
+    This PR aims to surface this behavior and help investigate further issues.
+
+    This PR is already deployed on validators and has surfaced:
+    - https://github.com/paritytech/polkadot-sdk/issues/11625
+
+    Part of:
+    - https://github.com/paritytech/polkadot-sdk/issues/11377
+crates:
+- name: polkadot-collator-protocol
+  bump: patch

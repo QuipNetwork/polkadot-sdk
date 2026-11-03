@@ -19,14 +19,15 @@
 mod block_builder;
 pub use block_builder::*;
 use codec::{Decode, Encode};
+use cumulus_pallet_parachain_system::block_weight::DynamicMaxBlockWeight;
 pub use cumulus_test_runtime as runtime;
 use cumulus_test_runtime::AuraId;
 pub use polkadot_parachain_primitives::primitives::{
 	BlockData, HeadData, ValidationParams, ValidationResult,
 };
 use runtime::{
-	Balance, Block, BlockHashCount, Runtime, RuntimeCall, Signature, SignedPayload, TxExtension,
-	UncheckedExtrinsic, VERSION,
+	test_pallet, Balance, Block, BlockHashCount, Runtime, RuntimeCall, Signature, SignedPayload,
+	TxExtension, UncheckedExtrinsic, VERSION,
 };
 use sc_consensus_aura::{
 	find_pre_digest,
@@ -141,24 +142,27 @@ pub fn generate_extrinsic_with_pair(
 	let period =
 		BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 	let tip = 0;
-	let tx_ext: TxExtension = (
-		frame_system::AuthorizeCall::<Runtime>::new(),
-		frame_system::CheckNonZeroSender::<Runtime>::new(),
-		frame_system::CheckSpecVersion::<Runtime>::new(),
-		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckEra::<Runtime>::from(Era::mortal(period, current_block)),
-		frame_system::CheckNonce::<Runtime>::from(nonce),
-		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-	)
-		.into();
+	let tx_ext: TxExtension = DynamicMaxBlockWeight::new(
+		(
+			frame_system::AuthorizeCall::<Runtime>::new(),
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
+			frame_system::CheckSpecVersion::<Runtime>::new(),
+			frame_system::CheckGenesis::<Runtime>::new(),
+			frame_system::CheckEra::<Runtime>::from(Era::mortal(period, current_block)),
+			frame_system::CheckNonce::<Runtime>::from(nonce),
+			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+			test_pallet::TestTransactionExtension::<Runtime>::default(),
+		)
+			.into(),
+	);
 
 	let function = function.into();
 
 	let raw_payload = SignedPayload::from_raw(
 		function.clone(),
 		tx_ext.clone(),
-		((), (), VERSION.spec_version, genesis_block, current_block_hash, (), (), ()),
+		((), (), VERSION.spec_version, genesis_block, current_block_hash, (), (), (), ()),
 	);
 	let signature = raw_payload.using_encoded(|e| origin.sign(e));
 

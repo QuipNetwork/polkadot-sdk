@@ -21,11 +21,11 @@ use frame_support::{
 	derive_impl,
 	pallet_prelude::*,
 	parameter_types,
-	traits::{ConstU64, Nothing, VariantCountOf},
+	traits::{ConstBool, Nothing, VariantCountOf},
 	PalletId,
 };
 use sp_runtime::{
-	traits::{Convert, IdentityLookup},
+	traits::{BlockNumberProvider, Convert, IdentityLookup},
 	BuildStorage, FixedU128, Perbill,
 };
 
@@ -39,13 +39,6 @@ impl frame_system::Config for Runtime {
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Block = Block;
 	type AccountData = pallet_balances::AccountData<Balance>;
-}
-
-impl pallet_timestamp::Config for Runtime {
-	type Moment = u64;
-	type OnTimestampSet = ();
-	type MinimumPeriod = ConstU64<5>;
-	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -63,33 +56,38 @@ impl pallet_balances::Config for Runtime {
 	type RuntimeFreezeReason = RuntimeFreezeReason;
 }
 
-pallet_staking_reward_curve::build! {
-	const I_NPOS: sp_runtime::curve::PiecewiseLinear<'static> = curve!(
-		min_inflation: 0_025_000,
-		max_inflation: 0_100_000,
-		ideal_stake: 0_500_000,
-		falloff: 0_050_000,
-		max_piece_count: 40,
-		test_precision: 0_005_000,
-	);
-}
 parameter_types! {
-	pub const RewardCurve: &'static sp_runtime::curve::PiecewiseLinear<'static> = &I_NPOS;
+	pub static BondingDuration: u32 = 3;
 }
-#[derive_impl(pallet_staking::config_preludes::TestDefaultConfig)]
-impl pallet_staking::Config for Runtime {
+
+/// A mock `RcClientInterface` for benchmarks that don't need session/validator-set management.
+pub struct MockRcClient;
+impl pallet_staking_async_rc_client::RcClientInterface for MockRcClient {
+	type AccountId = AccountId;
+
+	fn validator_set(
+		_new_validator_set: Vec<Self::AccountId>,
+		_id: u32,
+		_prune_up_to: Option<u32>,
+	) {
+	}
+}
+
+#[derive_impl(pallet_staking_async::config_preludes::TestDefaultConfig)]
+impl pallet_staking_async::Config for Runtime {
 	type OldCurrency = Balances;
 	type Currency = Balances;
-	type CurrencyBalance = Balance;
-	type UnixTime = pallet_timestamp::Pallet<Self>;
 	type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = ();
+	type DisableMinting = ConstBool<true>;
+	type BondingDuration = BondingDuration;
+	type RewardPots = pallet_staking_async::SequentialTest;
 	type ElectionProvider =
 		frame_election_provider_support::NoElection<(AccountId, BlockNumber, Staking, (), ())>;
-	type GenesisElectionProvider = Self::ElectionProvider;
 	type VoterList = VoterList;
-	type TargetList = pallet_staking::UseValidatorsMap<Self>;
+	type TargetList = pallet_staking_async::UseValidatorsMap<Self>;
 	type EventListeners = (Pools, DelegatedStaking);
+	type RcClientInterface = MockRcClient;
 }
 
 parameter_types! {
@@ -119,8 +117,18 @@ impl Convert<sp_core::U256, Balance> for U256ToBalance {
 	}
 }
 
+/// Always reports block 0 so commission `throttle_from` is deterministic.
+/// While benchmarking on AH, nom-pools `BlockNumberProvider` will be `RelaychainDataProvider`.
+pub struct BenchmarkBlockNumberProvider;
+impl BlockNumberProvider for BenchmarkBlockNumberProvider {
+	type BlockNumber = BlockNumber;
+	fn current_block_number() -> Self::BlockNumber {
+		0
+	}
+}
+
 parameter_types! {
-	pub static PostUnbondingPoolsWindow: u32 = 10;
+	pub static MaxUnbondingPools: u32 = 13;
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
 	pub const MaxPointsToBalance: u8 = 10;
 }
@@ -135,13 +143,13 @@ impl pallet_nomination_pools::Config for Runtime {
 	type U256ToBalance = U256ToBalance;
 	type StakeAdapter =
 		pallet_nomination_pools::adapter::DelegateStake<Self, Staking, DelegatedStaking>;
-	type PostUnbondingPoolsWindow = PostUnbondingPoolsWindow;
+	type MaxUnbondingPools = MaxUnbondingPools;
 	type MaxMetadataLen = ConstU32<256>;
 	type MaxUnbonding = ConstU32<8>;
 	type PalletId = PoolsPalletId;
 	type MaxPointsToBalance = MaxPointsToBalance;
 	type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type BlockNumberProvider = System;
+	type BlockNumberProvider = BenchmarkBlockNumberProvider;
 	type Filter = Nothing;
 }
 
@@ -166,9 +174,8 @@ type Block = frame_system::mocking::MockBlock<Runtime>;
 frame_support::construct_runtime!(
 	pub enum Runtime {
 		System: frame_system,
-		Timestamp: pallet_timestamp,
 		Balances: pallet_balances,
-		Staking: pallet_staking,
+		Staking: pallet_staking_async,
 		VoterList: pallet_bags_list::<Instance1>,
 		Pools: pallet_nomination_pools,
 		DelegatedStaking: pallet_delegated_staking,

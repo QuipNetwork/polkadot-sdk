@@ -35,13 +35,17 @@ pub use crate::{
 	types::ProtocolName,
 };
 
+pub use litep2p::protocol::libp2p::bitswap::BitswapHandle as Litep2pBitswapHandle;
 pub use sc_network_types::{build_multiaddr, ed25519};
 use sc_network_types::{
 	multiaddr::{self, Multiaddr},
 	PeerId,
 };
 
-use crate::service::{ensure_addresses_consistent_with_transport, traits::NetworkBackend};
+use crate::{
+	service::{ensure_addresses_consistent_with_transport, traits::NetworkBackend},
+	webrtc,
+};
 use codec::Encode;
 use prometheus_endpoint::Registry;
 use zeroize::Zeroize;
@@ -424,7 +428,7 @@ where
 }
 
 /// Write secret bytes to a file.
-fn write_secret_file<P>(path: P, sk_bytes: &[u8]) -> io::Result<()>
+pub(super) fn write_secret_file<P>(path: P, sk_bytes: &[u8]) -> io::Result<()>
 where
 	P: AsRef<Path>,
 {
@@ -680,8 +684,15 @@ pub struct NetworkConfiguration {
 	/// `kademlia_replication_factor` peers to consider record successfully put.
 	pub kademlia_replication_factor: NonZeroUsize,
 
-	/// Enable serving block data over IPFS bitswap.
+	/// Enable serving indexed transaction data using IPFS Bitswap protocol.
 	pub ipfs_server: bool,
+
+	/// List of IPFS bootstrap nodes to register in IPFS DHT as a provider of indexed transaction
+	/// data.
+	///
+	/// If IPFS bootstrap nodes are not provided, this node will only handle direct Bitswap
+	/// requests from peers that already know its address.
+	pub ipfs_bootnodes: Vec<MultiaddrWithPeerId>,
 
 	/// Networking backend used for P2P communication.
 	pub network_backend: NetworkBackendType,
@@ -718,6 +729,7 @@ impl NetworkConfiguration {
 			kademlia_replication_factor: NonZeroUsize::new(DEFAULT_KADEMLIA_REPLICATION_FACTOR)
 				.expect("value is a constant; constant is non-zero; qed."),
 			ipfs_server: false,
+			ipfs_bootnodes: Vec::new(),
 			network_backend: NetworkBackendType::Litep2p,
 		}
 	}
@@ -751,6 +763,92 @@ impl NetworkConfiguration {
 		config.allow_non_globals_in_dht = true;
 		config
 	}
+
+	/// Validate this node's `webrtc-direct` addresses and append its WebRTC `/certhash` to the
+	/// public ones.
+	///
+	/// Fails on a `webrtc-direct` address configured for the [`NetworkBackendType::Libp2p`]
+	/// backend, which cannot serve WebRTC, on a public one with no listener behind it, and on any
+	/// of them that is malformed.
+	pub fn validate_and_complete_webrtc_addresses(&mut self) -> Result<(), crate::error::Error> {
+		let has_webrtc_addr = |addrs: &[Multiaddr]| addrs.iter().any(webrtc::is_webrtc_address);
+
+		let listen_webrtc = has_webrtc_addr(&self.listen_addresses);
+		let public_webrtc = has_webrtc_addr(&self.public_addresses);
+
+		// WebRTC is a litep2p-only transport.
+		if matches!(self.network_backend, NetworkBackendType::Libp2p) {
+			if listen_webrtc || public_webrtc {
+				return Err(crate::error::Error::WebRtcNotSupportedByBackend);
+			}
+			return Ok(());
+		}
+
+		match (listen_webrtc, public_webrtc) {
+			// Nothing about this configuration is WebRTC.
+			(false, false) => Ok(()),
+			// An address peers would be told to dial with no listener behind it.
+			// Defaults addresses has already been appended so we are sure there is effectively
+			// no listener behind.
+			(false, true) => Err(crate::error::Error::WebRtcTransportNotConfigured),
+			// The node listens for WebRTC, so it presents a certificate which can be
+			// appended to public addresses.
+			(true, _) => {
+				let keypair = self.node_key.clone().into_keypair()?;
+				// Pin the resolved key, so that each following `into_keypair()` returns
+				// the same secret key.
+				self.node_key = NodeKeyConfig::Ed25519(Secret::Input(keypair.secret()));
+				let certificate = webrtc::derive_certificate(keypair.secret().into())
+					.map_err(crate::error::Error::Litep2p)?;
+				webrtc::validate_and_complete_addresses(
+					&self.listen_addresses,
+					&mut self.public_addresses,
+					certificate.certhash().into(),
+				)
+			},
+		}
+	}
+
+	/// Remove every `webrtc-direct` address of this node.
+	///
+	/// The relay chain side of a collator uses this to drop the WebRTC listeners appended by
+	/// default for a full node. The public WebRTC addresses go with the listeners serving them.
+	/// Dropping one is warned about, as it can only have been configured explicitly.
+	pub fn remove_webrtc_addresses(&mut self) {
+		self.listen_addresses.retain(|address| !webrtc::is_webrtc_address(address));
+		self.public_addresses.retain(|address| {
+			let keep = !webrtc::is_webrtc_address(address);
+			if !keep {
+				log::warn!(
+					target: crate::LOG_TARGET,
+					"removing public WebRTC address {address}: no WebRTC listener on this node",
+				);
+			}
+			keep
+		});
+	}
+}
+
+/// IPFS server configuration.
+pub struct IpfsConfig {
+	/// Litep2p Bitswap protocol config, consumed by the litep2p network backend.
+	pub litep2p_bitswap_config: litep2p::protocol::libp2p::bitswap::Config,
+	/// Indexed transactions provider.
+	pub block_provider: Box<dyn crate::IpfsBlockProvider>,
+	/// IPFS bootstrap nodes.
+	pub bootnodes: Vec<MultiaddrWithPeerId>,
+}
+
+impl IpfsConfig {
+	/// Construct an [`IpfsConfig`] together with the litep2p transport-side Bitswap handle.
+	pub fn new(
+		block_provider: Box<dyn crate::IpfsBlockProvider>,
+		bootnodes: Vec<MultiaddrWithPeerId>,
+	) -> (Self, Litep2pBitswapHandle) {
+		let (litep2p_bitswap_config, litep2p_handle) =
+			litep2p::protocol::libp2p::bitswap::Config::new();
+		(Self { litep2p_bitswap_config, block_provider, bootnodes }, litep2p_handle)
+	}
 }
 
 /// Network initialization parameters.
@@ -781,7 +879,7 @@ pub struct Params<Block: BlockT, H: ExHashT, N: NetworkBackend<Block, H>> {
 	pub block_announce_config: N::NotificationProtocolConfig,
 
 	/// Bitswap configuration, if the server has been enabled.
-	pub bitswap_config: Option<N::BitswapConfig>,
+	pub ipfs_config: Option<IpfsConfig>,
 
 	/// Notification metrics.
 	pub notification_metrics: NotificationMetrics,

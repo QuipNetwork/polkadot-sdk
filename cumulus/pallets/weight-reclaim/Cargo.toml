@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-pallet-weight-reclaim"
-version = "0.8.0"
+version = "0.12.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -15,13 +15,15 @@ workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+# Substrate dependencies
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-trie = { workspace = true }
+
 cumulus-primitives-storage-weight-reclaim = { workspace = true }
 frame-benchmarking = { optional = true, workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-sp-io = { workspace = true }
-sp-runtime = { workspace = true }
-sp-trie = { workspace = true }
 
 # Other dependencies
 codec = { features = ["derive"], workspace = true }
@@ -31,7 +33,7 @@ log = { workspace = true, default-features = true }
 scale-info = { features = ["derive"], workspace = true }
 
 [dev-dependencies]
-cumulus-primitives-proof-size-hostfunction = { workspace = true, default-features = false }
+cumulus-primitives-proof-size-hostfunction = { workspace = true }
 
 [features]
 default = ["std"]

@@ -1,0 +1,17 @@
+title: 'fatp: unban viewless transactions after mempool revalidation'
+doc:
+- audience: Node Dev
+  description: |
+    In rare cases a transaction valid at the finalized block can get stuck in the fork-aware
+    pool. If it receives `InvalidTransaction` on one fork, the view's rotator bans it and the
+    ban propagates to all new views (rotator is cloned). The tx stays in the mempool but is
+    silently rejected from every view for the ban duration (default 30 min).
+
+    Fix: track ban reason (`Validation` vs `LimitsEnforced`). When a ready tx loses all views,
+    emit a `Viewless` event and flag it for unbanning. On the next mempool revalidation, if the
+    tx is valid at the finalized block, clear `Validation` bans across all views. If still
+    invalid, remove from mempool.
+
+crates:
+- name: sc-transaction-pool
+  bump: patch

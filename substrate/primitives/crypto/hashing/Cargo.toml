@@ -32,7 +32,7 @@ twox-hash = { features = ["digest_0_10"], workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, default-features = true }
-sp-crypto-hashing-proc-macro = { default-features = true, workspace = true }
+sp-crypto-hashing-proc-macro = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

@@ -15,8 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use jsonrpsee::http_client::HttpClientBuilder;
-use pallet_revive::evm::{Account, BlockTag, ReceiptInfo};
-use pallet_revive_eth_rpc::{EthRpcClient, example::TransactionBuilder};
+use pallet_revive::evm::Account;
+use pallet_revive_eth_rpc::{EthRpcClient, ReceiptInfo, example::TransactionBuilder};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -29,9 +29,9 @@ async fn main() -> anyhow::Result<()> {
 	let value = 1_000_000_000_000_000_000_000u128.into();
 
 	let print_balance = || async {
-		let balance = client.get_balance(alith_address, BlockTag::Latest.into()).await?;
+		let balance = client.get_balance(alith_address, Default::default()).await?;
 		println!("Alith     {alith_address:?} balance: {balance:?}");
-		let balance = client.get_balance(ethan.address(), BlockTag::Latest.into()).await?;
+		let balance = client.get_balance(ethan.address(), Default::default()).await?;
 		println!("ethan {:?} balance: {balance:?}", ethan.address());
 		anyhow::Result::<()>::Ok(())
 	};

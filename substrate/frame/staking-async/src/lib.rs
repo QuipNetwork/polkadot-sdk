@@ -29,19 +29,40 @@
 //! While `pallet-staking` was somewhat general-purpose, this pallet is absolutely NOT right from
 //! the get-go: It is designed to be used ONLY in Polkadot/Kusama AssetHub system parachains.
 //!
-//! The workings of this pallet can be divided into a number of subsystems, as follows.
+//! ## Reward and Inflation
 //!
-//! ## User Interactions
+//! This pallet supports two reward modes, controlled by [`Config::DisableMinting`]:
 //!
-//! TODO
+//! ### Non-minting mode (`DisableMinting = true`)
 //!
-//! ## Session and Era Rotation
+//! Staking does **not** mint tokens. It expects an external source (e.g. `pallet-dap`) to
+//! fund the general staker reward pot ([`PotAccountProvider`]). At each era boundary,
+//! staking snapshots the accumulated balance into an era-specific pot via
+//! [`EraRewardManager`](reward::EraRewardManager). Payouts transfer from the era pot.
 //!
-//! TODO
+//! Unclaimed rewards from expired eras (past `HistoryDepth`) are withdrawn and passed to
+//! [`Config::UnclaimedRewardHandler`].
 //!
-//! ## Exposure Collection
+//! [`DisableMintingGuard`] is set on the first successful snapshot as a safety net — it
+//! prevents the payout side from falling back to legacy minting for eras that should have
+//! reward pots.
 //!
-//! TODO
+//! ### Legacy minting mode (`DisableMinting = false`)
+//!
+//! At era boundary, [`Config::EraPayout`] computes inflation based on `total_staked`,
+//! `total_issuance`, and era duration. Tokens are minted on-the-fly during `payout_stakers`.
+//! The treasury remainder is sent to [`Config::RewardRemainder`]. [`MaxStakedRewards`] can
+//! cap the staker portion. [`Config::MaxEraDuration`] caps the effective era duration.
+//!
+//! This mode is kept for Kusama/non-polkadot runtime's compatibility where inflation depends on the
+//! staking ratio.
+//!
+//! ### Switching modes
+//!
+//! Switching from legacy to non-minting is a one-way migration. Once `DisableMinting` is
+//! set to `true`, it must **never** be switched back — eras created in non-minting mode
+//! have funded reward pots, and switching to legacy would orphan those pots and cause
+//! double-minting.
 //!
 //! ## Slashing Pipeline and Withdrawal Restrictions
 //!
@@ -190,7 +211,9 @@ mod tests;
 pub mod asset;
 pub mod election_size_tracker;
 pub mod ledger;
+pub mod migrations;
 mod pallet;
+pub mod reward;
 pub mod session_rotation;
 pub mod slashing;
 pub mod weights;
@@ -479,6 +502,20 @@ pub trait NominationsQuota<Balance> {
 	fn curve(balance: Balance) -> u32;
 }
 
+/// Check if validator was inactive at some era.
+///
+/// The check is based on the [`RewardPoint`] amount received during the era by the given validator.
+pub trait IsValidatorInactive<AccountId> {
+	/// Tell if the validator considered inactive.
+	fn is_inactive(era: EraIndex, stash: &AccountId, era_points: RewardPoint) -> bool;
+}
+
+impl<AccountId> IsValidatorInactive<AccountId> for () {
+	fn is_inactive(_era: EraIndex, _stash: &AccountId, era_points: RewardPoint) -> bool {
+		era_points == 0
+	}
+}
+
 /// A nomination quota that allows up to MAX nominations for all validators.
 pub struct FixedNominationsQuota<const MAX: u32>;
 impl<Balance, const MAX: u32> NominationsQuota<Balance> for FixedNominationsQuota<MAX> {
@@ -489,28 +526,7 @@ impl<Balance, const MAX: u32> NominationsQuota<Balance> for FixedNominationsQuot
 	}
 }
 
-/// Handler for determining how much of a balance should be paid out on the current era.
-pub trait EraPayout<Balance> {
-	/// Determine the payout for this era.
-	///
-	/// Returns the amount to be paid to stakers in this era, as well as whatever else should be
-	/// paid out ("the rest").
-	fn era_payout(
-		total_staked: Balance,
-		total_issuance: Balance,
-		era_duration_millis: u64,
-	) -> (Balance, Balance);
-}
-
-impl<Balance: Default> EraPayout<Balance> for () {
-	fn era_payout(
-		_total_staked: Balance,
-		_total_issuance: Balance,
-		_era_duration_millis: u64,
-	) -> (Balance, Balance) {
-		(Default::default(), Default::default())
-	}
-}
+pub use sp_staking::EraPayout;
 
 /// Mode of era-forcing.
 #[derive(
@@ -563,6 +579,142 @@ impl<T: Config> Contains<T::AccountId> for AllStakers<T> {
 	/// - `false` otherwise.
 	fn contains(account: &T::AccountId) -> bool {
 		Ledger::<T>::contains_key(account)
+	}
+}
+
+/// Size of the rotating pool of era-specific pot accounts.
+///
+/// Era pots are addressed by `era % POT_POOL_SIZE`, so a pot account is reused
+/// every `POT_POOL_SIZE` eras instead of a fresh account being created per era.
+/// This bounds the total storage footprint contributed by era pot accounts to a
+/// constant rather than growing with chain age.
+///
+/// Must be strictly greater than [`Config::HistoryDepth`] so that a slot is only
+/// reused after its previous era has been pruned and drained. The
+/// [`integrity_test`] enforces this invariant at runtime startup.
+pub(crate) const POT_POOL_SIZE: u32 = 200;
+
+/// Maps an era index to its slot in the rotating pot pool.
+pub(crate) fn pot_slot(era: EraIndex) -> u32 {
+	era % POT_POOL_SIZE
+}
+
+/// Kind of reward managed by staking pots.
+#[derive(
+	Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, codec::DecodeWithMemTracking, TypeInfo,
+)]
+pub enum RewardKind {
+	/// Staker rewards (nominators + validators).
+	#[codec(index = 0)]
+	StakerRewards,
+	/// Pot for validator self-stake incentive.
+	#[codec(index = 1)]
+	ValidatorSelfStake,
+}
+
+/// Identifies a reward pot account.
+#[derive(
+	Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, codec::DecodeWithMemTracking, TypeInfo,
+)]
+pub enum RewardPot {
+	/// General pot: funded by an external source (e.g. pallet-dap).
+	/// At era boundaries, staking snapshots the balance into an era-specific pot.
+	#[codec(index = 0)]
+	General(RewardKind),
+	/// Era-specific pot: snapshotted from the general pot at era boundaries.
+	/// See `POT_POOL_SIZE` for the slot rotation scheme.
+	#[codec(index = 1)]
+	Era(EraIndex, RewardKind),
+}
+
+/// Trait for generating reward pot account IDs.
+pub trait PotAccountProvider<AccountId> {
+	fn pot_account(pot: RewardPot) -> AccountId;
+}
+
+/// Seed-based pot account provider for production use.
+///
+/// Era pots are derived from `(slot, kind)` where `slot = era % POT_POOL_SIZE`,
+/// so a fixed pool of accounts rotates instead of creating one per era.
+pub struct Seed<S>(core::marker::PhantomData<S>);
+
+impl<AccountId, S> PotAccountProvider<AccountId> for Seed<S>
+where
+	AccountId: codec::FullCodec,
+	S: Get<frame_support::PalletId>,
+{
+	fn pot_account(pot: RewardPot) -> AccountId {
+		use sp_runtime::traits::AccountIdConversion;
+		// Era pots are addressed by slot (`era % POT_POOL_SIZE`), not by the
+		// raw era index, so a fixed pool of accounts rotates instead of
+		// growing per era.
+		let normalized = match pot {
+			RewardPot::Era(era, kind) => RewardPot::Era(pot_slot(era), kind),
+			other => other,
+		};
+		S::get().into_sub_account_truncating(normalized)
+	}
+}
+
+/// Sequential pot account provider for testing.
+///
+/// Mirrors the production rotation: era pots collide every `POT_POOL_SIZE`
+/// eras so tests exercise the same pool reuse path.
+#[cfg(feature = "std")]
+pub struct SequentialTest;
+
+#[cfg(feature = "std")]
+impl<AccountId> PotAccountProvider<AccountId> for SequentialTest
+where
+	AccountId: From<u64>,
+{
+	fn pot_account(pot: RewardPot) -> AccountId {
+		match pot {
+			RewardPot::General(RewardKind::StakerRewards) => AccountId::from(200_000u64),
+			RewardPot::General(RewardKind::ValidatorSelfStake) => AccountId::from(200_001u64),
+			RewardPot::Era(era, RewardKind::StakerRewards) => {
+				AccountId::from(100_000 + (pot_slot(era) as u64 * 10))
+			},
+			RewardPot::Era(era, RewardKind::ValidatorSelfStake) => {
+				AccountId::from(100_000 + (pot_slot(era) as u64 * 10) + 1)
+			},
+		}
+	}
+}
+
+/// Budget recipient for staker rewards.
+///
+/// Exposes the general staker reward pot so DAP can drip inflation into it.
+pub struct StakerRewardRecipient<P>(core::marker::PhantomData<P>);
+
+impl<AccountId, P> sp_staking::budget::BudgetRecipient<AccountId> for StakerRewardRecipient<P>
+where
+	P: PotAccountProvider<AccountId>,
+{
+	fn budget_key() -> sp_staking::budget::BudgetKey {
+		sp_staking::budget::BudgetKey::truncate_from(b"staker_rewards".to_vec())
+	}
+
+	fn pot_account() -> AccountId {
+		P::pot_account(RewardPot::General(RewardKind::StakerRewards))
+	}
+}
+
+/// Budget recipient for validator self-stake incentive.
+///
+/// Exposes the general validator incentive pot so DAP can drip inflation into it.
+pub struct ValidatorIncentiveRecipient<P>(core::marker::PhantomData<P>);
+
+impl<AccountId, P> sp_staking::budget::BudgetRecipient<AccountId> for ValidatorIncentiveRecipient<P>
+where
+	P: PotAccountProvider<AccountId>,
+{
+	fn budget_key() -> sp_staking::budget::BudgetKey {
+		sp_staking::budget::BudgetKey::truncate_from(b"validator_incentive".to_vec())
+	}
+
+	fn pot_account() -> AccountId {
+		P::pot_account(RewardPot::General(RewardKind::ValidatorSelfStake))
 	}
 }
 

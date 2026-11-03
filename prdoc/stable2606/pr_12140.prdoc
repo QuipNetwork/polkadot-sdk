@@ -1,0 +1,8 @@
+title: 'WAH: benchmark revive with AH runtime and not kitchensink'
+doc:
+- audience: Runtime Dev
+  description: For asset-hub-westend, benchmark pallet-revive using proper AH weights
+    and not `SubstrateWeights` (benchmarked against kitchensink runtime).
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch

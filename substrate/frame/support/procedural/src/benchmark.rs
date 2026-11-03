@@ -783,9 +783,17 @@ pub fn benchmarks(
 						#krate::benchmarking::commit_db();
 
 						// Access all whitelisted keys to get them into the proof recorder since the
-						// recorder does now have a whitelist.
-						for key in &whitelist {
-							#krate::__private::storage::unhashed::get_raw(&key.key);
+						// recorder does not have a whitelist.
+						// NOTE: We read from the global whitelist because the benchmark setup code
+						// may have added additional keys via add_to_whitelist() or add_to_whitelist_child().
+						let current_whitelist = #krate::benchmarking::get_whitelist();
+						for key in &current_whitelist {
+							if let Some(child_trie_key) = &key.child_trie_key {
+								let child_info = #krate::__private::storage::ChildInfo::new_default(child_trie_key);
+								#krate::__private::storage::child::get_raw(&child_info, &key.key);
+							} else {
+								#krate::__private::storage::unhashed::get_raw(&key.key);
+							}
 						}
 
 						// Reset the read/write counter so we don't count operations in the setup process.

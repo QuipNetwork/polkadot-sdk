@@ -1,0 +1,37 @@
+title: 'pallet-psm: rename pUSD/stable to internal'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    Renames pallet-psm's "pUSD" / "stable" vocabulary to a generic "internal"
+    role, paired with the existing "external" terminology, so the pallet reads
+    as a generic peg stability module rather than one tied to a specific
+    stablecoin.
+
+    Public API changes:
+    - `Config::StableAsset` -> `Config::InternalAsset`
+    - `StableDecimals` storage -> `InternalDecimals`
+    - `AssetDecimals` storage -> `ExternalDecimals`
+    - `Event::Minted.pusd_received` -> `received`
+    - `Event::Redeemed.pusd_paid` -> `paid`
+    - `redeem(.., pusd_amount)` parameter -> `amount`
+
+    Runtime impls of `pallet_psm::Config` need to update the associated type
+    name; the storage rename is reflected directly in the v1→v2
+    `PopulateDecimals` migration (no separate migration needed).
+
+    All internal helpers, locals, comments, mock fixtures and prose are also
+    updated. The module docs and README gain a Terminology section explaining
+    "Internal" vs "External".
+
+crates:
+- name: pallet-psm
+  bump: major
+- name: pallet-psm-remote-tests
+  bump: major
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: remote-ext-tests-psm
+  bump: patch
+- name: frame-support
+  bump: patch

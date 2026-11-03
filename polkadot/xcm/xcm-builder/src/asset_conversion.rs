@@ -106,9 +106,6 @@ impl<
 	}
 }
 
-#[deprecated = "Use `ConvertedConcreteId` instead"]
-pub type ConvertedConcreteAssetId<A, B, C, O> = ConvertedConcreteId<A, B, C, O>;
-
 pub struct MatchedConvertedConcreteId<AssetId, Balance, MatchAssetId, ConvertAssetId, ConvertOther>(
 	PhantomData<(AssetId, Balance, MatchAssetId, ConvertAssetId, ConvertOther)>,
 );
@@ -200,7 +197,7 @@ impl<InstanceId, Matcher: MatchesNonFungible<InstanceId>> MatchesInstance<Instan
 mod tests {
 	use super::*;
 
-	use xcm_executor::traits::JustTry;
+	use sp_runtime::traits::TryConvertInto;
 
 	struct OnlyParentZero;
 	impl Contains<Location> for OnlyParentZero {
@@ -228,9 +225,9 @@ mod tests {
 			AsPrefixedGeneralIndex<
 				TrustBackedAssetsPalletLocation,
 				AssetIdForTrustBackedAssets,
-				JustTry,
+				TryConvertInto,
 			>,
-			JustTry,
+			TryConvertInto,
 		>;
 		assert_eq!(
 			TrustBackedAssetsPalletLocation::get(),
@@ -301,7 +298,7 @@ mod tests {
 			ClassId,
 			ClassInstanceId,
 			OnlyParentZero,
-			AsPrefixedGeneralIndex<TrustBackedAssetsPalletLocation, ClassId, JustTry>,
+			AsPrefixedGeneralIndex<TrustBackedAssetsPalletLocation, ClassId, TryConvertInto>,
 			ClassInstanceIdConverter,
 		>;
 		assert_eq!(

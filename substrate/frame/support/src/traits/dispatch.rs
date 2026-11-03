@@ -394,10 +394,6 @@ impl<
 ///
 /// Origin check will pass if `L` or `R` origin check passes. `L` is tested first.
 ///
-/// Successful origin is derived from the left side.
-#[deprecated = "Use `EitherOfDiverse` instead"]
-pub type EnsureOneOf<L, R> = EitherOfDiverse<L, R>;
-
 /// "OR gate" implementation of `EnsureOrigin`, `Success` type for both `L` and `R` must
 /// be equal.
 ///

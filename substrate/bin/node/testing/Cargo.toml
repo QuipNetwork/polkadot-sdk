@@ -1,6 +1,6 @@
 [package]
 name = "node-testing"
-version = "3.0.0"
+version = "3.0.0-dev"
 authors.workspace = true
 description = "Test utilities for Substrate node."
 edition.workspace = true
@@ -17,33 +17,33 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true, default-features = true }
-frame-metadata-hash-extension = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
+frame-metadata-hash-extension = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
 fs_extra = { workspace = true }
 futures = { workspace = true }
 kitchensink-runtime = { workspace = true }
 log = { workspace = true, default-features = true }
 node-cli = { workspace = true }
-node-primitives = { default-features = true, workspace = true }
-pallet-asset-conversion = { default-features = true, workspace = true }
-pallet-asset-conversion-tx-payment = { default-features = true, workspace = true }
-pallet-revive = { default-features = true, workspace = true }
-pallet-skip-feeless-payment = { default-features = true, workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
-sc-client-api = { default-features = true, workspace = true }
+node-primitives = { workspace = true, default-features = true }
+pallet-asset-conversion = { workspace = true, default-features = true }
+pallet-asset-conversion-tx-payment = { workspace = true, default-features = true }
+pallet-revive = { workspace = true, default-features = true }
+pallet-skip-feeless-payment = { workspace = true, default-features = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
 sc-client-db = { features = ["rocksdb"], workspace = true, default-features = true }
-sc-consensus = { default-features = true, workspace = true }
-sc-executor = { default-features = true, workspace = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-executor = { workspace = true, default-features = true }
 sc-service = { features = ["rocksdb"], workspace = true, default-features = true }
-sp-api = { default-features = true, workspace = true }
-sp-block-builder = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 sp-timestamp = { workspace = true }
 substrate-test-client = { workspace = true }
 tempfile = { workspace = true }

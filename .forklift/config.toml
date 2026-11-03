@@ -9,6 +9,7 @@ jobNameVariable = "CI_JOB_NAME"
 jobsBlackList = []
 logLevel = "warn"
 threadsCount = 4
+packageSuffix = "bullseye"
 
 [cache]
 extraEnv = ["RUNTIME_METADATA_HASH"]

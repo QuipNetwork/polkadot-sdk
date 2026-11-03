@@ -1,6 +1,6 @@
 [package]
 name = "frame-support"
-version = "46.0.0"
+version = "49.0.1"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -20,6 +20,7 @@ array-bytes = { workspace = true }
 binary-merkle-tree = { workspace = true }
 bitflags = { workspace = true }
 codec = { features = ["derive", "max-encoded-len"], workspace = true }
+derive-where = { workspace = true }
 docify = { workspace = true }
 environmental = { workspace = true }
 frame-metadata = { features = ["current", "unstable"], workspace = true }
@@ -35,7 +36,7 @@ serde_json = { features = ["alloc"], workspace = true }
 sp-api = { features = ["frame-metadata"], workspace = true }
 sp-arithmetic = { workspace = true }
 sp-core = { workspace = true }
-sp-crypto-hashing-proc-macro = { default-features = true, workspace = true }
+sp-crypto-hashing-proc-macro = { workspace = true, default-features = true }
 sp-debug-derive = { workspace = true }
 sp-genesis-builder = { workspace = true }
 sp-inherents = { workspace = true }
@@ -54,10 +55,10 @@ aquamarine = { workspace = true }
 
 [dev-dependencies]
 Inflector = { workspace = true }
-frame-system = { default-features = true, workspace = true }
+frame-system = { workspace = true, default-features = true }
 pretty_assertions = { workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -67,6 +68,7 @@ std = [
 	"environmental/std",
 	"frame-metadata/std",
 	"frame-support-procedural/std",
+	"frame-system/std",
 	"k256/std",
 	"log/std",
 	"scale-info/std",

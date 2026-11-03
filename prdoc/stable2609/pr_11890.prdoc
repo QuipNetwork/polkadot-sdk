@@ -1,0 +1,10 @@
+title: '[pallet-revive]: short-circuit eth_estimate_gas for simple ETH transfers'
+doc:
+- audience: Runtime Dev
+  description: |-
+    closes https://github.com/paritytech/polkadot-sdk/issues/11888
+
+    Skip the binary-search loop in eth_estimate_gas for EOA-to-EOA value transfers (non-pallet `to`, empty calldata, no access list, no EIP-7702 authorization list, no EIP-4844 blob payload, no blob gas fee) and settle them with a single dry-run instead. Pallet-revive's gas units are derived from substrate weight, so the cost cannot be hardcoded to Ethereum's 21,000 constant; the single dry-run returns the exact minimum gas the runtime requires. State overrides supplied to eth_estimate_gas are applied once up front so the short-circuit observes the overridden state.
+crates:
+- name: pallet-revive
+  bump: minor

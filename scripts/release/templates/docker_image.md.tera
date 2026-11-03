@@ -1,19 +1,19 @@
 
 ## Docker images
 
-The docker images for the `polkadot` node binary and the `polkadot-parachain` binary can be found at Docker hub (will be available a few minutes after the release has been published):
-- [Polkadot image](https://hub.docker.com/r/parity/polkadot/tags?page=1&ordering=last_updated)
-- [Polkadot-Parachain image](https://hub.docker.com/r/parity/polkadot-parachain/tags?page=1&ordering=last_updated)
+The docker images for the binaries of this release can be found on Docker Hub (available a few minutes after the release has been published), all tagged with `{{ env.VERSION }}`:
+- [polkadot](https://hub.docker.com/r/parity/polkadot/tags?page=1&ordering=last_updated)
+- [polkadot-parachain](https://hub.docker.com/r/parity/polkadot-parachain/tags?page=1&ordering=last_updated)
+- [polkadot-omni-node](https://hub.docker.com/r/parity/polkadot-omni-node/tags?page=1&ordering=last_updated)
+- [chain-spec-builder](https://hub.docker.com/r/parity/chain-spec-builder/tags?page=1&ordering=last_updated)
+- [eth-rpc](https://hub.docker.com/r/parity/eth-rpc/tags?page=1&ordering=last_updated)
 
-
-You may also pull it with:
+You may also pull them with:
 
 ```
 docker pull parity/polkadot:{{ env.VERSION }}
-```
-
-or
-
-```
 docker pull parity/polkadot-parachain:{{ env.VERSION }}
+docker pull parity/polkadot-omni-node:{{ env.VERSION }}
+docker pull parity/chain-spec-builder:{{ env.VERSION }}
+docker pull parity/eth-rpc:{{ env.VERSION }}
 ```

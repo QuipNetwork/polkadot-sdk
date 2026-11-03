@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-core-pvf-checker"
 description = "Polkadot crate that implements the PVF pre-checking subsystem. Responsible for checking and voting for PVFs that are pending approval."
-version = "29.0.0"
+version = "36.0.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,18 +13,20 @@ workspace = true
 
 [dependencies]
 futures = { workspace = true }
-gum = { default-features = true, workspace = true }
-polkadot-node-subsystem = { default-features = true, workspace = true }
-polkadot-node-subsystem-util = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
+gum = { workspace = true, default-features = true }
+
+polkadot-node-subsystem = { workspace = true, default-features = true }
+polkadot-node-subsystem-util = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
+sp-keystore = { workspace = true, default-features = true }
 
 [dev-dependencies]
 futures-timer = { workspace = true }
 polkadot-node-subsystem-test-helpers = { workspace = true }
 polkadot-primitives-test-helpers = { workspace = true }
-sc-keystore = { default-features = true, workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
+sc-keystore = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }

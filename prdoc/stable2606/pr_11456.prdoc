@@ -1,0 +1,46 @@
+# Schema: Polkadot SDK PRDoc Schema (prdoc) v1.0.0
+# See doc at https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
+
+title: 'Collation generation: pass validation data from caller, fetch session from scheduling parent'
+
+doc:
+- audience: Node Dev
+  description: |
+    Makes `handle_submit_collation` robust for V3 candidate descriptors where
+    the relay parent can be old/ancient (pruned state). Instead of fetching
+    `PersistedValidationData` and `session_index` from the relay parent's
+    runtime state (which may be unavailable), the caller now provides
+    `PersistedValidationData` directly in `SubmitCollationParams`, and the
+    session index is now fetched correctly from the scheduling parent (which
+    always has available state).
+
+    The `parent_head` field is removed from `SubmitCollationParams` — callers should set
+    `validation_data.parent_head` directly instead.
+
+    All runtime API calls in the submit collation path now correctly target the scheduling
+    parent rather than the relay parent.
+
+    `CandidateDescriptorV2::new_v3` now takes an explicit `scheduling_session_index`
+    parameter instead of hardcoding the offset to 0.
+
+crates:
+- name: polkadot-primitives
+  bump: major
+- name: polkadot-primitives-test-helpers
+  bump: major
+- name: polkadot-node-primitives
+  bump: major
+- name: polkadot-node-collation-generation
+  bump: patch
+- name: polkadot-node-core-backing
+  bump: patch
+- name: polkadot-node-core-candidate-validation
+  bump: patch
+- name: polkadot-node-core-prospective-parachains
+  bump: patch
+- name: polkadot-collator-protocol
+  bump: patch
+- name: polkadot-runtime-parachains
+  bump: patch
+- name: cumulus-client-consensus-aura
+  bump: patch

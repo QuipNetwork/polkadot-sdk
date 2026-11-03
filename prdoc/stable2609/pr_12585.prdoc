@@ -1,0 +1,18 @@
+title: Remove Polkadot Bulletin bridge code
+doc:
+- audience: Runtime Dev
+  description: |-
+    Removes all the Polkadot Bulletin bridge related code:
+
+    - Removes the `bp-polkadot-bulletin` chain primitives crate.
+    - Removes the Rococo <> Rococo Bulletin bridge from the BridgeHubRococo runtime
+      (the `BridgePolkadotBulletinGrandpa`, `BridgePolkadotBulletinMessages` and
+      `XcmOverPolkadotBulletin` pallet instances, together with the related runtime
+      APIs, genesis config, weights, benchmarks and tests).
+    - Removes the `WITH_BRIDGE_ROCOCO_TO_BULLETIN_MESSAGES_PALLET_INDEX` constant
+      from `bp-bridge-hub-rococo`.
+crates:
+- name: bridge-hub-rococo-runtime
+  bump: major
+- name: bp-bridge-hub-rococo
+  bump: major

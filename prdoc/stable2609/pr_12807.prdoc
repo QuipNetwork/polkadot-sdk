@@ -1,0 +1,18 @@
+title: "[pallet-xcm] fix dry-run storage side-effects leaking into xcm-emulator"
+
+doc:
+- audience: Runtime Dev
+  description: |
+    Wraps `dry_run_call` and `dry_run_xcm` in a storage transaction that is
+    always rolled back, so XCMP queue writes and event resets from the simulated
+    execution never escape into the caller's state. Fixes the xcm-emulator bug
+    where dry-run outbound messages were delivered by the subsequent
+    `process_messages()` call, silently mutating destination-chain state.
+    Removes the `reset_ext()` and no-op `execute_with(|| {})` workarounds that
+    were papering over this in `emulated-integration-tests-common`.
+
+crates:
+- name: pallet-xcm
+  bump: patch
+- name: emulated-integration-tests-common
+  bump: minor

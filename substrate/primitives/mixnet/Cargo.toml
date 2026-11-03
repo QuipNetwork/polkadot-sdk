@@ -1,7 +1,7 @@
 [package]
 description = "Substrate mixnet types and runtime interface"
 name = "sp-mixnet"
-version = "0.19.0"
+version = "0.22.0"
 license = "Apache-2.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition.workspace = true

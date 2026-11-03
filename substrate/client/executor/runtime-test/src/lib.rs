@@ -370,6 +370,10 @@ sp_core::wasm_export_functions! {
 		// Mainly a test that the macro is working when we have a return statement here.
 		return 1234;
 	}
+
+	fn test_virtualization(test_fixture: Vec<u8>) {
+		sp_virtualization::run_tests(test_fixture.as_ref());
+	}
 }
 
 // Tests that check output validity. We explicitly return the ptr and len, so we avoid using the

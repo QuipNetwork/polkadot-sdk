@@ -1,0 +1,46 @@
+title: 'pallet-assets: allow force_create to set an arbitrary asset id when auto-increment is enabled'
+
+doc:
+- audience: Runtime Dev
+  description: |-
+    `force_create` no longer requires the asset id to equal `NextAssetId`: a `ForceOrigin` may
+    create an asset with any id not currently in use, and the id is then marked as allocated so it
+    can never later collide. Asset id allocation is now configured explicitly via the new
+    `Config::AssetIdAllocator` (`AutoIncAssetId` for auto-incrementing ids, `()` for none),
+    replacing the implicit `NextAssetId`-is-`Some` plus `AutoIncAssetId` callback mechanism.
+    Only the `force_create` call is relaxed; `fungibles::Create::create` is not gated on
+    `ForceOrigin` and still requires the id the allocator dictates.
+
+    Migration: set `AssetIdAllocator` on each `pallet-assets` `Config`. Use `AutoIncAssetId<Runtime, I>`
+    where `CallbackHandle` previously used it (and drop it from `CallbackHandle`); otherwise `()`.
+    Configs deriving `TestDefaultConfig` inherit `()`.
+
+crates:
+- name: pallet-assets
+  bump: major
+- name: asset-hub-rococo-runtime
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: minor
+- name: penpal-runtime
+  bump: patch
+- name: pallet-contracts-mock-network
+  bump: minor
+- name: pallet-asset-conversion
+  bump: none
+- name: pallet-asset-conversion-tx-payment
+  bump: none
+- name: pallet-asset-rewards
+  bump: none
+- name: pallet-asset-tx-payment
+  bump: none
+- name: pallet-assets-freezer
+  bump: none
+- name: pallet-assets-precompiles
+  bump: none
+- name: pallet-nft-fractionalization
+  bump: none
+- name: pallet-xcm
+  bump: none
+- name: staging-xcm-builder
+  bump: none

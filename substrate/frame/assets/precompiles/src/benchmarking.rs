@@ -27,13 +27,9 @@ use crate::{
 	foreign_assets::pallet::{Config, Pallet},
 	migration::MigrateForeignAssetPrecompileMappings,
 };
-use ethereum_standards::IERC20;
 use frame_benchmarking::v2::*;
-use frame_support::{migrations::SteppedMigration, traits::Currency, weights::WeightMeter};
-use pallet_revive::{
-	precompiles::{alloy, H160},
-	AddressMapper,
-};
+use frame_support::{migrations::SteppedMigration, weights::WeightMeter};
+use pallet_revive::precompiles::H160;
 use sp_core::U256;
 use sp_runtime::traits::StaticLookup;
 
@@ -59,16 +55,12 @@ const TEST_TOKEN_NAME: &[u8] = b"Asset Permit";
 		// Migration bounds
 		T: pallet_assets::Config<T::AssetsInstance, AssetId = <T as Config>::ForeignAssetId>,
 		// Permit bounds
-		T: crate::permit::Config + pallet_revive::Config,
+		T: crate::permit::Config,
 		<T as pallet_assets::Config<T::AssetsInstance>>::Balance: From<u32>,
 		<T as pallet_assets::Config<T::AssetsInstance>>::AssetIdParameter: From<<T as pallet_assets::Config<T::AssetsInstance>>::AssetId>,
-		pallet_assets::Call<T, T::AssetsInstance>: Into<<T as pallet_revive::Config>::RuntimeCall>,
-		alloy::primitives::U256: TryInto<<T as pallet_assets::Config<T::AssetsInstance>>::Balance>,
-		alloy::primitives::U256: TryFrom<<T as pallet_assets::Config<T::AssetsInstance>>::Balance>,
 )]
 mod benchmarks {
 	use super::*;
-	use frame_support::traits::Get;
 	use pallet_assets::BenchmarkHelper;
 
 	// ==================== Migration benchmarks ====================
@@ -153,118 +145,78 @@ mod benchmarks {
 		assert_ne!(result, sp_core::H256::zero());
 	}
 
-	/// End-to-end benchmark for the full `permit()` precompile call (EIP-2612).
+	/// Benchmark for `use_permit` — the EIP-2612 signature verification and nonce
+	/// increment that is called inside the `permit` precompile.
 	///
-	/// Measures all operations performed by the ERC20 permit precompile in a single
-	/// call: asset name DB read, ECDSA recovery + nonce write, approval write, and
-	/// event deposit. This is the weight that must be charged up-front before
-	/// executing a permit.
-	///
-	/// Pre-computed signature parameters use chain_id=31337 (mock::Test config).
-	/// See signature comment block for regeneration instructions.
+	/// Measures: domain separator computation, struct hash, ECDSA recovery, nonce
+	/// read + write. This is the weight charged for the cryptographic portion of
+	/// a permit call (the asset approval weights are tracked separately).
 	#[benchmark]
-	fn permit() {
-		// ── Setup: asset ────────────────────────────────────────────────────────
-		let asset_id_param = <T as pallet_assets::Config<T::AssetsInstance>>::BenchmarkHelper::create_asset_id_parameter(42);
-		let asset_id: <T as pallet_assets::Config<T::AssetsInstance>>::AssetId =
-			asset_id_param.clone().into();
-		let admin: T::AccountId = whitelisted_caller();
-		let admin_lookup = <T as frame_system::Config>::Lookup::unlookup(admin.clone());
-
-		pallet_assets::Pallet::<T, T::AssetsInstance>::force_create(
-			frame_system::RawOrigin::Root.into(),
-			asset_id_param.clone(),
-			admin_lookup,
-			true,
-			1u32.into(),
-		)
-		.expect("asset creation should succeed");
-
-		// Set the asset name so that the name() DB read in permit() is warm/cold as expected.
-		pallet_assets::Pallet::<T, T::AssetsInstance>::force_set_metadata(
-			frame_system::RawOrigin::Root.into(),
-			asset_id_param,
-			TEST_TOKEN_NAME.to_vec(),
-			b"ASSET".to_vec(),
-			0,
-			false,
-		)
-		.expect("metadata set should succeed");
-
-		// ── Setup: owner native balance for the approval deposit ─────────────
+	fn use_permit() {
 		let owner = test_owner();
-		let owner_account = <T as pallet_revive::Config>::AddressMapper::to_account_id(&owner);
-		let deposit = <T as pallet_assets::Config<T::AssetsInstance>>::ApprovalDeposit::get();
-		<T as pallet_assets::Config<T::AssetsInstance>>::Currency::make_free_balance_be(
-			&owner_account,
-			deposit + deposit,
-		);
-
 		let spender = H160::from_low_u64_be(0x9876_5432);
 		let verifying_contract = test_verifying_contract();
-		let value = alloy::primitives::U256::from(1000u64);
-		let deadline = alloy::primitives::U256::from(u64::MAX);
+		let value: [u8; 32] = {
+			let mut buf = [0u8; 32];
+			buf[31] = 100; // value = 100
+			buf
+		};
+		let deadline: [u8; 32] = {
+			let mut buf = [0u8; 32];
+			// Set deadline far in the future (max u64)
+			buf[24..32].copy_from_slice(&u64::MAX.to_be_bytes());
+			buf
+		};
 
-		// ── Compute EIP-712 digest using the runtime's actual chain_id ───────
-		// The digest depends on T::ChainId which varies per runtime, so we must
-		// compute it at benchmark time rather than using a hardcoded signature.
-		let value_bytes: [u8; 32] = value.to_be_bytes();
-		let deadline_bytes: [u8; 32] = deadline.to_be_bytes();
+		// Set timestamp so deadline check passes.
+		// Write directly to storage instead of calling `set_timestamp()`, which
+		// triggers `OnTimestampSet` callbacks (e.g. pallet_babe slot validation)
+		// that require additional setup not relevant to this benchmark.
+		let timestamp: <T as pallet_timestamp::Config>::Moment =
+			1_704_067_200_000u64.try_into().unwrap_or_default();
+		pallet_timestamp::Now::<T>::put(timestamp);
+
+		// Compute EIP-712 digest using runtime's chain_id.
 		let nonce = U256::zero();
 		let digest = crate::permit::Pallet::<T>::permit_digest(
 			&verifying_contract,
 			TEST_TOKEN_NAME,
 			&owner,
 			&spender,
-			&value_bytes,
+			&value,
 			&nonce,
-			&deadline_bytes,
+			&deadline,
 		);
 
-		// ── Sign with Hardhat account #0 private key ─────────────────────────
-		// Private key for 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Hardhat #0).
-		// This is a well-known public test key, safe to embed in benchmark code.
-		// We use k256 directly to avoid requiring sp-core's `full_crypto` feature
-		// which is unavailable in wasm runtime builds.
-		let hardhat_sk: [u8; 32] = [
-			0xac, 0x09, 0x74, 0xbe, 0xc3, 0x9a, 0x17, 0xe3, 0x6b, 0xa4, 0xa6, 0xb4, 0xd2, 0x38,
-			0xff, 0x94, 0x4b, 0xac, 0xb4, 0x78, 0xcb, 0xed, 0x5e, 0xfc, 0xae, 0x78, 0x4d, 0x7b,
-			0xf4, 0xf2, 0xff, 0x80,
-		];
-		let signing_key = k256::ecdsa::SigningKey::from_slice(&hardhat_sk)
-			.expect("valid 32-byte Hardhat test key");
-		// sign_prehash_recoverable returns (Signature, RecoveryId); k256 normalises s to low-half.
-		let (sig, recovery_id) = signing_key
-			.sign_prehash_recoverable(&digest)
-			.expect("signing with 32-byte digest cannot fail");
-		let sig_bytes = sig.to_bytes();
+		// Sign with Hardhat account #0 private key via sp_io host function.
+		// This works in both native and WASM benchmark environments, unlike
+		// using k256 directly which may not work in the WASM sandbox.
+		let key_type = sp_core::crypto::KeyTypeId(*b"prmt");
+		let pub_key = sp_io::crypto::ecdsa_generate(
+			key_type,
+			Some(b"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_vec()),
+		);
+		let sig = sp_io::crypto::ecdsa_sign_prehashed(key_type, &pub_key, &digest)
+			.expect("signing with Hardhat #0 key must succeed; qed");
+		let sig_bytes: &[u8; 65] = sig.as_ref();
 		let r: [u8; 32] = sig_bytes[0..32].try_into().expect("r is 32 bytes");
 		let s: [u8; 32] = sig_bytes[32..64].try_into().expect("s is 32 bytes");
-		let v: u8 = recovery_id.to_byte() + 27; // convert recovery_id (0/1) to Ethereum v (27/28)
-
-		// Build the permitCall with alloy types.
-		let call = IERC20::permitCall {
-			owner: alloy::primitives::Address::from(owner.0),
-			spender: alloy::primitives::Address::from(spender.0),
-			value,
-			deadline,
-			v,
-			r: alloy::primitives::FixedBytes(r),
-			s: alloy::primitives::FixedBytes(s),
-		};
-
-		// Create env like pallet-revive benchmarks do.
-		let mut call_setup = pallet_revive::call_builder::CallSetup::<T>::default();
-		let (mut ext, _) = call_setup.ext();
+		let v: u8 = sig_bytes[64] + 27;
 
 		#[block]
 		{
-			crate::ERC20::<
-				T,
-				crate::ForeignIdConfig<0x0120, T, T::AssetsInstance>,
-				T::AssetsInstance,
-			>::permit(asset_id, verifying_contract, &call, &mut ext)
-			.expect("permit should succeed");
+			crate::permit::Pallet::<T>::use_permit(
+				&verifying_contract,
+				TEST_TOKEN_NAME,
+				&owner,
+				&spender,
+				&value,
+				&deadline,
+				v,
+				&r,
+				&s,
+			)
+			.expect("use_permit should succeed");
 		}
 
 		// Verify nonce was incremented, confirming the full flow ran.

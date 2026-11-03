@@ -1,0 +1,9 @@
+title: Raise offence queue eras bound limit
+doc:
+- audience: Runtime Dev
+  description: Fixes a bug where OffenceQueueEras bound (BondingDuration) was incorrect when SlashDeferDuration=0. The oldest reportable offence era formula allowed more eras than the bound could hold.
+crates:
+- name: pallet-staking-async
+  bump: minor
+- name: asset-hub-westend-runtime
+  bump: patch

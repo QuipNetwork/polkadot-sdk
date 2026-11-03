@@ -1,6 +1,6 @@
 [package]
 name = "pallet-asset-rewards"
-version = "0.8.0"
+version = "0.12.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -28,9 +28,9 @@ sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 
 [dev-dependencies]
-pallet-assets = { workspace = true, default-features = false }
-pallet-assets-freezer = { workspace = true, default-features = false }
-pallet-balances = { workspace = true, default-features = false }
+pallet-assets = { workspace = true }
+pallet-assets-freezer = { workspace = true }
+pallet-balances = { workspace = true }
 primitive-types = { workspace = true, features = ["codec", "num-traits", "scale-info"] }
 
 [features]

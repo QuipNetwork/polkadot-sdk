@@ -2,7 +2,7 @@
 authors.workspace = true
 edition.workspace = true
 name = "pallet-message-queue"
-version = "49.0.0"
+version = "53.0.0"
 license = "Apache-2.0"
 homepage.workspace = true
 repository.workspace = true
@@ -14,24 +14,26 @@ workspace = true
 [dependencies]
 codec = { features = ["derive"], workspace = true }
 environmental = { workspace = true }
-frame-benchmarking = { optional = true, workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 log = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 serde = { optional = true, features = ["derive"], workspace = true, default-features = true }
+
 sp-arithmetic = { workspace = true }
 sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-weights = { workspace = true }
 
+frame-benchmarking = { optional = true, workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+
 [dev-dependencies]
-frame-support = { features = ["experimental"], workspace = true, default-features = false }
+frame-support = { workspace = true, features = ["experimental"] }
 rand = { workspace = true, default-features = true }
 rand_distr = { workspace = true }
-sp-crypto-hashing = { default-features = true, workspace = true }
-sp-tracing = { default-features = true, workspace = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]
@@ -47,6 +49,7 @@ std = [
 	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
+	"sp-tracing/std",
 	"sp-weights/std",
 ]
 runtime-benchmarks = [

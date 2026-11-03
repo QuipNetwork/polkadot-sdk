@@ -1,0 +1,22 @@
+title: '[asset-hub-westend] Add revive_debug cfg for DebugEnabled'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `debug_trace*` RPCs (`debug_traceTransaction`, `debug_traceBlockByNumber`, `debug_traceCall`)
+    only work when pallet-revive's `DebugEnabled` config is set to `true`. Currently only the
+    dev-node has this enabled, but the dev-node is a simplified environment that doesn't fully
+    replicate parachain runtime behavior (e.g. no PoV deduplication). To get accurate debug
+    tracing data, it needs to run on actual parachain runtimes.
+
+    This PR uses a plain `cfg` flag so debug mode can be toggled at build
+    time without code changes.
+    Build with:
+    ```bash
+    RUSTFLAGS="--cfg revive_debug" cargo build -p asset-hub-westend-runtime --release
+    ```
+
+    Other runtimes can adopt the same pattern by using
+    `ConstBool<{ cfg!(revive_debug) }>` for `DebugEnabled`.
+crates:
+- name: asset-hub-westend-runtime
+  bump: patch

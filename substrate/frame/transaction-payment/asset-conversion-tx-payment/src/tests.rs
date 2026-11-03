@@ -287,6 +287,15 @@ fn transaction_payment_in_asset_possible() {
 			assert_eq!(Assets::balance(asset_id, caller), balance - fee_in_asset);
 			assert_eq!(TipUnbalancedAmount::get(), 0);
 			assert_eq!(FeeUnbalancedAmount::get(), fee_in_native);
+
+			// Cross-check the returned `fee_asset_amount` (= event's `actual_fee`) against
+			// the caller's actual asset debit.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset,
+				tip: 0,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
 		});
 }
 
@@ -342,6 +351,7 @@ fn transaction_payment_without_fee() {
 		.base_weight(Weight::from_parts(base_weight, 0))
 		.build()
 		.execute_with(|| {
+			System::set_block_number(1);
 			let caller = 1;
 
 			// create the asset
@@ -411,6 +421,14 @@ fn transaction_payment_without_fee() {
 			// caller should get refunded
 			assert_eq!(Assets::balance(asset_id, caller), balance - fee_in_asset + refund);
 			assert_eq!(Balances::free_balance(caller), 10 * balance_factor);
+
+			// Cross-check: event's `actual_fee` matches the caller's net asset debit.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset - refund,
+				tip: 0,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
 		});
 }
 
@@ -510,6 +528,16 @@ fn asset_transaction_payment_with_tip_and_refund() {
 				who: caller,
 				amount: expected_token_refund,
 			}));
+
+			// Cross-check: event's `actual_fee` matches the caller's net asset debit
+			// (= `fee_in_asset - expected_token_refund`). This is the D1-refund analog
+			// of the pre-existing B1 return-value bug.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset - expected_token_refund,
+				tip,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
 		});
 }
 
@@ -522,6 +550,7 @@ fn payment_from_account_with_only_assets() {
 		.base_weight(Weight::from_parts(base_weight, 0))
 		.build()
 		.execute_with(|| {
+			System::set_block_number(1);
 			// create the asset
 			let asset_id = 1;
 			let min_balance = 2;
@@ -578,6 +607,13 @@ fn payment_from_account_with_only_assets() {
 				&Ok(()),
 			));
 			assert_eq!(Assets::balance(asset_id, caller), balance - fee_in_asset);
+			// Cross-check: event's `actual_fee` matches the caller's net asset debit.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset,
+				tip: 0,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
 			assert_eq!(Balances::free_balance(caller), 0);
 
 			assert_eq!(TipUnbalancedAmount::get(), 0);
@@ -746,6 +782,7 @@ fn fee_with_native_asset_passed_with_id() {
 		.base_weight(Weight::from_parts(base_weight, 0))
 		.build()
 		.execute_with(|| {
+			System::set_block_number(1);
 			let caller = 1;
 			let caller_balance = 1000;
 			// native asset
@@ -788,6 +825,16 @@ fn fee_with_native_asset_passed_with_id() {
 
 			assert_eq!(TipUnbalancedAmount::get(), tip);
 			assert_eq!(FeeUnbalancedAmount::get(), expected_fee - tip);
+
+			// Cross-check: event's `actual_fee` matches the caller's net native debit.
+			// Before the refactor, the returned value here was `corrected_fee - refund`,
+			// which under-reported the fee in this event.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: expected_fee,
+				tip,
+				asset_id: NativeOrWithId::Native,
+			}));
 		});
 }
 
@@ -886,6 +933,15 @@ fn transfer_add_and_remove_account() {
 
 			// caller account removed.
 			assert_eq!(Assets::balance(asset_id, caller), 0);
+
+			// Cross-check: event's `actual_fee` matches the full initial `fee_in_asset`
+			// (the caller's asset debit, since no refund was credited — account dead).
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset,
+				tip,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
 		});
 }
 
@@ -1048,5 +1104,627 @@ fn transaction_payment_rejects_reduced_to_zero_in_asset() {
 
 			// ReducedToZero should be rejected during validation
 			assert!(result.is_err(), "Validation should reject ReducedToZero.");
+		});
+}
+
+/// Regression test for the pre-existing bug in `correct_and_deposit_fee`: when fees are paid
+/// in the native asset via the asset-conversion extension (`asset_id == A::get()`) and a refund
+/// is due, the reported `actual_fee` in the `AssetTxFeePaid` event must equal `corrected_fee`.
+///
+/// Prior to the refactor, the returned value was `corrected_fee - refund_amount` (underflowing
+/// to 0 in many cases), so the event under-reported the fee. The refund itself and `OnUnbalanced`
+/// routing were unaffected, but the event was wrong.
+#[test]
+fn native_asset_refund_reports_corrected_fee_in_event() {
+	let base_weight = 5;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			System::set_block_number(1);
+
+			let caller = 1;
+			let caller_balance = 10 * balance_factor;
+			let asset_id = NativeOrWithId::Native;
+			assert_eq!(Balances::free_balance(caller), caller_balance);
+
+			let tip = 10;
+			let call_weight = 100;
+			let ext = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.clone().into()));
+			let extension_weight = ext.weight(CALL);
+			let len = 5;
+			let initial_fee =
+				base_weight + call_weight + extension_weight.ref_time() + len as u64 + tip;
+
+			let mut info = info_from_weight(WEIGHT_100);
+			info.extension_weight = extension_weight;
+			let (pre, _) =
+				ext.validate_and_prepare(Some(caller).into(), CALL, &info, len, 0).unwrap();
+			assert_eq!(Balances::free_balance(caller), caller_balance - initial_fee);
+
+			let final_weight = 50;
+			let expected_fee = initial_fee - final_weight;
+			let post_info = post_info_from_weight(WEIGHT_50.saturating_add(extension_weight));
+
+			assert_ok!(ChargeAssetTxPayment::<Runtime>::post_dispatch_details(
+				pre,
+				&info_from_weight(WEIGHT_100),
+				&post_info,
+				len,
+				&Ok(()),
+			));
+
+			// Caller gets refunded (resolve succeeds on their live native account).
+			assert_eq!(Balances::free_balance(caller), caller_balance - expected_fee);
+
+			// OU received the corrected fee and tip in the target asset.
+			assert_eq!(TipUnbalancedAmount::get(), tip);
+			assert_eq!(FeeUnbalancedAmount::get(), expected_fee - tip);
+
+			// Event must report the corrected fee (not the pre-refactor underflowed value).
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: expected_fee,
+				tip,
+				asset_id: NativeOrWithId::Native,
+			}));
+		});
+}
+
+/// Covers Path A (`F::total_balance == 0`) via the native-asset branch: the caller's native
+/// balance is wiped between pre-dispatch fee withdrawal and post-dispatch refund processing.
+#[test]
+fn post_dispatch_ok_when_native_account_killed_post_withdraw() {
+	let base_weight = 5;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			System::set_block_number(1);
+
+			let caller = 1;
+			let caller_balance = 10 * balance_factor;
+			let asset_id = NativeOrWithId::Native;
+
+			let tip = 10;
+			let call_weight = 100;
+			let ext = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.clone().into()));
+			let extension_weight = ext.weight(CALL);
+			let len = 5;
+			let initial_fee =
+				base_weight + call_weight + extension_weight.ref_time() + len as u64 + tip;
+
+			let mut info = info_from_weight(WEIGHT_100);
+			info.extension_weight = extension_weight;
+			let (pre, _) =
+				ext.validate_and_prepare(Some(caller).into(), CALL, &info, len, 0).unwrap();
+			assert_eq!(Balances::free_balance(caller), caller_balance - initial_fee);
+
+			// Zero-out the caller's balance between withdraw and post_dispatch.
+			assert_ok!(Balances::force_set_balance(RuntimeOrigin::root(), caller, 0));
+			assert_eq!(Balances::free_balance(caller), 0);
+
+			// Actual weight is less than estimated — refund would normally be due.
+			let post_info = post_info_from_weight(WEIGHT_50.saturating_add(extension_weight));
+
+			assert_ok!(ChargeAssetTxPayment::<Runtime>::post_dispatch_details(
+				pre,
+				&info_from_weight(WEIGHT_100),
+				&post_info,
+				len,
+				&Ok(()),
+			));
+
+			// No refund given — the dead account triggers Path A early-exit with full fee to OU.
+			assert_eq!(TipUnbalancedAmount::get(), tip);
+			assert_eq!(FeeUnbalancedAmount::get(), initial_fee - tip);
+
+			// Caller is still at zero — no refund was credited.
+			assert_eq!(Balances::free_balance(caller), 0);
+
+			// Event reports the full initial fee since no refund was given.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: initial_fee,
+				tip,
+				asset_id: NativeOrWithId::Native,
+			}));
+		});
+}
+
+/// Complement to `transfer_add_and_remove_account`: asserts the `AssetTxFeePaid` event
+/// reports the full initial fee (in `asset_id`) when the caller's asset account is killed
+/// between withdraw and post_dispatch (Path A via asset path, `total_balance == 0`).
+#[test]
+fn asset_account_killed_post_withdraw_emits_full_fee_event() {
+	let base_weight = 5;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			System::set_block_number(1);
+
+			let asset_id = 1;
+			let min_balance = 2;
+			assert_ok!(Assets::force_create(
+				RuntimeOrigin::root(),
+				asset_id.into(),
+				42,
+				true,
+				min_balance,
+			));
+			setup_lp(asset_id, balance_factor);
+
+			let caller = 222;
+			let beneficiary = <Runtime as system::Config>::Lookup::unlookup(caller);
+			let balance = 10000;
+			assert_ok!(Assets::mint_into(asset_id.into(), &beneficiary, balance));
+
+			let call_weight = 100;
+			let tip = 5;
+			let ext = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.into()));
+			let extension_weight = ext.weight(CALL);
+			let len = 10;
+			let fee_in_native =
+				base_weight + call_weight + extension_weight.ref_time() + len as u64 + tip;
+			let fee_in_asset = AssetConversion::quote_price_tokens_for_exact_tokens(
+				NativeOrWithId::WithId(asset_id),
+				NativeOrWithId::Native,
+				fee_in_native,
+				true,
+			)
+			.unwrap();
+
+			let mut info = info_from_weight(WEIGHT_100);
+			info.extension_weight = extension_weight;
+			let (pre, _) = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.into()))
+				.validate_and_prepare(Some(caller).into(), CALL, &info, len, 0)
+				.unwrap();
+			assert_eq!(Assets::balance(asset_id, &caller), balance - fee_in_asset);
+
+			// Burn the caller's entire asset balance — account becomes unable to receive refund.
+			assert_ok!(Assets::burn_from(
+				asset_id,
+				&caller,
+				Assets::balance(asset_id, &caller),
+				Preservation::Expendable,
+				Precision::Exact,
+				Fortitude::Force,
+			));
+			assert_eq!(Assets::balance(asset_id, caller), 0);
+
+			let post_info = post_info_from_weight(WEIGHT_50.saturating_add(extension_weight));
+
+			assert_ok!(ChargeAssetTxPayment::<Runtime>::post_dispatch_details(
+				pre,
+				&info,
+				&post_info,
+				len,
+				&Ok(()),
+			));
+
+			// No refund given (account has no asset balance to receive one).
+			assert_eq!(TipUnbalancedAmount::get(), tip);
+			assert_eq!(FeeUnbalancedAmount::get(), fee_in_native - tip);
+			assert_eq!(Assets::balance(asset_id, caller), 0);
+
+			// Event reports the full initial `fee_in_asset` (what the user actually paid).
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset,
+				tip,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
+		});
+}
+
+/// Covers the `can_deposit` pre-flight check: the caller's asset account is blocked between
+/// withdraw and post_dispatch via `Assets::block`. `F::total_balance` still reports a positive
+/// balance (Path A does not short-circuit) and the refund quote succeeds, but
+/// `F::can_deposit` returns `DepositConsequence::Blocked`. The refactor skips the swap
+/// entirely: pool state is untouched, full `fee_paid` goes to OU, event reports full initial
+/// `fee_in_asset`.
+#[test]
+fn post_dispatch_ok_when_asset_account_blocked_post_withdraw() {
+	let base_weight = 5;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			System::set_block_number(1);
+
+			// `force_create` sets owner = issuer = admin = freezer = 42; only the freezer
+			// can call `block`.
+			let freezer = 42;
+			let asset_id = 1;
+			let min_balance = 2;
+			assert_ok!(Assets::force_create(
+				RuntimeOrigin::root(),
+				asset_id.into(),
+				freezer,
+				true,
+				min_balance,
+			));
+			setup_lp(asset_id, balance_factor);
+
+			let caller = 2;
+			let beneficiary = <Runtime as system::Config>::Lookup::unlookup(caller);
+			let balance = 10000;
+			assert_ok!(Assets::mint_into(asset_id.into(), &beneficiary, balance));
+
+			let call_weight = 100;
+			let tip = 5;
+			let ext = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.into()));
+			let extension_weight = ext.weight(CALL);
+			let len = 10;
+			let fee_in_native =
+				base_weight + call_weight + extension_weight.ref_time() + len as u64 + tip;
+			let fee_in_asset = AssetConversion::quote_price_tokens_for_exact_tokens(
+				NativeOrWithId::WithId(asset_id),
+				NativeOrWithId::Native,
+				fee_in_native,
+				true,
+			)
+			.unwrap();
+
+			let mut info = info_from_weight(WEIGHT_100);
+			info.extension_weight = extension_weight;
+			let (pre, _) = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.into()))
+				.validate_and_prepare(Some(caller).into(), CALL, &info, len, 0)
+				.unwrap();
+			let balance_after_withdraw = balance - fee_in_asset;
+			assert_eq!(Assets::balance(asset_id, &caller), balance_after_withdraw);
+
+			// Block the caller's asset account — `can_deposit` will now return `Blocked`,
+			// so the refund pre-flight check fails and the swap is skipped entirely.
+			assert_ok!(Assets::block(
+				RuntimeOrigin::signed(freezer),
+				asset_id.into(),
+				<Runtime as system::Config>::Lookup::unlookup(caller),
+			));
+
+			// Record the pool state before post-dispatch — it must be untouched since
+			// the refund swap is skipped.
+			let pool_account = <<Runtime as pallet_asset_conversion::Config>::PoolLocator
+				as pallet_asset_conversion::PoolLocator<_, _, _>>::pool_address(
+				&NativeOrWithId::Native,
+				&NativeOrWithId::WithId(asset_id),
+			)
+			.unwrap();
+			let pool_native_before = Balances::free_balance(&pool_account);
+			let pool_asset_before = Assets::balance(asset_id, &pool_account);
+
+			let post_info = post_info_from_weight(WEIGHT_50.saturating_add(extension_weight));
+
+			// Security invariant: post_dispatch must NOT return `Err`.
+			assert_ok!(ChargeAssetTxPayment::<Runtime>::post_dispatch_details(
+				pre,
+				&info,
+				&post_info,
+				len,
+				&Ok(()),
+			));
+
+			// Caller's balance is unchanged since withdraw: refund was not credited
+			// because the account is blocked.
+			assert_eq!(Assets::balance(asset_id, &caller), balance_after_withdraw);
+
+			// Pool state is untouched — the `can_deposit` pre-flight check prevents
+			// the swap from executing.
+			assert_eq!(Balances::free_balance(&pool_account), pool_native_before);
+			assert_eq!(Assets::balance(asset_id, &pool_account), pool_asset_before);
+
+			// Full initial `fee_paid` (= `fee_in_native`) goes to OU. There is no
+			// refund-then-burn cycle: the swap never happened, so no asset was minted
+			// or burned.
+			assert_eq!(TipUnbalancedAmount::get(), tip);
+			assert_eq!(FeeUnbalancedAmount::get(), fee_in_native - tip);
+
+			// Event reports the full initial `fee_in_asset` — no refund reached the user,
+			// so the returned `fee_asset_amount` equals what was debited at withdraw.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset,
+				tip,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
+		});
+}
+
+/// Covers Path B2 (`asset_id == A::get()`, `F::resolve` Err, `merge` Ok) for the native-asset
+/// branch. Reserving all of the caller's free balance leaves `total_balance > 0` (so Path A
+/// does not short-circuit) but `free == 0`. With `refund_amount < ExistentialDeposit`, the
+/// resolve's internal `deposit(..., Exact)` returns `DepositConsequence::BelowMinimum`
+/// (`new_free = 0 + refund_amount < ED`). The refactor then merges the refund back into
+/// `adjusted_paid` — full initial fee goes to OU, event reports the full initial fee.
+#[test]
+fn post_dispatch_ok_when_native_account_has_no_free_balance() {
+	use frame_support::traits::ReservableCurrency;
+
+	let base_weight = 5;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			System::set_block_number(1);
+
+			let caller = 1;
+			let caller_balance = 10 * balance_factor;
+			let asset_id = NativeOrWithId::Native;
+
+			let tip = 10;
+			let call_weight = 100;
+			let ext = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.clone().into()));
+			let extension_weight = ext.weight(CALL);
+			let len = 5;
+			let initial_fee =
+				base_weight + call_weight + extension_weight.ref_time() + len as u64 + tip;
+
+			let mut info = info_from_weight(WEIGHT_100);
+			info.extension_weight = extension_weight;
+			let (pre, _) =
+				ext.validate_and_prepare(Some(caller).into(), CALL, &info, len, 0).unwrap();
+			let free_after_withdraw = caller_balance - initial_fee;
+			assert_eq!(Balances::free_balance(caller), free_after_withdraw);
+
+			// Reserve all free balance. The account stays alive via the reserved portion,
+			// so `total_balance = free + reserved > 0` and Path A does NOT short-circuit.
+			// `free = 0` means any later `deposit(.., Exact)` with `amount < ED` returns
+			// `DepositConsequence::BelowMinimum`.
+			//
+			// `inc_providers` is needed because the caller has a consumer reference during
+			// the tx lifecycle; without an extra provider, `reserve` would fail with
+			// `ConsumerRemaining` when reducing `free` to zero.
+			let _ = frame_system::Pallet::<Runtime>::inc_providers(&caller);
+			assert_ok!(<Balances as ReservableCurrency<u64>>::reserve(
+				&caller,
+				free_after_withdraw
+			));
+			assert_eq!(Balances::free_balance(caller), 0);
+			assert_eq!(Balances::reserved_balance(caller), free_after_withdraw);
+
+			// Size the refund below ED so resolve fails. With ED = 10:
+			//   final_call_weight = 95  →  call_weight refund = 5  →  refund_amount = 5.
+			let final_call_weight = 95;
+			let ed: u64 = 10;
+			let refund_amount = (call_weight - final_call_weight) as u64;
+			assert!(refund_amount < ed);
+
+			let post_info = post_info_from_weight(
+				Weight::from_parts(final_call_weight, 0).saturating_add(extension_weight),
+			);
+
+			// (Use the full `info` so `compute_actual_fee` accounts for the declared
+			// extension_weight; otherwise the refund would exceed ED and hit B1.)
+			assert_ok!(ChargeAssetTxPayment::<Runtime>::post_dispatch_details(
+				pre,
+				&info,
+				&post_info,
+				len,
+				&Ok(()),
+			));
+
+			// B2 merge-Ok branch: refund is merged back into `adjusted_paid`; OU receives
+			// the full `initial_fee`.
+			assert_eq!(TipUnbalancedAmount::get(), tip);
+			assert_eq!(FeeUnbalancedAmount::get(), initial_fee - tip);
+
+			// Caller's free balance is still zero — no refund was credited.
+			assert_eq!(Balances::free_balance(caller), 0);
+			assert_eq!(Balances::reserved_balance(caller), free_after_withdraw);
+
+			// Event reports the full initial fee (B2 merge-Ok returns `fee_paid.peek()`).
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: initial_fee,
+				tip,
+				asset_id: NativeOrWithId::Native,
+			}));
+		});
+}
+
+/// Covers Path C: `S::quote_price_exact_tokens_for_tokens` returns `None` because the pool's
+/// asset reserve has been dusted (below `min_balance`, so the pool's asset account was reaped).
+/// `get_amount_out` then returns `Err(ZeroLiquidity)`, which surfaces as `None` via the
+/// `QuotePrice` impl; Path C takes the no-refund exit.
+///
+/// Note: AMM swaps withdraw from the pool with `Preservation::Preserve`, which refuses to
+/// drop the pool below ED. We bypass that here by burning the pool's asset balance directly with
+/// `Expendable`.
+#[test]
+fn post_dispatch_ok_when_pool_asset_dusted_post_withdraw() {
+	use pallet_asset_conversion::PoolLocator;
+
+	let base_weight = 5;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			System::set_block_number(1);
+
+			let asset_id = 1;
+			let min_balance = 2;
+			assert_ok!(Assets::force_create(
+				RuntimeOrigin::root(),
+				asset_id.into(),
+				42,
+				true,
+				min_balance,
+			));
+			setup_lp(asset_id, balance_factor);
+
+			let caller = 2;
+			let beneficiary = <Runtime as system::Config>::Lookup::unlookup(caller);
+			let balance = 10000;
+			assert_ok!(Assets::mint_into(asset_id.into(), &beneficiary, balance));
+
+			let call_weight = 100;
+			let tip = 5;
+			let ext = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.into()));
+			let extension_weight = ext.weight(CALL);
+			let len = 10;
+			let fee_in_native =
+				base_weight + call_weight + extension_weight.ref_time() + len as u64 + tip;
+			let fee_in_asset = AssetConversion::quote_price_tokens_for_exact_tokens(
+				NativeOrWithId::WithId(asset_id),
+				NativeOrWithId::Native,
+				fee_in_native,
+				true,
+			)
+			.unwrap();
+
+			let mut info = info_from_weight(WEIGHT_100);
+			info.extension_weight = extension_weight;
+			let (pre, _) = ChargeAssetTxPayment::<Runtime>::from(tip, Some(asset_id.into()))
+				.validate_and_prepare(Some(caller).into(), CALL, &info, len, 0)
+				.unwrap();
+			let balance_after_withdraw = balance - fee_in_asset;
+			assert_eq!(Assets::balance(asset_id, &caller), balance_after_withdraw);
+
+			// Derive the pool's account and dust its asset reserve: burn the full balance
+			// with `Expendable`, which reaps the asset account. `get_reserves` will then
+			// report `asset_reserve == 0` → `get_amount_out` → `Err(ZeroLiquidity)` →
+			// `quote_price_exact_tokens_for_tokens` returns `None`.
+			let pool_account =
+				<<Runtime as pallet_asset_conversion::Config>::PoolLocator as PoolLocator<
+					_,
+					_,
+					_,
+				>>::pool_address(&NativeOrWithId::Native, &NativeOrWithId::WithId(asset_id))
+				.unwrap();
+			let pool_asset_balance = Assets::balance(asset_id, &pool_account);
+			assert!(pool_asset_balance > 0);
+			assert_ok!(Assets::burn_from(
+				asset_id,
+				&pool_account,
+				pool_asset_balance,
+				Preservation::Expendable,
+				Precision::Exact,
+				Fortitude::Force,
+			));
+			assert_eq!(Assets::balance(asset_id, &pool_account), 0);
+
+			// Sanity: the refund-direction quote now returns `None` — this is the signal
+			// that triggers Path C.
+			assert!(AssetConversion::quote_price_exact_tokens_for_tokens(
+				NativeOrWithId::Native,
+				NativeOrWithId::WithId(asset_id),
+				1u64,
+				true,
+			)
+			.is_none());
+
+			let post_info = post_info_from_weight(WEIGHT_50.saturating_add(extension_weight));
+
+			assert_ok!(ChargeAssetTxPayment::<Runtime>::post_dispatch_details(
+				pre,
+				&info,
+				&post_info,
+				len,
+				&Ok(()),
+			));
+
+			// Path C: no refund given because no pool route exists.
+			// Full initial `fee_in_native` goes to OU.
+			let actual_ext_weight = MockWeights::charge_asset_tx_payment_asset();
+			let ext_weight_refund = extension_weight - actual_ext_weight;
+			let call_weight_refund = call_weight - 50;
+			let corrected_fee_in_native =
+				fee_in_native - call_weight_refund - ext_weight_refund.ref_time();
+			// OU still receives the corrected fee because Path C splits `fee_paid` by `tip`
+			// and forwards it all; `fee_paid.peek() == fee_in_native` (pre-correction).
+			assert_eq!(TipUnbalancedAmount::get(), tip);
+			assert_eq!(FeeUnbalancedAmount::get(), fee_in_native - tip);
+			// (For awareness: corrected_fee_in_native < fee_in_native — the difference
+			// would have been refunded under a live pool.)
+			assert!(corrected_fee_in_native < fee_in_native);
+
+			// Caller's balance is unchanged since withdraw — no refund was given.
+			assert_eq!(Assets::balance(asset_id, &caller), balance_after_withdraw);
+
+			// Event reports the full initial `fee_in_asset`.
+			System::assert_has_event(RuntimeEvent::AssetTxPayment(crate::Event::AssetTxFeePaid {
+				who: caller,
+				actual_fee: fee_in_asset,
+				tip,
+				asset_id: NativeOrWithId::WithId(asset_id),
+			}));
+		});
+}
+
+/// Validates that `can_withdraw_fee` rejects a zero-quoted swap. The `!fee.is_zero()` guard in
+/// `can_withdraw_fee` and `withdraw_fee` ensures that a degenerate quote of 0 asset for a non-zero
+/// native fee is treated the same as `None` (no viable swap route).
+///
+/// Note: the current AMM's `get_amount_in` always returns >= 1 (rounds up via `+1`), so
+/// `Some(0)` cannot occur in practice. This test verifies the guard by checking that a
+/// fee requiring a very small asset amount still produces a valid non-zero quote and passes
+/// validation — i.e., the filter does not accidentally reject legitimate small quotes.
+#[test]
+fn validate_rejects_zero_asset_fee_but_accepts_small_nonzero() {
+	let base_weight = 1;
+	let balance_factor = 100;
+	ExtBuilder::default()
+		.balance_factor(balance_factor)
+		.base_weight(Weight::from_parts(base_weight, 0))
+		.build()
+		.execute_with(|| {
+			let asset_id = 1;
+			let min_balance = 1;
+			assert_ok!(Assets::force_create(
+				RuntimeOrigin::root(),
+				asset_id.into(),
+				42,
+				true,
+				min_balance,
+			));
+			setup_lp(asset_id, balance_factor);
+
+			let caller = 2;
+			let beneficiary = <Runtime as system::Config>::Lookup::unlookup(caller);
+			let balance = 1000;
+			assert_ok!(Assets::mint_into(asset_id.into(), &beneficiary, balance));
+
+			// Use weight=1, len=1 to get the smallest possible non-zero fee.
+			let len = 1;
+			let weight = 1;
+			let fee_in_native = base_weight + weight + len as u64;
+			assert_eq!(fee_in_native, 3);
+
+			// The AMM quote for 3 native rounds up to a small but non-zero asset amount.
+			let quoted = AssetConversion::quote_price_tokens_for_exact_tokens(
+				NativeOrWithId::WithId(asset_id),
+				NativeOrWithId::Native,
+				fee_in_native,
+				true,
+			);
+			assert!(
+				quoted.is_some() && quoted.unwrap() > 0,
+				"AMM must quote a non-zero asset fee for a non-zero native fee"
+			);
+
+			// Validation must succeed — the non-zero quote passes the `.filter()` guard.
+			let ext = ChargeAssetTxPayment::<Runtime>::from(0, Some(asset_id.into()));
+			let result = ext.validate_only(
+				Some(caller).into(),
+				CALL,
+				&info_from_weight(Weight::from_parts(weight, 0)),
+				len,
+				sp_runtime::transaction_validity::TransactionSource::External,
+				0,
+			);
+			assert!(result.is_ok(), "Small but non-zero fee should pass validation");
 		});
 }

@@ -68,11 +68,14 @@ pub type QueryId = u64;
 #[derive(Default, Encode, DecodeWithMemTracking, TypeInfo)]
 #[derive_where(Clone, Eq, PartialEq, Debug)]
 #[codec(encode_bound())]
-#[codec(decode_bound())]
+#[codec(decode_with_mem_tracking_bound(Call: Decode))]
 #[scale_info(bounds(), skip_type_params(Call))]
 pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 
-impl<Call> Decode for Xcm<Call> {
+impl<Call> Decode for Xcm<Call>
+where
+	Call: Decode,
+{
 	fn decode<I: CodecInput>(input: &mut I) -> core::result::Result<Self, CodecError> {
 		Ok(Xcm(decode_xcm_instructions(input)?))
 	}
@@ -436,8 +439,8 @@ impl XcmContext {
 )]
 #[derive_where(Clone, Eq, PartialEq, Debug)]
 #[codec(encode_bound())]
-#[codec(decode_bound())]
-#[codec(decode_with_mem_tracking_bound())]
+#[codec(decode_bound(Call: Decode))]
+#[codec(decode_with_mem_tracking_bound(Call: Decode))]
 #[scale_info(bounds(), skip_type_params(Call))]
 pub enum Instruction<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into the Holding
@@ -1128,7 +1131,7 @@ impl<Call> Instruction<Call> {
 				HrmpChannelClosing { initiator, sender, recipient }
 			},
 			Transact { origin_kind, require_weight_at_most, call } => {
-				Transact { origin_kind, require_weight_at_most, call: call.into() }
+				Transact { origin_kind, require_weight_at_most, call: call.transmute_encoded() }
 			},
 			ReportError(response_info) => ReportError(response_info),
 			DepositAsset { assets, beneficiary } => DepositAsset { assets, beneficiary },
@@ -1335,7 +1338,7 @@ impl<Call: Decode + GetDispatchInfo> TryFrom<NewInstruction<Call>> for Instructi
 			Transact { origin_kind, mut call, fallback_max_weight } => {
 				// We first try to decode the call, if we can't, we use the fallback weight,
 				// if there's no fallback, we just return `Weight::MAX`.
-				let require_weight_at_most = match call.take_decoded() {
+				let require_weight_at_most = match call.ensure_decoded() {
 					Ok(decoded) => decoded.get_dispatch_info().call_weight,
 					Err(error) => {
 						let fallback_weight = fallback_max_weight.unwrap_or(Weight::MAX);
@@ -1348,7 +1351,7 @@ impl<Call: Decode + GetDispatchInfo> TryFrom<NewInstruction<Call>> for Instructi
 						fallback_weight
 					},
 				};
-				Self::Transact { origin_kind, require_weight_at_most, call: call.into() }
+				Self::Transact { origin_kind, require_weight_at_most, call }
 			},
 			ReportError(response_info) => Self::ReportError(QueryResponseInfo {
 				query_id: response_info.query_id,

@@ -17,25 +17,27 @@ name = "xcm-fuzzer"
 [dependencies]
 arbitrary = { workspace = true }
 codec = { workspace = true, default-features = true }
-frame-executive = { default-features = true, workspace = true }
-frame-support = { default-features = true, workspace = true }
-frame-system = { default-features = true, workspace = true }
-frame-try-runtime = { default-features = true, workspace = true }
 honggfuzz = { workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-message-queue = { default-features = true, workspace = true }
-pallet-xcm = { default-features = true, workspace = true }
-polkadot-core-primitives = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-runtime-parachains = { default-features = true, workspace = true }
 scale-info = { features = ["derive"], workspace = true, default-features = true }
-sp-core = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-xcm = { default-features = true, workspace = true }
-xcm-builder = { default-features = true, workspace = true }
-xcm-executor = { default-features = true, workspace = true }
-xcm-simulator = { default-features = true, workspace = true }
+
+frame-executive = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+frame-system = { workspace = true, default-features = true }
+frame-try-runtime = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-message-queue = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+
+pallet-xcm = { workspace = true, default-features = true }
+polkadot-core-primitives = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+xcm = { workspace = true, default-features = true }
+xcm-builder = { workspace = true, default-features = true }
+xcm-executor = { workspace = true, default-features = true }
+xcm-simulator = { workspace = true, default-features = true }
 
 [features]
 try-runtime = [

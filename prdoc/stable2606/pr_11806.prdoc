@@ -1,0 +1,11 @@
+title: '[Staking] Refactor reward mode selection to use storage'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Refactor of the payout path in `pallet-staking-async` to select the reward mode
+    (DAP pot vs. legacy minting) based on the `DisableMintingGuard` storage value
+    instead of checking for the existence of the era's reward pot account.
+
+crates:
+- name: pallet-staking-async
+  bump: major

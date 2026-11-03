@@ -1,0 +1,14 @@
+title: 'session: fix benchmarks with non-zero KeyDeposit'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `pallet_session::Pallet::ensure_can_pay_key_deposit` now mints the key deposit on top of the
+    account's existing balance. Previously it counted existing free balance towards the deposit, so
+    the key hold consumed funds the benchmark set up for other purposes. This made the
+    `pallet-collator-selection` `register_as_candidate` and `take_candidate_slot` benchmarks fail on
+    runtimes with a non-zero session `KeyDeposit`.
+crates:
+- name: pallet-session
+  bump: patch
+- name: pallet-collator-selection
+  bump: patch

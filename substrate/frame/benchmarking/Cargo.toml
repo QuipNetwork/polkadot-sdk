@@ -1,6 +1,6 @@
 [package]
 name = "frame-benchmarking"
-version = "46.0.0"
+version = "50.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -16,6 +16,7 @@ workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+anyhow = { optional = true, workspace = true }
 codec = { workspace = true }
 frame-support = { workspace = true }
 frame-support-procedural = { workspace = true }
@@ -37,14 +38,15 @@ static_assertions = { workspace = true, default-features = true }
 [dev-dependencies]
 array-bytes = { workspace = true, default-features = true }
 rusty-fork = { workspace = true }
-sc-client-db = { workspace = true, default-features = false }
-sp-externalities = { workspace = true, default-features = false }
-sp-keystore = { default-features = true, workspace = true }
-sp-state-machine = { workspace = true, default-features = false }
+sc-client-db = { workspace = true }
+sp-externalities = { workspace = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true }
 
 [features]
 default = ["std"]
 std = [
+	"anyhow/std",
 	"codec/std",
 	"frame-support-procedural/std",
 	"frame-support/std",
@@ -58,6 +60,7 @@ std = [
 	"sp-core/std",
 	"sp-externalities/std",
 	"sp-io/std",
+	"sp-keystore/std",
 	"sp-runtime-interface/std",
 	"sp-runtime/std",
 	"sp-state-machine/std",

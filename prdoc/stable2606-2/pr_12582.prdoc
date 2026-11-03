@@ -1,0 +1,8 @@
+title: 'collator-protocol-revamp: additional metrics'
+doc:
+- audience: Node Dev
+  description: |
+    Improves the observability of the collator protocol revamp by adding/improving some metrics.
+crates:
+- name: polkadot-collator-protocol
+  bump: minor

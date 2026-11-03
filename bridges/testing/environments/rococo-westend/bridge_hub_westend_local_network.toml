@@ -59,14 +59,16 @@ cumulus_based = true
 	rpc_port = 9010
 	command = "{{POLKADOT_PARACHAIN_BINARY}}"
 	args = [
-		"-lparachain=debug,xcm=trace,runtime::bridge=trace,txpool=trace"
+		"-lparachain=debug,xcm=trace,runtime::bridge=trace,txpool=trace",
+		"--authoring", "slot-based"
 	]
 
 	[[parachains.collators]]
 	name = "asset-hub-westend-collator2"
 	command = "{{POLKADOT_PARACHAIN_BINARY}}"
 	args = [
-		"-lparachain=debug,xcm=trace,runtime::bridge=trace,txpool=trace"
+		"-lparachain=debug,xcm=trace,runtime::bridge=trace,txpool=trace",
+		"--authoring", "slot-based"
 	]
 
 #[[hrmp_channels]]

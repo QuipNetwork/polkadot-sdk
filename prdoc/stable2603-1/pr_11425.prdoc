@@ -1,0 +1,12 @@
+title: 'fix(pallet-multi-asset-bounties): use non-destructive read in calculate_payout()'
+doc:
+- audience: Runtime Dev
+  description: |
+    Fix `calculate_payout()` using `ChildBountiesValuePerParent::take()` instead of `get()`.
+    The destructive `take()` deletes the storage entry on first call, causing
+    `BountyPayoutProcessed` to emit an incorrect payout value when `check_status()` calls
+    `calculate_payout()` a second time on the success path. Replaced `take()` with `get()`
+    and moved storage cleanup to `remove_bounty()`.
+crates:
+- name: pallet-multi-asset-bounties
+  bump: patch

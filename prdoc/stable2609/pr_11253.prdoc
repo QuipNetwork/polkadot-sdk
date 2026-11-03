@@ -1,0 +1,25 @@
+title: 'net/litep2p: Install the default crypto provider'
+doc:
+- audience: Node Dev
+  description: |-
+    This PR installs the default crypto provider before TLS connections are made.
+
+    In case another provider was already installed (unexpected but parachains dev might have enabled it), a warning is printed.
+
+    Without the fix, litep2p websocket (tokio tungstenite that uses rustls) would panic under the hood:
+
+    ```rust
+    Thread 'tokio-runtime-worker' panicked at '
+    Could not automatically determine the process-level CryptoProvider from Rustls crate features.
+    Call CryptoProvider::install_default() before this point to select a provider manually, or make sure exactly one of the 'aws-lc-rs' and 'ring' features is enabled.
+    See the documentation of the CryptoProvider type for more information.
+                ', /home/akru/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-0.23.36/src/crypto/mod.rs:249
+    ```
+
+    This happens speficially when both `aws-lc-rs` (legacy) and `ring` features are enabled by some dependencies that get into the `Cargo.lock`.
+
+    Closes:
+    - https://github.com/paritytech/polkadot-sdk/issues/11164
+crates:
+- name: sc-network
+  bump: minor

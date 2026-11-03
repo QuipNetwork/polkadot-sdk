@@ -407,7 +407,7 @@ impl<T: Config> StakingLedger<T> {
 	/// This implements a proportional slashing system, whereby we set our preference to slash as
 	/// such:
 	///
-	/// - If any unlocking chunks exist that are scheduled to be unlocked at `slash_era +
+	/// - If any unlocking chunks exist that are scheduled to be unlocked at `offence_era +
 	///   bonding_duration` and onwards, the slash is divided equally between the active ledger and
 	///   the unlocking chunks.
 	/// - If no such chunks exist, then only the active balance is slashed.
@@ -421,15 +421,15 @@ impl<T: Config> StakingLedger<T> {
 	/// last chunk is slashed slightly less to compensate. Returns the amount of funds actually
 	/// slashed.
 	///
-	/// `slash_era` is the era in which the slash (which is being enacted now) actually happened.
+	/// `offence_era` is the era in which the offence occurred (not the era it is enacted in).
 	///
 	/// This calls `Config::OnStakingUpdate::on_slash` with information as to how the slash was
 	/// applied.
-	pub fn slash(
+	pub(crate) fn slash(
 		&mut self,
 		slash_amount: BalanceOf<T>,
 		minimum_balance: BalanceOf<T>,
-		slash_era: EraIndex,
+		offence_era: EraIndex,
 	) -> BalanceOf<T> {
 		if slash_amount.is_zero() {
 			return Zero::zero();
@@ -439,9 +439,9 @@ impl<T: Config> StakingLedger<T> {
 		let mut remaining_slash = slash_amount;
 		let pre_slash_total = self.total;
 
-		// for a `slash_era = x`, any chunk that is scheduled to be unlocked at era `x + 28`
+		// for an `offence_era = x`, any chunk that is scheduled to be unlocked at era `x + 28`
 		// (assuming 28 is the bonding duration) onwards should be slashed.
-		let slashable_chunks_start = slash_era.saturating_add(T::BondingDuration::get());
+		let slashable_chunks_start = offence_era.saturating_add(T::BondingDuration::get());
 
 		// `Some(ratio)` if this is proportional, with `ratio`, `None` otherwise. In both cases, we
 		// slash first the active chunk, and then `slash_chunks_priority`.
@@ -484,9 +484,9 @@ impl<T: Config> StakingLedger<T> {
 		// Helper to update `target` and the ledgers total after accounting for slashing `target`.
 		log!(
 			trace,
-			"slashing {:?} for era {:?} out of {:?}, priority: {:?}, proportional = {:?}",
+			"slashing {:?} for offence era {:?} out of {:?}, priority: {:?}, proportional = {:?}",
 			slash_amount,
-			slash_era,
+			offence_era,
 			self,
 			slash_chunks_priority,
 			maybe_proportional,

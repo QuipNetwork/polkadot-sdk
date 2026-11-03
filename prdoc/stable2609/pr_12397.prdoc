@@ -1,0 +1,15 @@
+title: 'nomination-pools: snapshot rewards before `set_commission_max` lowers current commission'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `set_commission_max` force-lowers `commission.current` (via `try_update_max`) when the new max
+    is below the active rate, but did not first call `update_records`. Rewards accrued at the higher
+    rate since the last snapshot were therefore re-rated at the new lower rate on the next
+    `update_records`, crediting the differential `(old_current - new_max) * accrued` to members
+    instead of the commission payee.
+
+    The fix snapshots the reward pool at the current commission before the cut, mirroring the
+    ordering already used in `set_commission`.
+crates:
+- name: pallet-nomination-pools
+  bump: patch

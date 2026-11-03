@@ -1,6 +1,6 @@
 [package]
 name = "cumulus-primitives-core"
-version = "0.24.0"
+version = "0.27.0"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -13,14 +13,18 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-polkadot-core-primitives = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-primitives = { workspace = true }
 scale-info = { features = ["derive"], workspace = true }
+tracing = { workspace = true }
+
+# Substrate
 sp-api = { workspace = true }
 sp-runtime = { workspace = true }
 sp-trie = { workspace = true }
-tracing = { workspace = true }
+
+# Polkadot
+polkadot-core-primitives = { workspace = true }
+polkadot-parachain-primitives = { workspace = true }
+polkadot-primitives = { workspace = true }
 xcm = { workspace = true }
 
 [features]

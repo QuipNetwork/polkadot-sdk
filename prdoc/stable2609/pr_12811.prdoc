@@ -1,0 +1,12 @@
+title: 'pallet-psm: report the real instance footprint to the creation Consideration'
+doc:
+- audience: Runtime Dev
+  description: |-
+    `create_psm` previously established the creation `Consideration` with a placeholder
+    footprint of one item and zero bytes, under-reporting what the call actually writes.
+    A new `Pallet::psm_creation_footprint` helper now reports the `Psm` and `PsmAdmin`
+    entries (two items, max-encoded-len sized) and is used by the extrinsic and the
+    benchmarks.
+crates:
+- name: pallet-psm
+  bump: minor

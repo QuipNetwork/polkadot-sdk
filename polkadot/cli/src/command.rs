@@ -64,14 +64,15 @@ fn get_invulnerable_ah_collators(
 		"12D3KooWAeLjabo2foz6gAQvLRfwF2d3WnpUGDjhg8V5AQUnv5AZ",
 	];
 
-	const POLKADOT: [&str; 7] = [
-		"12D3KooWEyGg3oUwYfaLWM5AJ2pvXCUxBuXNapX1tQXLsbDmMV6z",
-		"12D3KooWD9dTKLW65NFFLVjqgaXNzb3zKXBfwRS5iovxV6XaoVX6",
-		"12D3KooWPJfGGisRMkiD5yhySZggEhyMSwELb34P2bEuAmUh9RYy",
-		"12D3KooWQB9RBoJEByMtXtD8aC1WR1DJQb3QMXRcsQmNxrghsQLv",
-		"12D3KooWFhBYG98e53DQB7W2JKBL9xWrP83ANkAjzvp4enEJAt3k",
-		"12D3KooWG3GrM6XKMM4gp3cvemdwUvu96ziYoJmqmetLZBXE8bSa",
-		"12D3KooWMRyTLrCEPcAQD6c4EnudL3vVzg9zji3whvsMYPUYevpq",
+	const POLKADOT: [&str; 8] = [
+		"12D3KooWSrq7vRZcu6ADkeFVTtBaTgfZ1r74bbnyumXrsrGUux5i",
+		"12D3KooWNd2qr3FQUxggCaff5hzTWJxG9dQxzpKbeT5QKTC3ChFR",
+		"12D3KooWSEJ4xgQYFFcM6j9yVqdeVqaQAVkeEp6yv37HuF2W2Low",
+		"12D3KooWDKCVBr59zEK8vG6PomxDdbMMvULYEAWmtqwWmngMf8Qq",
+		"12D3KooWT3XMzDWrmv7ah85aBRpWc3e8sUaeg2oJwzSpS53V61DY",
+		"12D3KooWJPpBfakATuU2peQEQrWZzh1AfK1tg53HVfqdm2u9UXtC",
+		"12D3KooWD5Pg1TmXy9A8E19Z2jCyhtCur1xzN484GdktLFxMGvWJ",
+		"12D3KooWJWyDixpTzobEYDUXyFTJMAkoWHSvQCFLH39prefD1giM",
 	];
 
 	let invulnerables = if chain_spec.is_kusama() {
@@ -257,7 +258,24 @@ where
 	// Parse collator protocol hold off value and get the list of the invlunerable collators.
 	let collator_protocol_hold_off = cli.run.collator_protocol_hold_off.map(Duration::from_millis);
 	let invulnerable_ah_collators = get_invulnerable_ah_collators(&chain_spec);
-	let experimental_collator_protocol = cli.run.experimental_collator_protocol;
+	// Collator revamp is the default one for Kusama, unless explicitly stated otherwise.
+	let experimental_collator_protocol = match cli.run.experimental_collator_protocol {
+		Some(experimental_protocol_flag) => experimental_protocol_flag,
+		None if chain_spec.is_kusama() => true,
+		None => false,
+	};
+
+	// Reject `collator_reputation_persist_interval` cli parameter when
+	// `experimental_collator_protocol` is `false`.
+	// Needed to handle the
+	// `--experimental-collator-protocol=off --collator-reputation-persist-interval=N` case.
+	if !experimental_collator_protocol && cli.run.collator_reputation_persist_interval.is_some() {
+		return Err(Error::Other(
+			"`--collator-reputation-persist-interval` requires the experimental collator protocol \
+			 to be enabled. Pass `--experimental-collator-protocol` to enable it."
+				.into(),
+		));
+	}
 
 	runner.run_node_until_exit(move |config| async move {
 		let hwbench = (!cli.run.no_hardware_benchmarks)

@@ -1,0 +1,18 @@
+title: Add roles to syncing peer events
+doc:
+- audience: Node Dev
+  description: |-
+    `SyncEvent::PeerConnected` now carries the `Roles` the peer advertised in its sync
+    handshake, allowing subscribers of the syncing event stream to learn a peer's role
+    (full/light/authority) without re-deriving it from the notification handshake or the
+    peer store. This is a breaking change for consumers of `SyncEvent`: the variant
+    changed from `PeerConnected(PeerId)` to `PeerConnected { peer_id, roles }`.
+crates:
+- name: sc-network-sync
+  bump: major
+- name: sc-network-gossip
+  bump: patch
+- name: sc-network-statement
+  bump: patch
+- name: sc-network-transactions
+  bump: patch

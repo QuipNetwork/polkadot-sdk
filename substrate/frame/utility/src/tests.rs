@@ -478,6 +478,29 @@ fn batch_weight_calculation_doesnt_overflow() {
 }
 
 #[test]
+fn empty_batch_is_normal_dispatch_class() {
+	new_test_ext().execute_with(|| {
+		let batch_call = RuntimeCall::Utility(crate::Call::batch { calls: vec![] });
+		assert_eq!(
+			batch_call.get_dispatch_info().class,
+			frame_support::dispatch::DispatchClass::Normal
+		);
+
+		let batch_all_call = RuntimeCall::Utility(crate::Call::batch_all { calls: vec![] });
+		assert_eq!(
+			batch_all_call.get_dispatch_info().class,
+			frame_support::dispatch::DispatchClass::Normal
+		);
+
+		let force_batch_call = RuntimeCall::Utility(crate::Call::force_batch { calls: vec![] });
+		assert_eq!(
+			force_batch_call.get_dispatch_info().class,
+			frame_support::dispatch::DispatchClass::Normal
+		);
+	});
+}
+
+#[test]
 fn batch_handles_weight_refund() {
 	new_test_ext().execute_with(|| {
 		let start_weight = Weight::from_parts(100, 0);

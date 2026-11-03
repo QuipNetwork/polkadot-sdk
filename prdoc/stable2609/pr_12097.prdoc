@@ -1,0 +1,30 @@
+title: 'cumulus: add SignedSchedulingInfo PVF verification'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Verifies the `SignedSchedulingInfo` payload inside the PVF whenever it is present —
+    required on V3 resubmissions (`relay_parent != internal_scheduling_parent`) and
+    verified on initial submissions when a collator attaches one. The verifier
+    confirms that the signature was produced by the parachain author eligible at the slot
+    derived from the relay header at `internal_scheduling_parent`, proving the submitting
+    collator owns the para slot at that anchor.
+
+    To enable V3 scheduling, set
+    `type SchedulingSignatureVerifier = AuraSchedulingVerifier<Runtime>` on
+    `cumulus_pallet_parachain_system::Config`. Runtimes leaving the default `()` keep V3
+    scheduling disabled and are unaffected.
+
+    Resubmissions require relay-chain support: the `CandidateReceiptV3` node feature must
+    be set on-chain and the V4 collator protocol must be in use (validators and collators
+    both upgraded).
+
+    Closes paritytech/polkadot-sdk#12152.
+crates:
+- name: cumulus-pallet-aura-ext
+  bump: minor
+- name: cumulus-pallet-parachain-system
+  bump: patch
+- name: cumulus-primitives-core
+  bump: minor
+- name: pallet-aura
+  bump: minor

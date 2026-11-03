@@ -1,0 +1,12 @@
+title: 'fix(bridge-hub): expose try-runtime feature in bridge-hub-test-utils'
+doc:
+- audience: Node Dev
+  description: |-
+    Fixes #10962. Fixed feature propagation issues in `bridge-hub-test-utils` by adding the `try-runtime` feature.
+crates:
+- name: bridge-hub-rococo-runtime
+  bump: patch
+- name: bridge-hub-westend-runtime
+  bump: patch
+- name: bridge-hub-test-utils
+  bump: patch

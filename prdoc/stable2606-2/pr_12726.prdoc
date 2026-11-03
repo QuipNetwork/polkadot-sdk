@@ -1,0 +1,22 @@
+title: 'Probe cargo for `-Z json-target-spec` support instead of guessing from the version'
+
+doc:
+  - audience: Runtime Dev
+    description: |
+      Both PolkaVM build paths compile against a `.json` target spec produced by
+      `polkavm-linker` and have to decide whether to pass cargo `-Z json-target-spec`:
+      newer cargo requires the flag, older cargo rejects it as unknown.
+
+      Both decided by comparing a version against 1.95: the fixture builder against the
+      *rustc* version, `wasm-builder` against the cargo version. Neither works. The flag
+      landed partway through the 1.95 cycle, so a nightly from early in that cycle reports
+      1.95 from both binaries while its cargo does not know the flag yet, and the fixture
+      build fails with `error: unknown -Z flag specified: json-target-spec`.
+
+      Ask cargo which unstable flags it accepts instead of inferring it from a version.
+
+crates:
+  - name: pallet-revive-fixtures
+    bump: patch
+  - name: substrate-wasm-builder
+    bump: patch

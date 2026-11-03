@@ -25,6 +25,7 @@ on:
           - polkadot-omni-node
           - frame-omni-bencher
           - chain-spec-builder
+          - eth-rpc
 
       registry:
         description: Container registry for Docker images
@@ -53,6 +54,8 @@ jobs:
 
   check-synchronization:
     uses: paritytech-release/sync-workflows/.github/workflows/check-synchronization.yml@main
+    with:
+      concurrency_suffix: combined-publish
     secrets:
       fork_writer_app_key: ${{ secrets.UPSTREAM_CONTENT_SYNC_APP_KEY }}
 
@@ -62,11 +65,12 @@ jobs:
   promote-rc-to-final:
     name: Promote RC to final on S3
     needs: [check-synchronization]
-    if: needs.check-synchronization.outputs.checks_passed == 'true'
+    if: ${{ needs.check-synchronization.outputs.checks_passed == 'true' }}
     uses: ./.github/workflows/release-31_promote-rc-to-final.yml
     with:
       binary: ${{ inputs.binary }}
       release_tag: ${{ inputs.release_tag }}
+
     secrets: inherit
 
   # ==============================================
@@ -79,6 +83,7 @@ jobs:
     with:
       tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
       distribution: release
+
     secrets: inherit
 
   publish-rpm-package:
@@ -88,6 +93,7 @@ jobs:
     with:
       tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
       distribution: ${{ inputs.distribution }}
+
     secrets: inherit
 
   # ==============================================
@@ -105,6 +111,7 @@ jobs:
       owner: ${{ inputs.owner }}
       version: ${{ inputs.version }}
       stable_tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
+
     secrets: inherit
     permissions:
       contents: write
@@ -122,6 +129,7 @@ jobs:
       owner: ${{ inputs.owner }}
       version: ${{ inputs.version }}
       stable_tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
+
     secrets: inherit
     permissions:
       contents: write
@@ -139,6 +147,7 @@ jobs:
       owner: ${{ inputs.owner }}
       version: ${{ inputs.version }}
       stable_tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
+
     secrets: inherit
     permissions:
       contents: write
@@ -156,6 +165,25 @@ jobs:
       owner: ${{ inputs.owner }}
       version: ${{ inputs.version }}
       stable_tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
+
+    secrets: inherit
+    permissions:
+      contents: write
+
+  publish-docker-eth-rpc:
+    name: Publish Docker image - eth-rpc
+    # needs: [publish-deb-package, publish-rpm-package]
+    needs: [promote-rc-to-final]
+    if: ${{ inputs.binary == 'eth-rpc' || inputs.binary == 'all' }}
+    uses: ./.github/workflows/release-50_publish-docker.yml
+    with:
+      image_type: release
+      binary: eth-rpc
+      registry: ${{ inputs.registry }}
+      owner: ${{ inputs.owner }}
+      version: ${{ inputs.version }}
+      stable_tag: ${{ needs.promote-rc-to-final.outputs.final_tag }}
+
     secrets: inherit
     permissions:
       contents: write

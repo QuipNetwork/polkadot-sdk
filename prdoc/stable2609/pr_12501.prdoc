@@ -1,0 +1,10 @@
+title: Remove deprecated BlockAnnounceValidator type alias
+doc:
+  - audience: Node Dev
+    description: |
+      Removes deprecated `cumulus_client_network::BlockAnnounceValidator`, a type alias
+      for `RequireSecondedInBlockAnnounce`. Use `RequireSecondedInBlockAnnounce` directly.
+
+crates:
+  - name: cumulus-client-network
+    bump: major

@@ -1,0 +1,13 @@
+title: Align Tally::approval() with VoteTally trait semantics
+doc:
+- audience: Runtime Dev
+  description: |
+    `Tally::approval()` in `pallet-conviction-voting` now returns `Perbill::zero()`
+    when no aye or nay votes have been cast, consistent with the `pallet-referenda`
+    test mock. The `VoteTally::approval()` trait doc is also updated
+    to document this expected behavior.
+crates:
+- name: pallet-conviction-voting
+  bump: patch
+- name: frame-support
+  bump: patch

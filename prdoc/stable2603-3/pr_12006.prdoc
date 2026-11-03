@@ -1,0 +1,8 @@
+title: '[stable2603] Improve `TransactionStorageApi` runtime api check'
+doc:
+- audience: Node Operator
+  description: |-
+    Improves the `TransactionStorageApi` runtime API version check in the Polkadot Omni Node to use a version-aware comparison (`has_api_with`) instead of a simple version-existence check (`has_api`). This ensures that bulletin chain runtimes that implement the API are correctly detected as compatible with older collators.
+crates:
+- name: polkadot-omni-node-lib
+  bump: patch

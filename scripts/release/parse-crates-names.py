@@ -59,8 +59,11 @@ def parse_crate_names(input_file, output_file):
     try:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write("The following crates were updated to the corresponding versions:\n\n")
+            f.write("<details>\n")
+            f.write("  <summary>Changed crates: </summary>\n\n")
             for crate_name, version in crates:
                 f.write(f"- {crate_name}@{version}\n")
+            f.write("\n</details>\n")
         print(f"\nSuccessfully extracted {len(crates)} crates with versions.")
         print(f"Output written to: {output_file}")
 

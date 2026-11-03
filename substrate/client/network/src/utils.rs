@@ -44,6 +44,16 @@ impl<T: Hash + Eq> LruHashSet<T> {
 		Self { set: LinkedHashSet::new(), limit }
 	}
 
+	/// Check if the set contains the given element without modifying the set.
+	pub fn contains(&self, e: &T) -> bool {
+		self.set.contains(e)
+	}
+
+	/// Remove all elements from the set.
+	pub fn clear(&mut self) {
+		self.set.clear();
+	}
+
 	/// Insert element into the set.
 	///
 	/// Returns `true` if this is a new element to the set, `false` otherwise.

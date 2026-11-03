@@ -16,7 +16,6 @@
 // along with Cumulus. If not, see <https://www.gnu.org/licenses/>.
 
 //! Cumulus Collator implementation for Substrate.
-
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle as OverseerHandle;

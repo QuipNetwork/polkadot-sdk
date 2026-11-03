@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-erasure-coding"
-version = "24.0.0"
+version = "28.0.0"
 description = "Erasure coding used for Polkadot's availability system"
 authors.workspace = true
 edition.workspace = true
@@ -14,10 +14,10 @@ workspace = true
 [dependencies]
 codec = { features = ["derive", "std"], workspace = true }
 novelpoly = { workspace = true }
-polkadot-node-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

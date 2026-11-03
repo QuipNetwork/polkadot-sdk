@@ -1,6 +1,6 @@
 [package]
 name = "bridge-runtime-common"
-version = "0.27.0"
+version = "0.31.0"
 description = "Common types and functions that may be used by substrate-based runtimes of all bridged chains"
 authors.workspace = true
 edition.workspace = true
@@ -11,37 +11,43 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 workspace = true
 
 [dependencies]
+codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+static_assertions = { optional = true, workspace = true, default-features = true }
+tracing = { workspace = true }
+tuplex = { workspace = true }
+
+# Bridge dependencies
 bp-header-chain = { workspace = true }
 bp-messages = { workspace = true }
 bp-parachains = { workspace = true }
 bp-polkadot-core = { workspace = true }
 bp-relayers = { workspace = true }
 bp-runtime = { workspace = true }
-codec = { features = ["derive"], workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
 pallet-bridge-grandpa = { workspace = true }
 pallet-bridge-messages = { workspace = true }
 pallet-bridge-parachains = { workspace = true }
 pallet-bridge-relayers = { workspace = true }
+
+# Substrate dependencies
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 pallet-transaction-payment = { workspace = true }
 pallet-utility = { workspace = true }
-scale-info = { features = ["derive"], workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 sp-trie = { optional = true, workspace = true }
 sp-weights = { workspace = true }
-static_assertions = { optional = true, workspace = true, default-features = true }
-tracing = { workspace = true }
-tuplex = { workspace = true }
+
+# Polkadot dependencies
 xcm = { workspace = true }
 
 [dev-dependencies]
-bp-test-utils = { workspace = true, default-features = false }
-pallet-balances = { default-features = true, workspace = true }
-pallet-bridge-messages = { features = ["std", "test-helpers"], workspace = true, default-features = false }
-sp-core = { default-features = true, workspace = true }
+bp-test-utils = { workspace = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-bridge-messages = { features = ["std", "test-helpers"], workspace = true }
+sp-core = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

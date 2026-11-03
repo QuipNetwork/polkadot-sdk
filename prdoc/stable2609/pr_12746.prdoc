@@ -1,0 +1,16 @@
+title: Remove `pallet-scored-pool`
+doc:
+- audience: Runtime Dev
+  description: |-
+    `pallet-scored-pool` has been removed. It was not used by any runtime in the
+    Polkadot SDK and had received no functional changes in years.
+
+    Runtimes depending on it should migrate to one of the maintained membership
+    pallets, such as `pallet-membership`, `pallet-ranked-collective` or
+    `pallet-core-fellowship`, depending on the desired semantics.
+
+    Users of the `polkadot-sdk` umbrella crate should remove the
+    `pallet-scored-pool` feature from their dependency declaration.
+crates:
+- name: polkadot-sdk
+  bump: major

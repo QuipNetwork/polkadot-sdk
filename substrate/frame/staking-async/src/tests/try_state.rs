@@ -89,11 +89,63 @@ fn try_state_bad_exposure() {
 }
 
 #[test]
+fn last_validator_era_can_be_one_greater_than_active_era() {
+	// When the election for the next era has finished but the era is not yet active,
+	// `LastValidatorEra` is set to `active_era + 1`.
+	ExtBuilder::default().try_state(false).build_and_execute(|| {
+		Session::roll_until_active_era(1);
+		let era = active_era();
+
+		// Before election, `LastValidatorEra` equals the active era.
+		for (validator, _) in ErasStakersOverview::<T>::iter_prefix(era) {
+			assert_eq!(LastValidatorEra::<T>::get(&validator), Some(era));
+		}
+
+		// Roll session by session until the election for the next era has been stored, i.e.
+		// `ErasStakersOverview` for the next era is populated.
+		while ErasStakersOverview::<T>::iter_prefix(era + 1).next().is_none() {
+			Session::roll_to_next_session();
+		}
+
+		// Election for era 2 is stored but era 2 is not yet active.
+		assert_eq!(active_era(), 1);
+		assert_eq!(current_era(), 2);
+
+		// After election, `LastValidatorEra` is now 1 greater than active era.
+		for (validator, _) in ErasStakersOverview::<T>::iter_prefix(era) {
+			assert_eq!(LastValidatorEra::<T>::get(&validator), Some(era + 1));
+		}
+	});
+}
+
+#[test]
 fn try_state_bad_eras_total_stake() {
 	ExtBuilder::default().try_state(false).build_and_execute(|| {
 		Session::roll_until_active_era(2);
 		assert!(Staking::do_try_state(System::block_number()).is_ok());
 		ErasTotalStake::<T>::mutate(2, |s| *s -= 1);
 		assert!(Staking::do_try_state(System::block_number()).is_err());
+	});
+}
+
+#[test]
+fn try_state_detects_incentive_weight_mismatch() {
+	ExtBuilder::default().build_and_execute(|| {
+		// GIVEN: valid incentive state after era rotation.
+		setup_incentive_with_budget(45, 5);
+		Session::roll_until_active_era(2);
+
+		let era = 2;
+		let stored_total = ErasSumValidatorIncentiveWeight::<Test>::get(era);
+		assert!(stored_total > 0);
+
+		// WHEN: corrupt the sum to be inconsistent with individual weights.
+		ErasSumValidatorIncentiveWeight::<Test>::insert(era, stored_total + 999);
+
+		// THEN: try-state detects the mismatch.
+		assert!(Staking::do_try_state(System::block_number()).is_err());
+
+		// Restore valid state so build_and_execute post-check passes.
+		ErasSumValidatorIncentiveWeight::<Test>::insert(era, stored_total);
 	});
 }

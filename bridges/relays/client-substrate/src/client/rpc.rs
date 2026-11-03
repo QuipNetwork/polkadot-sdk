@@ -88,8 +88,7 @@ pub struct RpcClient<C: Chain> {
 
 /// Client data, shared by all `RpcClient` clones.
 struct ClientData {
-	/// Tokio runtime handle.
-	tokio: Arc<tokio::runtime::Runtime>,
+	tokio: tokio::runtime::Handle,
 	/// Substrate RPC client.
 	client: Arc<WsClient>,
 }
@@ -195,8 +194,10 @@ impl<C: Chain> RpcClient<C> {
 	/// Build client to use in connection.
 	async fn build_client(
 		params: &ConnectionParams,
-	) -> Result<(Arc<tokio::runtime::Runtime>, Arc<WsClient>)> {
-		let tokio = tokio::runtime::Runtime::new()?;
+	) -> Result<(tokio::runtime::Handle, Arc<WsClient>)> {
+		let tokio = tokio::runtime::Handle::try_current().map_err(|e| {
+			Error::Custom(format!("Failed to obtain current tokio runtime handle: {e}"))
+		})?;
 		let uri = params.uri.clone();
 		tracing::info!(target: "bridge", node=%C::NAME, %uri, "Connecting");
 
@@ -209,7 +210,7 @@ impl<C: Chain> RpcClient<C> {
 			})
 			.await??;
 
-		Ok((Arc::new(tokio), Arc::new(client)))
+		Ok((tokio, Arc::new(client)))
 	}
 
 	/// Execute jsonrpsee future in tokio context.

@@ -1,90 +1,74 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
+# Builds the release draft (RELEASE_DRAFT.md) plus the CHANGELOG.md/changelog.json
+# release assets.
+#
+# Flow:
+#  1. tera renders the outer document (release info, runtimes, docker, free notes)
+#     from templates/ with a placeholder marker where the changelog goes.
+#  2. The changelog fragment budget is computed from the measured size of that
+#     outer document, so the final body provably stays under GitHub's 125000-char
+#     release-body cap (including manual free notes).
+#  3. changelog/generate.py (python3 + PyYAML, no network, no container) renders
+#     the changelog from the prdoc files within that budget.
+#  4. The fragment is substituted for the marker AFTER tera, so prdoc content is
+#     never parsed as a tera template.
+#
+# The final tag for asset URLs and the changelog identity is REF2 with any -rcN
+# suffix stripped: drafts are built from rc tags but published under the final tag.
 
 export PRODUCT=polkadot
-export VERSION=${VERSION:-stable2409}
-export ENGINE=${ENGINE:-podman}
+export VERSION=${VERSION:-stable2606}
 export REF1=${REF1:-'HEAD'}
-export REF2=${REF2}
+export REF2=${REF2:-}
 export RUSTC_STABLE=${RUSTC_STABLE:-'1.0'}
 export NO_RUNTIMES=${NO_RUNTIMES:-'false'}
 export CRATES_ONLY=${CRATES_ONLY:-'false'}
+# Exported by the release workflow; defaulted here so local runs render too.
+export STABLE_VERSION=${STABLE_VERSION:-${VERSION%%-*}}
+export NODE_VERSION=${NODE_VERSION:-v0.0.0-local}
 
-PROJECT_ROOT=`git rev-parse --show-toplevel`
-echo $PROJECT_ROOT
+GITHUB_BODY_CAP=125000
+CHANGELOG_MARKER='<!-- POLKADOT-SDK-CHANGELOG-BODY -->'
 
-TMP=${TMP:-$(mktemp -d)}
-TEMPLATE_AUDIENCE="${PROJECT_ROOT}/scripts/release/templates/audience.md.tera"
-TEMPLATE_CHANGELOG="${PROJECT_ROOT}/scripts/release/templates/changelog.md.tera"
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+RELEASE_DIR="$PROJECT_ROOT/scripts/release"
+TEMPLATES_DIR="$RELEASE_DIR/templates"
+# Private work dir: never reuse or delete caller-provided paths.
+WORKDIR=$(mktemp -d)
 
-DATA_JSON="${TMP}/data.json"
-CONTEXT_JSON="${TMP}/context.json"
-echo -e "TEMPLATE_AUDIENCE: \t$TEMPLATE_AUDIENCE"
-echo -e "DATA_JSON: \t\t$DATA_JSON"
-echo -e "CONTEXT_JSON: \t\t$CONTEXT_JSON"
+if ! python3 -c 'import yaml' 2>/dev/null; then
+	echo "error: PyYAML is required: python3 -m pip install pyyaml" >&2
+	exit 1
+fi
 
-# Create output folder
-OUTPUT="${TMP}/changelogs/$PRODUCT/$VERSION"
-echo -e "OUTPUT: \t\t$OUTPUT"
-mkdir -p $OUTPUT
+# The draft is generated from an rc tag but published under the final tag; asset
+# download URLs are tag-scoped, so everything user-facing uses the final tag.
+FINAL_TAG="${REF2%-rc*}"
+if [[ "$FINAL_TAG" != "$REF2" ]]; then
+	echo "Using final tag '$FINAL_TAG' for asset URLs (draft tag: '$REF2')"
+	export REF2="$FINAL_TAG"
+fi
 
-$ENGINE run --rm -v ${PROJECT_ROOT}:/repo paritytech/prdoc load -d "prdoc/$VERSION" --json > $DATA_JSON
-
-cat $DATA_JSON | jq ' { "prdoc" : .}' > $CONTEXT_JSON
-
-# Fetch the list of valid audiences and their descriptions
-SCHEMA_URL=https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/prdoc/schema_user.json
-SCHEMA=$(curl -s $SCHEMA_URL | sed 's|^//.*||')
-aud_desc_array=()
-while IFS= read -r line; do
-    audience=$(jq -r '.const' <<< "$line" )
-    description=$(jq -r '.description' <<< "$line")
-    if [ -n "$audience" ] && [ -n "$description" ]; then
-        aud_desc_array+=("($audience; $description)")
-    fi
-done < <(jq -c '."$defs".audience_id.oneOf[]' <<< "$SCHEMA")
-
-# Generate a release notes doc per audience
-for tuple in "${aud_desc_array[@]}"; do
-    audience=$(echo "$tuple" | cut -d ';' -f 1 | sed 's/(//')
-    audience_id="$(tr [A-Z] [a-z] <<< "$audience")"
-    audience_id="$(tr ' ' '_' <<< "$audience_id")"
-
-    description=$(echo "$tuple" | cut -d ';' -f 2 | sed 's/)//')
-
-    echo "Processing audience: $audience ($audience_id)"
-    export TARGET_AUDIENCE="$audience"
-    export AUDIENCE_DESC="**ℹ️ These changes are relevant to:** $description"
-
-    tera -t "${TEMPLATE_AUDIENCE}" --env --env-key env "${CONTEXT_JSON}" > "$OUTPUT/relnote_${audience_id}.md"
-    cat "$OUTPUT/relnote_${audience_id}.md" >> "$PROJECT_ROOT/scripts/release/templates/changelog.md"
-done
-
-
-# Generate a changelog containing list of the commits
-echo "Generating changelog..."
-tera -t "${TEMPLATE_CHANGELOG}" --env --env-key env "${CONTEXT_JSON}" > "$OUTPUT/relnote_commits.md"
-echo "Changelog ready in $OUTPUT/relnote_commits.md"
-
-# Show the files
-tree -s -h -c $OUTPUT/
-
+# Assemble the srtool digest context for the runtimes section.
 if [[ "$NO_RUNTIMES" == "false" && "$CRATES_ONLY" == "false" ]]; then
-  ASSET_HUB_WESTEND_DIGEST=${ASSET_HUB_WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/asset-hub-westend-srtool-digest.json"}
-  BRIDGE_HUB_WESTEND_DIGEST=${BRIDGE_HUB_WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/bridge-hub-westend-srtool-digest.json"}
-  COLLECTIVES_WESTEND_DIGEST=${COLLECTIVES_WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/collectives-westend-srtool-digest.json"}
-  CORETIME_WESTEND_DIGEST=${CORETIME_WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/coretime-westend-srtool-digest.json"}
-  GLUTTON_WESTEND_DIGEST=${GLUTTON_WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/glutton-westend-srtool-digest.json"}
-  PEOPLE_WESTEND_DIGEST=${PEOPLE_WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/people-westend-srtool-digest.json"}
-  WESTEND_DIGEST=${WESTEND_DIGEST:-"$PROJECT_ROOT/scripts/release/digests/westend-srtool-digest.json"}
+  ASSET_HUB_WESTEND_DIGEST=${ASSET_HUB_WESTEND_DIGEST:-"$RELEASE_DIR/digests/asset-hub-westend-srtool-digest.json"}
+  BRIDGE_HUB_WESTEND_DIGEST=${BRIDGE_HUB_WESTEND_DIGEST:-"$RELEASE_DIR/digests/bridge-hub-westend-srtool-digest.json"}
+  COLLECTIVES_WESTEND_DIGEST=${COLLECTIVES_WESTEND_DIGEST:-"$RELEASE_DIR/digests/collectives-westend-srtool-digest.json"}
+  CORETIME_WESTEND_DIGEST=${CORETIME_WESTEND_DIGEST:-"$RELEASE_DIR/digests/coretime-westend-srtool-digest.json"}
+  GLUTTON_WESTEND_DIGEST=${GLUTTON_WESTEND_DIGEST:-"$RELEASE_DIR/digests/glutton-westend-srtool-digest.json"}
+  PEOPLE_WESTEND_DIGEST=${PEOPLE_WESTEND_DIGEST:-"$RELEASE_DIR/digests/people-westend-srtool-digest.json"}
+  WESTEND_DIGEST=${WESTEND_DIGEST:-"$RELEASE_DIR/digests/westend-srtool-digest.json"}
 
   jq \
-        --slurpfile srtool_asset_hub_westend $ASSET_HUB_WESTEND_DIGEST \
-        --slurpfile srtool_bridge_hub_westend $BRIDGE_HUB_WESTEND_DIGEST \
-        --slurpfile srtool_collectives_westend $COLLECTIVES_WESTEND_DIGEST \
-        --slurpfile srtool_coretime_westend $CORETIME_WESTEND_DIGEST \
-        --slurpfile srtool_glutton_westend $GLUTTON_WESTEND_DIGEST \
-        --slurpfile srtool_people_westend $PEOPLE_WESTEND_DIGEST \
-        --slurpfile srtool_westend $WESTEND_DIGEST \
+        --slurpfile srtool_asset_hub_westend "$ASSET_HUB_WESTEND_DIGEST" \
+        --slurpfile srtool_bridge_hub_westend "$BRIDGE_HUB_WESTEND_DIGEST" \
+        --slurpfile srtool_collectives_westend "$COLLECTIVES_WESTEND_DIGEST" \
+        --slurpfile srtool_coretime_westend "$CORETIME_WESTEND_DIGEST" \
+        --slurpfile srtool_glutton_westend "$GLUTTON_WESTEND_DIGEST" \
+        --slurpfile srtool_people_westend "$PEOPLE_WESTEND_DIGEST" \
+        --slurpfile srtool_westend "$WESTEND_DIGEST" \
         -n '{
             srtool: [
               { order: 10, name: "Westend", data: $srtool_westend[0] },
@@ -94,12 +78,60 @@ if [[ "$NO_RUNTIMES" == "false" && "$CRATES_ONLY" == "false" ]]; then
               { order: 14, name: "Westend Coretime", data: $srtool_coretime_westend[0] },
               { order: 15, name: "Westend Glutton", data: $srtool_glutton_westend[0] },
               { order: 16, name: "Westend People", data: $srtool_people_westend[0] }
-        ] }' > "$PROJECT_ROOT/scripts/release/context.json"
+        ] }' > "$WORKDIR/context.json"
 else
-  echo '{}' > "$PROJECT_ROOT/scripts/release/context.json"
+  echo '{}' > "$WORKDIR/context.json"
 fi
 
-RELEASE_DIR="$PROJECT_ROOT/scripts/release/"
-pushd $RELEASE_DIR >/dev/null
-tera --env --env-key env --include-path templates --template templates/template.md.tera context.json > RELEASE_DRAFT.md
-popd >/dev/null
+# Render the outer document (still carrying the changelog marker).
+tera --env --env-key env \
+	--include-path "$TEMPLATES_DIR" \
+	--template "$TEMPLATES_DIR/template.md.tera" \
+	"$WORKDIR/context.json" > "$WORKDIR/draft_outer.md"
+
+if ! grep -qF "$CHANGELOG_MARKER" "$WORKDIR/draft_outer.md"; then
+	echo "error: changelog marker missing from rendered draft (templates/changes.md.tera)" >&2
+	exit 1
+fi
+
+# Budget for the changelog fragment = the real cap minus everything around it.
+OUTER_CHARS=$(wc -m < "$WORKDIR/draft_outer.md")
+BODY_BUDGET=$((GITHUB_BODY_CAP - OUTER_CHARS + ${#CHANGELOG_MARKER}))
+echo "Outer document: $OUTER_CHARS chars -> changelog budget: $BODY_BUDGET chars"
+
+# Generate the changelog: body fragment + the two release assets.
+CHANGELOG_OUT="$WORKDIR/changelog"
+python3 "$RELEASE_DIR/changelog/generate.py" \
+	--prdoc-dir "$PROJECT_ROOT/prdoc/$VERSION" \
+	--topics "$PROJECT_ROOT/prdoc/topics.yaml" \
+	--output-dir "$CHANGELOG_OUT" \
+	--tag "$FINAL_TAG" \
+	--previous-tag "$REF1" \
+	--version "$VERSION" \
+	--max-body-chars "$BODY_BUDGET" \
+	${GENERATED_AT:+--generated-at "$GENERATED_AT"}
+
+# Substitute the fragment for the marker (plain text replacement, not tera).
+python3 - "$WORKDIR/draft_outer.md" "$CHANGELOG_OUT/changelog_body.md" \
+	"$RELEASE_DIR/RELEASE_DRAFT.md" "$CHANGELOG_MARKER" <<'PY'
+import sys
+outer_path, fragment_path, out_path, marker = sys.argv[1:5]
+outer = open(outer_path, encoding="utf-8").read()
+# Trailing newline: tera's include trimming can leave the next section heading
+# directly after the marker, and the fragment must not butt against it.
+fragment = open(fragment_path, encoding="utf-8").read().rstrip("\n") + "\n"
+assert marker in outer, "changelog marker vanished between render and substitution"
+open(out_path, "w", encoding="utf-8").write(outer.replace(marker, fragment, 1))
+PY
+
+# Place the outputs where the release workflow picks them up.
+cp "$WORKDIR/context.json" "$RELEASE_DIR/context.json"
+cp "$CHANGELOG_OUT/CHANGELOG.md" "$RELEASE_DIR/CHANGELOG.md"
+cp "$CHANGELOG_OUT/changelog.json" "$RELEASE_DIR/changelog.json"
+
+DRAFT_CHARS=$(wc -m < "$RELEASE_DIR/RELEASE_DRAFT.md")
+echo "Release draft: $RELEASE_DIR/RELEASE_DRAFT.md ($DRAFT_CHARS chars, cap $GITHUB_BODY_CAP)"
+echo "Release assets: $RELEASE_DIR/CHANGELOG.md, $RELEASE_DIR/changelog.json"
+if (( DRAFT_CHARS > GITHUB_BODY_CAP )); then
+	echo "::warning::release draft exceeds the GitHub body cap ($DRAFT_CHARS > $GITHUB_BODY_CAP)" >&2
+fi

@@ -1,0 +1,11 @@
+title: "pallet-beefy-mmr: align ECDSA\u2192ETH failure sentinel between converter\
+  \ and consumer"
+doc:
+- audience: Runtime Dev
+  description: |-
+    BeefyEcdsaToEthereum returned an empty Vec<u8> on conversion failure, while compute_authority_set counted failures by matching [0u8; 20].
+    Extract the sentinel into a shared FAILED_BEEFY_TO_ETH_ADDRESS constant referenced by both sites.
+    Fix mock_beefy_id to derive valid ECDSA keys so tests exercise the happy path as well as the failure branch.
+crates:
+- name: pallet-beefy-mmr
+  bump: patch

@@ -10,40 +10,49 @@ workspace = true
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-cumulus-pallet-weight-reclaim = { default-features = true, workspace = true }
-cumulus-primitives-core = { default-features = true, workspace = true }
-cumulus-primitives-parachain-inherent = { default-features = true, workspace = true }
-cumulus-primitives-proof-size-hostfunction = { default-features = true, workspace = true }
-cumulus-test-relay-sproof-builder = { default-features = true, workspace = true }
+
+# Substrate
+frame-system = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
+pallet-transaction-payment = { workspace = true, default-features = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-consensus-aura = { workspace = true, default-features = true }
+sc-executor = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus-aura = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-keyring = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
+sp-trie = { workspace = true, default-features = true }
+substrate-test-client = { workspace = true }
+
+# Polkadot
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+
+# Cumulus
+cumulus-pallet-parachain-system = { workspace = true, default-features = true }
+cumulus-pallet-weight-reclaim = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-primitives-parachain-inherent = { workspace = true, default-features = true }
+cumulus-primitives-proof-size-hostfunction = { workspace = true, default-features = true }
+cumulus-test-relay-sproof-builder = { workspace = true, default-features = true }
 cumulus-test-runtime = { workspace = true }
 cumulus-test-service = { workspace = true }
-frame-system = { default-features = true, workspace = true }
-pallet-balances = { default-features = true, workspace = true }
-pallet-transaction-payment = { default-features = true, workspace = true }
-polkadot-parachain-primitives = { default-features = true, workspace = true }
-polkadot-primitives = { default-features = true, workspace = true }
-sc-block-builder = { default-features = true, workspace = true }
-sc-consensus = { default-features = true, workspace = true }
-sc-consensus-aura = { default-features = true, workspace = true }
-sc-executor = { default-features = true, workspace = true }
-sc-executor-common = { default-features = true, workspace = true }
-sc-service = { default-features = true, workspace = true }
-sp-api = { default-features = true, workspace = true }
-sp-application-crypto = { default-features = true, workspace = true }
-sp-blockchain = { default-features = true, workspace = true }
-sp-consensus-aura = { default-features = true, workspace = true }
-sp-core = { default-features = true, workspace = true }
-sp-inherents = { default-features = true, workspace = true }
-sp-io = { default-features = true, workspace = true }
-sp-keyring = { default-features = true, workspace = true }
-sp-keystore = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
-sp-timestamp = { default-features = true, workspace = true }
-sp-trie = { default-features = true, workspace = true }
-substrate-test-client = { workspace = true }
 
 [features]
 runtime-benchmarks = [
+	"cumulus-pallet-parachain-system/runtime-benchmarks",
 	"cumulus-pallet-weight-reclaim/runtime-benchmarks",
 	"cumulus-primitives-core/runtime-benchmarks",
 	"cumulus-test-service/runtime-benchmarks",

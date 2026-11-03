@@ -12,10 +12,8 @@ workspace = true
 
 [dependencies]
 codec = { workspace = true }
-collectives-westend-runtime = { workspace = true }
-cumulus-pallet-parachain-system = { workspace = true }
-cumulus-pallet-xcmp-queue = { workspace = true }
-emulated-integration-tests-common = { workspace = true }
+
+# Substrate
 frame-support = { workspace = true }
 pallet-assets = { workspace = true }
 pallet-balances = { workspace = true }
@@ -23,10 +21,18 @@ pallet-message-queue = { workspace = true }
 pallet-treasury = { workspace = true }
 pallet-utility = { workspace = true }
 pallet-whitelist = { workspace = true }
-pallet-xcm = { workspace = true }
-polkadot-runtime-common = { default-features = true, workspace = true }
+parachains-common = { workspace = true, default-features = true }
 sp-runtime = { workspace = true }
-westend-runtime-constants = { default-features = true, workspace = true }
-westend-system-emulated-network = { workspace = true }
+
+# Polkadot
+collectives-westend-runtime = { workspace = true }
+pallet-xcm = { workspace = true }
+polkadot-runtime-common = { workspace = true, default-features = true }
+westend-runtime-constants = { workspace = true, default-features = true }
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
+
+# Cumulus
+cumulus-pallet-xcmp-queue = { workspace = true }
+emulated-integration-tests-common = { workspace = true }
+westend-system-emulated-network = { workspace = true }

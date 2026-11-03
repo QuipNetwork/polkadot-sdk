@@ -45,6 +45,24 @@ use sp_runtime::{
 use std::{sync::Arc, time::Instant};
 use tracing::{debug, instrument, trace, Level};
 
+/// Status of a transaction with respect to a view.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ImportedStatus {
+	/// Transaction is not known to the view and can be submitted.
+	NotImported,
+	/// Transaction is temporarily banned in the view's rotator.
+	Banned,
+	/// Transaction is already imported into the view's pool.
+	Imported,
+}
+
+impl ImportedStatus {
+	/// Returns `true` if the transaction is known to the view (either imported or banned).
+	pub(super) fn is_imported(&self) -> bool {
+		!matches!(self, ImportedStatus::NotImported)
+	}
+}
+
 pub(super) struct RevalidationResult<ChainApi: graph::ChainApi> {
 	revalidated: IndexMap<ExtrinsicHash<ChainApi>, ValidatedTransactionFor<ChainApi>>,
 	invalid_hashes: Vec<ExtrinsicHash<ChainApi>>,
@@ -662,10 +680,19 @@ where
 		}
 	}
 
-	/// Returns true if the transaction with given hash is already imported into the view.
-	pub(super) fn is_imported(&self, tx_hash: &ExtrinsicHash<ChainApi>) -> bool {
+	/// Checks if the transaction with given hash is already known to the view.
+	pub(super) fn imported_status(&self, tx_hash: &ExtrinsicHash<ChainApi>) -> ImportedStatus {
 		const IGNORE_BANNED: bool = false;
-		self.pool.validated_pool().check_is_known(tx_hash, IGNORE_BANNED).is_err()
+		match self.pool.validated_pool().check_is_known(tx_hash, IGNORE_BANNED) {
+			Ok(()) => ImportedStatus::NotImported,
+			Err(err) => {
+				use sc_transaction_pool_api::error::IntoPoolError;
+				match err.into_pool_error() {
+					Ok(TxPoolError::TemporarilyBanned) => ImportedStatus::Banned,
+					_ => ImportedStatus::Imported,
+				}
+			},
+		}
 	}
 
 	/// Removes the whole transaction subtree from the inner pool.

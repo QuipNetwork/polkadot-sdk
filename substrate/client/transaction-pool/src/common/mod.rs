@@ -34,15 +34,23 @@ use std::sync::Arc;
 pub(crate) const STAT_SLIDING_WINDOW: u64 = 3;
 
 /// Inform the transaction pool about imported and finalized blocks.
-pub async fn notification_future<Client, Pool, Block>(client: Arc<Client>, txpool: Arc<Pool>)
-where
+///
+/// If `all_block_notifications` is `true`, the pool is informed about every imported block (all
+/// forks); otherwise it is only informed about blocks imported as the new best.
+pub async fn notification_future<Client, Pool, Block>(
+	client: Arc<Client>,
+	txpool: Arc<Pool>,
+	all_block_notifications: bool,
+) where
 	Block: sp_runtime::traits::Block,
 	Client: sc_client_api::BlockchainEvents<Block>,
 	Pool: sc_transaction_pool_api::MaintainedTransactionPool<Block = Block>,
 {
 	let import_stream = client
 		.import_notification_stream()
-		.filter_map(|n| futures::future::ready(n.try_into().ok()))
+		.filter_map(move |n| {
+			futures::future::ready((all_block_notifications || n.is_new_best).then(|| n.into()))
+		})
 		.fuse();
 	let finality_stream = client.finality_notification_stream().map(Into::into).fuse();
 

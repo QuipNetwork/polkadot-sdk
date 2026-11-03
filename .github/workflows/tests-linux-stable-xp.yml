@@ -1,4 +1,4 @@
-# GHA for test-linux-stable-int, test-linux-stable, test-linux-stable-oldkernel with new runners
+# GHA for test-linux-stable-int, test-linux-stable with new runners
 name: tests linux stable experimental
 
 on:
@@ -60,13 +60,12 @@ jobs:
 
   test-linux-stable:
     needs: [preflight]
-    runs-on: ${{ matrix.runners }}
+    runs-on: parity-large-test
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         partition: [1/3, 2/3, 3/3]
-        runners: [parity-large-test, parity-oldlinux-test]
     container:
       image: ${{ needs.preflight.outputs.IMAGE }}
       # needed for tests that use unshare syscall

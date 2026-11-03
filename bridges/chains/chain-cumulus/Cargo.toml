@@ -1,7 +1,7 @@
 [package]
 name = "bp-bridge-hub-cumulus"
 description = "Primitives for BridgeHub parachain runtimes."
-version = "0.28.0"
+version = "0.39.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
@@ -14,15 +14,20 @@ exclude-from-umbrella = true
 workspace = true
 
 [dependencies]
+# Bridge Dependencies
 bp-messages = { workspace = true }
 bp-polkadot-core = { workspace = true }
 bp-runtime = { workspace = true }
+
+# Substrate Based Dependencies
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 parachains-common = { workspace = true }
-polkadot-primitives = { workspace = true }
 sp-api = { workspace = true }
 sp-std = { workspace = true }
+
+# Polkadot Dependencies
+polkadot-primitives = { workspace = true }
 
 [features]
 default = ["std"]

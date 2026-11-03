@@ -1,0 +1,186 @@
+# Topic taxonomy for the release changelog.
+#
+# How it is used (see scripts/release/changelog/generate.py):
+# - The changelog groups changes into one section per topic; sections appear in
+#   the order of this list (Misc always last).
+# - Topic derivation: for every crate listed in a prdoc's `crates`, the first
+#   topic whose `patterns` entry matches the crate name (fnmatch glob) is
+#   selected; the prdoc is assigned the earliest (highest-priority) topic
+#   matched by any of its crates.
+# - A prdoc can override derivation with an explicit `topic:` field, matched
+#   case-insensitively against a topic `id` or `label`. Unknown values fall
+#   back to derivation.
+#
+# Maintenance:
+# - Adding a crate or topic is a one-line change; order matters (first match
+#   wins), so keep specific topics above the FRAME/Node catch-alls.
+# - A topic with no `patterns` can only be selected explicitly via the prdoc
+#   `topic:` field (useful for initiatives that span many crates).
+topics:
+  # NB: no `bridge-*` glob here — it would swallow the bridge-hub-*-runtime
+  # testnet runtimes and with them every PR that touches all system runtimes.
+  - id: bridges
+    label: Bridges
+    patterns:
+      - "bp-*"
+      - "bridge-runtime-common"
+      - "pallet-bridge-*"
+      - "snowbridge-*"
+      - "pallet-xcm-bridge-hub*"
+      - "relay-substrate-client"
+      - "substrate-relay*"
+
+  # NB: no `xcm-*` glob here — xcm-emulator/xcm-simulator* are test tooling
+  # and belong to the testnets topic.
+  - id: xcm
+    label: XCM
+    patterns:
+      - "staging-xcm*"
+      - "pallet-xcm*"
+      - "*-xcm"
+      - "xcm-procedural"
+      - "xcm-runtime-apis"
+      - "xcm-docs"
+      - "cumulus-pallet-xcmp-queue"
+      - "cumulus-primitives-utility"
+
+  # NB: no `revive-*` glob here — revive-dev-runtime is a test runtime and
+  # belongs to the testnets topic.
+  - id: revive
+    label: Smart Contracts (Revive)
+    patterns:
+      - "pallet-revive*"
+      - "*-precompiles"
+      - "pallet-pgas-allowance"
+
+  - id: staking
+    label: Staking & Elections
+    patterns:
+      - "pallet-staking*"
+      - "pallet-nomination-pools*"
+      - "pallet-election-provider*"
+      - "pallet-bags-list"
+      - "pallet-fast-unstake"
+      - "pallet-delegated-staking"
+      - "pallet-dap*"
+      - "pallet-session*"
+      - "sp-staking"
+      - "sp-npos-elections"
+      - "sp-dap"
+
+  - id: coretime
+    label: Coretime
+    patterns:
+      - "pallet-broker"
+
+  - id: governance
+    label: Governance
+    patterns:
+      - "pallet-referenda"
+      - "pallet-conviction-voting"
+      - "pallet-democracy"
+      - "pallet-collective*"
+      - "pallet-ranked-collective"
+      - "pallet-elections-phragmen"
+      - "pallet-treasury"
+      - "pallet-bounties"
+      - "pallet-child-bounties"
+      - "pallet-multi-asset-bounties"
+      - "pallet-tips"
+      - "pallet-whitelist"
+
+  - id: assets
+    label: Assets
+    patterns:
+      - "pallet-assets*"
+      - "pallet-asset-*"
+      - "pallet-psm*"
+      - "pallet-balances"
+      - "pallet-nfts*"
+      - "pallet-uniques"
+      - "pallet-nft-fractionalization"
+
+  - id: parachains
+    label: Parachains (protocol)
+    patterns:
+      - "polkadot-runtime-parachains"
+      - "polkadot-primitives"
+      - "polkadot-parachain-primitives"
+      - "cumulus-pallet-*"
+      - "cumulus-primitives-*"
+      - "parachains-common"
+
+  - id: node
+    label: Node
+    patterns:
+      - "sc-*"
+      - "polkadot-node-*"
+      - "polkadot-approval-*"
+      - "polkadot-availability-*"
+      - "polkadot-collator-protocol"
+      - "polkadot-dispute-*"
+      - "polkadot-gossip-support"
+      - "polkadot-network-bridge"
+      - "polkadot-overseer"
+      - "polkadot-statement-distribution"
+      - "polkadot-service"
+      - "polkadot-cli"
+      - "polkadot-omni-node*"
+      - "cumulus-client-*"
+      - "cumulus-relay-chain-*"
+      - "mmr-gadget"
+      - "staging-node-cli"
+      - "polkadot"
+
+  - id: tooling
+    label: Tooling & Benchmarking
+    patterns:
+      - "frame-benchmarking-cli"
+      - "frame-omni-bencher"
+      - "staging-chain-spec-builder"
+      - "substrate-wasm-builder"
+      - "substrate-build-script-utils"
+      - "subkey"
+      - "zombienet*"
+      - "*-zombienet-*"
+      - "polkadot-sdk"
+
+  - id: frame
+    label: FRAME & Runtime
+    patterns:
+      - "frame-*"
+      - "polkadot-sdk-frame"
+      - "pallet-*"
+      - "sp-*"
+      - "polkadot-runtime-common"
+      - "binary-merkle-tree"
+
+  - id: testnets
+    label: Testnets & Test Utilities
+    patterns:
+      - "xcm-emulator"
+      - "xcm-simulator*"
+      - "revive-dev-runtime"
+      - "*-westend-runtime*"
+      - "westend-runtime*"
+      - "*-rococo-runtime*"
+      - "rococo-runtime*"
+      - "penpal-runtime"
+      - "kitchensink-runtime"
+      - "yet-another-parachain-runtime"
+      - "testnet-parachains-constants"
+      - "emulated-integration-tests-common"
+      - "*-integration-tests"
+      - "*-test-utils"
+      - "*-test-helpers"
+      - "*-test-fixture"
+      - "*-test"
+      - "*-tests"
+      - "node-testing"
+      - "substrate-test-runtime"
+      - "remote-ext-tests-*"
+
+  - id: misc
+    label: Misc
+    patterns:
+      - "*"

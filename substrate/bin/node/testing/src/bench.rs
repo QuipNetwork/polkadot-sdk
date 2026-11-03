@@ -603,12 +603,9 @@ impl BenchKeyring {
 				.into()
 			},
 			ExtrinsicFormat::Bare => generic::UncheckedExtrinsic::new_bare(xt.function).into(),
-			ExtrinsicFormat::General(ext_version, tx_ext) => {
-				generic::UncheckedExtrinsic::from_parts(
-					xt.function,
-					Preamble::General(ext_version, tx_ext),
-				)
-				.into()
+			ExtrinsicFormat::General(tx_ext) => {
+				generic::UncheckedExtrinsic::from_parts(xt.function, Preamble::General(tx_ext))
+					.into()
 			},
 		}
 	}

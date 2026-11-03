@@ -20,7 +20,6 @@ use litep2p::types::multiaddr::{
 	Error as LiteP2pError, Iter as LiteP2pIter, Multiaddr as LiteP2pMultiaddr,
 	Protocol as LiteP2pProtocol,
 };
-use multiaddr::Multiaddr as LibP2pMultiaddr;
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use std::{
 	fmt::{self, Debug, Display},
@@ -104,19 +103,6 @@ impl From<Multiaddr> for LiteP2pMultiaddr {
 		multiaddr.multiaddr
 	}
 }
-
-impl From<LibP2pMultiaddr> for Multiaddr {
-	fn from(multiaddr: LibP2pMultiaddr) -> Self {
-		multiaddr.into_iter().map(Into::into).collect()
-	}
-}
-
-impl From<Multiaddr> for LibP2pMultiaddr {
-	fn from(multiaddr: Multiaddr) -> Self {
-		multiaddr.into_iter().map(Into::into).collect()
-	}
-}
-
 impl From<IpAddr> for Multiaddr {
 	fn from(v: IpAddr) -> Multiaddr {
 		match v {

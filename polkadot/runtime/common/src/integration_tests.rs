@@ -17,7 +17,11 @@
 //! Mocking utilities for testing with real pallets.
 
 use crate::{
-	auctions, crowdloan, identity_migrator,
+	auctions,
+	auctions::Error as AuctionsError,
+	crowdloan,
+	crowdloan::Error as CrowdloanError,
+	identity_migrator,
 	mock::{conclude_pvf_checking, validators_public_keys},
 	paras_registrar,
 	slot_range::SlotRange,
@@ -29,7 +33,7 @@ use codec::Encode;
 use frame_support::{
 	assert_noop, assert_ok, derive_impl, parameter_types,
 	traits::{ConstU32, Currency},
-	weights::Weight,
+	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 	PalletId,
 };
 use frame_support_test::TestRandomness;
@@ -115,12 +119,10 @@ where
 	}
 }
 
-use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
-
 parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
+			Weight::from_parts(2 * WEIGHT_REF_TIME_PER_SECOND, u64::MAX),
 		);
 }
 
@@ -198,7 +200,9 @@ impl shared::Config for Test {
 	type DisabledValidators = ();
 }
 
-impl dmp::Config for Test {}
+impl dmp::Config for Test {
+	type WeightInfo = ();
+}
 
 impl origin::Config for Test {}
 

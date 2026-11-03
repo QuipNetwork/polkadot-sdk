@@ -531,6 +531,27 @@ pub mod pallet {
 		) -> Option<BoundedVec<TransactionInfo, T::MaxBlockTransactions>> {
 			Transactions::<T>::get(block)
 		}
+
+		pub fn indexed_transactions(
+			block: BlockNumberFor<T>,
+		) -> alloc::vec::Vec<sp_transaction_storage_proof::IndexedTransactionInfo> {
+			const RAW_CID_CODEC: sp_transaction_storage_proof::CidCodec = 0x55;
+
+			Transactions::<T>::get(block)
+				.map(|txs| {
+					txs.into_iter()
+						.map(|tx| sp_transaction_storage_proof::IndexedTransactionInfo {
+							content_hash: tx.content_hash.into(),
+							size: tx.size,
+							hashing: sp_transaction_storage_proof::HashingAlgorithm::Blake2b256,
+							cid_codec: RAW_CID_CODEC,
+							extrinsic_index: u32::MAX,
+						})
+						.collect()
+				})
+				.unwrap_or_default()
+		}
+
 		/// Get ByteFee storage information from the outside of this pallet.
 		pub fn byte_fee() -> Option<BalanceOf<T>> {
 			ByteFee::<T>::get()

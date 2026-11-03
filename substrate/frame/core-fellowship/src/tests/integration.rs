@@ -83,6 +83,7 @@ impl Config for Test {
 	type FastPromoteOrigin = Self::PromoteOrigin;
 	type EvidenceSize = EvidenceSize;
 	type MaxRank = ConstU16<9>;
+	type BlockNumberProvider = frame_system::Pallet<Test>;
 }
 
 /// Convert the tally class into the minimum rank required to vote on the poll.

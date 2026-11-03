@@ -514,8 +514,8 @@ mod tests {
 
 	#[test]
 	fn pending_is_not_approved() {
-		let candidate = CandidateEntry::from_v1(
-			approval_db::v1::CandidateEntry {
+		let candidate = CandidateEntry::from_v2(
+			approval_db::v2::CandidateEntry {
 				candidate: dummy_candidate_receipt_v2(dummy_hash()),
 				session: 0,
 				block_assignments: BTreeMap::default(),
@@ -549,8 +549,8 @@ mod tests {
 
 	#[test]
 	fn exact_takes_only_assignments_up_to() {
-		let mut candidate: CandidateEntry = CandidateEntry::from_v1(
-			approval_db::v1::CandidateEntry {
+		let mut candidate: CandidateEntry = CandidateEntry::from_v2(
+			approval_db::v2::CandidateEntry {
 				candidate: dummy_candidate_receipt_v2(dummy_hash()),
 				session: 0,
 				block_assignments: BTreeMap::default(),
@@ -623,8 +623,8 @@ mod tests {
 
 	#[test]
 	fn one_honest_node_always_approves() {
-		let mut candidate: CandidateEntry = CandidateEntry::from_v1(
-			approval_db::v1::CandidateEntry {
+		let mut candidate: CandidateEntry = CandidateEntry::from_v2(
+			approval_db::v2::CandidateEntry {
 				candidate: dummy_candidate_receipt_v2(dummy_hash()),
 				session: 0,
 				block_assignments: BTreeMap::default(),
@@ -1118,8 +1118,8 @@ mod tests {
 		let no_show_duration = 10;
 		let needed_approvals = 3;
 
-		let mut candidate: CandidateEntry = CandidateEntry::from_v1(
-			approval_db::v1::CandidateEntry {
+		let mut candidate: CandidateEntry = CandidateEntry::from_v2(
+			approval_db::v2::CandidateEntry {
 				candidate: dummy_candidate_receipt_v2(dummy_hash()),
 				session: 0,
 				block_assignments: BTreeMap::default(),

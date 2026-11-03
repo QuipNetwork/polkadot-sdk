@@ -1,0 +1,28 @@
+title: '[westend] Remove pallet_treasury from RC and clean up satellite matchers'
+doc:
+- audience: Runtime Dev
+  description: |-
+    Remove pallet_treasury entirely from Westend relay chain.
+    Drain residual balances from the legacy `py/trsry`-derived account into the local
+    DAP satellite buffer on the relay and on each Westend system parachain
+    (bridge-hub, collectives, coretime, people).
+    Remove RelayTreasuryLocation matchers from all Westend system parachains.
+
+    Closes #11705.
+crates:
+- name: asset-hub-westend-runtime
+  bump: major
+- name: bridge-hub-westend-runtime
+  bump: major
+- name: collectives-westend-runtime
+  bump: major
+- name: coretime-westend-runtime
+  bump: major
+- name: people-westend-runtime
+  bump: major
+- name: westend-runtime
+  bump: major
+- name: pallet-staking-async-parachain-runtime
+  bump: major
+- name: pallet-dap-satellite
+  bump: minor

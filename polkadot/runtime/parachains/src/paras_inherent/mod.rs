@@ -323,7 +323,6 @@ impl<T: Config> Pallet<T> {
 				config.scheduler_params.lookahead,
 				parent_storage_root,
 				current_session,
-				config.max_relay_parent_session_age,
 			);
 		}
 
@@ -951,7 +950,7 @@ fn check_descriptor_version_and_signals<T: crate::inclusion::Config>(
 	let current_session_index = shared::CurrentSessionIndex::<T>::get();
 	let descriptor_version = candidate.descriptor().version();
 
-	if descriptor_version == CandidateDescriptorVersion::Unknown {
+	if matches!(descriptor_version, CandidateDescriptorVersion::Unknown(_)) {
 		log::debug!(
 			target: LOG_TARGET,
 			"Candidate with unknown descriptor version. Dropping candidate {:?} for paraid {:?}.",
