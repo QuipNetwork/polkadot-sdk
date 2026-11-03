@@ -22208,6 +22208,7 @@ dependencies = [
  "serde_json",
  "sp-application-crypto 49.0.0",
  "sp-core 28.0.0",
+ "sp-crypto-hashing 0.1.0",
  "sp-keystore 0.34.0",
  "tempfile",
  "thiserror 1.0.65",

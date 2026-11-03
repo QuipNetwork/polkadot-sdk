@@ -766,7 +766,7 @@ impl KeystoreInner {
 		let mut buf = self.path.as_ref()?.clone();
 		let key_type_hex = array_bytes::bytes2hex("", &key_type.0);
 		let suffix = if needs_hashed_filename(public) {
-			array_bytes::bytes2hex("", sp_core::hashing::blake2_256(public))
+			array_bytes::bytes2hex("", sp_crypto_hashing::blake2_256(public))
 		} else {
 			array_bytes::bytes2hex("", public)
 		};

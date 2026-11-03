@@ -24,6 +24,7 @@ quip-crypto-primitives = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
 sp-application-crypto = { workspace = true, default-features = true }
 sp-core = { workspace = true, default-features = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
 sp-keystore = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
