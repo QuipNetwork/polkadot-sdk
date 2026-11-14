@@ -242,6 +242,31 @@ Note that there is a limitation to the number of fund-chunks that can be schedul
 (`MAX_UNLOCKING_CHUNKS`) is reached, the bonded account _must_ first wait for a successful call to `withdraw_unbonded`
 to remove some of the chunks.
 
+### Commission changes during asynchronous elections (QUIP-12)
+
+For an election provider with nonzero duration, `validate` rejects commission
+increases while its status is active or ready for export. Equal or lower
+commission remains allowed. A zero-duration provider elects synchronously and
+is exempt: its permanently ready status does not represent a held snapshot.
+
+During an active election round, an account with no current `Validators` entry
+may only register at zero commission (subject to `MinCommission`). Nonzero
+commission is accepted between rounds. This conservative rule covers both
+first registration and re-entry after `chill` or `nominate`; those exit calls
+can remove preferences while a voter snapshot still contains the account.
+Distinguishing those cases would require a separate per-round or pending
+commission design. No storage, Config item, call index or signed extension is
+added; `CommissionChangeDuringElection` is appended at error index 34.
+
+The registered `validate` weight adds one database read, 3,500 proof bytes and
+5,000,000 picoseconds on every call for the possible phase lookup. These are
+conservative, unmeasured allowances for Quip's `CurrentPhase` read. The original
+new-validator benchmark remains, with `validate_commission_increase` as an extra
+case. Run both on the reference machine before release; the hand-written
+allowance is not covered by generated-weight staleness detection. The real
+Quip runtime reward-snapshot and batched re-entry regressions accompany the
+validator SDK pin.
+
 ### Election Algorithm
 
 The current election algorithm is implemented based on _Phragmén_. The reference implementation can be found

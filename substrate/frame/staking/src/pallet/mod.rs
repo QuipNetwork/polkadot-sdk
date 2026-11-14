@@ -957,6 +957,8 @@ pub mod pallet {
 		/// Account is restricted from participation in staking. This may happen if the account is
 		/// staking in another way already, such as via pool.
 		Restricted,
+		/// Commission cannot rise while an election is holding a voter snapshot.
+		CommissionChangeDuringElection,
 	}
 
 	#[pallet::hooks]
@@ -1327,7 +1329,12 @@ pub mod pallet {
 		///
 		/// The dispatch origin for this call must be _Signed_ by the controller, not the stash.
 		#[pallet::call_index(4)]
-		#[pallet::weight(T::WeightInfo::validate())]
+		// QUIP-12: conservatively precharge the asynchronous provider's phase read
+		// (CurrentPhase for Quip) on every call. Unmeasured proof/CPU allowance;
+		// regenerate on the reference machine before release.
+		#[pallet::weight(T::WeightInfo::validate()
+			.saturating_add(Weight::from_parts(5_000_000, 3_500))
+			.saturating_add(T::DbWeight::get().reads(1)))]
 		pub fn validate(origin: OriginFor<T>, prefs: ValidatorPrefs) -> DispatchResult {
 			let controller = ensure_signed(origin)?;
 
@@ -1338,9 +1345,25 @@ pub mod pallet {
 
 			// ensure their commission is correct.
 			ensure!(prefs.commission >= MinCommission::<T>::get(), Error::<T>::CommissionTooLow);
+			let current_prefs = Validators::<T>::try_get(stash).ok();
+			// A zero-duration provider elects synchronously and cannot retain a
+			// voter snapshot across extrinsics. Its status is always ready, so a
+			// status-only guard would permanently forbid commission increases.
+			// No current Validators entry must compare as zero: chill/nominate
+			// can erase the old prefs while a snapshot still contains the stash.
+			// Nonzero registration is deliberately deferred until between rounds.
+			let previous_commission =
+				current_prefs.as_ref().map(|old| old.commission).unwrap_or_default();
+			if prefs.commission > previous_commission && !T::ElectionProvider::duration().is_zero()
+			{
+				ensure!(
+					T::ElectionProvider::status().is_err(),
+					Error::<T>::CommissionChangeDuringElection
+				);
+			}
 
 			// Only check limits if they are not already a validator.
-			if !Validators::<T>::contains_key(stash) {
+			if current_prefs.is_none() {
 				// If this error is reached, we need to adjust the `MinValidatorBond` and start
 				// calling `chill_other`. Until then, we explicitly block new validators to protect
 				// the runtime.
