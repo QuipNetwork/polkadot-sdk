@@ -428,14 +428,19 @@ pub fn generate_equivocation_proof(
 	// Generate two headers at the current block
 	let mut h1 = make_header();
 	let mut h2 = make_header();
+	// Hybrid signatures are deterministic: signing the same header twice does
+	// not create an equivocation. Make the second pre-seal header distinct.
+	h2.digest_mut().push(DigestItem::Other(b"second equivocation header".to_vec()));
 
 	seal_header(&mut h1);
 	seal_header(&mut h2);
 
-	sp_consensus_babe::EquivocationProof {
+	let proof = sp_consensus_babe::EquivocationProof {
 		slot,
 		offender: offender_authority_pair.public(),
 		first_header: h1,
 		second_header: h2,
-	}
+	};
+	assert!(sp_consensus_babe::check_equivocation_proof(proof.clone()));
+	proof
 }
