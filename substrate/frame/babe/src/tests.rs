@@ -47,6 +47,114 @@ fn empty_randomness_is_correct() {
 	assert_eq!(s, EMPTY_RANDOMNESS);
 }
 
+// Generate real hybrid VRF outputs independently of the segment storage.
+fn randomness_outputs(count: u64, first_slot: u64) -> Vec<BabeRandomness> {
+	use quip_crypto_primitives::HybridVrf;
+	let pair = sp_consensus_babe::AuthorityPair::from_seed(&[42; 32]);
+	(first_slot..first_slot + count)
+		.map(|slot| {
+			let transcript = sp_consensus_babe::make_vrf_transcript(&[17; 32], slot.into(), 3);
+			pair.as_ref().make_bytes(sp_consensus_babe::RANDOMNESS_VRF_CONTEXT, &transcript)
+		})
+		.collect()
+}
+
+fn expected_randomness(
+	old: BabeRandomness,
+	epoch: u64,
+	values: &[BabeRandomness],
+) -> BabeRandomness {
+	// Construct the hash input from the outputs we deposited, never from storage.
+	let mut input = old.to_vec();
+	input.extend_from_slice(&epoch.to_le_bytes());
+	for value in values {
+		input.extend_from_slice(value);
+	}
+	let expected = sp_io::hashing::blake2_256(&input);
+	assert_eq!(expected, compute_randomness(old, epoch, values.iter().copied(), None));
+	expected
+}
+
+fn assert_randomness_rotation(count: u64) {
+	new_test_ext(1).execute_with(|| {
+		let old = [23; RANDOMNESS_LENGTH];
+		let epoch = 7;
+		NextRandomness::<Test>::put(old);
+		let values = randomness_outputs(count, 1);
+		for value in &values {
+			Babe::deposit_randomness(value);
+		}
+		assert_eq!(SegmentIndex::<Test>::get(), ((count - 1) / 256) as u32);
+		assert_eq!(
+			UnderConstruction::<Test>::iter_values().map(|v| v.len()).sum::<usize>(),
+			count as usize
+		);
+		assert_eq!(Babe::randomness_change_epoch(epoch), old);
+		assert_eq!(NextRandomness::<Test>::get(), expected_randomness(old, epoch, &values));
+		assert_eq!(SegmentIndex::<Test>::get(), 0);
+		assert_eq!(UnderConstruction::<Test>::iter_keys().count(), 0);
+	});
+}
+
+#[test]
+fn randomness_rotation_partial_one() {
+	assert_randomness_rotation(1);
+}
+
+#[test]
+fn randomness_rotation_partial_two() {
+	assert_randomness_rotation(2);
+}
+
+#[test]
+fn randomness_rotation_boundary_256() {
+	assert_randomness_rotation(256);
+}
+
+#[test]
+fn randomness_rotation_boundary_257() {
+	assert_randomness_rotation(257);
+}
+
+#[test]
+fn randomness_rotation_consecutive_epochs() {
+	new_test_ext(1).execute_with(|| {
+		let old = [31; RANDOMNESS_LENGTH];
+		NextRandomness::<Test>::put(old);
+		let first = randomness_outputs(2, 1);
+		for value in &first {
+			Babe::deposit_randomness(value);
+		}
+		assert_eq!(Babe::randomness_change_epoch(7), old);
+		let first_expected = expected_randomness(old, 7, &first);
+		// Check cleanup first so the base control identifies the carry-over.
+		assert_eq!(
+			UnderConstruction::<Test>::iter_keys().count(),
+			0,
+			"partial segment carried over"
+		);
+		assert_eq!(SegmentIndex::<Test>::get(), 0);
+		assert_eq!(NextRandomness::<Test>::get(), first_expected);
+
+		let second = randomness_outputs(1, 100);
+		for value in &second {
+			Babe::deposit_randomness(value);
+		}
+		assert_eq!(UnderConstruction::<Test>::get(0).as_slice(), second.as_slice());
+		assert_eq!(Babe::randomness_change_epoch(8), first_expected);
+		let second_expected = expected_randomness(first_expected, 8, &second);
+		assert_eq!(NextRandomness::<Test>::get(), second_expected);
+		assert_eq!(SegmentIndex::<Test>::get(), 0);
+		assert_eq!(UnderConstruction::<Test>::iter_keys().count(), 0);
+
+		// An empty epoch must not consume any outputs from either earlier epoch.
+		assert_eq!(Babe::randomness_change_epoch(9), second_expected);
+		assert_eq!(NextRandomness::<Test>::get(), expected_randomness(second_expected, 9, &[]));
+		assert_eq!(SegmentIndex::<Test>::get(), 0);
+		assert_eq!(UnderConstruction::<Test>::iter_keys().count(), 0);
+	});
+}
+
 #[test]
 fn initial_values() {
 	build_and_execute(4, || {
@@ -978,6 +1086,11 @@ fn generate_equivocation_report_blob() {
 
 		println!("equivocation_proof: {:?}", equivocation_proof);
 		println!("equivocation_proof.encode(): {:?}", equivocation_proof.encode());
+		assert_eq!(
+			equivocation_proof.encode().as_slice(),
+			include_bytes!("fixtures/equivocation-proof.scale"),
+			"regenerate the hybrid benchmark fixture when its inputs change",
+		);
 	});
 }
 
