@@ -293,6 +293,8 @@ pub mod benchmarking;
 pub mod testing_utils;
 
 #[cfg(test)]
+mod commission_tests;
+#[cfg(test)]
 pub(crate) mod mock;
 #[cfg(test)]
 mod tests;

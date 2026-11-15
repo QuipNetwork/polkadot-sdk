@@ -387,6 +387,27 @@ mod benchmarks {
 		Ok(())
 	}
 
+	// QUIP-12: retain validate's new-validator worst case above and exercise
+	// the existing-validator commission increase (including provider status).
+	// This extra case must join the reference-machine weight pass.
+	#[benchmark(extra)]
+	fn validate_commission_increase() -> Result<(), BenchmarkError> {
+		let (stash, controller) = create_stash_controller::<T>(
+			MaxNominationsOf::<T>::get() - 1,
+			100,
+			RewardDestination::Staked,
+		)?;
+		Staking::<T>::validate(RawOrigin::Signed(controller.clone()).into(), Default::default())?;
+		let prefs = ValidatorPrefs { commission: Perbill::one(), blocked: false };
+		whitelist_account!(controller);
+
+		#[extrinsic_call]
+		validate(RawOrigin::Signed(controller), prefs.clone());
+
+		assert_eq!(Validators::<T>::get(&stash), prefs);
+		Ok(())
+	}
+
 	#[benchmark]
 	fn kick(
 		// scenario: we want to kick `k` nominators from nominating us (we are a validator).
