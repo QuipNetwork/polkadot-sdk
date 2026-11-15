@@ -11817,6 +11817,7 @@ dependencies = [
  "pallet-staking-reward-curve",
  "pallet-timestamp",
  "parity-scale-codec",
+ "quip-crypto-primitives",
  "scale-info",
  "sp-application-crypto 45.0.0",
  "sp-consensus-babe",
