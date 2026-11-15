@@ -878,7 +878,7 @@ impl<T: Config> Pallet<T> {
 		let next_randomness = compute_randomness(
 			this_randomness,
 			next_epoch_index,
-			(0..segment_idx).flat_map(|i| UnderConstruction::<T>::take(&i)),
+			(0..=segment_idx).flat_map(|i| UnderConstruction::<T>::take(&i)),
 			Some(rho_size),
 		);
 		NextRandomness::<T>::put(&next_randomness);

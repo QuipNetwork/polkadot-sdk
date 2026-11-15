@@ -39,6 +39,7 @@ pallet-balances = { default-features = true, workspace = true }
 pallet-offences = { default-features = true, workspace = true }
 pallet-staking = { default-features = true, workspace = true }
 pallet-staking-reward-curve = { default-features = true, workspace = true }
+quip-crypto-primitives = { default-features = true, workspace = true }
 sp-core = { default-features = true, workspace = true }
 sp-tracing = { default-features = true, workspace = true }
 
