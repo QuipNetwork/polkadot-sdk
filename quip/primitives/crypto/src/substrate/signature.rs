@@ -43,12 +43,32 @@ pub trait SubstrateSignatureScheme {
 
     /// Substrate crypto identifier for the wrapped scheme.
     const CRYPTO_ID: CryptoTypeId;
+}
 
-    /// Applies Substrate derivation semantics to the 32-byte master seed.
-    fn derive_seed<Iter: Iterator<Item = DeriveJunction>>(
-        seed: [u8; MASTER_SEED_LEN],
-        path: Iter,
-    ) -> Result<[u8; MASTER_SEED_LEN], DeriveError>;
+/// Applies hard junctions to a 32-byte master seed with pqhybridsign's HKDF
+/// junction (`derive::derive_hard_junction`, design note v2 §4), for every
+/// suite alike.
+///
+/// This replaced sr25519 and ed25519 hard derivation (HDKD), which ran the
+/// classical scheme's own derivation over the master seed (GregoAI wp-2
+/// G-003). The chain code is upstream's `DeriveJunction` chain code. A soft
+/// junction is refused: a hybrid key has no public derivation.
+pub(crate) fn derive_master_seed<Iter: Iterator<Item = DeriveJunction>>(
+    seed: [u8; MASTER_SEED_LEN],
+    path: Iter,
+) -> Result<[u8; MASTER_SEED_LEN], DeriveError> {
+    let mut seed = seed;
+    for junction in path {
+        let DeriveJunction::Hard(chain_code) = junction else {
+            seed.zeroize();
+            return Err(DeriveError::SoftKeyInPath);
+        };
+        let child = pqhybridsign::derive::derive_hard_junction(&seed, &chain_code)
+            .map_err(|_| DeriveError::SoftKeyInPath);
+        seed.zeroize();
+        seed = child?;
+    }
+    Ok(seed)
 }
 
 #[doc(hidden)]
@@ -559,7 +579,7 @@ where
         seed: Option<Self::Seed>,
     ) -> Result<(Self, Option<Self::Seed>), DeriveError> {
         let base_seed = seed.unwrap_or(self.seed);
-        let derived_seed = W::derive_seed(base_seed, path)?;
+        let derived_seed = derive_master_seed(base_seed, path)?;
         let pair = Self::from_master_seed(derived_seed).map_err(|_| DeriveError::SoftKeyInPath)?;
         Ok((pair, Some(derived_seed)))
     }

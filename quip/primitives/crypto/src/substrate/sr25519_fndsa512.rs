@@ -25,11 +25,11 @@ use scale_info::{build::Fields, Path, Type, TypeInfo};
 use sha2::{Digest, Sha256};
 #[cfg(any(feature = "std", feature = "full_crypto"))]
 use sp_core::crypto::VrfSecret;
-use sp_core::crypto::{CryptoTypeId, DeriveError, DeriveJunction, VrfCrypto, VrfPublic};
+use sp_core::crypto::{CryptoTypeId, VrfCrypto, VrfPublic};
 use sp_core::sr25519;
+#[cfg(any(feature = "std", feature = "full_crypto"))]
 use sp_core::Pair as _;
 
-use crate::MASTER_SEED_LEN;
 use crate::substrate::signature::{
 	Pair as SignaturePair, Public as SignaturePublic, Signature as SignatureWrapper,
 	SubstrateSignatureScheme,
@@ -56,15 +56,6 @@ pub struct SubstrateH4;
 impl SubstrateSignatureScheme for SubstrateH4 {
 	type Suite = Sr25519FnDsa512;
 	const CRYPTO_ID: CryptoTypeId = CRYPTO_ID;
-
-	fn derive_seed<Iter: Iterator<Item = DeriveJunction>>(
-		seed: [u8; MASTER_SEED_LEN],
-		path: Iter,
-	) -> Result<[u8; MASTER_SEED_LEN], DeriveError> {
-		let sr25519_pair = sr25519::Pair::from_seed(&seed);
-		let (_derived_pair, derived_seed) = sr25519_pair.derive(path, Some(seed))?;
-		derived_seed.ok_or(DeriveError::SoftKeyInPath)
-	}
 }
 
 /// Substrate-style encoded H4 public key.
@@ -510,6 +501,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::MASTER_SEED_LEN;
 	use crate::suite::sr25519_fndsa512::Sr25519FnDsa512;
 	use crate::HybridSignatureScheme;
 	use pqhybridsign::{

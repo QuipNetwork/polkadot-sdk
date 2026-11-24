@@ -10,11 +10,8 @@
 //! GRANDPA does not need VRF support, so this module is intentionally thin and
 //! reuses the generic wrapper core in [`crate::substrate::signature`].
 
-use sp_core::crypto::{CryptoTypeId, DeriveError, DeriveJunction};
-use sp_core::ed25519;
-use sp_core::Pair as _;
+use sp_core::crypto::CryptoTypeId;
 
-use crate::MASTER_SEED_LEN;
 use crate::substrate::signature::{
 	Pair as SignaturePair, Public as SignaturePublic, Signature as SignatureWrapper,
 	SubstrateSignatureScheme,
@@ -31,15 +28,6 @@ pub struct SubstrateH2;
 impl SubstrateSignatureScheme for SubstrateH2 {
 	type Suite = Ed25519FnDsa512;
 	const CRYPTO_ID: CryptoTypeId = CRYPTO_ID;
-
-	fn derive_seed<Iter: Iterator<Item = DeriveJunction>>(
-		seed: [u8; MASTER_SEED_LEN],
-		path: Iter,
-	) -> Result<[u8; MASTER_SEED_LEN], DeriveError> {
-		let ed25519_pair = ed25519::Pair::from_seed(&seed);
-		let (_derived_pair, derived_seed) = ed25519_pair.derive(path, Some(seed))?;
-		derived_seed.ok_or(DeriveError::SoftKeyInPath)
-	}
 }
 
 /// Substrate-style encoded H2 public key.
@@ -58,6 +46,8 @@ pub type Pair = SignaturePair<SubstrateH2, HYBRID_PK_LEN, HYBRID_SIG_LEN>;
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::MASTER_SEED_LEN;
+	use sp_core::Pair as _;
 	use crate::suite::ed25519_fndsa512::Ed25519FnDsa512;
 	use crate::HybridSignatureScheme;
 
