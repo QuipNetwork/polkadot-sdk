@@ -6,9 +6,7 @@
 //! post-quantum only while claiming to be hybrid, so the suites refuse it
 //! here, at parse time, which every verification surface goes through.
 
-use curve25519_dalek::edwards::CompressedEdwardsY;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::traits::Identity;
+use curve25519_dalek::{edwards::CompressedEdwardsY, ristretto::RistrettoPoint, traits::Identity};
 
 /// An sr25519 public key is valid when it decodes as a Ristretto point and is
 /// not the identity.
@@ -36,16 +34,18 @@ pub(crate) fn ed25519_public_is_valid(bytes: &[u8]) -> bool {
 	let Ok(bytes): core::result::Result<[u8; 32], _> = bytes.try_into() else {
 		return false;
 	};
-	ed25519_zebra::VerificationKey::try_from(bytes).is_ok()
-		&& CompressedEdwardsY(bytes).decompress().is_some_and(|point| !point.is_small_order())
+	ed25519_zebra::VerificationKey::try_from(bytes).is_ok() &&
+		CompressedEdwardsY(bytes)
+			.decompress()
+			.is_some_and(|point| !point.is_small_order())
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use curve25519_dalek::edwards::EdwardsPoint;
-	use curve25519_dalek::ristretto::CompressedRistretto;
-	use curve25519_dalek::traits::IsIdentity;
+	use curve25519_dalek::{
+		edwards::EdwardsPoint, ristretto::CompressedRistretto, traits::IsIdentity,
+	};
 
 	/// Every 32-byte string that decodes to a small-order Edwards point.
 	///
@@ -83,9 +83,8 @@ mod tests {
 				for sign in [0u8, 0x80] {
 					let mut enc = y;
 					enc[31] |= sign;
-					let small = CompressedEdwardsY(enc)
-						.decompress()
-						.is_some_and(|p| p.is_small_order());
+					let small =
+						CompressedEdwardsY(enc).decompress().is_some_and(|p| p.is_small_order());
 					if small && !out.contains(&enc) {
 						out.push(enc);
 					}
@@ -131,10 +130,7 @@ mod tests {
 	#[test]
 	fn the_ristretto_identity_is_the_32_zero_bytes_and_decodes() {
 		assert_eq!(RistrettoPoint::identity().compress().to_bytes(), [0u8; 32]);
-		assert_eq!(
-			CompressedRistretto([0u8; 32]).decompress(),
-			Some(RistrettoPoint::identity())
-		);
+		assert_eq!(CompressedRistretto([0u8; 32]).decompress(), Some(RistrettoPoint::identity()));
 		assert!(
 			schnorrkel::PublicKey::from_bytes(&[0u8; 32]).is_ok(),
 			"schnorrkel accepts the identity, so the check below is needed"
