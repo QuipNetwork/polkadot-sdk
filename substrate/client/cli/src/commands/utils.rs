@@ -249,9 +249,10 @@ where
 /// variant is used here.
 pub(crate) fn secret_uri_error(error: &SecretStringError) -> String {
 	let reason = match error {
-		SecretStringError::InvalidFormat(_) =>
+		SecretStringError::InvalidFormat(_) => {
 			"it contains a character that is not allowed (look for quotes, a byte-order mark or \
-			 a line break)",
+			 a line break)"
+		},
 		SecretStringError::InvalidPhrase => "it is not a valid BIP-39 mnemonic",
 		SecretStringError::InvalidPassword => "the password is not valid",
 		SecretStringError::InvalidSeed => "the seed is not valid",
@@ -383,8 +384,7 @@ mod tests {
 	/// The source of the echo: the error itself carries the input.
 	#[test]
 	fn a_format_error_carries_the_suri_and_the_message_does_not() {
-		let Err(error) = sp_core::sr25519::Pair::from_string(&format!("\"{PHRASE}\""), None)
-		else {
+		let Err(error) = sp_core::sr25519::Pair::from_string(&format!("\"{PHRASE}\""), None) else {
 			panic!("a quote is not allowed");
 		};
 		assert!(!echoed(&format!("{error:?}")).is_empty(), "the SDK error carries the SURI");

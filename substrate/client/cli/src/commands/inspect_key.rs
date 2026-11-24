@@ -265,9 +265,12 @@ mod tests {
 	/// `--expect-public` parses the SURI twice; neither failure may print it.
 	#[test]
 	fn expect_public_does_not_echo_a_rejected_suri() {
-		let public = sp_core::sr25519::Pair::from_string(crate::commands::utils::tests_support::PHRASE, None)
-			.expect("dev phrase")
-			.public();
+		let public = sp_core::sr25519::Pair::from_string(
+			crate::commands::utils::tests_support::PHRASE,
+			None,
+		)
+		.expect("dev phrase")
+		.public();
 		let expect = format!("0x{}", sp_core::hexdisplay::HexDisplay::from(&public.as_ref()));
 		for suri in crate::commands::utils::tests_support::rejected_suris() {
 			let Err(error) =
