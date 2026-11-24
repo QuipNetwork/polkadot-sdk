@@ -18533,6 +18533,7 @@ dependencies = [
  "quip-crypto-primitives-core",
  "rand_core 0.6.4",
  "scale-info",
+ "serde_json",
  "sha2 0.10.9",
  "sp-application-crypto 45.0.0",
  "sp-consensus-babe",

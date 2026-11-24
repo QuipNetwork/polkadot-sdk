@@ -21,4 +21,6 @@ pub mod sr25519_mldsa44;
 #[cfg(test)]
 mod junction_tests;
 #[cfg(test)]
+mod quip_hd_tests;
+#[cfg(test)]
 mod weak_key_tests;
