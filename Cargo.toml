@@ -1581,3 +1581,13 @@ wasmi = { opt-level = 3 }
 x25519-dalek = { opt-level = 3 }
 yamux = { opt-level = 3 }
 zeroize = { opt-level = 3 }
+
+# WP2 batch 1 (S1): pqhybridsign 0.1.1 (QUIP HD, `hybrid_leaf`) is not
+# published. Until it is, the quip crates build against the reviewed
+# pqhybridsign branch head, `grego/audit-wp2/quip-hd` at 0c8eaa8. This is a
+# path to the sibling checkout of that branch, so it resolves only next to
+# that checkout. Before this branch is pushed it becomes
+# `{ git = "https://gitlab.com/quip.network/pqhybridsign.git", rev = "<full sha>" }`,
+# and after the release the `=0.1.1` crates.io version.
+[patch.crates-io]
+pqhybridsign = { path = "../pqhybridsign-wp2-quip-hd/crates/pqhybridsign" }

@@ -17897,8 +17897,6 @@ dependencies = [
 [[package]]
 name = "pqhybridsign"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6451af32d85eac7827d3d03eb2319579051bc891394c994316a8db33b66a16ab"
 dependencies = [
  "curve25519-dalek",
  "ed25519-zebra",
