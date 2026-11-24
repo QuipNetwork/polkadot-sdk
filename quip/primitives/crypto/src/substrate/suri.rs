@@ -37,7 +37,10 @@ const MAX_JUNCTIONS: usize = 2;
 const LEVEL_LIMIT: u32 = 1 << 31;
 
 /// What a secret URI selects.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// No `Debug` outside tests: a derived `Debug` would print the phrase, the
+/// passphrase or the raw seed. Only the tests compare and print it.
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub(crate) enum Suri<'a> {
 	/// A BIP-39 phrase: the QUIP HD leaf at `account`/`index`.
 	Phrase {
