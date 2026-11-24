@@ -23,7 +23,7 @@ use sp_core::crypto::{
 };
 use sp_core::proof_of_possession::{NonAggregatable, ProofOfPossessionVerifier};
 use sp_core::Pair as _;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::MASTER_SEED_LEN;
 use crate::HybridSignatureScheme;
@@ -50,14 +50,15 @@ pub trait SubstrateSignatureScheme {
 }
 
 /// The suite's QUIP HD leaf for `phrase` at `account`/`index`: the master
-/// seed of the phrase-derived key. Any QUIP HD failure is `InvalidPhrase`
-/// (an invalid mnemonic; the levels are checked before this is called).
+/// seed of the phrase-derived key, held in a `Zeroizing` so the caller's copy
+/// is wiped. Any QUIP HD failure is `InvalidPhrase` (an invalid mnemonic; the
+/// levels are checked before this is called).
 fn quip_hd_leaf<W: SubstrateSignatureScheme>(
     phrase: &str,
     passphrase: Option<&str>,
     account: u32,
     index: u32,
-) -> Result<[u8; MASTER_SEED_LEN], SecretStringError> {
+) -> Result<Zeroizing<[u8; MASTER_SEED_LEN]>, SecretStringError> {
     pqhybridsign::quip_hd::hybrid_leaf(
         W::QUIP_HD_SUITE,
         phrase,
@@ -65,7 +66,6 @@ fn quip_hd_leaf<W: SubstrateSignatureScheme>(
         account,
         index,
     )
-    .map(|leaf| *leaf)
     .map_err(|_| SecretStringError::InvalidPhrase)
 }
 
@@ -602,10 +602,13 @@ where
         path: Iter,
         seed: Option<Self::Seed>,
     ) -> Result<(Self, Option<Self::Seed>), DeriveError> {
-        let base_seed = seed.unwrap_or(self.seed);
-        let derived_seed = derive_master_seed(base_seed, path)?;
-        let pair = Self::from_master_seed(derived_seed).map_err(|_| DeriveError::SoftKeyInPath)?;
-        Ok((pair, Some(derived_seed)))
+        // The parent and child copies held here are wiped on return; the
+        // returned `Seed` is the API's own copy.
+        let base_seed = Zeroizing::new(seed.unwrap_or(self.seed));
+        let derived_seed = Zeroizing::new(derive_master_seed(*base_seed, path)?);
+        let pair =
+            Self::from_master_seed(*derived_seed).map_err(|_| DeriveError::SoftKeyInPath)?;
+        Ok((pair, Some(*derived_seed)))
     }
 
     /// The key for an English BIP-39 phrase, by QUIP HD v1 at account 0,
@@ -620,7 +623,7 @@ where
         password: Option<&str>,
     ) -> Result<(Self, Self::Seed), SecretStringError> {
         let leaf = quip_hd_leaf::<W>(phrase, password, 0, 0)?;
-        Ok((Self::from_master_seed(leaf)?, leaf))
+        Ok((Self::from_master_seed(*leaf)?, *leaf))
     }
 
     /// The key a secret URI selects under the Quip Substrate profile
@@ -649,13 +652,14 @@ where
                     account,
                     index,
                 )?;
-                Ok((Self::from_master_seed(leaf)?, Some(leaf)))
+                Ok((Self::from_master_seed(*leaf)?, Some(*leaf)))
             }
             super::suri::Suri::Raw { seed, chain_codes } => {
-                let seed =
-                    derive_master_seed(seed, chain_codes.into_iter().map(DeriveJunction::Hard))
-                        .map_err(|_| SecretStringError::InvalidPath)?;
-                Ok((Self::from_master_seed(seed)?, Some(seed)))
+                let seed = Zeroizing::new(
+                    derive_master_seed(*seed, chain_codes.into_iter().map(DeriveJunction::Hard))
+                        .map_err(|_| SecretStringError::InvalidPath)?,
+                );
+                Ok((Self::from_master_seed(*seed)?, Some(*seed)))
             }
         }
     }

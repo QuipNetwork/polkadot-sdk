@@ -26,6 +26,8 @@ use sp_core::{
 	hashing::blake2_256,
 };
 
+use zeroize::Zeroizing;
+
 use crate::MASTER_SEED_LEN;
 
 /// At most this many junctions: `account` and `index`.
@@ -50,8 +52,8 @@ pub(crate) enum Suri<'a> {
 	},
 	/// A raw master seed and the chain codes of its hard junctions.
 	Raw {
-		/// The 32-byte master seed.
-		seed: [u8; MASTER_SEED_LEN],
+		/// The 32-byte master seed, wiped on drop.
+		seed: Zeroizing<[u8; MASTER_SEED_LEN]>,
 		/// Upstream `DeriveJunction` chain codes, in order.
 		chain_codes: Vec<[u8; 32]>,
 	},
@@ -135,15 +137,15 @@ fn raw_chain_code(t: &str) -> Result<[u8; 32], SecretStringError> {
 	}
 }
 
-/// A raw seed's 64 hex digits (either case).
-fn decode_seed(hex: &str) -> Result<[u8; MASTER_SEED_LEN], SecretStringError> {
+/// A raw seed's 64 hex digits (either case), decoded into a wiped buffer.
+fn decode_seed(hex: &str) -> Result<Zeroizing<[u8; MASTER_SEED_LEN]>, SecretStringError> {
 	if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
 		return Err(SecretStringError::InvalidSeed);
 	}
 	if hex.len() != 2 * MASTER_SEED_LEN {
 		return Err(SecretStringError::InvalidSeedLength);
 	}
-	let mut seed = [0u8; MASTER_SEED_LEN];
+	let mut seed = Zeroizing::new([0u8; MASTER_SEED_LEN]);
 	for (byte, pair) in seed.iter_mut().zip(hex.as_bytes().chunks_exact(2)) {
 		let digit = |c: u8| match c {
 			b'0'..=b'9' => c - b'0',
@@ -199,16 +201,16 @@ mod tests {
 		let hex = "2a".repeat(32);
 		assert_eq!(
 			parse(&format!("0x{hex}")),
-			Ok(Suri::Raw { seed: [0x2a; 32], chain_codes: vec![] })
+			Ok(Suri::Raw { seed: Zeroizing::new([0x2a; 32]), chain_codes: vec![] })
 		);
 		assert_eq!(
 			parse(&format!("0x{}", hex.to_uppercase())),
-			Ok(Suri::Raw { seed: [0x2a; 32], chain_codes: vec![] })
+			Ok(Suri::Raw { seed: Zeroizing::new([0x2a; 32]), chain_codes: vec![] })
 		);
 		assert_eq!(
 			parse(&format!("0x{hex}//1//Alice")),
 			Ok(Suri::Raw {
-				seed: [0x2a; 32],
+				seed: Zeroizing::new([0x2a; 32]),
 				chain_codes: vec![
 					DeriveJunction::hard(1u64).unwrap_inner(),
 					DeriveJunction::hard("Alice").unwrap_inner()
