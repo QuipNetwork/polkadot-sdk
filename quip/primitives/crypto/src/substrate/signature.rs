@@ -43,6 +43,30 @@ pub trait SubstrateSignatureScheme {
 
     /// Substrate crypto identifier for the wrapped scheme.
     const CRYPTO_ID: CryptoTypeId;
+
+    /// The suite's QUIP HD algorithm level, for keys derived from a phrase
+    /// (design note v2.2 §2: H1 `0x100` to H4 `0x400`).
+    const QUIP_HD_SUITE: pqhybridsign::quip_hd::HybridSuite;
+}
+
+/// The suite's QUIP HD leaf for `phrase` at `account`/`index`: the master
+/// seed of the phrase-derived key. Any QUIP HD failure is `InvalidPhrase`
+/// (an invalid mnemonic; the levels are checked before this is called).
+fn quip_hd_leaf<W: SubstrateSignatureScheme>(
+    phrase: &str,
+    passphrase: Option<&str>,
+    account: u32,
+    index: u32,
+) -> Result<[u8; MASTER_SEED_LEN], SecretStringError> {
+    pqhybridsign::quip_hd::hybrid_leaf(
+        W::QUIP_HD_SUITE,
+        phrase,
+        passphrase.unwrap_or(""),
+        account,
+        index,
+    )
+    .map(|leaf| *leaf)
+    .map_err(|_| SecretStringError::InvalidPhrase)
 }
 
 /// Applies hard junctions to a 32-byte master seed with pqhybridsign's HKDF
@@ -582,6 +606,58 @@ where
         let derived_seed = derive_master_seed(base_seed, path)?;
         let pair = Self::from_master_seed(derived_seed).map_err(|_| DeriveError::SoftKeyInPath)?;
         Ok((pair, Some(derived_seed)))
+    }
+
+    /// The key for an English BIP-39 phrase, by QUIP HD v1 at account 0,
+    /// index 0 (design note v2.2 §5). The returned seed is the QUIP HD leaf,
+    /// so `from_seed(&seed)` gives the same pair.
+    ///
+    /// Upstream's default derives a Substrate seed from the phrase's entropy;
+    /// that is not used for hybrid keys. `generate_with_phrase` keeps its
+    /// default (a fresh 12-word phrase, then this function).
+    fn from_phrase(
+        phrase: &str,
+        password: Option<&str>,
+    ) -> Result<(Self, Self::Seed), SecretStringError> {
+        let leaf = quip_hd_leaf::<W>(phrase, password, 0, 0)?;
+        Ok((Self::from_master_seed(leaf)?, leaf))
+    }
+
+    /// The key a secret URI selects under the Quip Substrate profile
+    /// ([`super::suri`], design note v2.2 §3-§4). The returned seed is the
+    /// key's master seed, so `from_seed(&seed)` gives the same pair.
+    ///
+    /// - A phrase (empty is `DEV_PHRASE`) is the QUIP HD leaf at
+    ///   `account`/`index` from its junctions. `password_override` (the
+    ///   keystore's password) takes precedence over the SURI's `///`.
+    /// - `0x` + 64 hex digits is a raw seed, and its hard junctions apply the
+    ///   HKDF junction. `password_override` does not apply, as upstream, so a
+    ///   keystore opened with a password still loads raw-seed keys.
+    ///
+    /// Unlike upstream, a phrase's junctions are not `Pair::derive`:
+    /// `from_phrase(p).derive(//1)` is not `from_string("p//1")`. Every
+    /// error is an input-free variant, never `InvalidFormat`.
+    fn from_string_with_seed(
+        s: &str,
+        password_override: Option<&str>,
+    ) -> Result<(Self, Option<Self::Seed>), SecretStringError> {
+        match super::suri::parse(s)? {
+            super::suri::Suri::Phrase { phrase, passphrase, account, index } => {
+                let leaf = quip_hd_leaf::<W>(
+                    phrase,
+                    password_override.or(passphrase),
+                    account,
+                    index,
+                )?;
+                Ok((Self::from_master_seed(leaf)?, Some(leaf)))
+            }
+            super::suri::Suri::Raw { seed, chain_codes } => {
+                let seed =
+                    derive_master_seed(seed, chain_codes.into_iter().map(DeriveJunction::Hard))
+                        .map_err(|_| SecretStringError::InvalidPath)?;
+                Ok((Self::from_master_seed(seed)?, Some(seed)))
+            }
+        }
     }
 
     fn from_seed_slice(seed: &[u8]) -> Result<Self, SecretStringError> {

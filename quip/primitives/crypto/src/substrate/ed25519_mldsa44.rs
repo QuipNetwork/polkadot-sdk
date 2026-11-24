@@ -28,6 +28,8 @@ pub struct SubstrateH1;
 impl SubstrateSignatureScheme for SubstrateH1 {
     type Suite = Ed25519MlDsa44;
     const CRYPTO_ID: CryptoTypeId = CRYPTO_ID;
+    const QUIP_HD_SUITE: pqhybridsign::quip_hd::HybridSuite =
+        pqhybridsign::quip_hd::HybridSuite::EdMl44;
 }
 
 /// Substrate-style encoded H1 public key.

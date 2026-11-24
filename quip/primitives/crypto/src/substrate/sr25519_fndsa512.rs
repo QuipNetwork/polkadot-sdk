@@ -56,6 +56,8 @@ pub struct SubstrateH4;
 impl SubstrateSignatureScheme for SubstrateH4 {
 	type Suite = Sr25519FnDsa512;
 	const CRYPTO_ID: CryptoTypeId = CRYPTO_ID;
+	const QUIP_HD_SUITE: pqhybridsign::quip_hd::HybridSuite =
+		pqhybridsign::quip_hd::HybridSuite::SrFn512;
 }
 
 /// Substrate-style encoded H4 public key.

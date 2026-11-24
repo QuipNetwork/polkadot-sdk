@@ -12,6 +12,7 @@
 //! - [`sr25519_fndsa512`]: the active H4 BABE/VRF wrapper
 
 pub(crate) mod signature;
+pub(crate) mod suri;
 pub mod ed25519_fndsa512;
 pub mod ed25519_mldsa44;
 pub mod sr25519_fndsa512;

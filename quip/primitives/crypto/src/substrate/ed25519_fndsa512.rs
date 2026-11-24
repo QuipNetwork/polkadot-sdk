@@ -28,6 +28,8 @@ pub struct SubstrateH2;
 impl SubstrateSignatureScheme for SubstrateH2 {
 	type Suite = Ed25519FnDsa512;
 	const CRYPTO_ID: CryptoTypeId = CRYPTO_ID;
+	const QUIP_HD_SUITE: pqhybridsign::quip_hd::HybridSuite =
+		pqhybridsign::quip_hd::HybridSuite::EdFn512;
 }
 
 /// Substrate-style encoded H2 public key.

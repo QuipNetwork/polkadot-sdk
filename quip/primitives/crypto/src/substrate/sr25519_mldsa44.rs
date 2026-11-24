@@ -55,6 +55,8 @@ pub struct SubstrateH3;
 impl SubstrateSignatureScheme for SubstrateH3 {
     type Suite = Sr25519MlDsa44;
     const CRYPTO_ID: CryptoTypeId = CRYPTO_ID;
+    const QUIP_HD_SUITE: pqhybridsign::quip_hd::HybridSuite =
+        pqhybridsign::quip_hd::HybridSuite::SrMl44;
 }
 
 /// Substrate-style encoded H3 public key.

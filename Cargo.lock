@@ -1971,6 +1971,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
+ "zeroize",
 ]
 
 [[package]]
@@ -17898,11 +17899,13 @@ dependencies = [
 name = "pqhybridsign"
 version = "0.1.0"
 dependencies = [
+ "bip39",
  "curve25519-dalek",
  "ed25519-zebra",
  "fips204",
  "fn-dsa",
  "hkdf",
+ "hmac 0.12.1",
  "merlin",
  "rand_core 0.6.4",
  "schnorrkel 0.11.5",
