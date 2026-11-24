@@ -121,7 +121,7 @@ fn expect_public_from_phrase<Pair: sp_core::Pair>(
 	suri: &str,
 	password: Option<&SecretString>,
 ) -> Result<(), Error> {
-	let secret_uri = SecretUri::from_str(suri).map_err(|e| format!("{:?}", e))?;
+	let secret_uri = SecretUri::from_str(suri).map_err(|e| utils::secret_uri_error(&e))?;
 	let expected_public = if let Some(public) = expect_public.strip_prefix("0x") {
 		let hex_public = array_bytes::hex2bytes(public)
 			.map_err(|_| format!("Invalid expected public key hex: `{}`", expect_public))?;
@@ -139,7 +139,7 @@ fn expect_public_from_phrase<Pair: sp_core::Pair>(
 			.or_else(|| secret_uri.password.as_ref())
 			.map(|p| p.expose_secret().as_str()),
 	)
-	.map_err(|_| format!("Invalid secret uri: {}", suri))?
+	.map_err(|e| utils::secret_uri_error(&e))?
 	.0;
 
 	if pair.public() == expected_public {
@@ -260,5 +260,25 @@ mod tests {
 			&valid_public_hex_with_password_and_derivation,
 			false,
 		);
+	}
+
+	/// `--expect-public` parses the SURI twice; neither failure may print it.
+	#[test]
+	fn expect_public_does_not_echo_a_rejected_suri() {
+		let public = sp_core::sr25519::Pair::from_string(crate::commands::utils::tests_support::PHRASE, None)
+			.expect("dev phrase")
+			.public();
+		let expect = format!("0x{}", sp_core::hexdisplay::HexDisplay::from(&public.as_ref()));
+		for suri in crate::commands::utils::tests_support::rejected_suris() {
+			let Err(error) =
+				expect_public_from_phrase::<sp_core::sr25519::Pair>(&expect, &suri, None)
+			else {
+				panic!("{suri:?} must be rejected");
+			};
+			for text in [format!("{error}"), format!("{error:?}")] {
+				let shown = crate::commands::utils::tests_support::echoed(&text);
+				assert!(shown.is_empty(), "{text} shows {shown:?}");
+			}
+		}
 	}
 }

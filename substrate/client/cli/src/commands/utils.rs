@@ -24,8 +24,8 @@ use crate::{
 use serde_json::json;
 use sp_core::{
 	crypto::{
-		unwrap_or_default_ss58_version, ExposeSecret, SecretString, Ss58AddressFormat, Ss58Codec,
-		Zeroize,
+		unwrap_or_default_ss58_version, ExposeSecret, SecretString, SecretStringError,
+		Ss58AddressFormat, Ss58Codec, Zeroize,
 	},
 	hexdisplay::HexDisplay,
 	Pair,
@@ -241,6 +241,26 @@ where
 	Ok(())
 }
 
+/// Why a secret URI was rejected, in fixed words that never include it.
+///
+/// `SecretStringError::InvalidFormat` carries `AddressUriError`, whose
+/// `InvalidCharacterInfo` holds a full copy of the input, so the error's
+/// `Debug` and `Display` print the mnemonic and the password. Only the
+/// variant is used here.
+pub(crate) fn secret_uri_error(error: &SecretStringError) -> String {
+	let reason = match error {
+		SecretStringError::InvalidFormat(_) =>
+			"it contains a character that is not allowed (look for quotes, a byte-order mark or \
+			 a line break)",
+		SecretStringError::InvalidPhrase => "it is not a valid BIP-39 mnemonic",
+		SecretStringError::InvalidPassword => "the password is not valid",
+		SecretStringError::InvalidSeed => "the seed is not valid",
+		SecretStringError::InvalidSeedLength => "the seed has the wrong length",
+		SecretStringError::InvalidPath => "the derivation path is not valid",
+	};
+	format!("Invalid secret URI: {reason}; the secret URI is not shown")
+}
+
 /// generate a pair from suri
 pub fn pair_from_suri<P: Pair>(suri: &str, password: Option<SecretString>) -> Result<P, Error> {
 	let result = if let Some(pass) = password {
@@ -252,7 +272,7 @@ pub fn pair_from_suri<P: Pair>(suri: &str, password: Option<SecretString>) -> Re
 		P::from_string(suri, None)
 	};
 
-	Ok(result.map_err(|err| format!("Invalid phrase {:?}", err))?)
+	Ok(result.map_err(|err| secret_uri_error(&err))?)
 }
 
 /// formats seed as hex
@@ -298,4 +318,76 @@ macro_rules! with_crypto_scheme {
 			}
 		}
 	};
+}
+
+#[cfg(test)]
+pub(crate) mod tests_support {
+	/// sp-core's `DEV_PHRASE`, standing in for a secret.
+	pub(crate) const PHRASE: &str =
+		"bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+	pub(crate) const PASSWORD: &str = "Tr0ub4dor-hunter2";
+
+	/// The secret fragments that appear in `text`.
+	pub(crate) fn echoed(text: &str) -> Vec<&'static str> {
+		let text = text.to_lowercase();
+		PHRASE
+			.split(' ')
+			.filter(|w| w.len() > 3)
+			.chain([PASSWORD])
+			.filter(|secret| text.contains(&secret.to_lowercase()))
+			.collect()
+	}
+
+	/// Secret URIs every scheme rejects. The format errors carry a full copy of
+	/// the input inside `SecretStringError`; the bad checksum does not.
+	pub(crate) fn rejected_suris() -> Vec<String> {
+		vec![
+			format!("\"{PHRASE}\""),
+			format!("{PHRASE}\n"),
+			format!("\u{feff}{PHRASE}"),
+			format!("{PHRASE}///{PASSWORD}\nx"),
+			"bottom drive obey lake curtain smoke basket hold race lonely fit bottom".to_owned(),
+		]
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{tests_support::*, *};
+
+	fn assert_rejected_without_echo<P: Pair>(scheme: &str) {
+		for suri in rejected_suris() {
+			let Err(error) = pair_from_suri::<P>(&suri, None) else {
+				panic!("{scheme}: {suri:?} must be rejected");
+			};
+			for text in [format!("{error}"), format!("{error:?}")] {
+				assert!(text.contains("Invalid secret URI"), "{scheme}: {text}");
+				assert!(echoed(&text).is_empty(), "{scheme}: {text} shows {:?}", echoed(&text));
+			}
+		}
+	}
+
+	#[test]
+	fn pair_from_suri_does_not_echo_a_rejected_suri() {
+		assert_rejected_without_echo::<sp_core::sr25519::Pair>("sr25519");
+		assert_rejected_without_echo::<sp_core::ed25519::Pair>("ed25519");
+		assert_rejected_without_echo::<sp_core::ecdsa::Pair>("ecdsa");
+		assert_rejected_without_echo::<quip_crypto_primitives::substrate::sr25519_fndsa512::Pair>(
+			"hybrid-babe-h444",
+		);
+		assert_rejected_without_echo::<quip_crypto_primitives::substrate::ed25519_fndsa512::Pair>(
+			"hybrid-grandpa-h244",
+		);
+	}
+
+	/// The source of the echo: the error itself carries the input.
+	#[test]
+	fn a_format_error_carries_the_suri_and_the_message_does_not() {
+		let Err(error) = sp_core::sr25519::Pair::from_string(&format!("\"{PHRASE}\""), None)
+		else {
+			panic!("a quote is not allowed");
+		};
+		assert!(!echoed(&format!("{error:?}")).is_empty(), "the SDK error carries the SURI");
+		assert!(echoed(&secret_uri_error(&error)).is_empty());
+	}
 }
