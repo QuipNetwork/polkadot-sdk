@@ -162,6 +162,18 @@ macro_rules! app_crypto_pair_common {
 			) -> Result<(Self, Self::Seed), $crate::SecretStringError> {
 				<$pair>::from_phrase(phrase, password).map(|r| (Self(r.0), r.1))
 			}
+			// Forwarded so an app key resolves a secret URI exactly as its inner
+			// pair does. Without it the trait default (`from_phrase`, then
+			// `derive` per junction) runs here, which a pair that overrides
+			// `from_string_with_seed` (the Quip hybrid pairs, whose phrase
+			// junctions are QUIP HD levels) does not agree with. For a pair
+			// that keeps the default, this is the same computation.
+			fn from_string_with_seed(
+				s: &str,
+				password_override: Option<&str>,
+			) -> Result<(Self, Option<Self::Seed>), $crate::SecretStringError> {
+				<$pair>::from_string_with_seed(s, password_override).map(|r| (Self(r.0), r.1))
+			}
 			fn derive<Iter: Iterator<Item = $crate::DeriveJunction>>(
 				&self,
 				path: Iter,

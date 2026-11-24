@@ -459,3 +459,28 @@ sp_api::decl_runtime_apis! {
 		) -> Option<()>;
 	}
 }
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+	use super::*;
+	use sp_core::crypto::{ByteArray, Pair as _};
+
+	/// The app key resolves a secret URI as its inner hybrid pair does,
+	/// junctions included (`app_crypto_pair_common!` forwards
+	/// `from_string_with_seed`).
+	#[test]
+	fn authority_pair_from_string_matches_the_inner_pair() {
+		use quip_crypto_primitives::substrate::sr25519_fndsa512 as hybrid;
+		let legal = "legal winner thank year wave sausage worth useful legal winner thank yellow";
+		for suri in [
+			"//Alice".to_owned(),
+			format!("{legal}//1"),
+			format!("{legal}//1//7///pw"),
+			format!("0x{}//1", "2a".repeat(32)),
+		] {
+			let app = AuthorityPair::from_string(&suri, None).expect("app pair");
+			let inner = hybrid::Pair::from_string(&suri, None).expect("inner pair");
+			assert_eq!(app.public().to_raw_vec(), inner.public().to_raw_vec(), "{suri}");
+		}
+	}
+}
