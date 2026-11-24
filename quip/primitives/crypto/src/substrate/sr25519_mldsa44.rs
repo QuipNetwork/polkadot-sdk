@@ -495,6 +495,7 @@ mod tests {
     use super::*;
     use crate::suite::sr25519_mldsa44::Sr25519MlDsa44;
     use crate::HybridSignatureScheme;
+    use pqhybridsign::component::{ClassicalScheme, PqScheme};
     use rand_core::OsRng;
     use sp_core::crypto::{VrfPublic, VrfSecret};
 
@@ -643,15 +644,14 @@ mod tests {
     /// cannot catch this. They exercise only the honest signer, which calls
     /// `sign_deterministic`, so they pass on the grindable construction too.
     ///
-    /// IGNORED ON PURPOSE: this fails against the current derivation, which is
-    /// the defect itself, not a broken test. QUI-984 makes it pass by deriving
-    /// `make_bytes` from the unique sr25519 pre-output alone and keeping the
-    /// ML-DSA binding out of every consensus-decisive value. Remove `#[ignore]`
-    /// as part of that change. The test must then pass unmodified. Tracked by
-    /// QUI-925, specified in Section 15 of the Hybrid Post-Quantum Signature
-    /// Constructions document.
+    /// QUI-984 made this pass by deriving `make_bytes` from the unique sr25519
+    /// pre-output alone and keeping the ML-DSA binding out of every
+    /// consensus-decisive value. Tracked by QUI-925, specified in Section 15 of
+    /// the Hybrid Post-Quantum Signature Constructions document. The test was
+    /// left `#[ignore]`d after that change and stopped compiling when the
+    /// helpers it used were removed; its assertions are unchanged, only the
+    /// alternative binding is now built through pqhybridsign's own API.
     #[test]
-    #[ignore = "QUI-925: expected to fail until QUI-984 removes the PQ binding from the consensus-decisive derivation"]
     fn hybrid_vrf_output_is_independent_of_the_pq_binding() {
         let seed = [29u8; MASTER_SEED_LEN];
         let pair = Pair::from_seed(&seed);
@@ -664,12 +664,26 @@ mod tests {
         // Re-sign the same binding message with randomness of our choosing.
         // This is exactly what a block producer controls. Nothing in the
         // protocol forces them onto the deterministic path.
-        let secret = pair.expanded_secret();
-        let message = binding_message(sign_data.input(), &honest.sr25519.pre_output);
+        let secret = pair.secret().to_bytes();
+        let message = vrf::binding_message(
+            <SrMl44 as pqhybridsign::suite::Suite>::LABEL,
+            sign_data.input().binding_input(),
+            honest.sr25519.pre_output.0.as_bytes(),
+        );
+        let classical_secret_len =
+            <<SrMl44 as pqhybridsign::suite::Suite>::Classical as ClassicalScheme>::SECRET_KEY_LEN;
         let mut rng = CountingRng(0x5EED);
+        let mut pq_signature = [0u8; PQ_SIGNATURE_LEN];
+        <<SrMl44 as pqhybridsign::suite::Suite>::Pq as PqScheme>::sign(
+            &secret[classical_secret_len..],
+            &message,
+            &mut rng,
+            &mut pq_signature,
+        )
+        .expect("sign a chosen-randomness ML-DSA-44 binding");
         let alternative = VrfSignature {
             sr25519: honest.sr25519.clone(),
-            pq_signature: pq_mldsa44::sign(pq_secret_bytes(&secret), &message, &mut rng),
+            pq_signature,
         };
 
         assert_ne!(
