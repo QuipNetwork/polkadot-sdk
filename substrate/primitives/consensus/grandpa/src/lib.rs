@@ -596,3 +596,51 @@ sp_api::decl_runtime_apis! {
 		fn current_set_id() -> SetId;
 	}
 }
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+	use super::*;
+	use sp_core::{crypto::ByteArray, Pair as _, H256};
+
+	/// G-002: a vote under an H2 key whose ed25519 half has small order is not
+	/// valid. zebra checks `[8](s·B - k·A - R) == 0`, which `R = identity,
+	/// s = 0` satisfies for every message when `A` has small order; the
+	/// FN-DSA-512 half signs `M'`, which does not depend on the public key, so
+	/// an honest vote's PQ half carries over. Here `A` is the identity
+	/// (`01 00..00`); the crypto crate's `weak_key_tests` covers all 14
+	/// small-order encodings.
+	#[test]
+	fn a_vote_under_a_small_order_ed25519_half_is_invalid() {
+		let pair = AuthorityPair::from_seed_slice(&[0x47; 32]).expect("32-byte seed");
+		let message = finality_grandpa::Message::Prevote(finality_grandpa::Prevote::new(
+			H256::repeat_byte(3),
+			7u64,
+		));
+		let (round, set_id) = (5, 2);
+		let honest = pair.sign(&localized_payload(round, set_id, &message));
+		assert_eq!(
+			check_message_signature(&message, &pair.public(), &honest, round, set_id),
+			SignatureResult::Valid,
+			"honest control"
+		);
+
+		let mut weak = pair.public().to_raw_vec();
+		weak[..32].copy_from_slice(&{
+			let mut identity = [0u8; 32];
+			identity[0] = 1;
+			identity
+		});
+		let mut forged = honest.to_raw_vec();
+		forged[..64].copy_from_slice(&{
+			let mut sig = [0u8; 64];
+			sig[0] = 1; // R = identity, s = 0
+			sig
+		});
+		let weak = AuthorityId::from_slice(&weak).expect("929 bytes");
+		let forged = AuthoritySignature::from_slice(&forged).expect("731 bytes");
+		assert_eq!(
+			check_message_signature(&message, &weak, &forged, round, set_id),
+			SignatureResult::Invalid
+		);
+	}
+}
