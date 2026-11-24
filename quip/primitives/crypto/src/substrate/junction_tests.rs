@@ -24,6 +24,9 @@ where
 	for path in [
 		vec![DeriveJunction::hard(1u64)],
 		vec![DeriveJunction::hard("Alice"), DeriveJunction::hard(7u64)],
+		// Design v2.3 §5: `derive` has no junction limit (the two-junction rule
+		// is SURI parsing's). Three hard junctions are the chained HKDF.
+		vec![DeriveJunction::hard(1u64), DeriveJunction::hard(2u64), DeriveJunction::hard(3u64)],
 	] {
 		let (child, child_seed) = root.derive(path.clone().into_iter(), None).expect("derive");
 		let want = hkdf_path(SEED, &path);
