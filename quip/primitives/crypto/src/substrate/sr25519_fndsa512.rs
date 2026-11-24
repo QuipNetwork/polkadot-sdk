@@ -88,7 +88,31 @@ fn verified_public_output(
 	data: &VrfSignData,
 	signature: &VrfSignature,
 ) -> Option<VrfOutput> {
-	public.vrf_verify(data, signature).then(|| signature.output())
+	verified_proof(public, data, signature).map(|_| signature.output())
+}
+
+/// The library proof for `signature`, when `public` is a valid H4 key and the
+/// proof verifies under it. Every VRF verification surface goes through here.
+///
+/// pqhybridsign's VRF takes the public key as raw bytes and parses its
+/// sr25519 half with schnorrkel alone, which accepts the identity. Parsing
+/// through the suite first applies the G-002 key check, the same one
+/// `Pair::verify` gets from `to_suite_public`, so the VRF does not depend on
+/// a component library to refuse a degenerate key.
+///
+/// Defense in depth: today the identity key is refused further down too. Its
+/// VRF secret is 0, so its pre-output is the identity (`0·H`) for every
+/// input, and schnorrkel's `VRFPreOut::attach_input_hash` rejects an
+/// identity pre-output.
+fn verified_proof(
+	public: &Public,
+	data: &VrfSignData,
+	signature: &VrfSignature,
+) -> Option<Vec<u8>> {
+	public.to_suite_public().ok()?;
+	let proof = library_proof(signature)?;
+	vrf::verify_delta::<SrFn512>(public.as_ref(), data.input().binding_input(), &proof)
+		.then_some(proof)
 }
 
 /// BABE-facing hybrid VRF input.
@@ -366,10 +390,7 @@ impl VrfCrypto for SignaturePublic<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 
 impl VrfPublic for SignaturePublic<SubstrateH4, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
 	fn vrf_verify(&self, data: &Self::VrfSignData, signature: &Self::VrfSignature) -> bool {
-		let Some(proof) = library_proof(signature) else {
-			return false;
-		};
-		vrf::verify_delta::<SrFn512>(self.as_ref(), data.input().binding_input(), &proof)
+		verified_proof(self, data, signature).is_some()
 	}
 }
 
@@ -479,18 +500,14 @@ pub fn make_bytes<const N: usize>(
 where
 	[u8; N]: Default,
 {
-	let proof = library_proof(signature)?;
-	vrf::verify_delta::<SrFn512>(public.as_ref(), data.input().binding_input(), &proof)
-		.then(|| {
-			vrf::make_bytes_delta::<SrFn512, [u8; N]>(
-				public.as_ref(),
-				data.input().binding_input(),
-				&proof,
-				context,
-			)
-			.ok()
-		})
-		.flatten()
+	let proof = verified_proof(public, data, signature)?;
+	vrf::make_bytes_delta::<SrFn512, [u8; N]>(
+		public.as_ref(),
+		data.input().binding_input(),
+		&proof,
+		context,
+	)
+	.ok()
 }
 
 #[cfg(test)]
@@ -763,5 +780,53 @@ mod tests {
 		assert_eq!(upstream_signature.pre_output, hybrid_signature.pre_output);
 		assert!(pair.public().vrf_verify(&upstream, &upstream_signature));
 		assert!(pair.public().vrf_verify(&hybrid.clone_sr25519(), &hybrid_signature));
+	}
+
+	/// G-002: the VRF refuses a key whose sr25519 half is the identity.
+	///
+	/// With secret scalar 0 the sr25519 VRF proof is easy to make, its public
+	/// half is the identity (`0·B`, 32 zero bytes) and its pre-output is the
+	/// identity for every input. This passes on 8fcc7e2d as well: schnorrkel
+	/// rejects an identity pre-output, so the proof never verified. The test
+	/// pins the outcome whichever layer refuses it. The FN-DSA-512 half stays a real key, so the
+	/// binding verifies. Every surface BABE uses must refuse the proof:
+	/// `VrfPublic::vrf_verify` (sc-consensus-babe and pallet-babe), `make_bytes`
+	/// (sp-consensus-babe's randomness), `vrf_output` and `HybridVrf::vrf_verify`.
+	#[test]
+	fn the_vrf_refuses_an_identity_sr25519_half() {
+		let pair = Pair::from_seed(&[31u8; MASTER_SEED_LEN]);
+		let mut weak_secret = pair.secret().to_bytes();
+		weak_secret[..32].fill(0);
+		let mut weak_public = pair.public();
+		AsMut::<[u8]>::as_mut(&mut weak_public)[..32].fill(0);
+
+		let sign_data = babe::make_vrf_sign_data(&[12u8; babe::RANDOMNESS_LENGTH], 6, 14);
+		let mut proof = vec![0u8; vrf::max_proof_len_delta::<SrFn512>()];
+		let written = vrf::sign_delta_deterministic::<SrFn512>(
+			weak_secret.as_ref(),
+			sign_data.input().binding_input(),
+			&mut proof,
+		)
+		.expect("pqhybridsign signs with a zero sr25519 scalar");
+		proof.truncate(written);
+		let signature = signature_from_library_proof(&proof).expect("native proof");
+		assert_eq!(signature.sr25519.pre_output.0.as_bytes(), &[0u8; 32], "0·H is the identity");
+
+		let mut accepted = Vec::new();
+		if VrfPublic::vrf_verify(&weak_public, &sign_data, &signature) {
+			accepted.push("VrfPublic::vrf_verify");
+		}
+		if <Pair as HybridVrf>::vrf_verify(&weak_public, &sign_data, &signature) {
+			accepted.push("HybridVrf::vrf_verify");
+		}
+		if vrf_output(&weak_public, &sign_data, &signature).is_some() {
+			accepted.push("vrf_output");
+		}
+		if make_bytes::<32>(&weak_public, babe::RANDOMNESS_VRF_CONTEXT, &sign_data, &signature)
+			.is_some()
+		{
+			accepted.push("make_bytes");
+		}
+		assert!(accepted.is_empty(), "identity-half VRF proof accepted by {accepted:?}");
 	}
 }
