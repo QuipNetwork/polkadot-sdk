@@ -345,14 +345,12 @@ fn pair_make_bytes<const N: usize>(pair: &Pair, context: &[u8], input: &VrfInput
 where
     [u8; N]: Default,
 {
+    // Through the module's `make_bytes`, so the pair's own public key is
+    // parsed by the suite (`verified_proof`) like every other key handed to
+    // the library, rather than passed to pqhybridsign as raw bytes.
     let signature = pair_vrf_signature(pair, input);
-    vrf::make_bytes::<SrMl44, [u8; N]>(
-        pair.public().as_ref(),
-        input.binding_input(),
-        &library_proof(&signature),
-        context,
-    )
-    .expect("fresh H3 proof and public key are valid")
+    make_bytes::<N>(&pair.public(), context, &VrfSignData::new(input.clone()), &signature)
+        .expect("a pair's own public key is valid and its fresh H3 proof verifies")
 }
 
 impl VrfCrypto for SignaturePair<SubstrateH3, HYBRID_PK_LEN, HYBRID_SIG_LEN> {
