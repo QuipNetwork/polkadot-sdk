@@ -6,6 +6,9 @@
 //! - sr25519 (H3, H4): the Ristretto identity `A = 0`. Schnorrkel accepts
 //!   `(R, s)` when `R == s·B - k·A`, which with `A = 0` is `R == s·B`, so
 //!   `R = B, s = 1` verifies.
+//! - ed25519 (H1, H2): any small-order `A`, in any of the 14 encodings zebra
+//!   accepts. zebra checks the cofactored equation `[8](s·B - k·A - R) == 0`;
+//!   `[8]·k·A` vanishes, so `R = identity, s = 0` verifies.
 //!
 //! The tests splice that classical half into an honest signature: the
 //! post-quantum half signs `M'`, which depends only on the suite label,
@@ -14,10 +17,12 @@
 //! must refuse it.
 
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_COMPRESSED;
+use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
+use curve25519_dalek::traits::{Identity, IsIdentity};
 use sp_core::crypto::Pair as PairT;
 use sp_core::proof_of_possession::{ProofOfPossessionGenerator, ProofOfPossessionVerifier};
 
-use super::{sr25519_fndsa512, sr25519_mldsa44};
+use super::{ed25519_fndsa512, ed25519_mldsa44, sr25519_fndsa512, sr25519_mldsa44};
 
 const MSG: &[u8] = b"G-002 weak classical half";
 const OWNER: &[u8] = b"G-002 proof-of-possession owner";
@@ -30,6 +35,57 @@ pub(crate) fn sr25519_identity_forgery() -> [u8; 64] {
     sig[32] = 1;
     sig[63] |= 0x80;
     sig
+}
+
+/// The ed25519 forgery for a small-order `A`: `R = identity`, `s = 0`.
+pub(crate) fn ed25519_small_order_forgery() -> [u8; 64] {
+    let mut sig = [0u8; 64];
+    sig[0] = 1;
+    sig
+}
+
+/// Every 32-byte string that decodes to a small-order Edwards point: the
+/// eight torsion points `k·T` for an order-8 `T`, each with its canonical
+/// `y`, the other sign bit, and `y + p` where that fits (`y < 19`). The same
+/// enumeration is checked against zebra in crypto-core's `classical_key`.
+pub(crate) fn small_order_ed25519_encodings() -> Vec<[u8; 32]> {
+    // An order-8 point (libsodium's small-order blocklist).
+    let mut t_bytes = [0u8; 32];
+    let t_hex = "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a";
+    for (i, byte) in t_bytes.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&t_hex[2 * i..2 * i + 2], 16).expect("hex");
+    }
+    let t = CompressedEdwardsY(t_bytes).decompress().expect("order-8 point decodes");
+    let four_t = (t + t) + (t + t);
+    assert!(!four_t.is_identity() && (four_t + four_t).is_identity(), "T has order 8");
+
+    let mut point = EdwardsPoint::identity();
+    let mut out = Vec::new();
+    for _ in 0..8 {
+        let mut y = point.compress().to_bytes();
+        y[31] &= 0x7f;
+        let mut ys = vec![y];
+        if y[1..].iter().all(|b| *b == 0) && y[0] < 19 {
+            let mut plus_p = [0xffu8; 32];
+            plus_p[0] = 0xed + y[0];
+            plus_p[31] = 0x7f;
+            ys.push(plus_p);
+        }
+        for y in ys {
+            for sign in [0u8, 0x80] {
+                let mut enc = y;
+                enc[31] |= sign;
+                let small =
+                    CompressedEdwardsY(enc).decompress().is_some_and(|p| p.is_small_order());
+                if small && !out.contains(&enc) {
+                    out.push(enc);
+                }
+            }
+        }
+        point += t;
+    }
+    assert_eq!(out.len(), 14);
+    out
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
@@ -104,4 +160,26 @@ fn h4_refuses_the_sr25519_identity_half() {
         sr25519_identity_forgery(),
     );
     assert!(accepted.is_empty(), "forgeries accepted:\n{}", accepted.join("\n"));
+}
+
+#[test]
+fn h1_refuses_every_small_order_ed25519_half() {
+    let accepted: Vec<String> = small_order_ed25519_encodings()
+        .into_iter()
+        .flat_map(|weak| {
+            accepted_forgeries::<ed25519_mldsa44::Pair>("H1", weak, ed25519_small_order_forgery())
+        })
+        .collect();
+    assert!(accepted.is_empty(), "{} forgeries accepted:\n{}", accepted.len(), accepted.join("\n"));
+}
+
+#[test]
+fn h2_refuses_every_small_order_ed25519_half() {
+    let accepted: Vec<String> = small_order_ed25519_encodings()
+        .into_iter()
+        .flat_map(|weak| {
+            accepted_forgeries::<ed25519_fndsa512::Pair>("H2", weak, ed25519_small_order_forgery())
+        })
+        .collect();
+    assert!(accepted.is_empty(), "{} forgeries accepted:\n{}", accepted.len(), accepted.join("\n"));
 }

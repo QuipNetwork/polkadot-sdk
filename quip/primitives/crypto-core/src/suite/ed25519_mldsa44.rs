@@ -5,7 +5,6 @@
 //! suite-separated HKDF includes the label's trailing NUL byte, so a master
 //! seed derives different H1 keys than the former in-tree fork engine.
 
-use ed25519_zebra::VerificationKey;
 use pqhybridsign::{classical::Ed25519, EdMl44};
 use pqhybridsign::{component::ClassicalScheme, suite::Suite};
 use rand_core::CryptoRngCore;
@@ -41,10 +40,7 @@ impl Config for Ed25519MlDsa44 {
 	type LibrarySuite = EdMl44;
 
 	fn classical_public_is_valid(bytes: &[u8]) -> bool {
-		let Ok(bytes): core::result::Result<[u8; 32], _> = bytes.try_into() else {
-			return false;
-		};
-		VerificationKey::try_from(bytes).is_ok()
+		super::classical_key::ed25519_public_is_valid(bytes)
 	}
 
 	fn classical_public_from_secret(bytes: &[u8]) -> Option<[u8; 32]> {

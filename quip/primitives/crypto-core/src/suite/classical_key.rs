@@ -6,6 +6,7 @@
 //! post-quantum only while claiming to be hybrid, so the suites refuse it
 //! here, at parse time, which every verification surface goes through.
 
+use curve25519_dalek::edwards::CompressedEdwardsY;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::traits::Identity;
 
@@ -22,10 +23,110 @@ pub(crate) fn sr25519_public_is_valid(bytes: &[u8]) -> bool {
 		.is_ok_and(|public| *public.as_point() != RistrettoPoint::identity())
 }
 
+/// An ed25519 public key is valid when zebra accepts it and it is not a
+/// small-order point, in any of its encodings.
+///
+/// zebra follows ZIP-215: it decodes non-canonical `y` (`y + p` for
+/// `y < 19`) and the sign bit on `x = 0`, and it checks the cofactored
+/// equation `[8](s·B - k·A - R) == 0`. For `A` in the torsion subgroup
+/// `[8]·k·A` vanishes, so `R = identity, s = 0` verifies for any message.
+/// `decompress` reduces `y` the same way zebra does, so `is_small_order` sees
+/// every encoding zebra accepts.
+pub(crate) fn ed25519_public_is_valid(bytes: &[u8]) -> bool {
+	let Ok(bytes): core::result::Result<[u8; 32], _> = bytes.try_into() else {
+		return false;
+	};
+	ed25519_zebra::VerificationKey::try_from(bytes).is_ok()
+		&& CompressedEdwardsY(bytes).decompress().is_some_and(|point| !point.is_small_order())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use curve25519_dalek::edwards::EdwardsPoint;
 	use curve25519_dalek::ristretto::CompressedRistretto;
+	use curve25519_dalek::traits::IsIdentity;
+
+	/// Every 32-byte string that decodes to a small-order Edwards point.
+	///
+	/// The torsion subgroup is cyclic of order 8, so it is `{k·T | k = 0..8}`
+	/// for a point `T` of order 8. Each of its points has the canonical
+	/// encoding, the same `y` with the other sign bit (which decodes for
+	/// `x = 0` too), and `y + p` when that fits in 255 bits (only `y < 19`).
+	fn small_order_ed25519_encodings() -> std::vec::Vec<[u8; 32]> {
+		// An order-8 point (libsodium's small-order blocklist).
+		let mut t_bytes = [0u8; 32];
+		hex::decode_to_slice(
+			"c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+			&mut t_bytes,
+		)
+		.expect("hex");
+		let t = CompressedEdwardsY(t_bytes).decompress().expect("order-8 point decodes");
+		let four_t = (t + t) + (t + t);
+		assert!(!four_t.is_identity(), "T has order 8, not 4");
+		assert!((four_t + four_t).is_identity(), "T has order 8");
+
+		let mut point = EdwardsPoint::identity();
+		let mut out = std::vec::Vec::new();
+		for _ in 0..8 {
+			let mut y = point.compress().to_bytes();
+			y[31] &= 0x7f;
+			let mut ys = std::vec![y];
+			if y[1..].iter().all(|b| *b == 0) && y[0] < 19 {
+				// y + p = y + 2^255 - 19, little-endian.
+				let mut plus_p = [0xffu8; 32];
+				plus_p[0] = 0xed + y[0];
+				plus_p[31] = 0x7f;
+				ys.push(plus_p);
+			}
+			for y in ys {
+				for sign in [0u8, 0x80] {
+					let mut enc = y;
+					enc[31] |= sign;
+					let small = CompressedEdwardsY(enc)
+						.decompress()
+						.is_some_and(|p| p.is_small_order());
+					if small && !out.contains(&enc) {
+						out.push(enc);
+					}
+				}
+			}
+			point += t;
+		}
+		out
+	}
+
+	#[test]
+	fn zebra_accepts_all_fourteen_small_order_encodings_and_the_check_refuses_them() {
+		let encodings = small_order_ed25519_encodings();
+		assert_eq!(encodings.len(), 14);
+		for enc in encodings {
+			assert!(
+				ed25519_zebra::VerificationKey::try_from(enc).is_ok(),
+				"zebra accepts {}, so this is a real gap",
+				hex::encode(enc)
+			);
+			assert!(!ed25519_public_is_valid(&enc), "{} is small-order", hex::encode(enc));
+		}
+	}
+
+	#[test]
+	fn ed25519_accepts_a_real_key_and_rejects_what_zebra_rejects() {
+		let real = ed25519_zebra::SigningKey::from([7u8; 32]);
+		let real: [u8; 32] = ed25519_zebra::VerificationKey::from(&real).into();
+		assert!(ed25519_public_is_valid(&real));
+		// The first small `y` that is not on the curve: zebra rejects it.
+		let off_curve = (2u8..=255)
+			.map(|y| {
+				let mut enc = [0u8; 32];
+				enc[0] = y;
+				enc
+			})
+			.find(|enc| ed25519_zebra::VerificationKey::try_from(*enc).is_err())
+			.expect("some small y is off the curve");
+		assert!(!ed25519_public_is_valid(&off_curve));
+		assert!(!ed25519_public_is_valid(&[0u8; 31]));
+	}
 
 	#[test]
 	fn the_ristretto_identity_is_the_32_zero_bytes_and_decodes() {
