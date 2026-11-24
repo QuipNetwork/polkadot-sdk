@@ -16,6 +16,9 @@ workspace = true
 # binding, signing, and verification delegate to pqhybridsign.
 schnorrkel = { workspace = true, default-features = false }
 ed25519-zebra = { version = "4", default-features = false }
+# The identity / small-order checks on the classical public key (G-002).
+# The same 4.1.3 copy schnorrkel and ed25519-zebra already build.
+curve25519-dalek = { version = "4.1.3", default-features = false }
 fips204 = { version = "0.4", default-features = false, features = ["ml-dsa-44"]}
 zeroize = { version = "1", default-features = false, features = ["derive"] }
 rand_core = { version = "0.6", default-features = false  } # can't be bumped due to schnorrkel and fips204 depending on this api version.

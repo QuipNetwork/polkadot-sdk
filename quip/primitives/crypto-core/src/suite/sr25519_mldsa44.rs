@@ -46,7 +46,7 @@ impl Config for Sr25519MlDsa44 {
 	type LibrarySuite = SrMl44;
 
 	fn classical_public_is_valid(bytes: &[u8]) -> bool {
-		schnorrkel::PublicKey::from_bytes(bytes).is_ok()
+		super::classical_key::sr25519_public_is_valid(bytes)
 	}
 
 	fn classical_public_from_secret(bytes: &[u8]) -> Option<[u8; 32]> {

@@ -4,6 +4,7 @@
 //! wrapper types, serialization layout, suite label, and a
 //! [`crate::HybridSignatureScheme`] implementation.
 
+mod classical_key;
 pub mod ed25519_fndsa512;
 pub mod ed25519_mldsa44;
 mod fndsa512;

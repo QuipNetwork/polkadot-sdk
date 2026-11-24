@@ -18525,6 +18525,7 @@ dependencies = [
 name = "quip-crypto-primitives"
 version = "0.1.0"
 dependencies = [
+ "curve25519-dalek",
  "hkdf",
  "parity-scale-codec",
  "pqhybridsign",
@@ -18543,6 +18544,7 @@ dependencies = [
 name = "quip-crypto-primitives-core"
 version = "0.1.0"
 dependencies = [
+ "curve25519-dalek",
  "ed25519-zebra",
  "fips204",
  "fn-dsa",

@@ -40,5 +40,6 @@ std = [
 full_crypto = ["sp-core/full_crypto"]
 
 [dev-dependencies]
+curve25519-dalek = { workspace = true }
 rand_core = { workspace = true, features = ["getrandom"] }
 sp-consensus-babe = { workspace = true, default-features = false, features = ["std"] }
